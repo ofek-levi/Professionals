@@ -105,6 +105,8 @@ export const professional = {
     },
   },
   request: {
+    /** Header title until the request's category is known (also on errors). */
+    screenTitle: 'Request details',
     posted: 'Posted',
     preferredTime: 'Customer’s preferred time',
     aboutJob: 'About the job',

@@ -45,6 +45,8 @@ export function ProfessionalRequestDetails({ requestId }: ProfessionalRequestDet
   if (!request) {
     return (
       <Screen edges={['left', 'right', 'bottom']} testID={`ProfessionalRequestDetails-${requestId}`}>
+        {/* The shared route title is customer wording; professionals get their own ("קריאה"). */}
+        <Stack.Screen options={{ title: t('professional:request.screenTitle') }} />
         {query.isError || (query.data && query.data.viewerRole !== 'professional') ? (
           <>
             <ErrorState error={query.error} onRetry={() => void query.refetch()} retrying={query.isRefetching} />

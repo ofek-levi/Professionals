@@ -113,6 +113,7 @@ export const professional: LocaleNamespace<typeof enprofessional> = {
     },
   },
   request: {
+    screenTitle: 'פרטי הקריאה',
     posted: 'פורסמה',
     preferredTime: 'המועד המועדף על הלקוח',
     aboutJob: 'על העבודה',

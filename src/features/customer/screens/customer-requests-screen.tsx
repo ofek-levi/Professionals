@@ -3,7 +3,7 @@
  * pull-to-refresh and a helpful empty state per section.
  */
 import { useRouter } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, RefreshControl, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -13,6 +13,7 @@ import { CUSTOMER_REQUEST_SECTIONS, type CustomerRequestSection } from '@/consta
 import { useCustomerRequests, useRefetchOnFocus, useRouteParam } from '@/hooks';
 import { REQUESTS_SECTION_PARAM, routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
+import { horizontalScrollOffset, itemStartOffset } from '@/utils/scroll';
 
 import { hasUnseenOffers, useSeenOffers } from '../seen-offers-store';
 
@@ -34,6 +35,11 @@ function parseSection(value: string | undefined): SectionFilter {
   return value && (CUSTOMER_REQUEST_SECTIONS as readonly string[]).includes(value) ? (value as CustomerRequestSection) : 'all';
 }
 
+interface ChipLayout {
+  x: number;
+  width: number;
+}
+
 const toParams = (section: SectionFilter) => (section === 'all' ? {} : { section });
 
 /** Chip with the live number of requests in its section. */
@@ -41,19 +47,19 @@ function SectionChip({
   section,
   selected,
   onPress,
-  onLayoutX,
+  onLayoutChip,
 }: {
   section: SectionFilter;
   selected: boolean;
   onPress: () => void;
-  onLayoutX: (section: SectionFilter, x: number) => void;
+  onLayoutChip: (section: SectionFilter, layout: ChipLayout) => void;
 }) {
   const { t } = useTranslation('customer');
   const countQuery = useCustomerRequests({ ...toParams(section), limit: 1 });
   const count = countQuery.data?.totalCount;
   const label = t(`requests.sections.${section}`);
   return (
-    <View onLayout={(event) => onLayoutX(section, event.nativeEvent.layout.x)}>
+    <View onLayout={(event) => onLayoutChip(section, { x: event.nativeEvent.layout.x, width: event.nativeEvent.layout.width })}>
       <Chip
         label={label}
         icon={SECTION_ICONS[section]}
@@ -76,23 +82,36 @@ export default function CustomerRequestsScreen() {
   const query = useCustomerRequests(toParams(section));
   const seenOffers = useSeenOffers();
   const chipsRef = useRef<ScrollView>(null);
-  const chipPositions = useRef(new Map<SectionFilter, number>());
+  const [chipLayouts, setChipLayouts] = useState<Partial<Record<SectionFilter, ChipLayout>>>({});
+  const [chipsSize, setChipsSize] = useState({ content: 0, viewport: 0 });
   useRefetchOnFocus(query.refetch);
 
-  // Keep the selected section chip in view (e.g. when opened from a home tile).
-  // Web RTL scroll offsets are negative, so the automatic scroll is skipped there.
-  const canAutoScroll = !(Platform.OS === 'web' && theme.isRTL);
-  const scrollToChip = (x: number, animated: boolean) => {
-    if (canAutoScroll) chipsRef.current?.scrollTo({ x: Math.max(0, x - theme.spacing.screen), animated });
+  // Keep the selected section chip in view (e.g. when opened from a home tile), in both directions.
+  const rtlWeb = Platform.OS === 'web' && theme.isRTL;
+  const padding = theme.spacing.screen;
+  const chipGap = theme.spacing.sm;
+  const handleChipLayout = (key: SectionFilter, layout: ChipLayout) => {
+    setChipLayouts((all) => {
+      const known = all[key];
+      return known && known.x === layout.x && known.width === layout.width ? all : { ...all, [key]: layout };
+    });
   };
-  const handleChipLayout = (key: SectionFilter, x: number) => {
-    chipPositions.current.set(key, x);
-    if (key === section) scrollToChip(x, false);
-  };
+  const lastScrolled = useRef<SectionFilter | null>(null);
   useEffect(() => {
-    const x = chipPositions.current.get(section);
-    if (x !== undefined && canAutoScroll) chipsRef.current?.scrollTo({ x: Math.max(0, x - theme.spacing.screen), animated: true });
-  }, [section, canAutoScroll, theme.spacing.screen]);
+    const index = FILTERS.indexOf(section);
+    const widths = FILTERS.map((filter) => chipLayouts[filter]?.width);
+    const selectedLayout = chipLayouts[section];
+    if (!selectedLayout || widths.slice(0, index).some((width) => width === undefined)) return;
+    if (chipsSize.content === 0 || chipsSize.viewport === 0) return;
+    // React Native Web only reports size changes to onLayout, so a chip's x goes stale when a chip
+    // before it grows (e.g. when its count loads): on the web the position is derived from widths.
+    const startOffset =
+      Platform.OS === 'web' ? itemStartOffset(widths.map((width) => width ?? 0), index, chipGap, padding) : selectedLayout.x;
+    const x = horizontalScrollOffset({ startOffset, contentWidth: chipsSize.content, viewportWidth: chipsSize.viewport, padding, rtlWeb });
+    // Opening the screen on a section jumps there; switching sections afterwards animates.
+    chipsRef.current?.scrollTo({ x, animated: lastScrolled.current !== null && lastScrolled.current !== section });
+    lastScrolled.current = section;
+  }, [section, chipLayouts, chipsSize, chipGap, padding, rtlWeb]);
 
   const selectSection = (next: SectionFilter) => {
     router.setParams({ [REQUESTS_SECTION_PARAM]: next === 'all' ? undefined : next });
@@ -111,14 +130,24 @@ export default function CustomerRequestsScreen() {
           }
         />
       </View>
-      <ScrollView ref={chipsRef} horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+      <ScrollView
+        ref={chipsRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chips}
+        onLayout={(event) => {
+          const viewport = event.nativeEvent.layout.width;
+          setChipsSize((size) => (size.viewport === viewport ? size : { ...size, viewport }));
+        }}
+        onContentSizeChange={(content) => setChipsSize((size) => (size.content === content ? size : { ...size, content }))}
+      >
         {FILTERS.map((filter) => (
           <SectionChip
             key={filter}
             section={filter}
             selected={filter === section}
             onPress={() => selectSection(filter)}
-            onLayoutX={handleChipLayout}
+            onLayoutChip={handleChipLayout}
           />
         ))}
       </ScrollView>
@@ -203,6 +232,7 @@ const useStyles = makeStyles((t) => ({
   headerPadding: {
     paddingHorizontal: t.spacing.screen,
   },
+  // Keep in sync with the chip scroll math (gap / start padding) in CustomerRequestsScreen.
   chips: {
     gap: t.spacing.sm,
     paddingHorizontal: t.spacing.screen,

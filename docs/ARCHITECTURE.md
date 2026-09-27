@@ -217,6 +217,8 @@ Errors: `ApiErrorBody { code, message, fieldErrors? }` with HTTP status: 400/422
 - Destructive/important actions ask for confirmation via `useConfirm()`; results are surfaced with
   `useToast()`.
 - Safe areas: use `<Screen>` which handles insets, keyboard avoidance and pull-to-refresh.
+- Stack screens opened with nothing to go back to (deep link, notification on a cold start, web
+  refresh) get a header button to the signed-in role's home (`HeaderHomeButton`, `src/app/_layout.tsx`).
 
 ## 7. Localization
 

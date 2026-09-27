@@ -68,7 +68,7 @@ React Query and i18n:
 | `RatingStars` | `<RatingStars value={4.5} count={32} showValue />` / `variant="compact"` → ★ 4.8 (32) |
 | `RatingInput` | `<RatingInput value={rating} onChange={setRating} />` |
 | `PriceText` | `<PriceText amount={offer.price} currency={offer.currency} variant="title" />` |
-| `TimeAgo` | `<TimeAgo date={request.createdAt} />` (refreshes itself) |
+| `TimeAgo` | `<TimeAgo date={request.createdAt} />` (refreshes itself; `casing="inline"` after a word: "Posted just now") |
 | `DistanceText` | `<DistanceText km={request.distanceKm} away />` |
 | `useNow` | `const now = useNow(60_000)` (re-renders every minute – for countdowns) |
 | `usePanGesture` | Responder-based drag helper returning View props (works on web without a gesture root) |
@@ -94,7 +94,8 @@ React Query and i18n:
 | `ReviewCard` | `<ReviewCard review={review} showCategory />` |
 | `RatingSummary` | `<RatingSummary breakdown={breakdown} />` |
 | `JobStatusBadge` | `<JobStatusBadge status={job.status} />` |
-| `JobCard` | `<JobCard job={job} viewerRole={user.role} onPress={…} />` · `<JobCardSkeleton />` |
+| `JobCard` | `<JobCard job={job} viewerRole={user.role} onPress={…} />` · `<JobCardSkeleton />` (a completed job shows its completion time) |
+| `useJobWhen` | `const { completed, text } = useJobWhen(job)` – the appointment, or "Completed today at 19:28" once done |
 | `LocationPicker` | `<LocationPicker value={location} onChange={setLocation} error={errorText} initialRegion={regionForRadius(center, 5)} />` |
 | `LocationSummary` | `<LocationSummary location={request.location} />` (shows the approximate indicator automatically) |
 | `AppMap` | `<AppMap style={{ height: 320 }} markers={[{ id, coordinate, tone: 'danger', icon, label, selected }]} circles={[{ center, radiusKm: 15 }]} onMarkerPress={select} fitToMarkers />` |
