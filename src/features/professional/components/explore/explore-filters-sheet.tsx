@@ -24,7 +24,6 @@ import {
 } from '../../explore-filters';
 import { ToggleRow } from '../shared/toggle-row';
 import { FilterSection } from './filter-section';
-import { useExploreMapRequests } from './use-explore-map-requests';
 
 export interface ExploreFiltersSheetProps {
   visible: boolean;
@@ -58,7 +57,7 @@ export function ExploreFiltersSheet({
   const { t } = useTranslation(['explore', 'common']);
   const format = useFormatters();
   // Live result count for the draft (shares the cache with the map once applied).
-  const preview = useExploreMapRequests(filtersToParams(draft, now));
+  const preview = useNearbyRequestsForMap(filtersToParams(draft, now));
   const count = preview.data?.totalCount;
   const counting = preview.isFetching || preview.isPlaceholderData;
   const activeCount = countActiveFilters(draft);

@@ -1,5 +1,6 @@
 import { keepPreviousData, skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
+import { APP_CONFIG } from '@/constants/app-config';
 import { api } from '@/services/api';
 import type { CustomerRequestsParams, NearbyRequestsParams } from '@/types/api';
 
@@ -16,8 +17,8 @@ import {
 export type CustomerRequestsQueryParams = Omit<CustomerRequestsParams, 'cursor'>;
 export type NearbyRequestsQueryParams = Omit<NearbyRequestsParams, 'cursor'>;
 
-/** Max markers fetched for the explore map (single page). */
-export const NEARBY_MAP_LIMIT = 200;
+/** Max markers fetched for the explore map: one page of the largest size the API accepts. */
+export const NEARBY_MAP_LIMIT = APP_CONFIG.maxPageSize;
 
 /** `GET /customer/requests` – infinite, cursor paginated (customers only). */
 export function useCustomerRequests(params: CustomerRequestsQueryParams = {}) {

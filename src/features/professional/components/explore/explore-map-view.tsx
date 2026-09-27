@@ -12,7 +12,7 @@ import { useTranslation } from 'react-i18next';
 import { AppMap, type AppMapCircle, type AppMapMarker, type MapRegion } from '@/components/map';
 import { AppText, Button, ErrorState, Icon, IconButton } from '@/components/ui';
 import { URGENCY_META } from '@/constants/urgency-levels';
-import { useCategoryLookup, useRefetchOnFocus } from '@/hooks';
+import { useCategoryLookup, useNearbyRequestsForMap, useRefetchOnFocus } from '@/hooks';
 import { useFormatters, useLocalizedText } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
@@ -21,7 +21,6 @@ import { regionForRadius } from '@/utils/geo';
 
 import type { NearbyFilterParams } from '../../explore-filters';
 import { MapRequestPreview } from './map-request-preview';
-import { useExploreMapRequests } from './use-explore-map-requests';
 
 export interface ExploreMapViewProps {
   serviceArea: ServiceArea;
@@ -46,7 +45,7 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
   const localize = useLocalizedText();
   const catalog = useCategoryLookup();
   const reduceMotion = useReducedMotion();
-  const query = useExploreMapRequests(params);
+  const query = useNearbyRequestsForMap(params);
   useRefetchOnFocus(query.refetch);
 
   const homeRegion = regionForRadius(serviceArea.center, serviceArea.radiusKm);

@@ -175,6 +175,10 @@ Who can do what:
 | GET /conversations · /conversations/:id · /conversations/:id/messages | participant | … |
 | POST /conversations/:id/messages · /conversations/:id/read | participant | `Message` · `SuccessResponse` |
 
+Pagination: list endpoints take `cursor` (opaque) and `limit` (default `APP_CONFIG.pageSize` = 20,
+at most `APP_CONFIG.maxPageSize` = 100; larger values are rejected with 422 `VALIDATION_ERROR`) and
+return `Paginated<T> { items, nextCursor, totalCount }`.
+
 Errors: `ApiErrorBody { code, message, fieldErrors? }` with HTTP status: 400/422 `VALIDATION_ERROR`
 (`UNSUPPORTED_CATEGORY`, `OUTSIDE_SERVICE_AREA`), 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`,
 409 `CONFLICT` / `INVALID_STATE_TRANSITION` / `DUPLICATE_OFFER` / `OFFER_EXPIRED` /

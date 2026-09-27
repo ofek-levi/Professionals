@@ -4,7 +4,8 @@ import { DomainError } from '@/features/shared/domain-error';
 import { vm } from '@/lib/validation/messages';
 import type { Paginated, PaginationParams } from '@/types/api';
 
-export const MAX_PAGE_SIZE = 100;
+/** Contract limit shared with the client (`APP_CONFIG.maxPageSize`). */
+export const MAX_PAGE_SIZE = APP_CONFIG.maxPageSize;
 
 const CURSOR_PREFIX = 'o';
 

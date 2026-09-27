@@ -21,5 +21,8 @@ export const APP_CONFIG = {
   maxScheduleDaysAhead: 60,
   /** Appointment reminder lead time. */
   appointmentReminderLeadMinutes: 120,
+  /** Default page size of cursor-paginated lists. */
   pageSize: 20,
+  /** Largest `limit` a paginated endpoint accepts (larger values are rejected with 422). */
+  maxPageSize: 100,
 } as const;
