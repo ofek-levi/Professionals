@@ -79,6 +79,8 @@ export function JobCard({ job, viewerRole, onPress, style, testID }: JobCardProp
       ? { name: job.professional.displayName, avatarUrl: job.professional.avatarUrl, verified: job.professional.isVerified, role: t('roles.professional') }
       : { name: job.customer.displayName, avatarUrl: job.customer.avatarUrl, verified: false, role: t('roles.customer') };
   const { completed, text: when } = useJobWhen(job);
+  // The status badge already says "Completed", so the date line only shows when it happened.
+  const whenLabel = completed && job.completedAt ? format.dateTime(job.completedAt) : when;
   const duration = !completed && job.estimatedDurationMinutes ? format.duration(job.estimatedDurationMinutes, 'short') : null;
 
   return (
@@ -109,7 +111,7 @@ export function JobCard({ job, viewerRole, onPress, style, testID }: JobCardProp
         <View style={[styles.when, completed ? styles.whenDone : null]}>
           <Icon name={completed ? 'calendar-check' : 'calendar-clock'} size={18} color={completed ? 'success' : 'primary'} />
           <AppText variant="captionStrong" numberOfLines={1} style={styles.flexShrink}>
-            {when}
+            {whenLabel}
           </AppText>
           {duration ? (
             <AppText variant="caption" color="muted" numberOfLines={1}>
