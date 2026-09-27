@@ -16,7 +16,8 @@ import { useConversationMessages } from '@/hooks/queries/use-conversation-querie
 import { useCustomerDashboard, useProfessionalDashboard } from '@/hooks/queries/use-dashboard-queries';
 import { useNotifications, useUnreadNotificationsCount } from '@/hooks/queries/use-notification-queries';
 import { useRequestOffers } from '@/hooks/queries/use-offer-queries';
-import { useRequest } from '@/hooks/queries/use-request-queries';
+import { NEARBY_MAP_LIMIT, useNearbyRequestsForMap, useRequest } from '@/hooks/queries/use-request-queries';
+import { APP_CONFIG } from '@/constants/app-config';
 import { createAccessToken } from '@/mocks/server/auth';
 import { createTestEnvironment, type TestEnvironment } from '@/mocks/testing/test-server';
 import { createMockTransport } from '@/mocks/transport';
@@ -81,6 +82,18 @@ describe('query scoping', () => {
     const { result } = await renderHook(() => useCurrentUser(), { wrapper });
     await waitFor(() => expect(result.current.data?.user.id).toBe(customer.userId));
     expect(client.getQueryCache().getAll().map((query) => query.queryKey[1])).toEqual([customer.userId]);
+  });
+});
+
+describe('useNearbyRequestsForMap', () => {
+  it('asks for the largest page the API accepts and gets the markers', async () => {
+    expect(NEARBY_MAP_LIMIT).toBe(APP_CONFIG.maxPageSize);
+    await signInAs(professional);
+    const { wrapper } = createWrapper();
+    const { result } = await renderHook(() => useNearbyRequestsForMap(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.items.length).toBeGreaterThan(0);
+    expect(result.current.data?.items.length).toBeLessThanOrEqual(NEARBY_MAP_LIMIT);
   });
 });
 

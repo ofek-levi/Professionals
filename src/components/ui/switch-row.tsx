@@ -1,8 +1,9 @@
-import { Pressable, Switch, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { StatusTone } from '@/constants/tones';
 import { makeStyles, useTheme } from '@/theme';
 
+import { AppSwitch } from './app-switch';
 import { AppText } from './app-text';
 import { haptics } from './haptics';
 import { Icon, type IconSource } from './icon';
@@ -55,16 +56,7 @@ export function SwitchRow({ title, description, value, onValueChange, icon, icon
           </AppText>
         ) : null}
       </View>
-      <Switch
-        value={value}
-        onValueChange={toggle}
-        disabled={disabled}
-        trackColor={{ false: theme.colors.borderStrong, true: theme.colors.primary }}
-        thumbColor={theme.colors.onPrimary}
-        ios_backgroundColor={theme.colors.borderStrong}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      />
+      <AppSwitch value={value} onValueChange={toggle} disabled={disabled} decorative />
     </Pressable>
   );
 }

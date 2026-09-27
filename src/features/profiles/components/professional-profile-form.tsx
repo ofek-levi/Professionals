@@ -11,8 +11,7 @@ import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
 
 import { FormSection, FormTextField, PriceInput, useTranslatedError } from '@/components/forms';
-import { Button, ErrorState, Screen, SkeletonCard, useConfirm, useErrorText, useToast } from '@/components/ui';
-import { ToggleRow } from '@/features/professional/components/shared/toggle-row';
+import { Button, ErrorState, Screen, SkeletonCard, SwitchRow, useConfirm, useErrorText, useToast } from '@/components/ui';
 import { APP_CONFIG } from '@/constants/app-config';
 import { useOwnProfessionalProfile, useUpdateProfessionalProfile } from '@/hooks';
 import { routes } from '@/lib/routes';
@@ -256,7 +255,7 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
           control={control}
           name="isInsured"
           render={({ field }) => (
-            <ToggleRow
+            <SwitchRow
               icon="shield-check-outline"
               iconTone="accent"
               title={t('professional:form.business.insured')}

@@ -8,8 +8,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { FormSection, TimeSlotPicker, useTranslatedError } from '@/components/forms';
-import { AppText, Divider, InlineAlert, Sheet } from '@/components/ui';
-import { RtlSafeSwitch, ToggleRow } from '@/features/professional/components/shared/toggle-row';
+import { AppSwitch, AppText, Divider, InlineAlert, Sheet, SwitchRow } from '@/components/ui';
 import type { ProfessionalProfileFormValues } from '@/lib/validation';
 import { makeStyles } from '@/theme';
 import { WEEKDAYS, type Weekday } from '@/types/domain';
@@ -56,7 +55,7 @@ export function AvailabilitySection({ control }: { control: Control<Professional
       </View>
       {daysError ? <InlineAlert tone="danger" message={translateError(daysError) ?? ''} /> : null}
 
-      <ToggleRow
+      <SwitchRow
         icon="alarm-light-outline"
         iconTone="danger"
         title={t('professional:form.hours.emergency')}
@@ -114,7 +113,7 @@ function DayRow({ label, enabled, start, end, offLabel, onToggle, onEditStart, o
   const { t } = useTranslation('professional');
   return (
     <View style={styles.dayRow} testID={testID}>
-      <RtlSafeSwitch value={enabled} onValueChange={onToggle} accessibilityLabel={t('form.hours.toggleA11y', { day: label })} />
+      <AppSwitch value={enabled} onValueChange={onToggle} accessibilityLabel={t('form.hours.toggleA11y', { day: label })} />
       <AppText variant="bodyStrong" style={styles.dayName} numberOfLines={1}>
         {label}
       </AppText>

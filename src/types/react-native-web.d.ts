@@ -2,7 +2,7 @@
  * Props that react-native-web understands but the React Native typings do not declare.
  * Only used on web; native ignores them.
  */
-import 'react-native';
+import type { ColorValue } from 'react-native';
 
 declare module 'react-native' {
   interface ViewProps {
@@ -13,5 +13,13 @@ declare module 'react-native' {
      * including content rendered through portals (modals).
      */
     dir?: 'ltr' | 'rtl' | 'auto';
+  }
+
+  interface SwitchProps {
+    /**
+     * @platform web
+     * Thumb color while the switch is on (react-native-web uses it instead of `thumbColor`).
+     */
+    activeThumbColor?: ColorValue;
   }
 }

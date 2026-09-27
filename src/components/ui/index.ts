@@ -2,6 +2,7 @@
  * Design-system primitives. Import from `@/components/ui`.
  * See src/components/README.md for usage examples.
  */
+export { AppSwitch, type AppSwitchProps } from './app-switch';
 export { AppText, resolveTextAlign, type AppTextProps, type TextAlign } from './app-text';
 export { Avatar, getInitials, type AvatarProps, type AvatarSize } from './avatar';
 export { Badge, type BadgeProps, type BadgeSize, type BadgeVariant } from './badge';

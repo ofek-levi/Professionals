@@ -6,8 +6,9 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { CategoryChip } from '@/components/categories';
-import { Button, Chip, Divider, Sheet } from '@/components/ui';
+import { Button, Chip, Divider, Sheet, SwitchRow } from '@/components/ui';
 import { URGENCY_LEVELS, URGENCY_META } from '@/constants/urgency-levels';
+import { useNearbyRequestsForMap } from '@/hooks';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import { OFFER_PRESENCE_FILTERS } from '@/types/api';
@@ -22,7 +23,6 @@ import {
   toggleInList,
   type ExploreFilters,
 } from '../../explore-filters';
-import { ToggleRow } from '../shared/toggle-row';
 import { FilterSection } from './filter-section';
 
 export interface ExploreFiltersSheetProps {
@@ -184,7 +184,7 @@ export function ExploreFiltersSheet({
       </FilterSection>
       <Divider />
 
-      <ToggleRow
+      <SwitchRow
         icon="eye-off-outline"
         iconTone="accent"
         title={t('explore:filters.hideOffered')}
