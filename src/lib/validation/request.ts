@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { APP_CONFIG } from '@/constants/app-config';
 import { isSupportedCategoryId } from '@/constants/professional-categories';
+import { isPreferredDateWithinUrgency } from '@/features/offers/offer-rules';
 import { URGENCY_LEVELS } from '@/constants/urgency-levels';
 import type { CreateServiceRequestPayload, UpdateDraftRequestPayload } from '@/types/api';
 import {
@@ -52,6 +53,16 @@ export function validatePreferredDate(dateKey: string, now: DateInput): Validati
   if (days < 0) return vm('request.preferredDateInPast');
   if (days > APP_CONFIG.maxScheduleDaysAhead) return vm('request.preferredDateTooFar');
   return null;
+}
+
+/**
+ * `validatePreferredDate` plus the urgency window: an emergency or urgent request can't ask for a
+ * date no offer is allowed to use. Returns an i18n key or `null`.
+ */
+export function validatePreferredDateForUrgency(dateKey: string, urgency: UrgencyLevel, now: DateInput): ValidationMessageKey | null {
+  const issue = validatePreferredDate(dateKey, now);
+  if (issue) return issue;
+  return isPreferredDateWithinUrgency(urgency, dateKey, now) ? null : vm('request.preferredDateBeyondUrgency');
 }
 
 export const preferredScheduleSchema = z.object({
@@ -118,7 +129,7 @@ export const requestFormPhotoSchema = z.object({
  * rejects dates that became past.
  */
 export function createRequestFormSchema(getNow: () => Date = () => new Date()) {
-  return z.object({
+  const schema = z.object({
     categoryId: z.string().nullable().superRefine((value, ctx) => {
       if (value === null || value === '') ctx.addIssue({ code: 'custom', message: vm('category.required') });
       else if (!isSupportedCategoryId(value)) ctx.addIssue({ code: 'custom', message: vm('category.unsupported') });
@@ -144,6 +155,14 @@ export function createRequestFormSchema(getNow: () => Date = () => new Date()) {
     preferredTimeWindow: timeWindowSchema,
     notes: optionalText(APP_CONFIG.notesMaxLength, vm('request.notesTooLong')),
     photos: z.array(requestFormPhotoSchema).max(APP_CONFIG.maxRequestPhotos, vm('request.tooManyPhotos')),
+  });
+  // The preferred date must also fit the urgency (checked on the date field).
+  return schema.superRefine((values, ctx) => {
+    if (!values.preferredDate || !values.urgency) return;
+    if (validatePreferredDate(values.preferredDate, getNow())) return; // reported by the field itself
+    if (!isPreferredDateWithinUrgency(values.urgency, values.preferredDate, getNow())) {
+      ctx.addIssue({ code: 'custom', path: ['preferredDate'], message: vm('request.preferredDateBeyondUrgency') });
+    }
   });
 }
 

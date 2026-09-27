@@ -52,6 +52,7 @@ export function AccountCard() {
                 tone={user.role === 'professional' ? 'accent' : 'brand'}
                 icon={user.role === 'professional' ? 'hammer-wrench' : 'account-outline'}
                 size="sm"
+                style={styles.noShrink}
               />
               <AppText variant="caption" color="secondary" numberOfLines={1} style={styles.shrink}>
                 {user.email}
@@ -92,6 +93,7 @@ export function AccountCard() {
           label={t('settings:account.signOut')}
           variant="outline"
           leftIcon="logout"
+          flipIconsInRTL
           onPress={() => void confirmSignOut()}
           style={styles.action}
           fullWidth
@@ -122,6 +124,10 @@ const useStyles = makeStyles((t) => ({
   },
   shrink: {
     flexShrink: 1,
+  },
+  // The role badge keeps its full label; a long email is truncated instead.
+  noShrink: {
+    flexShrink: 0,
   },
   actions: {
     flexDirection: 'row',

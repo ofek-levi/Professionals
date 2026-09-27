@@ -1,5 +1,6 @@
 import type { professional as enprofessional } from '../en/professional';
 import type { LocaleNamespace } from '../../types';
+import { isolateLtr } from '@/utils/bidi';
 
 export const professional: LocaleNamespace<typeof enprofessional> = {
   home: {
@@ -10,9 +11,9 @@ export const professional: LocaleNamespace<typeof enprofessional> = {
       night: 'עובדים עד מאוחר, {{name}}?',
     },
     status: {
-      available: 'זמינים היום · {{start}}–{{end}}',
-      startsAt: 'עובדים היום · {{start}}–{{end}}',
-      afterHours: 'סיימתם להיום · {{start}}–{{end}}',
+      available: `זמינים היום · ${isolateLtr('{{start}}–{{end}}')}`,
+      startsAt: `עובדים היום · ${isolateLtr('{{start}}–{{end}}')}`,
+      afterHours: `סיימתם להיום · ${isolateLtr('{{start}}–{{end}}')}`,
       dayOff: 'יום חופש היום',
     },
     serviceArea: '{{area}} · {{distance}}',
@@ -80,13 +81,13 @@ export const professional: LocaleNamespace<typeof enprofessional> = {
       completed: 'הושלמו',
     },
     awaitingTitle: 'ממתין לאישור שלך',
-    awaitingDescription: '{{customer}} אישר/ה את ההצעה שלך. אשרו כדי לקבוע את הביקור.',
+    awaitingDescription: '{{customer}} אישר/ה את ההצעה שלכם. אשרו כדי לקבוע את הביקור.',
     confirmAppointment: 'אישור הביקור',
     confirmShort: 'אישור',
     confirmDialog: {
       title: 'לאשר את מועד הביקור?',
       message: 'ביקור אצל {{customer}}: {{when}}.\nהלקוח יקבל הודעה ברגע שתאשרו.',
-      confirm: 'אישור',
+      confirm: 'אישור הביקור',
     },
     confirmed: 'הביקור אושר',
     confirmedMessage: 'הלקוח קיבל על כך הודעה.',
@@ -136,9 +137,14 @@ export const professional: LocaleNamespace<typeof enprofessional> = {
       none: 'עדיין אין הצעות',
       noneHint: 'היו הראשונים – להצעות מוקדמות יש יותר סיכוי לבלוט.',
       some_one: 'בעל מקצוע אחד כבר שלח הצעה',
-      some_two: '{{count}} בעלי מקצוע כבר שלחו הצעות',
+      some_two: 'שני בעלי מקצוע כבר שלחו הצעות',
       some_other: '{{count}} בעלי מקצוע כבר שלחו הצעות',
       someHint: 'בלטו עם מחיר ברור, מועד נוח והודעה אישית.',
+      onlyYours: 'בינתיים ההצעה שלכם היא היחידה',
+      others_one: 'בעל מקצוע נוסף שלח הצעה',
+      others_two: 'עוד שני בעלי מקצוע שלחו הצעות',
+      others_other: 'עוד {{count}} בעלי מקצוע שלחו הצעות',
+      yoursHint: 'הלקוח משווה בין ההצעות. כל עוד ההצעה ממתינה, אפשר לערוך אותה.',
     },
     myOffer: {
       title: 'ההצעה שלך',
@@ -153,6 +159,7 @@ export const professional: LocaleNamespace<typeof enprofessional> = {
         taken: 'הלקוח כבר בחר בעל מקצוע לקריאה הזו.',
         cancelled: 'הלקוח ביטל את הקריאה הזו.',
       },
+      customerNote: 'הערה מהלקוח: {{note}}',
     },
     cta: {
       send: 'שליחת הצעה',

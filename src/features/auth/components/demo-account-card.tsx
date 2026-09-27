@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import { CategoryChip } from '@/components/categories';
 import { AppText, Avatar, Badge, Card, Chip, Icon } from '@/components/ui';
+import { useLocalizedText } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import type { DemoAccount } from '@/types/domain';
 
@@ -23,10 +24,12 @@ export function DemoAccountCard({ account, onPress, loading = false, disabled = 
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation(['auth', 'common']);
+  const localize = useLocalizedText();
   const roleLabel = t(`common:roles.${account.role}`);
   const isProfessional = account.role === 'professional';
   const visibleCategories = account.categoryIds.slice(0, MAX_VISIBLE_CATEGORIES);
   const hiddenCategories = account.categoryIds.length - visibleCategories.length;
+  const description = localize(account.description);
 
   return (
     <Card
@@ -69,9 +72,9 @@ export function DemoAccountCard({ account, onPress, loading = false, disabled = 
         )}
       </View>
 
-      {account.description ? (
+      {description ? (
         <AppText variant="body" color="secondary" style={styles.description}>
-          {account.description}
+          {description}
         </AppText>
       ) : null}
 

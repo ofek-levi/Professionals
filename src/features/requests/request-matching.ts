@@ -98,8 +98,9 @@ export function filterNearbyRequests<T extends ServiceRequest>(
     if (!isRequestOpenForOffers(request)) continue;
     if (!requestedCategories.has(request.categoryId)) continue;
     if (urgencies && !urgencies.has(request.urgency)) continue;
-    if (offerPresence === 'no_offers' && request.offerCount !== 0) continue;
-    if (offerPresence === 'has_offers' && request.offerCount === 0) continue;
+    // Competition = live offers; expired or rejected ones no longer compete.
+    if (offerPresence === 'no_offers' && request.pendingOfferCount !== 0) continue;
+    if (offerPresence === 'has_offers' && request.pendingOfferCount === 0) continue;
     if (excluded?.has(request.id)) continue;
     if (hasDateFilter) {
       const date = request.preferredSchedule?.date;
@@ -126,7 +127,7 @@ export function sortNearbyRequests<T extends WithDistance<ServiceRequest>>(
     newest: newestFirst,
     nearest: (a, b) => a.distanceKm - b.distanceKm || newestFirst(a, b),
     most_urgent: (a, b) => compareUrgency(a.urgency, b.urgency) || newestFirst(a, b),
-    fewest_offers: (a, b) => a.offerCount - b.offerCount || newestFirst(a, b),
+    fewest_offers: (a, b) => a.pendingOfferCount - b.pendingOfferCount || newestFirst(a, b),
   };
   return [...list].sort(comparators[sort]);
 }

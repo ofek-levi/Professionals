@@ -12,6 +12,7 @@ import { AppText, Avatar, Card, EmptyState, ErrorState, Icon, Screen, Skeleton, 
 import { useProfessionalProfile, useProfessionalReviews, useRefetchOnFocus, useRouteParam } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
+import { isolateText } from '@/utils/bidi';
 
 export default function ProfessionalReviewsScreen() {
   const theme = useTheme();
@@ -25,7 +26,7 @@ export default function ProfessionalReviewsScreen() {
   useRefetchOnFocus(query.refetch);
 
   const professional = profileQuery.data;
-  const title = professional ? t('reviews:list.title', { name: professional.displayName }) : t('common:screens.professionalReviews');
+  const title = professional ? t('reviews:list.title', { name: isolateText(professional.displayName) }) : t('common:screens.professionalReviews');
 
   if (!professionalId || query.data === undefined) {
     return (

@@ -4,8 +4,9 @@ import { useTranslation } from 'react-i18next';
 import { AppText, Icon, haptics, withAlpha, type IconName } from '@/components/ui';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
+import { alignForText } from '@/utils/bidi';
 
-import { alignForTextDirection, getTextDirection, type ChatMessageRow, type FailedMessage, type MessageDeliveryState } from './chat-model';
+import type { ChatMessageRow, FailedMessage, MessageDeliveryState } from './chat-model';
 
 export interface MessageBubbleProps {
   row: ChatMessageRow;
@@ -57,7 +58,7 @@ export function MessageBubble({ row, counterpartName, onRetry, onDiscard }: Mess
       <AppText
         variant="body"
         color={mine ? 'onPrimary' : 'default'}
-        align={alignForTextDirection(getTextDirection(message.text), theme.isRTL)}
+        align={alignForText(message.text, theme.isRTL)}
         selectable={!failed}
       >
         {message.text}

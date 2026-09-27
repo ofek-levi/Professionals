@@ -200,6 +200,9 @@ const useStyles = makeStyles((t) => ({
   },
   input: {
     flex: 1,
+    // A web <input> never shrinks below its intrinsic width (~20 characters) unless allowed to:
+    // in a narrow field (two per row) it would overflow the box and, in RTL, hide its text.
+    minWidth: 0,
     alignSelf: 'stretch',
     ...t.typography.body,
     color: t.colors.text,

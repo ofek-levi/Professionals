@@ -35,7 +35,7 @@ export function RequestSummaryHeader({ request, onPress }: { request: Profession
             <AppText variant="subheading" numberOfLines={1}>
               {categoryName}
             </AppText>
-            <AppText variant="caption" color="secondary" numberOfLines={2}>
+            <AppText variant="caption" color="secondary" numberOfLines={2} userContent>
               {request.description}
             </AppText>
           </View>

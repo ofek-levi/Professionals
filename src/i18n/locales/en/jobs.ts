@@ -100,7 +100,7 @@ export const jobs = {
   confirmDialogs: {
     confirm: {
       title: 'Confirm the appointment?',
-      confirmLabel: 'Confirm',
+      confirmLabel: 'Confirm appointment',
       message: '{{name}} will be notified that you’ll arrive {{date}}.',
     },
     start: {

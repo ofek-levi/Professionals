@@ -44,7 +44,7 @@ export function useProfessionalReviews(professionalId: string | null | undefined
   const { userId, enabled } = useQueryScope();
   const limit = options.limit ?? DEFAULT_PAGE_SIZE;
   return useInfiniteQuery({
-    queryKey: queryKeys.professionals.reviews(userId, professionalId ?? ''),
+    queryKey: queryKeys.professionals.reviews(userId, professionalId ?? '', { limit }),
     queryFn: ({ pageParam, signal }): Promise<ReviewsPage> =>
       api.professionals.getProfessionalReviews(professionalId ?? '', { cursor: pageParam, limit }, signal),
     initialPageParam: INITIAL_PAGE_PARAM,

@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { FormTextField, useTranslatedError } from '@/components/forms';
-import { AppText, Button, Icon, InlineAlert, Sheet, useConfirm, useErrorText, useToast } from '@/components/ui';
+import { AppText, Button, Icon, InlineAlert, Sheet, useConfirm, useErrorToast, useToast } from '@/components/ui';
 import { useCancelRequest } from '@/hooks';
 import { CANCEL_COMMENT_MAX_LENGTH, cancelRequestSchema } from '@/lib/validation';
 import { makeStyles, useTheme } from '@/theme';
@@ -24,7 +24,7 @@ export function CancelRequestSheet({ request, visible, onClose }: CancelRequestS
   const translateError = useTranslatedError();
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const cancelRequest = useCancelRequest();
   const { control, handleSubmit, reset } = useForm({
     resolver: zodResolver(cancelRequestSchema),
@@ -53,7 +53,7 @@ export function CancelRequestSheet({ request, visible, onClose }: CancelRequestS
       reset();
       toast.show({ title: t('customer:cancel.success'), tone: 'neutral', icon: 'close-circle-outline' });
     } catch (error) {
-      toast.show({ ...errorText(error), tone: 'danger' });
+      showError(error);
     }
   });
 

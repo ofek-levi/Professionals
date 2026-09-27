@@ -23,11 +23,17 @@ export interface SegmentedControlProps<T extends string> {
   testID?: string;
 }
 
+/** Visual segment heights; the touch area is extended vertically to `theme.layout.minTouchSize`. */
+const SEGMENT_HEIGHT = { md: 40, sm: 32 } as const;
+
 /** iOS-style segmented switch for 2–4 mutually exclusive views or filters. */
 export function SegmentedControl<T extends string>({ options, value, onChange, size = 'md', style, testID }: SegmentedControlProps<T>) {
   const theme = useTheme();
   const styles = useStyles();
   const small = size === 'sm';
+  // Vertical only: horizontally the segments sit next to each other.
+  const slop = Math.max(0, Math.ceil((theme.layout.minTouchSize - SEGMENT_HEIGHT[size]) / 2));
+  const hitSlop = slop > 0 ? { top: slop, bottom: slop } : undefined;
 
   return (
     <View style={[styles.track, small ? styles.trackSmall : null, style]} accessibilityRole="tablist" testID={testID}>
@@ -39,6 +45,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, s
             accessibilityRole="tab"
             accessibilityLabel={typeof option.count === 'number' ? `${option.label}, ${option.count}` : option.label}
             accessibilityState={{ selected }}
+            hitSlop={hitSlop}
             onPress={() => {
               if (selected) return;
               haptics.selection();
@@ -94,12 +101,12 @@ const useStyles = makeStyles((t) => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: t.spacing.xs + 2,
-    minHeight: 40,
+    minHeight: SEGMENT_HEIGHT.md,
     paddingHorizontal: t.spacing.sm,
     borderRadius: t.radii.sm + 2,
   },
   segmentSmall: {
-    minHeight: 32,
+    minHeight: SEGMENT_HEIGHT.sm,
     borderRadius: t.radii.xs,
   },
   selected: {

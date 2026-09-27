@@ -13,7 +13,7 @@ import {
   SegmentedControl,
   SkeletonCard,
   useConfirm,
-  useErrorText,
+  useErrorToast,
   useNow,
   useToast,
   type IconName,
@@ -27,6 +27,7 @@ import { routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
 import { OFFER_SORTS, type OfferSort } from '@/types/api';
 import type { CustomerRequestView, OfferWithProfessional } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
 import { offerStatusesForFilter, type OfferListFilter } from '../../offer-comparison';
 import { markOffersSeen } from '../../seen-offers-store';
@@ -61,7 +62,7 @@ export function OffersSection({ request, refreshSignal = 0 }: OffersSectionProps
   const format = useFormatters();
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const now = useNow(60_000);
   const acceptsOffers = REQUEST_STATUS_META[request.status].acceptsOffers;
   const [sort, setSort] = useState<OfferSort>('recommended');
@@ -101,7 +102,7 @@ export function OffersSection({ request, refreshSignal = 0 }: OffersSectionProps
 
   const handleAccept = async (offer: OfferWithProfessional) => {
     if (accept.isPending) return;
-    const name = offer.professional.displayName;
+    const name = isolateText(offer.professional.displayName);
     const confirmed = await confirm({
       title: t('customer:offers.acceptConfirm.title', { name }),
       message: [
@@ -140,7 +141,7 @@ export function OffersSection({ request, refreshSignal = 0 }: OffersSectionProps
         });
       },
       onError: (error) => {
-        toast.show({ ...errorText(error), tone: 'danger' });
+        showError(error);
         void offersQuery.refetch();
       },
     });
@@ -202,7 +203,7 @@ export function OffersSection({ request, refreshSignal = 0 }: OffersSectionProps
       <OffersCompareTable
         offers={pendingOffers}
         now={now}
-        canAccept={acceptsOffers}
+        request={request}
         acceptingOfferId={acceptingOfferId}
         onAccept={(offer) => void handleAccept(offer)}
         onOpenProfessional={openProfessional}
@@ -217,7 +218,7 @@ export function OffersSection({ request, refreshSignal = 0 }: OffersSectionProps
             offer={offer}
             highlights={highlightKeys(offer)}
             now={now}
-            canAccept={acceptsOffers}
+            request={request}
             accepting={acceptingOfferId === offer.id}
             disabled={acceptingOfferId !== null && acceptingOfferId !== offer.id}
             onAccept={() => void handleAccept(offer)}

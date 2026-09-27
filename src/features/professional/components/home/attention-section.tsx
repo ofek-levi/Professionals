@@ -8,13 +8,14 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { CategoryIcon } from '@/components/categories';
-import { AppText, Button, Card, Divider, Icon, SectionHeader, useConfirm, useErrorText, useToast } from '@/components/ui';
+import { AppText, Button, Card, Divider, Icon, SectionHeader, useConfirm, useErrorToast, useToast } from '@/components/ui';
 import { ExpiryBadge } from '@/features/offers/components/expiry-badge';
 import { useConfirmJob } from '@/hooks';
 import { useCategoryName, useFormatters } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
 import type { JobSummary, OfferWithRequest } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
 export interface AttentionSectionProps {
   awaitingJobs: JobSummary[];
@@ -56,7 +57,7 @@ function AwaitingJobRow({ job }: { job: JobSummary }) {
   const format = useFormatters();
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const confirmJob = useConfirmJob();
   const category = useCategoryName(job.categoryId) || t('common:category.unknown');
   const when = format.dateTime(job.scheduledStartAt);
@@ -64,7 +65,7 @@ function AwaitingJobRow({ job }: { job: JobSummary }) {
   const onConfirm = async () => {
     const ok = await confirm({
       title: t('professional:jobs.confirmDialog.title'),
-      message: t('professional:jobs.confirmDialog.message', { customer: job.customer.displayName, when }),
+      message: t('professional:jobs.confirmDialog.message', { customer: isolateText(job.customer.displayName), when }),
       confirmLabel: t('professional:jobs.confirmDialog.confirm'),
       icon: 'calendar-check-outline',
       tone: 'success',
@@ -72,37 +73,41 @@ function AwaitingJobRow({ job }: { job: JobSummary }) {
     if (!ok) return;
     confirmJob.mutate(job.id, {
       onSuccess: () => toast.show({ title: t('professional:jobs.confirmed'), tone: 'success', icon: 'calendar-check' }),
-      onError: (error) => toast.show({ ...errorText(error), tone: 'danger' }),
+      onError: (error) => showError(error),
     });
   };
 
+  // The row opens the job; "Confirm" is a sibling button (not nested inside the row's button).
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${t('professional:home.attention.confirmTitle')}, ${category}, ${job.customer.displayName}, ${when}`}
-      onPress={() => router.push(routes.job(job.id))}
-      style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
-    >
-      <View style={[styles.iconBox, { backgroundColor: theme.colors.tones.warning.bg }]}>
-        <Icon name="calendar-alert" size={22} color="warning" />
-      </View>
-      <View style={styles.texts}>
-        <AppText variant="bodyStrong" numberOfLines={2}>
-          {t('professional:home.attention.confirmTitle')}
-        </AppText>
-        <AppText variant="caption" color="secondary" numberOfLines={2}>
-          {t('professional:home.attention.confirmSubtitle', { category, customer: job.customer.displayName, when })}
-        </AppText>
-      </View>
+    <View style={styles.actionRow}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${t('professional:home.attention.confirmTitle')}, ${category}, ${job.customer.displayName}, ${when}`}
+        onPress={() => router.push(routes.job(job.id))}
+        style={({ pressed }) => [styles.row, styles.rowMain, pressed ? styles.pressed : null]}
+      >
+        <View style={[styles.iconBox, { backgroundColor: theme.colors.tones.warning.bg }]}>
+          <Icon name="calendar-alert" size={22} color="warning" />
+        </View>
+        <View style={styles.texts}>
+          <AppText variant="bodyStrong" numberOfLines={2}>
+            {t('professional:home.attention.confirmTitle')}
+          </AppText>
+          <AppText variant="caption" color="secondary" numberOfLines={2}>
+            {t('professional:home.attention.confirmSubtitle', { category, customer: isolateText(job.customer.displayName), when })}
+          </AppText>
+        </View>
+      </Pressable>
       <Button
         label={t('professional:jobs.confirmShort')}
         size="sm"
         variant="success"
         loading={confirmJob.isPending}
         onPress={() => void onConfirm()}
+        style={styles.rowAction}
         testID={`pro-home-confirm-${job.id}`}
       />
-    </Pressable>
+    </View>
   );
 }
 
@@ -148,6 +153,17 @@ const useStyles = makeStyles((t) => ({
   },
   pressed: {
     backgroundColor: t.colors.surfacePressed,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rowMain: {
+    flex: 1,
+    paddingEnd: t.spacing.sm,
+  },
+  rowAction: {
+    marginEnd: t.spacing.lg,
   },
   iconBox: {
     width: 44,

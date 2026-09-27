@@ -11,7 +11,7 @@
  * only localizes logical (`start`/`end`) properties. Overlay controls still follow the layout
  * direction.
  */
-import { useRef, useState, type ReactElement } from 'react';
+import { useImperativeHandle, useRef, useState, type ReactElement } from 'react';
 import { Pressable, StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -38,7 +38,7 @@ import {
   type Viewport,
 } from './map-projection';
 import { regionKey, resolveInitialRegion } from './map-region';
-import type { AppMapProps } from './types';
+import type { AppMapProps, MapRegion } from './types';
 
 interface Camera {
   center: GeoCoordinates;
@@ -67,6 +67,7 @@ export function AppMap({
   accessibilityLabel,
   style,
   testID,
+  ref,
 }: AppMapProps) {
   const theme = useTheme();
   const styles = useStyles();
@@ -84,18 +85,22 @@ export function AppMap({
   // the release arrives before a re-render.
   const gesture = useRef<{ center: GeoCoordinates; tap: Point } | null>(null);
 
+  const cameraFor = (target: MapRegion): Camera => ({
+    center: { latitude: target.latitude, longitude: target.longitude },
+    latitudeDelta: size.width > 0 ? latitudeDeltaToFit(target, size.width, size.height) : target.latitudeDelta,
+  });
+
   // Focus region changed → move the camera (adjusting state while rendering, no effect needed).
   const focusKey = regionKey(region);
   const [appliedFocusKey, setAppliedFocusKey] = useState(focusKey);
   if (focusKey !== appliedFocusKey) {
     setAppliedFocusKey(focusKey);
-    if (region) {
-      setCamera({
-        center: { latitude: region.latitude, longitude: region.longitude },
-        latitudeDelta: size.width > 0 ? latitudeDeltaToFit(region, size.width, size.height) : region.latitudeDelta,
-      });
-    }
+    if (region) setCamera(cameraFor(region));
   }
+
+  useImperativeHandle(ref, () => ({
+    animateToRegion: (target) => setCamera(cameraFor(target)),
+  }));
 
   const viewport: Viewport = { ...camera, width: size.width, height: size.height };
 

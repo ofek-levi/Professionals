@@ -8,6 +8,7 @@ import { makeStyles, useTheme } from '@/theme';
 import type { CustomerDashboard } from '@/types/api';
 import type { CustomerRequestSection } from '@/constants/request-statuses';
 import type { JobSummary } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
 // ─────────────────────────────── Offers attention ───────────────────────────────
 
@@ -130,7 +131,7 @@ export function ReviewPromptCard({ job, onPress }: ReviewPromptCardProps) {
   const { t } = useTranslation('customer');
   const format = useFormatters();
   const pro = job.professional;
-  const title = t('home.review.title', { name: pro.displayName });
+  const title = t('home.review.title', { name: isolateText(pro.displayName) });
 
   return (
     <Card onPress={onPress} accessibilityLabel={title} padding="lg" testID={`home-review-${job.id}`}>

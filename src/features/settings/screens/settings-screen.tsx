@@ -4,6 +4,7 @@
 import Constants from 'expo-constants';
 import { Fragment } from 'react';
 import { useTranslation } from 'react-i18next';
+import { View } from 'react-native';
 
 import {
   Divider,
@@ -68,22 +69,24 @@ export default function SettingsScreen() {
       <AccountCard />
 
       <SettingsSection title={t('settings:language.sectionTitle')} description={t('settings:language.description')} icon="translate">
-        {SUPPORTED_LANGUAGES.map((option, index) => {
-          const selected = option === language;
-          return (
-            <Fragment key={option}>
-              {index > 0 ? <Divider /> : null}
-              <ListItem
-                title={t(`common:languages.${option}`)}
-                onPress={() => void changeLanguage(option)}
-                showChevron={false}
-                trailing={selected ? <Icon name="check-circle" size={22} color="primary" /> : null}
-                accessibilityHint={selected ? t('common:a11y.selected') : undefined}
-                testID={`language-${option}`}
-              />
-            </Fragment>
-          );
-        })}
+        <View accessibilityRole="radiogroup">
+          {SUPPORTED_LANGUAGES.map((option, index) => {
+            const selected = option === language;
+            return (
+              <Fragment key={option}>
+                {index > 0 ? <Divider /> : null}
+                <ListItem
+                  title={t(`common:languages.${option}`)}
+                  onPress={() => void changeLanguage(option)}
+                  showChevron={false}
+                  checked={selected}
+                  trailing={selected ? <Icon name="check-circle" size={22} color="primary" /> : null}
+                  testID={`language-${option}`}
+                />
+              </Fragment>
+            );
+          })}
+        </View>
       </SettingsSection>
 
       <SettingsSection

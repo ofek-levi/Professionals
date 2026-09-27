@@ -1,5 +1,6 @@
 import type { offers as enoffers } from '../en/offers';
 import type { LocaleNamespace } from '../../types';
+import { isolateLtr } from '@/utils/bidi';
 
 export const offers: LocaleNamespace<typeof enoffers> = {
   list: {
@@ -10,7 +11,7 @@ export const offers: LocaleNamespace<typeof enoffers> = {
     pending: 'ממתינות',
     accepted: 'התקבלו',
     rejected: 'לא נבחרו',
-    withdrawn: 'בוטלו',
+    withdrawn: 'נמשכו',
     expired: 'פג תוקפן',
     all: 'הכול',
   },
@@ -28,8 +29,8 @@ export const offers: LocaleNamespace<typeof enoffers> = {
       description: 'הצעות שהלקוח לא בחר בהן יופיעו כאן.',
     },
     withdrawn: {
-      title: 'אין הצעות שבוטלו',
-      description: 'הצעות שביטלת נשמרות כאן לעיון.',
+      title: 'אין הצעות שנמשכו',
+      description: 'הצעות שמשכתם נשמרות כאן לעיון.',
     },
     expired: {
       title: 'אין הצעות שפג תוקפן',
@@ -48,9 +49,15 @@ export const offers: LocaleNamespace<typeof enoffers> = {
     competition_two: '{{count}} הצעות לקריאה הזו',
     competition_other: '{{count}} הצעות לקריאה הזו',
   },
+  jobCancelled: {
+    badge: 'העבודה בוטלה',
+    reason: 'הלקוח ביטל את הקריאה אחרי שההצעה שלך התקבלה',
+    title: 'הלקוח ביטל את העבודה',
+    message: 'ההצעה שלך התקבלה, אבל הלקוח ביטל אחר כך את הקריאה. המועד בוטל ואין צורך להגיע.',
+  },
   actions: {
     edit: 'עריכה',
-    withdraw: 'ביטול ההצעה',
+    withdraw: 'משיכת ההצעה',
     viewRequest: 'לפרטי הקריאה',
     viewOffer: 'לצפייה בהצעה',
     editOffer: 'עריכת ההצעה',
@@ -72,20 +79,20 @@ export const offers: LocaleNamespace<typeof enoffers> = {
     sent: 'נשלחה',
     edited: '· נערכה',
     request: 'הקריאה',
-    yourRequest: 'הקריאה שלך',
+    yourRequest: 'הבקשה שלך',
     acceptedTitle: 'העבודה שלך!',
     acceptedMessage: 'אשרו את מועד הביקור בעמוד העבודה כדי שהלקוח יידע שאתם מגיעים.',
     requestClosed: 'הקריאה הזו כבר לא מקבלת הצעות.',
-    requestClosedCustomer: 'הקריאה הזו כבר לא מקבלת הצעות.',
+    requestClosedCustomer: 'הבקשה הזו כבר לא מקבלת הצעות.',
     expiredNotice: 'תוקף ההצעה פג ולא ניתן עוד לאשר אותה.',
   },
   accept: {
     button: 'אישור ההצעה · {{price}}',
     title: 'לאשר את ההצעה?',
-    message: '{{name}} יבצע את העבודה תמורת {{price}}.\nמועד: {{when}}.\n\nשאר ההצעות לקריאה יידחו.',
+    message: 'העבודה תבוצע על ידי {{name}} תמורת {{price}}.\nמועד: {{when}}.\n\nשאר ההצעות לבקשה יידחו.',
     confirm: 'אישור ההצעה',
     success: 'ההצעה אושרה',
-    successMessage: '{{name}} יאשר בקרוב את מועד הביקור. הקישו לצפייה בעבודה.',
+    successMessage: 'אישור מועד הביקור מאת {{name}} יגיע בקרוב. הקישו לצפייה בעבודה.',
     hint: 'אישור ההצעה יוצר את העבודה ופותח צ׳אט עם בעל המקצוע. שאר ההצעות נדחות אוטומטית.',
   },
   form: {
@@ -107,7 +114,7 @@ export const offers: LocaleNamespace<typeof enoffers> = {
       description: 'בחרו את היום ואת שעת ההגעה.',
       date: 'תאריך',
       time: 'שעת הגעה',
-      workingHours: 'שעות העבודה שלך ב{{day}}: {{start}}–{{end}}',
+      workingHours: `שעות העבודה שלך ב{{day}}: ${isolateLtr('{{start}}–{{end}}')}`,
       dayOff: '{{day}} הוא יום חופש לפי שעות העבודה שלך',
     },
     duration: {
@@ -151,7 +158,7 @@ export const offers: LocaleNamespace<typeof enoffers> = {
     submitWithPrice: 'שליחת ההצעה · {{price}}',
     submitEdit: 'שמירת השינויים',
     sent: 'ההצעה נשלחה',
-    sentMessage: '{{name}} יקבל על כך הודעה מיד.',
+    sentMessage: 'הודעה על ההצעה נשלחה אל {{name}}.',
     updated: 'ההצעה עודכנה',
     updatedMessage: 'הלקוח יראה את התנאים החדשים שלך.',
     fixFields: 'כדאי לבדוק את השדות המסומנים',
@@ -161,12 +168,19 @@ export const offers: LocaleNamespace<typeof enoffers> = {
       message: 'מה שהזנת לא יישמר.',
       keepEditing: 'המשך עריכה',
     },
+    problemTitle: {
+      DUPLICATE_OFFER: 'כבר שלחתם הצעה',
+      REQUEST_NOT_ACCEPTING_OFFERS: 'הקריאה סגורה להצעות',
+      OUTSIDE_SERVICE_AREA: 'מחוץ לאזור השירות שלכם',
+      OFFER_EXPIRED: 'תוקף ההצעה פג',
+      UNSUPPORTED_CATEGORY: 'השירות לא ברשימה שלכם',
+    },
     problem: {
-      DUPLICATE_OFFER: 'כבר יש לך הצעה פעילה לקריאה הזו. אפשר לערוך אותה מעמוד הקריאה.',
+      DUPLICATE_OFFER: 'כבר יש לכם הצעה פעילה לקריאה הזו. אפשר לערוך אותה מעמוד הקריאה.',
       REQUEST_NOT_ACCEPTING_OFFERS: 'הלקוח כבר בחר בעל מקצוע או ביטל את הקריאה.',
-      OUTSIDE_SERVICE_AREA: 'העבודה הזו מחוץ לאזור השירות שלך. כדי לשלוח הצעה יש להרחיב את אזור השירות.',
+      OUTSIDE_SERVICE_AREA: 'העבודה הזו מחוץ לאזור השירות שלכם. כדי לשלוח הצעה יש להרחיב את אזור השירות.',
       OFFER_EXPIRED: 'תוקף ההצעה פג ולכן אי אפשר לערוך אותה. כל עוד הקריאה פתוחה אפשר לשלוח הצעה חדשה.',
-      UNSUPPORTED_CATEGORY: 'השירות הזה לא מופיע ברשימת השירותים שלך. הוסיפו אותו כדי לשלוח הצעה.',
+      UNSUPPORTED_CATEGORY: 'השירות הזה לא מופיע ברשימת השירותים שלכם. הוסיפו אותו כדי לשלוח הצעה.',
       backToRequest: 'חזרה לקריאה',
       editProfile: 'עדכון הפרופיל',
     },
@@ -193,11 +207,11 @@ export const offers: LocaleNamespace<typeof enoffers> = {
     days_other: '{{count}} ימים',
   },
   withdraw: {
-    title: 'לבטל את ההצעה?',
-    message: 'הלקוח לא יראה עוד את הצעת המחיר שלך. כל עוד הקריאה פתוחה אפשר לשלוח הצעה חדשה.',
-    confirm: 'ביטול ההצעה',
+    title: 'למשוך את ההצעה?',
+    message: 'הלקוח לא יראה עוד את הצעת המחיר שלכם. כל עוד הקריאה פתוחה אפשר לשלוח הצעה חדשה.',
+    confirm: 'משיכת ההצעה',
     keep: 'השארת ההצעה',
-    success: 'ההצעה בוטלה',
+    success: 'ההצעה נמשכה',
     successMessage: 'הלקוח קיבל על כך הודעה.',
   },
 };

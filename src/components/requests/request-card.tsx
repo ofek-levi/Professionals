@@ -52,7 +52,9 @@ export function RequestCard(props: RequestCardProps) {
   const categoryName = useCategoryName(request.categoryId) || t('category.unknown');
   const area = formatAreaLabel(request.location);
   const highlighted = props.variant === 'customer' && Boolean(props.hasNewOffers);
-  const offersLabel = request.offerCount > 0 ? t('counts.offers', { count: request.offerCount }) : t('request.noOffersYet');
+  // Owners see every offer they received; professionals see the live competition.
+  const offerCount = props.variant === 'customer' ? request.offerCount : request.pendingOfferCount;
+  const offersLabel = offerCount > 0 ? t('counts.offers', { count: offerCount }) : t('request.noOffersYet');
 
   const a11yLabel = [
     categoryName,
@@ -89,7 +91,7 @@ export function RequestCard(props: RequestCardProps) {
           )}
         </View>
 
-        <AppText variant="body" color="secondary" numberOfLines={2}>
+        <AppText variant="body" color="secondary" numberOfLines={2} userContent>
           {request.description}
         </AppText>
 
@@ -114,8 +116,8 @@ export function RequestCard(props: RequestCardProps) {
 
       <View style={styles.footer}>
         <View style={styles.metaItem}>
-          <Icon name="tag-multiple-outline" size={16} color={request.offerCount > 0 ? 'primary' : 'muted'} />
-          <AppText variant="captionStrong" color={request.offerCount > 0 ? 'primary' : 'muted'}>
+          <Icon name="tag-multiple-outline" size={16} color={offerCount > 0 ? 'primary' : 'muted'} />
+          <AppText variant="captionStrong" color={offerCount > 0 ? 'primary' : 'muted'}>
             {offersLabel}
           </AppText>
           {request.photos.length > 0 ? (

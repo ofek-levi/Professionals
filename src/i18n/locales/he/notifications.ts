@@ -41,13 +41,13 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
   },
   types: {
     new_matching_request: {
-      title: 'בקשה חדשה באזור שלכם: {{category}}',
-      body: 'בקשה חדשה במרחק {{distance}} מכם מתאימה לשירותים שלכם. היו הראשונים לשלוח הצעה.',
-      bodyNoDistance: 'בקשה חדשה באזור השירות שלכם מתאימה לשירותים שלכם. היו הראשונים לשלוח הצעה.',
+      title: 'קריאה חדשה באזור שלכם: {{category}}',
+      body: 'קריאה חדשה במרחק {{distance}} מכם מתאימה לשירותים שלכם. היו הראשונים לשלוח הצעה.',
+      bodyNoDistance: 'קריאה חדשה באזור השירות שלכם מתאימה לשירותים שלכם. היו הראשונים לשלוח הצעה.',
     },
     offer_received: {
       title: 'הצעה חדשה: {{price}}',
-      body: 'התקבלה הצעה חדשה מ{{professionalName}} לבקשה שלכם בנושא {{category}}.',
+      body: 'התקבלה הצעה חדשה מאת {{professionalName}} לבקשה שלכם בנושא {{category}}.',
     },
     offer_updated: {
       title: 'הצעה עודכנה',
@@ -59,31 +59,31 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
     },
     offer_accepted: {
       title: 'ההצעה שלכם אושרה',
-      body: 'ההצעה שלכם על סך {{price}} ({{category}}) אושרה על ידי {{customerName}}. נא לאשר את מועד הפגישה: {{date}}.',
+      body: 'ההצעה שלכם על סך {{price}} ({{category}}) אושרה על ידי {{customerName}}. נא לאשר את מועד הביקור: {{date}}.',
     },
     offer_not_selected: {
       title: 'ההצעה לא נבחרה',
-      body: 'נבחר בעל מקצוע אחר לבקשה בנושא {{category}}.',
+      body: 'נבחר בעל מקצוע אחר לקריאה בנושא {{category}}.',
     },
     offer_expired: {
       title: 'תוקף ההצעה פג',
-      body: 'תוקף ההצעה שלכם על סך {{price}} לבקשה בנושא {{category}} פג ללא מענה.',
+      body: 'תוקף ההצעה שלכם על סך {{price}} לקריאה בנושא {{category}} פג ללא מענה.',
     },
     request_cancelled: {
-      title: 'הבקשה בוטלה',
-      body: 'הבקשה בנושא {{category}} בוטלה על ידי {{customerName}}.',
+      title: 'הקריאה בוטלה',
+      body: 'הקריאה בנושא {{category}} בוטלה על ידי {{customerName}}.',
     },
     job_confirmed: {
-      title: 'הפגישה אושרה',
-      body: 'הפגישה עם {{professionalName}} בנושא {{category}} אושרה. מועד: {{date}}.',
+      title: 'מועד הביקור אושר',
+      body: 'מועד הביקור של {{professionalName}} ({{category}}) אושר: {{date}}.',
     },
     job_started: {
       title: 'העבודה התחילה',
       body: 'העבודה בנושא {{category}} עם {{professionalName}} התחילה.',
     },
     appointment_reminder: {
-      title: 'פגישה מתקרבת',
-      body: 'תזכורת: פגישה בנושא {{category}} עם {{name}}, {{date}}.',
+      title: 'ביקור מתקרב',
+      body: 'תזכורת: ביקור בנושא {{category}} עם {{name}}, {{date}}.',
     },
     job_completed: {
       title: 'העבודה הושלמה',
@@ -94,10 +94,10 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
       title_one: 'ביקורת חדשה: כוכב אחד',
       title_two: 'ביקורת חדשה: שני כוכבים',
       title_other: 'ביקורת חדשה: {{count}} כוכבים',
-      body: 'ביקורת חדשה מ{{customerName}} על העבודה בנושא {{category}}.',
+      body: 'ביקורת חדשה מאת {{customerName}} על העבודה בנושא {{category}}.',
     },
     new_message: {
-      title: 'הודעה חדשה מ{{name}}',
+      title: 'הודעה חדשה מאת {{name}}',
       body: '{{preview}}',
       bodyEmpty: 'פתחו את הצ׳אט כדי לקרוא אותה.',
     },

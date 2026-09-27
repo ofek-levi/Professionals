@@ -6,8 +6,8 @@ import { useCompleteJob, useConfirmJob, useStartJob } from '@/hooks';
 import { useFormatters } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import type { JobDetails, UserRole } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
-import { isolateText } from './bidi';
 import { getCounterpartName } from './job-cards';
 import type { JobActionKey } from './job-view-model';
 
@@ -58,7 +58,7 @@ export function useJobActionRunner(job: JobDetails, role: UserRole): JobActionRu
       case 'confirm': {
         const ok = await confirm({
           title: t('confirmDialogs.confirm.title'),
-          message: t('confirmDialogs.confirm.message', { name, date: format.dateTime(job.scheduledStartAt, { relativeDay: false }) }),
+          message: t('confirmDialogs.confirm.message', { name, date: format.dateTime(job.scheduledStartAt, { casing: 'inline' }) }),
           confirmLabel: t('confirmDialogs.confirm.confirmLabel'),
           icon: 'calendar-check',
           tone: 'brand',

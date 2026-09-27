@@ -22,7 +22,7 @@ function listDemoAccounts(ctx: ServerContext): DemoAccount[] {
           role: 'customer',
           displayName: `${user.firstName} ${user.lastName}`,
           avatarUrl: user.avatarUrl,
-          description: user.demoDescription ?? '',
+          description: user.demoDescription ?? { en: '', he: '' },
           categoryIds: [],
           city: ctx.db.customerProfiles.get(user.id)?.defaultLocation?.city ?? '',
         };
@@ -33,7 +33,7 @@ function listDemoAccounts(ctx: ServerContext): DemoAccount[] {
         role: 'professional',
         displayName: professional?.fullName ?? user.displayName,
         avatarUrl: user.avatarUrl,
-        description: user.demoDescription ?? '',
+        description: user.demoDescription ?? { en: '', he: '' },
         categoryIds: professional ? [...professional.categoryIds] : [],
         city: professional ? professionalCity(professional) : '',
       };

@@ -14,6 +14,7 @@ import type {
   EntityId,
   ISODateTimeString,
   Job,
+  LocalizedText,
   Message,
   Offer,
   OwnProfessionalProfile,
@@ -23,7 +24,7 @@ import type {
   UserRole,
 } from '@/types/domain';
 
-export const MOCK_DB_SCHEMA_VERSION = 1;
+export const MOCK_DB_SCHEMA_VERSION = 3;
 export const MOCK_DB_STORAGE_KEY = '@professionals/mock-db/v1';
 
 // ────────────────────────────── Stored row types ──────────────────────────────
@@ -31,8 +32,8 @@ export const MOCK_DB_STORAGE_KEY = '@professionals/mock-db/v1';
 /** A user row plus demo metadata that is never sent to clients as part of `User`. */
 export interface StoredUser extends User {
   isDemo: boolean;
-  /** Shown on the demo account picker (English). */
-  demoDescription: string | null;
+  /** Shown on the demo account picker. */
+  demoDescription: LocalizedText | null;
 }
 
 /** A job row plus internal scheduler bookkeeping. */

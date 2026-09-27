@@ -9,6 +9,8 @@ import { NOTIFICATION_TYPE_META } from '@/constants/notification-types';
 import {
   adjustUnreadCount,
   applyMessageToConversation,
+  markConversationRead,
+  markMessagesReadBy,
   prependNotification,
   upsertMessage,
 } from '@/hooks/mutations/cache-updates';
@@ -53,6 +55,20 @@ export function applyRealtimeEvent(qc: CacheClient, userId: string, event: Realt
         list?.map((conversation) => applyMessageToConversation(conversation, message, userId)),
       );
       void invalidateConversation(qc, userId, message.conversationId);
+      return;
+    }
+    case 'conversation.read': {
+      const { conversationId, readerId, readAt } = event;
+      // The sender sees the double check right away; the reader's own devices clear the badge.
+      qc.setQueryData<PaginatedInfiniteData<Message>>(queryKeys.conversations.messages(userId, conversationId), (data) =>
+        markMessagesReadBy(data, readerId, readAt),
+      );
+      if (readerId === userId) {
+        qc.setQueryData<Conversation[]>(queryKeys.conversations.list(userId), (list) =>
+          list?.map((conversation) => (conversation.id === conversationId ? markConversationRead(conversation) : conversation)),
+        );
+      }
+      void invalidateConversation(qc, userId, conversationId);
       return;
     }
     case 'request.updated':

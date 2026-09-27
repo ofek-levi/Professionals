@@ -16,16 +16,6 @@ export function useJobs(scope: JobScope = 'all') {
   });
 }
 
-/** Active jobs (awaiting confirmation, scheduled, in progress). Shares the cache with `useJobs('active')`. */
-export function useActiveJobs() {
-  const { userId, enabled } = useQueryScope();
-  return useQuery({
-    queryKey: queryKeys.jobs.list(userId, 'active'),
-    queryFn: ({ signal }) => api.jobs.getActiveJobs(signal),
-    enabled,
-  });
-}
-
 /** `GET /jobs/:id` – job tracking details for either party. */
 export function useJob(jobId: string | null | undefined) {
   const { userId, enabled } = useQueryScope();

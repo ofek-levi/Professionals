@@ -32,6 +32,7 @@ export const validation: LocaleNamespace<typeof envalidation> = {
     preferredDateInvalid: 'יש לבחור תאריך תקין',
     preferredDateInPast: 'התאריך המועדף לא יכול להיות בעבר',
     preferredDateTooFar: `יש לבחור תאריך ב-${APP_CONFIG.maxScheduleDaysAhead} הימים הקרובים`,
+    preferredDateBeyondUrgency: 'התאריך מאוחר מדי לדחיפות שבחרתם. בחרו תאריך מוקדם יותר או דחיפות נמוכה יותר.',
     timeWindowInvalid: 'יש לבחור חלק יום תקין',
     notesTooLong: `ההערות יכולות להכיל עד ${n(APP_CONFIG.notesMaxLength)} תווים`,
     tooManyPhotos: `ניתן להוסיף עד ${APP_CONFIG.maxRequestPhotos} תמונות`,
@@ -91,7 +92,7 @@ export const validation: LocaleNamespace<typeof envalidation> = {
   review: {
     ratingRequired: 'יש לבחור דירוג',
     ratingInvalid: 'יש לבחור בין כוכב אחד ל-5 כוכבים',
-    commentTooLong: `חוות הדעת יכולה להכיל עד ${n(APP_CONFIG.reviewCommentMaxLength)} תווים`,
+    commentTooLong: `הביקורת יכולה להכיל עד ${n(APP_CONFIG.reviewCommentMaxLength)} תווים`,
   },
   message: {
     empty: 'יש לכתוב הודעה',

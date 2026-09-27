@@ -3,12 +3,13 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { JobCard } from '@/components/jobs';
-import { AppText, Button, Icon, useConfirm, useErrorText, useToast } from '@/components/ui';
+import { AppText, Button, Icon, useConfirm, useErrorToast, useToast } from '@/components/ui';
 import { getJobActions } from '@/features/jobs/job-status-machine';
 import { useConfirmJob } from '@/hooks';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { JobSummary } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
 export interface ProJobItemProps {
   job: JobSummary;
@@ -21,7 +22,7 @@ export function ProJobItem({ job, onPress }: ProJobItemProps) {
   const format = useFormatters();
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const confirmJob = useConfirmJob();
   const actions = getJobActions(job, 'professional', { hasReview: job.reviewId !== null });
 
@@ -31,7 +32,7 @@ export function ProJobItem({ job, onPress }: ProJobItemProps) {
   const onConfirm = async () => {
     const ok = await confirm({
       title: t('jobs.confirmDialog.title'),
-      message: t('jobs.confirmDialog.message', { customer: job.customer.displayName, when }),
+      message: t('jobs.confirmDialog.message', { customer: isolateText(job.customer.displayName), when }),
       confirmLabel: t('jobs.confirmDialog.confirm'),
       icon: 'calendar-check-outline',
       tone: 'success',
@@ -39,7 +40,7 @@ export function ProJobItem({ job, onPress }: ProJobItemProps) {
     if (!ok) return;
     confirmJob.mutate(job.id, {
       onSuccess: () => toast.show({ title: t('jobs.confirmed'), message: t('jobs.confirmedMessage'), tone: 'success', icon: 'calendar-check' }),
-      onError: (error) => toast.show({ ...errorText(error), tone: 'danger' }),
+      onError: (error) => showError(error),
     });
   };
 
@@ -52,7 +53,7 @@ export function ProJobItem({ job, onPress }: ProJobItemProps) {
             {t('jobs.awaitingTitle')}
           </AppText>
           <AppText variant="caption" color="secondary">
-            {t('jobs.awaitingDescription', { customer: job.customer.displayName })}
+            {t('jobs.awaitingDescription', { customer: isolateText(job.customer.displayName) })}
           </AppText>
         </View>
       </View>

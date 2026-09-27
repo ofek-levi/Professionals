@@ -53,6 +53,31 @@ describe('messaging', () => {
     expect((await env.as(NOA).conversations.getConversationById(CONVERSATION)).unreadCount).toBe(0);
   });
 
+  it('pushes a read receipt to both participants when a chat is read', async () => {
+    const events: Record<string, RealtimeEvent[]> = { [NOA]: [], [YAEL]: [] };
+    env.server.events.subscribe(NOA, (event) => events[NOA].push(event));
+    env.server.events.subscribe(YAEL, (event) => events[YAEL].push(event));
+    const receipts = (userId: string) => events[userId].filter((event) => event.type === 'conversation.read');
+
+    // Yael has one unread message from Noa: opening the chat marks it read and notifies Noa.
+    await env.as(YAEL).conversations.markConversationAsRead(CONVERSATION);
+    const [receipt] = receipts(NOA);
+    expect(receipt).toMatchObject({ type: 'conversation.read', conversationId: CONVERSATION, readerId: YAEL });
+    expect(receipts(YAEL)).toHaveLength(1);
+    if (receipt?.type !== 'conversation.read') throw new Error('Expected a read receipt');
+    const noaMessages = await env.as(NOA).conversations.getConversationMessages(CONVERSATION);
+    expect(noaMessages.items.find((message) => message.senderId === NOA)?.readAt).toBe(receipt.readAt);
+
+    // Nothing left to read: no duplicate receipt.
+    await env.as(YAEL).conversations.markConversationAsRead(CONVERSATION);
+    expect(receipts(NOA)).toHaveLength(1);
+
+    // Replying reads Yael's new message on Noa's side, so Yael gets a receipt too.
+    await env.as(YAEL).conversations.sendMessage(CONVERSATION, { text: 'Sure, I will check it.', clientMessageId: 'r-1' });
+    await env.as(NOA).conversations.sendMessage(CONVERSATION, { text: 'Thanks!', clientMessageId: 'r-2' });
+    expect(receipts(YAEL).at(-1)).toMatchObject({ conversationId: CONVERSATION, readerId: NOA });
+  });
+
   it('pages messages newest first', async () => {
     const first = await env.as(NOA).conversations.getConversationMessages(CONVERSATION, { limit: 2 });
     expect(first.totalCount).toBe(4);
@@ -60,6 +85,19 @@ describe('messaging', () => {
     const second = await env.as(NOA).conversations.getConversationMessages(CONVERSATION, { limit: 2, cursor: first.nextCursor });
     expect(second.items.map((message) => message.id)).toEqual(['msg_noa_lighting_2', 'msg_noa_lighting_1']);
     expect(second.nextCursor).toBeNull();
+  });
+
+  it('keeps older pages stable while new messages arrive', async () => {
+    const first = await env.as(NOA).conversations.getConversationMessages(CONVERSATION, { limit: 2 });
+    // New messages land at the front of the newest-first feed after page 1 was loaded.
+    await env.as(NOA).conversations.sendMessage(CONVERSATION, { text: 'One more thing', clientMessageId: 'k-1' });
+    await env.as(YAEL).conversations.sendMessage(CONVERSATION, { text: 'Sure', clientMessageId: 'k-2' });
+    const second = await env.as(NOA).conversations.getConversationMessages(CONVERSATION, { limit: 2, cursor: first.nextCursor });
+    expect(second.items.map((message) => message.id)).toEqual(['msg_noa_lighting_2', 'msg_noa_lighting_1']);
+    expect(second.totalCount).toBe(6);
+    expect(await expectApiError(env.as(NOA).conversations.getConversationMessages(CONVERSATION, { cursor: 'nonsense' }))).toMatchObject({
+      status: 422,
+    });
   });
 
   it('rejects non-participants and invalid messages', async () => {

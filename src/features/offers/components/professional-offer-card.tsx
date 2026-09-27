@@ -2,20 +2,19 @@
  * The professional's own offer in "My offers": request summary, price, proposed appointment,
  * status (+ reason), expiry countdown and the actions allowed by the offer status machine.
  */
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { CategoryIcon } from '@/components/categories';
-import { OfferStatusBadge } from '@/components/offers';
 import { UrgencyBadge } from '@/components/requests';
 import { AppText, Button, Card, Divider, Icon, PriceText, Skeleton } from '@/components/ui';
-import { OFFER_STATUS_META } from '@/constants/offer-statuses';
-import { getProfessionalOfferActions } from '@/features/offers/offer-status-machine';
+import { getProfessionalOfferActions, getProfessionalOfferOutcome } from '@/features/offers/offer-status-machine';
 import { useCategoryName, useFormatters } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { OfferWithRequest } from '@/types/domain';
 
 import { ExpiryBadge } from './expiry-badge';
+import { ProfessionalOfferStatusBadge, useOfferReason } from './offer-status-display';
 
 export interface ProfessionalOfferCardProps {
   offer: OfferWithRequest;
@@ -49,29 +48,38 @@ export function ProfessionalOfferCard({
   const category = useCategoryName(offer.request.categoryId) || t('common:category.unknown');
   const actions = getProfessionalOfferActions(offer, offer.request.status, now);
   const isPending = offer.status === 'pending';
-  const isAccepted = offer.status === 'accepted';
+  const outcome = getProfessionalOfferOutcome(offer.status, offer.request.status);
+  // A won job (accepted and not cancelled since).
+  const isAccepted = outcome === 'accepted';
+  const reason = useOfferReason(outcome, offer.statusReason);
   const duration = offer.estimatedDurationMinutes ? format.duration(offer.estimatedDurationMinutes, 'short') : null;
 
   return (
-    <Card
-      padding="none"
-      onPress={onOpen}
-      highlighted={isAccepted}
-      accessibilityLabel={[category, t(`common:offerStatus.${offer.status}`), format.currency(offer.price, offer.currency)].join(', ')}
-      testID={testID}
-    >
-      <View style={styles.body}>
+    // Only the summary opens the offer; the actions below are siblings (never nested in another
+    // button, so screen readers reach them and web gets no nested role=button).
+    <Card padding="none" highlighted={isAccepted} style={styles.card} testID={testID}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={[
+          category,
+          outcome === 'job_cancelled' ? t('offers:jobCancelled.badge') : t(`common:offerStatus.${offer.status}`),
+          format.currency(offer.price, offer.currency),
+        ].join(', ')}
+        onPress={onOpen}
+        style={({ pressed }) => [styles.body, pressed ? styles.pressed : null]}
+        testID={testID ? `${testID}-open` : undefined}
+      >
         <View style={styles.header}>
           <CategoryIcon categoryId={offer.request.categoryId} size="md" />
           <View style={styles.headerTexts}>
             <AppText variant="subheading" numberOfLines={1}>
               {category}
             </AppText>
-            <AppText variant="caption" color="secondary" numberOfLines={2}>
+            <AppText variant="caption" color="secondary" numberOfLines={2} userContent>
               {offer.request.description}
             </AppText>
           </View>
-          <OfferStatusBadge status={offer.status} size="sm" />
+          <ProfessionalOfferStatusBadge outcome={outcome} size="sm" />
         </View>
 
         <View style={styles.priceRow}>
@@ -103,21 +111,21 @@ export function ProfessionalOfferCard({
             <View style={styles.meta}>
               <Icon name="account-group-outline" size={15} color="muted" />
               <AppText variant="caption" color="muted" numberOfLines={1}>
-                {t('offers:card.competition', { count: offer.request.offerCount })}
+                {t('offers:card.competition', { count: offer.request.pendingOfferCount })}
               </AppText>
             </View>
           ) : null}
         </View>
 
-        {!isPending && offer.statusReason ? (
+        {reason ? (
           <View style={styles.reason}>
-            <Icon name={OFFER_STATUS_META[offer.status].icon} size={16} color={OFFER_STATUS_META[offer.status].tone} />
+            <Icon name={reason.icon} size={16} color={reason.tone} />
             <AppText variant="caption" color="secondary" style={styles.shrink}>
-              {t(`common:offerStatusReason.${offer.statusReason}`)}
+              {reason.text}
             </AppText>
           </View>
         ) : null}
-      </View>
+      </Pressable>
 
       <Divider />
       <View style={styles.footer}>
@@ -190,9 +198,15 @@ export function ProfessionalOfferCardSkeleton() {
 }
 
 const useStyles = makeStyles((t) => ({
+  card: {
+    overflow: 'hidden',
+  },
   body: {
     padding: t.spacing.lg,
     gap: t.spacing.md,
+  },
+  pressed: {
+    backgroundColor: t.colors.surfacePressed,
   },
   header: {
     flexDirection: 'row',

@@ -34,6 +34,7 @@ export const validation = {
     preferredDateInvalid: 'Choose a valid date',
     preferredDateInPast: 'The preferred date can’t be in the past',
     preferredDateTooFar: `Choose a date within the next ${APP_CONFIG.maxScheduleDaysAhead} days`,
+    preferredDateBeyondUrgency: 'This date is too late for the urgency you chose. Pick an earlier date or a lower urgency.',
     timeWindowInvalid: 'Choose a valid time of day',
     notesTooLong: `Notes can be up to ${n(APP_CONFIG.notesMaxLength)} characters`,
     tooManyPhotos: `You can add up to ${APP_CONFIG.maxRequestPhotos} photos`,

@@ -10,6 +10,7 @@ import { makeStyles, useTheme } from '@/theme';
 import { AppText } from './app-text';
 import { Button } from './button';
 import { Icon, type IconName, type IconSource } from './icon';
+import { useToast } from './toast-provider';
 
 // ─────────────────────────────── EmptyState ───────────────────────────────
 
@@ -146,18 +147,33 @@ export function ErrorState({ error, onRetry, retrying = false, title, descriptio
           size={compact ? 'sm' : 'md'}
           loading={retrying}
           onPress={onRetry}
+          style={styles.retry}
         />
       ) : null}
     </View>
   );
 }
 
-/** Localized `{ title, description }` for any thrown error – e.g. for mutation failure toasts. */
+/** Localized `{ title, description }` for any thrown error – e.g. for inline error messages. */
 export function useErrorText(): (error: unknown) => { code: ApiErrorCode; title: string; description: string } {
   const { t } = useTranslation('errors');
   return (error) => {
     const code = toApiError(error).code;
     return { code, title: t(`codes.${code}.title`), description: t(`codes.${code}.description`) };
+  };
+}
+
+/**
+ * Shows a danger toast for a failed action: the error's localized title plus its explanation
+ * (what happened, what to do next). `title` replaces the heading, e.g. "Fix the highlighted fields"
+ * when server field errors were mapped onto the form.
+ */
+export function useErrorToast(): (error: unknown, options?: { title?: string }) => string {
+  const toast = useToast();
+  const errorText = useErrorText();
+  return (error, options = {}) => {
+    const { title, description } = errorText(error);
+    return toast.show({ title: options.title ?? title, message: description, tone: 'danger' });
   };
 }
 
@@ -268,6 +284,10 @@ const useStyles = makeStyles((t) => ({
     gap: t.spacing.xs + 2,
     maxWidth: 360,
     alignItems: 'center',
+  },
+  // Buttons align to the start by default; the retry button sits under the centered message.
+  retry: {
+    alignSelf: 'center',
   },
   actions: {
     alignItems: 'center',

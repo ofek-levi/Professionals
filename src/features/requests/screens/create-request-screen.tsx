@@ -25,6 +25,8 @@ import {
   useToast,
 } from '@/components/ui';
 import { isSupportedCategoryId } from '@/constants/professional-categories';
+import type { RequestStatus } from '@/constants/request-statuses';
+import { useSession } from '@/features/auth/session-provider';
 import {
   useCreateRequest,
   useCustomerProfile,
@@ -74,14 +76,37 @@ const DEFAULT_ADDRESS_RADIUS_KM = 2;
 export default function CreateRequestScreen() {
   const { t } = useTranslation(['requests', 'common']);
   const router = useRouter();
+  const { role } = useSession();
   const categoryParam = useRouteParam('categoryId');
   const draftId = useRouteParam('draftId');
   const profileQuery = useCustomerProfile();
-  const draftQuery = useRequest(draftId);
+  const draftQuery = useRequest(role === 'customer' ? draftId : null);
 
   const draftData = draftQuery.data;
   const draft = draftData?.viewerRole === 'customer' ? draftData.request : undefined;
   const profileReady = profileQuery.data !== undefined || profileQuery.isError;
+
+  // The "already published" guard looks at the draft as first loaded: publishing from the wizard
+  // re-seeds the cached request as `open`, and reacting to that would replace the wizard before it
+  // navigates to the published request.
+  const [loadedStatus, setLoadedStatus] = useState<{ id: string; status: RequestStatus } | null>(null);
+  if (draft && loadedStatus?.id !== draft.id) setLoadedStatus({ id: draft.id, status: draft.status });
+  const initialStatus = draft ? (loadedStatus?.id === draft.id ? loadedStatus.status : draft.status) : null;
+
+  if (role !== 'customer') {
+    // Only customers post requests (e.g. a professional opening a deep link).
+    return (
+      <WizardShell>
+        <EmptyState
+          icon="account-lock-outline"
+          title={t('requests:customersOnly.title')}
+          description={t('requests:customersOnly.description')}
+          actionLabel={role ? t('requests:customersOnly.action') : undefined}
+          onAction={role ? () => router.replace(routes.homeFor(role)) : undefined}
+        />
+      </WizardShell>
+    );
+  }
 
   if (draftId) {
     if (draftQuery.isError) {
@@ -91,7 +116,7 @@ export default function CreateRequestScreen() {
         </WizardShell>
       );
     }
-    if (draft && draft.status !== 'draft') {
+    if (draft && initialStatus !== 'draft') {
       return (
         <WizardShell>
           <EmptyState
@@ -99,7 +124,7 @@ export default function CreateRequestScreen() {
             title={t('requests:alreadyPublished.title')}
             description={t('requests:alreadyPublished.description')}
             actionLabel={t('requests:alreadyPublished.action')}
-            onAction={() => router.replace(routes.request(draft.id))}
+            onAction={() => router.dismissTo(routes.request(draft.id))}
           />
         </WizardShell>
       );
@@ -211,10 +236,16 @@ function RequestWizard({ draft, defaultValues, initialStep, initialRegion }: Req
     });
   });
 
-  // Navigate only after the guard above was lifted by the completed state.
+  // Navigate only after the guard above was lifted by the completed state. A draft returns to its
+  // request page when that is on the stack (never a second copy of it); a new request replaces the
+  // wizard.
+  const editingDraft = draft !== null;
   useEffect(() => {
-    if (completedRequestId) router.replace(routes.request(completedRequestId));
-  }, [completedRequestId, router]);
+    if (!completedRequestId) return;
+    const href = routes.request(completedRequestId);
+    if (editingDraft) router.dismissTo(href);
+    else router.replace(href);
+  }, [completedRequestId, editingDraft, router]);
 
   const goTo = (index: number) => {
     setStep(Math.min(Math.max(index, 0), REVIEW_STEP_INDEX));
@@ -231,7 +262,8 @@ function RequestWizard({ draft, defaultValues, initialStep, initialRegion }: Req
 
   const goBack = () => {
     if (step > 0) goTo(step - 1);
-    else router.back();
+    else if (router.canGoBack()) router.back();
+    else router.replace(routes.customer.home); // opened directly (deep link, web refresh)
   };
 
   const applyServerErrors = (error: unknown) => {
@@ -330,6 +362,7 @@ function RequestWizard({ draft, defaultValues, initialStep, initialRegion }: Req
       <Button
         label={t('requests:submit.publish')}
         leftIcon="send-outline"
+        flipIconsInRTL
         size="lg"
         fullWidth
         loading={pendingAction === 'publish'}

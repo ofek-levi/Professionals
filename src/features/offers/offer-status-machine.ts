@@ -1,13 +1,13 @@
 /**
  * Offer status machine: `pending → accepted | rejected | withdrawn | expired` (all terminal).
- * Shared by the mock backend (enforcement) and the professional UI (available actions).
+ * Shared by the mock backend (enforcement) and the UI (available actions for both roles).
  */
 import { OFFER_STATUS_META, type OfferStatus } from '@/constants/offer-statuses';
 import type { RequestStatus } from '@/constants/request-statuses';
 import { URGENCY_META, type UrgencyLevel } from '@/constants/urgency-levels';
 import { requestAcceptsOffers } from '@/features/requests/request-status-machine';
 import { assertTransition, canTransition, type TransitionTable } from '@/features/shared/state-machine';
-import type { ISODateTimeString, Offer } from '@/types/domain';
+import type { ISODateTimeString, Offer, ServiceRequest } from '@/types/domain';
 import { toDate, type DateInput } from '@/utils/dates';
 
 export const OFFER_TRANSITIONS: TransitionTable<OfferStatus> = {
@@ -66,4 +66,43 @@ export function getProfessionalOfferActions(
   const editable =
     offer.status === 'pending' && requestAcceptsOffers(requestStatus) && !(now !== undefined && isOfferExpired(offer, now));
   return { canEdit: editable, canWithdraw: editable };
+}
+
+/** Why the owning customer cannot accept an offer right now. */
+export type OfferAcceptBlocker = 'already_accepted' | 'offer_expired' | 'offer_not_pending' | 'request_closed';
+
+/**
+ * The accept rule shared by `POST /offers/:id/accept` and the customer's Accept buttons: the
+ * request has no accepted offer yet and still takes offers, and the offer is pending and not
+ * expired. Returns the first reason it is blocked, or `null` when the customer may accept.
+ */
+export function getOfferAcceptBlocker(
+  offer: Pick<Offer, 'status' | 'expiresAt'>,
+  request: Pick<ServiceRequest, 'status' | 'acceptedOfferId'>,
+  now: DateInput,
+): OfferAcceptBlocker | null {
+  if (request.acceptedOfferId !== null) return 'already_accepted';
+  if (isOfferExpired(offer, now)) return 'offer_expired';
+  if (offer.status !== 'pending') return 'offer_not_pending';
+  if (!requestAcceptsOffers(request.status)) return 'request_closed';
+  return null;
+}
+
+export function canCustomerAcceptOffer(
+  offer: Pick<Offer, 'status' | 'expiresAt'>,
+  request: Pick<ServiceRequest, 'status' | 'acceptedOfferId'>,
+  now: DateInput,
+): boolean {
+  return getOfferAcceptBlocker(offer, request, now) === null;
+}
+
+/**
+ * How an offer reads for the professional who sent it. `accepted` is terminal in the offer machine,
+ * so when the customer later cancels the request (and with it the job) the offer stays `accepted`;
+ * the request status turns it into `job_cancelled` so the UI never celebrates a cancelled job.
+ */
+export type ProfessionalOfferOutcome = OfferStatus | 'job_cancelled';
+
+export function getProfessionalOfferOutcome(offerStatus: OfferStatus, requestStatus: RequestStatus): ProfessionalOfferOutcome {
+  return offerStatus === 'accepted' && requestStatus === 'cancelled' ? 'job_cancelled' : offerStatus;
 }

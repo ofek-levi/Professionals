@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import type { StyleProp, ViewStyle } from 'react-native';
 
 import type { StatusTone } from '@/constants/tones';
@@ -34,6 +35,15 @@ export interface AppMapDraggablePin {
   onChange: (coordinate: GeoCoordinates) => void;
 }
 
+/** Imperative camera control (`const mapRef = useRef<AppMapHandle>(null)`, `<AppMap ref={mapRef} />`). */
+export interface AppMapHandle {
+  /**
+   * Moves the camera to `region`, even when it equals the current `region` prop (e.g. a "recenter"
+   * button after the user panned away). `durationMs` applies to native maps; the web canvas jumps.
+   */
+  animateToRegion: (region: MapRegion, durationMs?: number) => void;
+}
+
 /**
  * Cross-platform map contract. `app-map.tsx` implements it with `react-native-maps`,
  * `app-map.web.tsx` with an interactive, dependency-free canvas.
@@ -41,7 +51,10 @@ export interface AppMapDraggablePin {
 export interface AppMapProps {
   /** Initial viewport (ignored after mount). */
   initialRegion?: MapRegion;
-  /** Focus region: whenever this value changes the map animates to it. */
+  /**
+   * Focus region: whenever this value changes the map animates to it. To move back to the same
+   * region after the user panned, call `ref.current.animateToRegion(region)` instead.
+   */
   region?: MapRegion;
   markers?: readonly AppMapMarker[];
   circles?: readonly AppMapCircle[];
@@ -61,4 +74,6 @@ export interface AppMapProps {
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
+  /** Imperative camera API (`animateToRegion`). */
+  ref?: Ref<AppMapHandle>;
 }

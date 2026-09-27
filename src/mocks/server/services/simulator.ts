@@ -117,8 +117,24 @@ export function generateSimulatedOffer(
   };
 }
 
-export function createSimulator(deps: SimulatorDeps): ServerHooks {
+export interface Simulator extends ServerHooks {
+  /**
+   * Drops everything still scheduled (offers, replies): their callbacks become no-ops. Called when
+   * the demo data is reset, so nothing lands in the freshly seeded rows (seed ids are fixed).
+   */
+  reset(): void;
+}
+
+export function createSimulator(deps: SimulatorDeps): Simulator {
   const conversationsAwaitingReply = new Set<string>();
+  // Incremented by `reset()`; a callback only runs in the generation it was scheduled in.
+  let generation = 0;
+  const schedule = (callback: () => void, delayMs: number) => {
+    const scheduledIn = generation;
+    deps.schedule(() => {
+      if (scheduledIn === generation) callback();
+    }, delayMs);
+  };
 
   const sendSimulatedOffer = (requestId: string, professionalId: string) => {
     if (!deps.isEnabled()) return;
@@ -173,7 +189,7 @@ export function createSimulator(deps: SimulatorDeps): ServerHooks {
         .slice(0, count)
         .forEach(({ professional }, index) => {
           const delay = SIMULATED_OFFER_DELAYS_MS[index] + random.int(-800, 800);
-          ctx.afterCommit(() => deps.schedule(() => sendSimulatedOffer(requestId, professional.id), delay));
+          ctx.afterCommit(() => schedule(() => sendSimulatedOffer(requestId, professional.id), delay));
         });
     },
 
@@ -184,8 +200,13 @@ export function createSimulator(deps: SimulatorDeps): ServerHooks {
         // One pending reply per conversation: a burst of messages gets a single answer.
         if (conversationsAwaitingReply.has(message.conversationId)) return;
         conversationsAwaitingReply.add(message.conversationId);
-        deps.schedule(() => sendAutoReply(message), AUTO_REPLY_DELAY_MS);
+        schedule(() => sendAutoReply(message), AUTO_REPLY_DELAY_MS);
       });
+    },
+
+    reset() {
+      generation += 1;
+      conversationsAwaitingReply.clear();
     },
   };
 }

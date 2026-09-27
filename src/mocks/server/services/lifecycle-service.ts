@@ -10,6 +10,7 @@ import { computeRequestOfferStats } from '@/features/offers/offer-counters';
 import {
   assertOfferTransition,
   computeOfferExpiry,
+  getOfferAcceptBlocker,
   isOfferExpired,
 } from '@/features/offers/offer-status-machine';
 import { assertJobTransition, requestStatusForJobStatus } from '@/features/jobs/job-status-machine';
@@ -26,7 +27,7 @@ import { createOfferSchema, updateOfferSchema } from '@/lib/validation/offer';
 import {
   createServiceRequestSchema,
   updateDraftRequestSchema,
-  validatePreferredDate,
+  validatePreferredDateForUrgency,
 } from '@/lib/validation/request';
 import type { AcceptOfferResponse, CreateServiceRequestPayload } from '@/types/api';
 import type {
@@ -38,6 +39,7 @@ import type {
   RequestStatus,
   ServiceLocation,
   ServiceRequest,
+  UrgencyLevel,
 } from '@/types/domain';
 
 import type { Actor, CustomerActor, ProfessionalActor } from '../auth';
@@ -124,9 +126,9 @@ function resolvePhotos(ctx: ServerContext, ownerId: string, photoIds: readonly s
   return photos;
 }
 
-function assertPreferredSchedule(ctx: ServerContext, schedule: PreferredSchedule | null | undefined): void {
+function assertPreferredSchedule(ctx: ServerContext, schedule: PreferredSchedule | null | undefined, urgency: UrgencyLevel): void {
   if (!schedule) return;
-  const issue = validatePreferredDate(schedule.date, ctx.now());
+  const issue = validatePreferredDateForUrgency(schedule.date, urgency, ctx.now());
   if (issue) throw DomainError.validation({ 'preferredSchedule.date': [issue] });
 }
 
@@ -147,11 +149,21 @@ function customerNameOf(ctx: ServerContext, customerId: string): string {
   return customerShortName(requireStoredUser(ctx.db, customerId));
 }
 
+/**
+ * Professionals whose explorer (map, list, dashboard) shows the request while it accepts offers.
+ * They get `request.updated` whenever the request enters or leaves the explorer, not only those
+ * who already sent an offer.
+ */
+function explorerAudience(ctx: ServerContext, request: ServiceRequest): string[] {
+  if (!requestAcceptsOffers(request.status)) return [];
+  return findMatchingProfessionals(ctx, request).map(({ professional }) => professional.userId);
+}
+
 // ────────────────────────────── Requests ──────────────────────────────
 
 function publish(ctx: ServerContext, request: ServiceRequest): ServiceRequest {
   assertRequestTransition(request.status, 'open');
-  assertPreferredSchedule(ctx, request.preferredSchedule);
+  assertPreferredSchedule(ctx, request.preferredSchedule, request.urgency);
   const now = ctx.nowIso();
   const published = setRequestStatus(ctx, request, 'open', { publishedAt: now });
   const customerName = customerNameOf(ctx, published.customerId);
@@ -159,7 +171,7 @@ function publish(ctx: ServerContext, request: ServiceRequest): ServiceRequest {
   for (const { professional, distanceKm } of matches) {
     notify(ctx, professional.userId, { type: 'new_matching_request', request: published, customerName, distanceKm });
   }
-  emitRequestUpdated(ctx, published, matches.map(({ professional }) => professional.userId));
+  emitRequestUpdated(ctx, published, explorerAudience(ctx, published));
   recomputeCustomerStats(ctx, published.customerId);
   ctx.hooks.onRequestPublished(ctx, published.id);
   return published;
@@ -168,7 +180,7 @@ function publish(ctx: ServerContext, request: ServiceRequest): ServiceRequest {
 /** `POST /requests` – creates a draft or a published request. */
 export function createRequest(ctx: ServerContext, actor: CustomerActor, body: unknown): ServiceRequest {
   const payload = parseBody(createServiceRequestSchema, body);
-  assertPreferredSchedule(ctx, payload.preferredSchedule);
+  assertPreferredSchedule(ctx, payload.preferredSchedule, payload.urgency);
   const now = ctx.nowIso();
   const draft = ctx.db.requests.insert({
     id: ctx.newId('req'),
@@ -188,6 +200,7 @@ export function createRequest(ctx: ServerContext, actor: CustomerActor, body: un
     publishedAt: null,
     cancelledAt: null,
     cancellationReason: null,
+    cancellationComment: null,
     createdAt: now,
     updatedAt: now,
   });
@@ -201,7 +214,13 @@ export function updateDraftRequest(ctx: ServerContext, actor: CustomerActor, req
   const request = requireOwnedRequest(ctx, actor, requestId);
   if (request.status !== 'draft') throw DomainError.conflict('Only drafts can be edited');
   const payload = parseBody(updateDraftRequestSchema, body);
-  if (payload.preferredSchedule !== undefined) assertPreferredSchedule(ctx, payload.preferredSchedule);
+  if (payload.preferredSchedule !== undefined || payload.urgency !== undefined) {
+    assertPreferredSchedule(
+      ctx,
+      payload.preferredSchedule !== undefined ? payload.preferredSchedule : request.preferredSchedule,
+      payload.urgency ?? request.urgency,
+    );
+  }
   const updated = ctx.db.requests.update(request.id, {
     ...(payload.categoryId !== undefined ? { categoryId: payload.categoryId } : {}),
     ...(payload.description !== undefined ? { description: payload.description } : {}),
@@ -239,6 +258,7 @@ export function cancelRequest(ctx: ServerContext, actor: CustomerActor, requestI
   assertRequestTransition(request.status, 'cancelled');
   const job = request.jobId ? requireJob(ctx.db, request.jobId) : undefined;
   if (job && job.status !== 'cancelled') assertJobTransition(job.status, 'cancelled');
+  const leavesExplorer = explorerAudience(ctx, request);
 
   const now = ctx.nowIso();
   const customerName = customerNameOf(ctx, request.customerId);
@@ -264,6 +284,7 @@ export function cancelRequest(ctx: ServerContext, actor: CustomerActor, requestI
   const cancelled = setRequestStatus(ctx, request, 'cancelled', {
     cancelledAt: now,
     cancellationReason: payload.reason,
+    cancellationComment: payload.comment,
     offerCount: stats.offerCount,
     pendingOfferCount: stats.pendingOfferCount,
   });
@@ -273,7 +294,7 @@ export function cancelRequest(ctx: ServerContext, actor: CustomerActor, requestI
   );
   changedOffers.forEach((offer) => emitOfferUpdated(ctx, offer));
   if (cancelledJob) emitJobUpdated(ctx, cancelledJob);
-  emitRequestUpdated(ctx, cancelled);
+  emitRequestUpdated(ctx, cancelled, leavesExplorer);
   recomputeCustomerStats(ctx, cancelled.customerId);
   return cancelled;
 }
@@ -419,13 +440,23 @@ export function withdrawOffer(ctx: ServerContext, actor: ProfessionalActor, offe
 export function acceptOffer(ctx: ServerContext, actor: CustomerActor, offerId: string): AcceptOfferResponse {
   const offer = requireOffer(ctx.db, offerId);
   const request = requireOwnedRequest(ctx, actor, offer.requestId);
-  if (request.acceptedOfferId !== null) {
-    throw DomainError.conflict('An offer has already been accepted for this request', 'CONFLICT');
+  // Same rule as the customer's Accept buttons; each blocker maps to its REST error.
+  switch (getOfferAcceptBlocker(offer, request, ctx.now())) {
+    case 'already_accepted':
+      throw DomainError.conflict('An offer has already been accepted for this request', 'CONFLICT');
+    case 'offer_expired':
+      throw DomainError.conflict('This offer has expired', 'OFFER_EXPIRED');
+    case 'offer_not_pending':
+      throw DomainError.invalidTransition('offer', offer.status, 'accepted');
+    case 'request_closed':
+      throw DomainError.conflict('This request no longer accepts offers', 'REQUEST_NOT_ACCEPTING_OFFERS');
+    case null:
+      break;
   }
-  if (isOfferExpired(offer, ctx.now())) throw DomainError.conflict('This offer has expired', 'OFFER_EXPIRED');
   assertOfferTransition(offer.status, 'accepted');
   assertRequestTransition(request.status, requestStatusForJobStatus('awaiting_confirmation'));
   const professional = requireProfessional(ctx.db, offer.professionalId);
+  const leavesExplorer = explorerAudience(ctx, request);
 
   const now = ctx.nowIso();
   const accepted = ctx.db.offers.update(offer.id, {
@@ -496,7 +527,7 @@ export function acceptOffer(ctx: ServerContext, actor: CustomerActor, offerId: s
     });
   }
   [accepted, ...rejected].forEach((changed) => emitOfferUpdated(ctx, changed));
-  emitRequestUpdated(ctx, updatedRequest);
+  emitRequestUpdated(ctx, updatedRequest, leavesExplorer);
   emitJobUpdated(ctx, job);
   return { offer: accepted, request: updatedRequest, job: toJob(job) };
 }

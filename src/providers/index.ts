@@ -1,4 +1,5 @@
 export { AppProviders, resolveColorScheme } from './app-providers';
+export { HeaderHomeButton, renderHeaderHomeButton } from './header-home-button';
 export {
   buildNavigationTheme,
   buildStackScreenOptions,

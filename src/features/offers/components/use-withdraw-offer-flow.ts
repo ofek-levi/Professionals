@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 
-import { useConfirm, useErrorText, useToast } from '@/components/ui';
+import { useConfirm, useErrorToast, useToast } from '@/components/ui';
 import { useWithdrawOffer } from '@/hooks';
 
 /**
@@ -11,7 +11,7 @@ export function useWithdrawOfferFlow() {
   const { t } = useTranslation('offers');
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const mutation = useWithdrawOffer();
 
   const withdraw = async (offerId: string, onDone?: () => void): Promise<void> => {
@@ -29,7 +29,7 @@ export function useWithdrawOfferFlow() {
         toast.show({ title: t('withdraw.success'), message: t('withdraw.successMessage'), tone: 'neutral', icon: 'undo-variant' });
         onDone?.();
       },
-      onError: (error) => toast.show({ ...errorText(error), tone: 'danger' }),
+      onError: (error) => showError(error),
     });
   };
 

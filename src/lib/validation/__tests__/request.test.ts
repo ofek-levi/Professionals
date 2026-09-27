@@ -11,6 +11,7 @@ import {
   toUpdateDraftRequestPayload,
   updateDraftRequestSchema,
   validatePreferredDate,
+  validatePreferredDateForUrgency,
   type RequestFormValues,
 } from '../request';
 
@@ -154,6 +155,19 @@ describe('request wizard form', () => {
     });
   });
 
+  it('rejects a preferred date that is too late for the urgency', () => {
+    const nextWeek = toDateKey(addDays(NOW, 7));
+    const result = schema.safeParse({ ...validForm(), urgency: 'emergency', preferredDate: nextWeek });
+    expect(!result.success && zodIssuesToFieldErrors(result.error)).toEqual({
+      preferredDate: ['validation:request.preferredDateBeyondUrgency'],
+    });
+    expect(schema.safeParse({ ...validForm(), urgency: 'normal', preferredDate: nextWeek }).success).toBe(true);
+    expect(schema.safeParse({ ...validForm(), urgency: 'emergency', preferredDate: toDateKey(addDays(NOW, 1)) }).success).toBe(true);
+    expect(validatePreferredDateForUrgency(toDateKey(addDays(NOW, 3)), 'urgent', NOW)).toBeNull();
+    expect(validatePreferredDateForUrgency(toDateKey(addDays(NOW, 4)), 'urgent', NOW)).toBe('validation:request.preferredDateBeyondUrgency');
+    expect(validatePreferredDateForUrgency(toDateKey(addDays(NOW, -1)), 'urgent', NOW)).toBe('validation:request.preferredDateInPast');
+  });
+
   it('round-trips an existing draft', () => {
     const payload = toCreateRequestPayload(validForm(), ['upl_1'], false);
     const values = requestToFormValues({
@@ -170,6 +184,7 @@ describe('request wizard form', () => {
       publishedAt: null,
       cancelledAt: null,
       cancellationReason: null,
+      cancellationComment: null,
       createdAt: NOW.toISOString(),
       updatedAt: NOW.toISOString(),
     });

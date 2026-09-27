@@ -101,6 +101,32 @@ describe('database', () => {
     expect(second.internals.db.requests.require(SEED_IDS.requests.noaLeak, 'Request').status).toBe('offers_received');
     expect(storage.saved?.tables.requests.find((request) => request.id === SEED_IDS.requests.noaLeak)?.status).toBe('offers_received');
   });
+
+  it('reseeds persisted demo data that was seeded too long ago', async () => {
+    const clock = createTestClock();
+    const storage = memoryStorage();
+    const first = createMockServer({ now: clock.now, persist: true, simulation: false, storage, persistDebounceMs: 5 });
+    await first.ready();
+    await first.handle({
+      method: 'POST',
+      path: `/requests/${SEED_IDS.requests.noaLeak}/cancel`,
+      body: { reason: 'other' },
+      headers: { Authorization: `Bearer demo-token:${DEMO_CUSTOMER_IDS.noa}` },
+    });
+    await first.internals.flushPersistence();
+    const statusAfterLaunch = async () => {
+      const server = createMockServer({ now: clock.now, persist: true, simulation: false, storage, maxSeedAgeMs: 12 * 60 * 60 * 1000 });
+      await server.ready();
+      return server.internals.db.requests.require(SEED_IDS.requests.noaLeak, 'Request').status;
+    };
+
+    clock.advanceMinutes(11 * 60);
+    expect(await statusAfterLaunch()).toBe('cancelled');
+    clock.advanceMinutes(2 * 60);
+    // A fresh scenario for "now": the showcase offers are pending again.
+    expect(await statusAfterLaunch()).toBe('offers_received');
+    expect(Date.parse(storage.saved?.seededAt ?? '')).toBe(clock.now().getTime());
+  });
 });
 
 describe('geo, catalog and profiles', () => {

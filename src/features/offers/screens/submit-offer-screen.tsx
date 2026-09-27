@@ -75,9 +75,9 @@ export default function SubmitOfferScreen() {
           title={t('offers:form.locked.title')}
           description={t('offers:form.locked.description')}
           actionLabel={t('offers:actions.viewOffer')}
-          onAction={() => router.replace(routes.offer(offer.id))}
+          onAction={() => router.dismissTo(routes.offer(offer.id))}
           secondaryActionLabel={t('offers:actions.viewRequest')}
-          onSecondaryAction={() => router.replace(routes.request(request.id))}
+          onSecondaryAction={() => router.dismissTo(routes.request(request.id))}
         />
       </Screen>
     );
@@ -95,7 +95,9 @@ export default function SubmitOfferScreen() {
             description={t('offers:form.duplicate.description')}
             actionLabel={myOffer.status === 'pending' ? t('offers:form.duplicate.edit') : t('offers:actions.viewOffer')}
             onAction={() =>
-              router.replace(myOffer.status === 'pending' ? routes.submitOffer(request.id, myOffer.offerId) : routes.offer(myOffer.offerId))
+              myOffer.status === 'pending'
+                ? router.replace(routes.submitOffer(request.id, myOffer.offerId))
+                : router.dismissTo(routes.offer(myOffer.offerId))
             }
           />
         </Screen>
@@ -111,7 +113,7 @@ export default function SubmitOfferScreen() {
             title={t('offers:form.closed.title')}
             description={t('offers:form.closed.description')}
             actionLabel={t('offers:form.closed.browse')}
-            onAction={() => router.replace(routes.professional.explore)}
+            onAction={() => router.dismissTo(routes.professional.explore)}
           />
         </Screen>
       );

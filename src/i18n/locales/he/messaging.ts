@@ -4,6 +4,7 @@ import type { LocaleNamespace } from '../../types';
 export const messaging: LocaleNamespace<typeof enmessaging> = {
   conversations: {
     you: 'אתם: {{text}}',
+    youPrefix: 'אתם:',
     noMessages: 'עדיין אין הודעות. תגידו שלום!',
     closed: 'סגור',
     unread_one: 'הודעה אחת שלא נקראה',

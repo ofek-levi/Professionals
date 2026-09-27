@@ -106,7 +106,7 @@ export function AboutSection({ profile }: { profile: ProfessionalProfile }) {
     <ProfileSection title={t('profile:public.about')} icon="account-details-outline" testID="profile-about">
       {bio ? (
         <>
-          <AppText variant="body" color="secondary" numberOfLines={expanded || !long ? undefined : BIO_PREVIEW_LINES}>
+          <AppText variant="body" color="secondary" numberOfLines={expanded || !long ? undefined : BIO_PREVIEW_LINES} userContent>
             {bio}
           </AppText>
           {long ? (
@@ -173,7 +173,7 @@ export function AvailabilitySection({ profile }: { profile: ProfessionalProfile 
       testID="profile-availability"
       trailing={
         profile.availability.acceptsEmergencyCalls ? (
-          <Badge label={t('profile:public.emergencyShort')} icon="alarm-light-outline" tone="danger" size="sm" />
+          <Badge label={t('profile:public.emergencyShort')} icon="alarm-light-outline" tone="danger" size="sm" style={styles.centered} />
         ) : undefined
       }
     >
@@ -297,6 +297,10 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: t.spacing.sm,
+  },
+  // Badges align to the top by default; in the header they sit on the title's center line.
+  centered: {
+    alignSelf: 'center',
   },
   sectionIcon: {
     width: 32,

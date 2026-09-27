@@ -79,7 +79,7 @@ export const professional = {
     confirmDialog: {
       title: 'Confirm this appointment?',
       message: 'Appointment with {{customer}}: {{when}}.\nThe customer is notified as soon as you confirm.',
-      confirm: 'Confirm',
+      confirm: 'Confirm appointment',
     },
     confirmed: 'Appointment confirmed',
     confirmedMessage: 'The customer has been notified.',
@@ -129,6 +129,10 @@ export const professional = {
       some_one: '{{count}} pro already sent an offer',
       some_other: '{{count}} pros already sent offers',
       someHint: 'Stand out with a clear price, a good time and a friendly message.',
+      onlyYours: 'Yours is the only offer so far',
+      others_one: '{{count}} other pro also sent an offer',
+      others_other: '{{count}} other pros also sent offers',
+      yoursHint: 'The customer compares offers side by side. You can still edit yours while it’s pending.',
     },
     myOffer: {
       title: 'Your offer',
@@ -143,6 +147,7 @@ export const professional = {
         taken: 'The customer already chose a professional for this request.',
         cancelled: 'The customer cancelled this request.',
       },
+      customerNote: 'Note from the customer: {{note}}',
     },
     cta: {
       send: 'Send an offer',

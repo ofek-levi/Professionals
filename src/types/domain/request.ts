@@ -47,15 +47,23 @@ export interface ServiceRequest {
   photos: RequestPhoto[];
   notes: string | null;
   status: RequestStatus;
-  /** Number of offers that are not withdrawn. */
+  /**
+   * Offers received that were not withdrawn (history: includes rejected and expired ones). Shown to
+   * the owner; professionals compete with `pendingOfferCount`.
+   */
   offerCount: number;
-  /** Offers still awaiting the customer's decision. */
+  /**
+   * Live offers still awaiting the customer's decision. This is the competition professionals see
+   * (explorer filters/sorting, "Be the first", offer counts on their cards).
+   */
   pendingOfferCount: number;
   acceptedOfferId: EntityId | null;
   jobId: EntityId | null;
   publishedAt: ISODateTimeString | null;
   cancelledAt: ISODateTimeString | null;
   cancellationReason: RequestCancellationReason | null;
+  /** Optional note the customer left for the professionals when cancelling. */
+  cancellationComment: string | null;
   createdAt: ISODateTimeString;
   updatedAt: ISODateTimeString;
 }

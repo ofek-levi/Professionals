@@ -8,7 +8,7 @@ import { APP_CONFIG } from '@/constants/app-config';
 import { isWithinWorkingHours } from '@/features/profiles/availability';
 import { vm, type ValidationMessageKey } from '@/lib/validation/messages';
 import type { ServiceRequest, WeeklyAvailability } from '@/types/domain';
-import { isWithinTimeWindow, toDate, toDateKey, type DateInput } from '@/utils/dates';
+import { isWithinTimeWindow, parseDateKey, toDate, toDateKey, type DateInput } from '@/utils/dates';
 
 export const OFFER_TIME_RULES = {
   /** A proposed start must be at least this far in the future. */
@@ -63,6 +63,16 @@ export function latestAllowedOfferStart(urgency: ServiceRequest['urgency'], now:
   if (urgency === 'emergency') latest = Math.min(latest, nowMs + OFFER_TIME_RULES.emergencyMaxHours * HOUR_MS);
   if (urgency === 'urgent') latest = Math.min(latest, nowMs + OFFER_TIME_RULES.urgentMaxHours * HOUR_MS);
   return new Date(latest);
+}
+
+/**
+ * Whether professionals can still propose a start on the preferred date (`YYYY-MM-DD`) of a request
+ * with this urgency: the day must begin before the latest allowed start (an emergency must be
+ * handled within 24 h, an urgent job within 72 h). Shared by the request wizard and the server.
+ */
+export function isPreferredDateWithinUrgency(urgency: ServiceRequest['urgency'], dateKey: string, now: DateInput): boolean {
+  const day = parseDateKey(dateKey);
+  return day !== null && day.getTime() <= latestAllowedOfferStart(urgency, now).getTime();
 }
 
 /** Earliest allowed start (now + minimum lead time). */

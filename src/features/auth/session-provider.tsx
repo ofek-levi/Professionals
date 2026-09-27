@@ -44,10 +44,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 export interface AuthActions {
   /** Signs in with a demo account (no password). Resolves with the new session. */
   signInWithDemoAccount: (userId: string) => Promise<AuthSession>;
-  /** Signs out (best-effort server logout, then local sign out). */
+  /** Signs out (best-effort server logout, then local sign out). "Switch account" is a sign-out. */
   signOut: () => Promise<void>;
-  /** Signs out of the current account and straight into another demo account. */
-  switchAccount: (userId: string) => Promise<AuthSession>;
 }
 
 async function logoutQuietly(): Promise<void> {
@@ -71,10 +69,6 @@ const authActions: AuthActions = {
   async signOut() {
     await logoutQuietly();
     await sessionStore.signOut();
-  },
-  async switchAccount(userId) {
-    await logoutQuietly();
-    return signInWithDemoAccount(userId);
   },
 };
 

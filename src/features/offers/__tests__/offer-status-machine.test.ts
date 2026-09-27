@@ -3,9 +3,12 @@ import { OFFER_STATUSES } from '@/constants/offer-statuses';
 import { computeRequestOfferStats } from '../offer-counters';
 import {
   assertOfferTransition,
+  canCustomerAcceptOffer,
   canTransitionOffer,
   computeOfferExpiry,
+  getOfferAcceptBlocker,
   getProfessionalOfferActions,
+  getProfessionalOfferOutcome,
   isOfferActive,
   isOfferExpired,
 } from '../offer-status-machine';
@@ -54,6 +57,26 @@ describe('offer status machine', () => {
     expect(getProfessionalOfferActions(pending, 'professional_selected')).toEqual({ canEdit: false, canWithdraw: false });
     expect(getProfessionalOfferActions({ ...pending, status: 'accepted' }, 'offers_received').canEdit).toBe(false);
     expect(getProfessionalOfferActions(pending, 'offers_received', hours(4)).canEdit).toBe(false);
+  });
+
+  it('lets the customer accept only a live pending offer on a request that still takes offers', () => {
+    const pending = { status: 'pending' as const, expiresAt: hours(3) };
+    const request = { status: 'offers_received' as const, acceptedOfferId: null };
+    expect(getOfferAcceptBlocker(pending, request, NOW)).toBeNull();
+    expect(canCustomerAcceptOffer(pending, request, NOW)).toBe(true);
+    expect(getOfferAcceptBlocker(pending, { ...request, acceptedOfferId: 'off_1' }, NOW)).toBe('already_accepted');
+    expect(getOfferAcceptBlocker(pending, request, hours(3))).toBe('offer_expired');
+    expect(getOfferAcceptBlocker({ ...pending, status: 'rejected' }, request, NOW)).toBe('offer_not_pending');
+    expect(getOfferAcceptBlocker(pending, { ...request, status: 'cancelled' }, NOW)).toBe('request_closed');
+    expect(canCustomerAcceptOffer(pending, { ...request, status: 'professional_selected' }, NOW)).toBe(false);
+  });
+
+  it('reads an accepted offer on a cancelled request as a cancelled job for the professional', () => {
+    expect(getProfessionalOfferOutcome('accepted', 'scheduled')).toBe('accepted');
+    expect(getProfessionalOfferOutcome('accepted', 'completed')).toBe('accepted');
+    expect(getProfessionalOfferOutcome('accepted', 'cancelled')).toBe('job_cancelled');
+    expect(getProfessionalOfferOutcome('rejected', 'cancelled')).toBe('rejected');
+    expect(getProfessionalOfferOutcome('pending', 'offers_received')).toBe('pending');
   });
 
   it('aggregates offer counters', () => {

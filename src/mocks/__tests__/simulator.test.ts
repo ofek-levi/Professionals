@@ -83,6 +83,31 @@ describe('demo simulator', () => {
     expect(customerReply.text).toMatch(/[a-z]/i);
   });
 
+  it('drops pending offers and replies when the demo data is reset', async () => {
+    const env = await createTestEnvironment({ simulation: true });
+    const conversationId = SEED_IDS.conversations.noaLighting;
+    await publishPlumbingRequest(env);
+    await env.as(NOA).conversations.sendMessage(conversationId, { text: 'Are you coming tomorrow?', clientMessageId: 'r-1' });
+    expect(env.scheduled.length).toBeGreaterThan(1);
+
+    await env.server.reset();
+    const db = env.server.internals.db;
+    const seededMessages = db.messages.count((message) => message.conversationId === conversationId);
+    const seededOffers = db.offers.count(() => true);
+    const seededNotifications = db.notifications.count(() => true);
+    env.clock.advanceMinutes(1);
+    env.runScheduled();
+
+    expect(db.messages.count((message) => message.conversationId === conversationId)).toBe(seededMessages);
+    expect(db.offers.count(() => true)).toBe(seededOffers);
+    expect(db.notifications.count(() => true)).toBe(seededNotifications);
+
+    // The simulator keeps working for new activity after the reset.
+    await env.as(NOA).conversations.sendMessage(conversationId, { text: 'Hello again', clientMessageId: 'r-2' });
+    env.runScheduled();
+    expect(db.messages.count((message) => message.conversationId === conversationId)).toBe(seededMessages + 2);
+  });
+
   it('does nothing when disabled', async () => {
     const env = await createTestEnvironment({ simulation: true });
     env.server.setSimulationEnabled(false);

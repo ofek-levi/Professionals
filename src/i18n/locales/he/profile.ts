@@ -1,13 +1,14 @@
 import type { profile as enprofile } from '../en/profile';
 import type { LocaleNamespace } from '../../types';
+import { isolateLtr } from '@/utils/bidi';
 
 export const profile: LocaleNamespace<typeof enprofile> = {
   public: {
-    insured: 'מבוטח',
-    notInsured: 'לא מבוטח',
+    insured: 'יש ביטוח',
+    notInsured: 'אין ביטוח',
     emergencyCalls: 'קריאות חירום',
     emergencyShort: 'חירום 24/7',
-    emergencyHint: 'מקבל גם קריאות חירום דחופות מחוץ לשעות הפעילות.',
+    emergencyHint: 'זמינות גם לקריאות חירום דחופות מחוץ לשעות הפעילות.',
     memberSince: 'באפליקציה מאז {{date}}',
     stats: {
       years_one: 'שנת ניסיון',
@@ -21,17 +22,17 @@ export const profile: LocaleNamespace<typeof enprofile> = {
     },
     about: 'אודות',
     readMore: 'קראו עוד',
-    noBio: 'בעל המקצוע עדיין לא כתב על עצמו.',
-    reviews: 'חוות דעת',
+    noBio: 'עדיין לא נוסף תיאור.',
+    reviews: 'ביקורות',
     noReviewsDescription: 'היו הראשונים לעבוד עם בעל המקצוע ולשתף את החוויה.',
-    seeAllReviews_one: 'לחוות הדעת',
-    seeAllReviews_two: 'לשתי חוות הדעת',
-    seeAllReviews_other: 'לכל {{count}} חוות הדעת',
+    seeAllReviews_one: 'לביקורת',
+    seeAllReviews_two: 'לשתי הביקורות',
+    seeAllReviews_other: 'לכל {{count}} הביקורות',
     serviceArea: 'אזור שירות',
     serviceAreaA11y: 'מפת אזור השירות: {{area}}, עד {{radius}}',
-    radius: 'עובד עד {{radius}} מהבסיס',
+    radius: 'טווח עבודה: עד {{radius}} מהבסיס',
     availability: 'שעות פעילות',
-    hours: '{{start}}–{{end}}',
+    hours: isolateLtr('{{start}}–{{end}}'),
     closed: 'סגור',
     business: 'פרטי העסק',
     businessName: 'שם העסק',

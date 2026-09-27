@@ -71,7 +71,7 @@ export function OfferTerms({ price, currency, proposedStartAt, estimatedDuration
       {message ? (
         <View style={styles.message}>
           <Icon name="message-text-outline" size={18} color="muted" />
-          <AppText variant="body" color="secondary" style={styles.flex}>
+          <AppText variant="body" color="secondary" style={styles.flex} userContent>
             {message}
           </AppText>
         </View>

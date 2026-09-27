@@ -117,8 +117,9 @@ export function isSelectedProfessional(request: ServiceRequest, professionalId: 
 }
 
 /**
- * Request as seen by a professional. The exact address and access details stay hidden until the
- * professional's offer is accepted; distance is measured to the real location.
+ * Request as seen by a professional. The exact address and the customer's notes (access details
+ * such as building codes and parking) stay hidden until the professional's offer is accepted;
+ * distance is measured to the real location.
  */
 export function toProfessionalRequestView(
   ctx: ServerContext,
@@ -129,6 +130,7 @@ export function toProfessionalRequestView(
   return {
     ...request,
     location: selected ? request.location : approximateLocation(request.location, request.id),
+    notes: selected ? request.notes : null,
     jobId: selected ? request.jobId : null,
     distanceKm: distanceFromServiceAreaKm(professional.serviceArea, request.location.coordinates),
     customer: toCustomerSummary(ctx, request.customerId),
@@ -164,6 +166,7 @@ export function toOfferRequestSummary(ctx: ServerContext, request: ServiceReques
     location: revealLocation ? request.location : approximateLocation(request.location, request.id),
     preferredSchedule: request.preferredSchedule,
     offerCount: request.offerCount,
+    pendingOfferCount: request.pendingOfferCount,
     createdAt: request.createdAt,
   };
 }

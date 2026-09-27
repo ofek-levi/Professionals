@@ -1,4 +1,5 @@
-import type { ReactNode, Ref } from 'react';
+import { HeaderHeightContext } from 'expo-router/react-navigation';
+import { useContext, type ReactNode, type Ref } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -36,7 +37,11 @@ export interface ScreenProps {
   /** Sticky bottom area for primary CTAs; respects the bottom inset. */
   footer?: ReactNode;
   keyboardAvoiding?: boolean;
-  /** Height of a native header above the screen, for correct keyboard avoidance on iOS. */
+  /**
+   * Distance between the top of the window and the screen (keyboard avoidance measures the screen
+   * relative to its parent). Defaults to the height of the navigation header above the screen, so
+   * stack screens with a native header keep their footer CTA and last fields above the keyboard.
+   */
   keyboardVerticalOffset?: number;
   /** Constrains content width on tablets / web. `false` disables it. */
   maxContentWidth?: number | false;
@@ -48,6 +53,13 @@ export interface ScreenProps {
 }
 
 const DEFAULT_EDGES: readonly Edge[] = ['top', 'left', 'right'];
+
+/**
+ * Dragging the content dismisses the keyboard on native. react-native-web treats *every* scroll
+ * event as a drag, including the browser scrolling a just-focused field into view, so 'on-drag'
+ * would blur the field while the user types. The web keyboard is dismissed by the browser itself.
+ */
+const KEYBOARD_DISMISS_MODE = Platform.select({ ios: 'interactive', android: 'on-drag', default: 'none' } as const);
 
 /**
  * Root container for every screen: safe areas, background, keyboard avoidance, pull-to-refresh,
@@ -65,7 +77,7 @@ export function Screen({
   header,
   footer,
   keyboardAvoiding = true,
-  keyboardVerticalOffset = 0,
+  keyboardVerticalOffset,
   maxContentWidth,
   scrollRef,
   scrollProps,
@@ -76,6 +88,7 @@ export function Screen({
   const theme = useTheme();
   const styles = useStyles();
   const insets = useSafeAreaInsets();
+  const headerHeight = useContext(HeaderHeightContext) ?? 0;
 
   const wantsBottomInset = edges.includes('bottom');
   const containerEdges = edges.filter((edge) => edge !== 'bottom');
@@ -93,7 +106,7 @@ export function Screen({
       ref={scrollRef}
       style={styles.flex}
       keyboardShouldPersistTaps="handled"
-      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+      keyboardDismissMode={KEYBOARD_DISMISS_MODE}
       showsVerticalScrollIndicator={false}
       {...scrollProps}
       contentContainerStyle={[
@@ -129,7 +142,7 @@ export function Screen({
         style={styles.flex}
         enabled={keyboardAvoiding && Platform.OS !== 'web'}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={keyboardVerticalOffset}
+        keyboardVerticalOffset={keyboardVerticalOffset ?? headerHeight}
       >
         {header ? <View style={[constrained, { paddingHorizontal: padded ? theme.spacing.screen : 0 }]}>{header}</View> : null}
         {body}

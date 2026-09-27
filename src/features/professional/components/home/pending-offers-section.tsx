@@ -70,7 +70,7 @@ function PendingOfferRow({ offer }: { offer: OfferWithRequest }) {
         <View style={styles.metaRow}>
           <ExpiryBadge expiresAt={offer.expiresAt} />
           <AppText variant="caption" color="muted" numberOfLines={1}>
-            {t('common:counts.offers', { count: offer.request.offerCount })}
+            {t('common:counts.offers', { count: offer.request.pendingOfferCount })}
           </AppText>
         </View>
       </View>

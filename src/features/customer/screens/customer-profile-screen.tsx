@@ -236,6 +236,7 @@ export default function CustomerProfileScreen() {
         <Divider inset={52} />
         <ListItem
           icon="logout"
+          iconFlipInRTL
           destructive
           title={t('customer:profile.signOut.title')}
           onPress={() => void leaveAccount('signOut')}

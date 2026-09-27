@@ -5,8 +5,7 @@
  * message while it is open) marks the conversation as read.
  */
 import { Stack, useRouter } from 'expo-router';
-import { HeaderHeightContext } from 'expo-router/react-navigation';
-import { useContext, useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -36,6 +35,7 @@ import {
 import { routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
 import type { Conversation } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
 import { ChatComposer } from '../components/chat-composer';
 import { ChatDaySeparator } from '../components/chat-day-separator';
@@ -43,7 +43,6 @@ import {
   buildChatRows,
   getCounterpart,
   getLatestIncomingUnreadId,
-  isolateText,
   type ChatRow,
   type FailedMessage,
 } from '../components/chat-model';
@@ -82,7 +81,6 @@ function ChatView({ conversation }: { conversation: Conversation }) {
   const { t } = useTranslation(['messaging', 'common']);
   const { userId } = useSession();
   const now = useNow(60_000);
-  const headerHeight = useContext(HeaderHeightContext) ?? 0;
   const [draft, setDraft] = useState('');
 
   const messagesQuery = useConversationMessages(conversation.id);
@@ -197,7 +195,6 @@ function ChatView({ conversation }: { conversation: Conversation }) {
       scroll={false}
       padded={false}
       footer={footer}
-      keyboardVerticalOffset={headerHeight}
       header={
         jobQuery.data ? (
           <JobContextBanner job={jobQuery.data} onPress={openJob} />

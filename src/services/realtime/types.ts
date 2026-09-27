@@ -7,6 +7,11 @@ import type { AppNotification, Message } from '@/types/domain';
 export type RealtimeEvent =
   | { type: 'notification.created'; notification: AppNotification }
   | { type: 'message.created'; message: Message }
+  /**
+   * `readerId` read the conversation at `readAt`: every message the other participant sent up to
+   * then is read (read receipts). Sent to both participants.
+   */
+  | { type: 'conversation.read'; conversationId: string; readerId: string; readAt: string }
   | { type: 'request.updated'; requestId: string }
   | { type: 'offer.updated'; offerId: string; requestId: string }
   | { type: 'job.updated'; jobId: string; requestId: string }

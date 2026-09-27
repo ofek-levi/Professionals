@@ -31,7 +31,7 @@ export {
   type OfferDetails,
   type ProfessionalOffersQueryParams,
 } from './use-offer-queries';
-export { useActiveJobs, useJob, useJobs } from './use-job-queries';
+export { useJob, useJobs } from './use-job-queries';
 export {
   useOwnProfessionalProfile,
   useProfessionalProfile,

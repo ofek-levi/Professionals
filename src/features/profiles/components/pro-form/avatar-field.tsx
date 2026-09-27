@@ -3,7 +3,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { pickImagesFromLibrary } from '@/components/forms';
-import { AppText, Avatar, Button, useConfirm, useErrorText, useToast } from '@/components/ui';
+import { AppText, Avatar, Button, useConfirm, useErrorToast, useToast } from '@/components/ui';
 import { useUploadImage } from '@/hooks';
 import { makeStyles } from '@/theme';
 
@@ -19,7 +19,7 @@ export function AvatarField({ name, value, verified, onChange }: AvatarFieldProp
   const { t } = useTranslation(['professional', 'common']);
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const upload = useUploadImage();
 
   const pick = async () => {
@@ -38,7 +38,7 @@ export function AvatarField({ name, value, verified, onChange }: AvatarFieldProp
       });
       onChange(uploaded.url);
     } catch (error) {
-      toast.show({ ...errorText(error), tone: 'danger' });
+      showError(error);
     }
   };
 

@@ -130,7 +130,10 @@ export function LocationPicker({
     setPendingReverse(null);
     setUsedLastKnown(false);
     setFocusRegion(regionForRadius(place.coordinates, FOCUS_RADIUS_KM));
-    onChange(toServiceLocation(place.coordinates, place, value?.details ?? null));
+    // Apartment / floor details belong to the previous address: keep them only when the same
+    // address was picked again (moving the pin, by contrast, fine-tunes the same address).
+    const sameAddress = value !== null && value.addressLine === place.addressLine && value.city === place.city;
+    onChange(toServiceLocation(place.coordinates, place, sameAddress ? value.details : null));
   };
 
   const locateMe = async () => {

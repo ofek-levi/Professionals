@@ -38,6 +38,7 @@ export const requests: LocaleNamespace<typeof enrequests> = {
     photosHelper: 'תמונות עוזרות לאנשי המקצוע להבין את העבודה ולתמחר במדויק.',
     notesLabel: 'הערות לבעל המקצוע',
     notesPlaceholder: 'חניה, קוד בניין, חיות מחמד בבית, הדרך הכי טובה להשיג אתכם…',
+    notesHelper: 'רק בעל המקצוע שתבחרו יראה את ההערות האלה.',
   },
   location: {
     title: 'איפה העבודה?',
@@ -88,6 +89,11 @@ export const requests: LocaleNamespace<typeof enrequests> = {
     message: 'הבקשה עדיין לא נשמרה. אם תצאו עכשיו, הפרטים שהזנתם יאבדו.',
     draftMessage: 'השינויים בטיוטה לא נשמרו.',
     keepEditing: 'המשך עריכה',
+  },
+  customersOnly: {
+    title: 'בקשות שירות מפורסמות על ידי לקוחות',
+    description: 'כדי לפרסם בקשת שירות צריך להתחבר עם חשבון לקוח.',
+    action: 'חזרה לדף הבית',
   },
   alreadyPublished: {
     title: 'הבקשה הזו כבר פורסמה',

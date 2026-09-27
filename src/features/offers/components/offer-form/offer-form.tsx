@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
 
 import { DateSlotPicker, DurationPicker, FormSection, FormTextField, PriceInput, TimeSlotPicker, useTranslatedError } from '@/components/forms';
-import { AppText, Button, Icon, InlineAlert, Screen, useConfirm, useErrorText, useNow, useToast } from '@/components/ui';
+import { AppText, Button, Icon, InlineAlert, Screen, useConfirm, useErrorToast, useNow, useToast } from '@/components/ui';
 import { APP_CONFIG } from '@/constants/app-config';
 import { OFFER_TIME_RULES, validateOfferAgainstRequest } from '@/features/offers/offer-rules';
 import { getWorkingHoursForDate } from '@/features/profiles/availability';
@@ -33,6 +33,7 @@ import { toApiError } from '@/services/api/errors';
 import { makeStyles } from '@/theme';
 import type { OwnProfessionalProfile, ProfessionalRequestView } from '@/types/domain';
 import { parseDateKey, tryCombineDateAndTime } from '@/utils/dates';
+import { isolateText } from '@/utils/bidi';
 
 import { MessageTemplates } from './message-templates';
 import {
@@ -65,7 +66,7 @@ export function OfferForm({ request, offer, profile }: OfferFormProps) {
   const translateError = useTranslatedError();
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const now = useNow(60_000);
   const scrollRef = useRef<ScrollView>(null);
   const createOffer = useCreateOffer();
@@ -102,10 +103,15 @@ export function OfferForm({ request, offer, profile }: OfferFormProps) {
     });
   });
 
-  // Navigate once the "saved" state has rendered, so the unsaved-changes guard is already off.
+  // Navigate once the "saved" state has rendered, so the unsaved-changes guard is already off. An
+  // edited offer returns to its details when they are on the stack (never a second copy of them);
+  // a new offer replaces the form.
   useEffect(() => {
-    if (savedOfferId) router.replace(routes.offer(savedOfferId));
-  }, [savedOfferId, router]);
+    if (!savedOfferId) return;
+    const href = routes.offer(savedOfferId);
+    if (isEdit) router.dismissTo(href);
+    else router.replace(href);
+  }, [savedOfferId, isEdit, router]);
 
   // Business conflicts are shown in a banner at the top: bring it into view.
   useEffect(() => {
@@ -137,7 +143,7 @@ export function OfferForm({ request, offer, profile }: OfferFormProps) {
         : await createOffer.mutateAsync({ requestId: request.id, payload: toCreateOfferPayload(input, currency) });
       toast.show({
         title: isEdit ? t('offers:form.updated') : t('offers:form.sent'),
-        message: isEdit ? t('offers:form.updatedMessage') : t('offers:form.sentMessage', { name: request.customer.displayName }),
+        message: isEdit ? t('offers:form.updatedMessage') : t('offers:form.sentMessage', { name: isolateText(request.customer.displayName) }),
         tone: 'success',
         icon: 'check-circle-outline',
       });
@@ -152,7 +158,7 @@ export function OfferForm({ request, offer, profile }: OfferFormProps) {
       const fieldErrors = mapOfferServerFieldErrors(apiError.fieldErrors);
       const entries = Object.entries(fieldErrors) as [keyof OfferFormValues, string][];
       entries.forEach(([field, message]) => setError(field, { type: 'server', message }));
-      toast.show({ ...errorText(error), title: entries.length > 0 ? t('offers:form.fixFields') : errorText(error).title, tone: 'danger' });
+      showError(error, entries.length > 0 ? { title: t('offers:form.fixFields') } : undefined);
     }
   });
 
@@ -160,12 +166,12 @@ export function OfferForm({ request, offer, profile }: OfferFormProps) {
     switch (problem) {
       case 'DUPLICATE_OFFER':
       case 'REQUEST_NOT_ACCEPTING_OFFERS':
-        return { label: t('offers:form.problem.backToRequest'), onPress: () => router.replace(routes.request(request.id)) };
+        return { label: t('offers:form.problem.backToRequest'), onPress: () => router.dismissTo(routes.request(request.id)) };
       case 'OUTSIDE_SERVICE_AREA':
       case 'UNSUPPORTED_CATEGORY':
         return { label: t('offers:form.problem.editProfile'), onPress: () => router.push(routes.editProfile) };
       case 'OFFER_EXPIRED':
-        return offer ? { label: t('offers:actions.viewOffer'), onPress: () => router.replace(routes.offer(offer.id)) } : null;
+        return offer ? { label: t('offers:actions.viewOffer'), onPress: () => router.dismissTo(routes.offer(offer.id)) } : null;
       default:
         return null;
     }
@@ -200,7 +206,7 @@ export function OfferForm({ request, offer, profile }: OfferFormProps) {
       {problem ? (
         <InlineAlert
           tone="danger"
-          title={t(`errors:codes.${problem}.title`)}
+          title={t(`offers:form.problemTitle.${problem}`)}
           message={t(`offers:form.problem.${problem}`)}
           actionLabel={problemAction?.label}
           onAction={problemAction?.onPress}

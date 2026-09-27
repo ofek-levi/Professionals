@@ -2,6 +2,7 @@
 export const messaging = {
   conversations: {
     you: 'You: {{text}}',
+    youPrefix: 'You:',
     noMessages: 'No messages yet. Say hello!',
     closed: 'Closed',
     unread_one: '{{count}} unread message',

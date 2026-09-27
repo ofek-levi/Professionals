@@ -78,13 +78,28 @@ describe('authentication and role separation', () => {
     expect(response.request.isMatch).toBe(true);
     expect(JSON.stringify(response)).not.toContain('Florentin St 24');
     expect(JSON.stringify(response)).not.toContain('Apartment 7');
+    // The customer's notes carry access details (codes, parking), so they are private too.
+    expect(response.request.notes).toBeNull();
 
     const nearby = await env.as(PRO_IDS.avi).requests.getNearbyOpenRequests();
     expect(JSON.stringify(nearby)).not.toContain('Florentin St 24');
+    expect(JSON.stringify(nearby)).not.toContain('stairwell cabinet');
+    const dashboard = await env.as(PRO_IDS.avi).dashboard.getProfessionalDashboard();
+    expect(JSON.stringify(dashboard)).not.toContain('stairwell cabinet');
 
     // The hired professional sees everything.
     const hired = await env.as(PRO_IDS.lior).requests.getRequestById(SEED_IDS.requests.danielWifi);
     expect(hired.request.location).toMatchObject({ isApproximate: false, addressLine: 'Bialik St 45' });
+
+    // Once hired, the professional also gets the notes; the owner always does.
+    const noa = env.as(NOA);
+    await noa.offers.acceptOffer(SEED_IDS.offers.leakAvi);
+    const afterHire = await env.as(PRO_IDS.avi).requests.getRequestById(SEED_IDS.requests.noaLeak);
+    expect(afterHire.request.notes).toContain('stairwell cabinet');
+    const other = await env.as(PRO_IDS.eli).requests.getRequestById(SEED_IDS.requests.noaLeak);
+    expect(other.request.notes).toBeNull();
+    const own = await noa.requests.getRequestById(SEED_IDS.requests.noaLeak);
+    expect(own.request.notes).toContain('stairwell cabinet');
   });
 
   it('limits which requests a professional or customer can open', async () => {

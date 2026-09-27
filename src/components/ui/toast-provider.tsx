@@ -142,41 +142,44 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
 
   const dragStyle = useAnimatedStyle(() => ({ transform: [{ translateY: offset.get() }] }));
 
+  // Layout animations (enter/exit/reorder) and the swipe transform live on separate views: a layout
+  // animation owns `transform` on its view and would overwrite (and warn about) the drag offset.
   return (
     <Animated.View
       entering={FadeInUp.springify().damping(18)}
       exiting={FadeOutUp.duration(180)}
       layout={LinearTransition.springify().damping(20)}
-      style={[styles.cardWrapper, dragStyle]}
-      {...panHandlers}
+      style={styles.cardWrapper}
     >
-      <Pressable
-        accessibilityRole={toast.onPress ? 'button' : 'alert'}
-        accessibilityLabel={toast.message ? `${toast.title}. ${toast.message}` : toast.title}
-        accessibilityLiveRegion="polite"
-        onPress={() => {
-          toast.onPress?.();
-          close();
-        }}
-        style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
-      >
-        <View style={[styles.iconCircle, { backgroundColor: tone.bg }]}>
-          <Icon name={toast.icon ?? TONE_ICONS[toast.tone ?? 'neutral']} size={20} color={tone.fg} />
-        </View>
-        <View style={styles.texts}>
-          <AppText variant="captionStrong" numberOfLines={2}>
-            {toast.title}
-          </AppText>
-          {toast.message ? (
-            <AppText variant="caption" color="secondary" numberOfLines={2}>
-              {toast.message}
+      <Animated.View style={dragStyle} {...panHandlers}>
+        <Pressable
+          accessibilityRole={toast.onPress ? 'button' : 'alert'}
+          accessibilityLabel={toast.message ? `${toast.title}. ${toast.message}` : toast.title}
+          accessibilityLiveRegion="polite"
+          onPress={() => {
+            toast.onPress?.();
+            close();
+          }}
+          style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}
+        >
+          <View style={[styles.iconCircle, { backgroundColor: tone.bg }]}>
+            <Icon name={toast.icon ?? TONE_ICONS[toast.tone ?? 'neutral']} size={20} color={tone.fg} />
+          </View>
+          <View style={styles.texts}>
+            <AppText variant="captionStrong" numberOfLines={2}>
+              {toast.title}
             </AppText>
-          ) : null}
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel={t('a11y.dismiss')} hitSlop={12} onPress={close} style={styles.close}>
-          <Icon name="close" size={16} color="muted" />
+            {toast.message ? (
+              <AppText variant="caption" color="secondary" numberOfLines={2}>
+                {toast.message}
+              </AppText>
+            ) : null}
+          </View>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('a11y.dismiss')} hitSlop={12} onPress={close} style={styles.close}>
+            <Icon name="close" size={16} color="muted" />
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </Animated.View>
     </Animated.View>
   );
 }

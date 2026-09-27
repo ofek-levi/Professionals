@@ -44,8 +44,8 @@ import {
 import { toApiError } from '@/services/api/errors';
 import { makeStyles } from '@/theme';
 import type { JobDetails, Review } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
-import { isolateText } from '../components/bidi';
 import { ReviewJobHeader, ReviewJobHeaderSkeleton } from '../components/review-job-header';
 import { hasHighlight, REVIEW_HIGHLIGHTS, toggleHighlight } from '../components/review-form-model';
 import { ReviewResultState } from '../components/review-result-state';

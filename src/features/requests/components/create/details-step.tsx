@@ -106,6 +106,7 @@ export function DetailsStep({ control, onChangeService }: DetailsStepProps) {
         name="notes"
         label={t('requests:details.notesLabel')}
         placeholder={t('requests:details.notesPlaceholder')}
+        helperText={t('requests:details.notesHelper')}
         optional
         multiline
         minRows={2}

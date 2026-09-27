@@ -44,6 +44,12 @@ export const offers = {
     competition_one: '{{count}} offer on this request',
     competition_other: '{{count}} offers on this request',
   },
+  jobCancelled: {
+    badge: 'Job cancelled',
+    reason: 'The customer cancelled the request after accepting your offer',
+    title: 'The customer cancelled this job',
+    message: 'Your offer was accepted, but the customer cancelled the request afterwards. The appointment is off.',
+  },
   actions: {
     edit: 'Edit',
     withdraw: 'Withdraw',
@@ -156,6 +162,14 @@ export const offers = {
       editTitle: 'Discard your changes?',
       message: 'What you entered will be lost.',
       keepEditing: 'Keep editing',
+    },
+    /** Titles of the submit problems (worded for the professional, unlike the shared `errors:` titles). */
+    problemTitle: {
+      DUPLICATE_OFFER: 'You already sent an offer',
+      REQUEST_NOT_ACCEPTING_OFFERS: 'This request is closed',
+      OUTSIDE_SERVICE_AREA: 'Outside your service area',
+      OFFER_EXPIRED: 'This offer has expired',
+      UNSUPPORTED_CATEGORY: 'Not one of your services',
     },
     problem: {
       DUPLICATE_OFFER: 'You already have an active offer on this request. Edit it from the request page.',

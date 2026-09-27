@@ -3,8 +3,9 @@ import { Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useFormatters } from '@/i18n/hooks';
-import { makeStyles } from '@/theme';
+import { makeStyles, useTheme } from '@/theme';
 import type { Review } from '@/types/domain';
+import { alignForText } from '@/utils/bidi';
 
 import { CategoryName } from '../categories/category-name';
 import { AppText } from '../ui/app-text';
@@ -25,8 +26,12 @@ export interface ReviewCardProps {
 /** Rough threshold above which a comment likely exceeds the collapsed lines. */
 const LONG_COMMENT_CHARS = 180;
 
-/** Customer review with rating, date and an expandable comment. */
+/**
+ * Customer review with rating, date and an expandable comment. The comment is aligned by its own
+ * language (an English comment reads left-aligned in the Hebrew UI), like chat messages.
+ */
 export function ReviewCard({ review, showCategory = false, collapsedLines = 4, variant = 'outlined', style }: ReviewCardProps) {
+  const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation('common');
   const format = useFormatters();
@@ -51,7 +56,13 @@ export function ReviewCard({ review, showCategory = false, collapsedLines = 4, v
       <RatingStars value={review.rating} size={15} style={styles.rating} />
       {comment ? (
         <>
-          <AppText variant="body" color="secondary" numberOfLines={expanded ? undefined : collapsedLines}>
+          <AppText
+            variant="body"
+            color="secondary"
+            align={alignForText(comment, theme.isRTL)}
+            numberOfLines={expanded ? undefined : collapsedLines}
+            testID="review-comment"
+          >
             {comment}
           </AppText>
           {expandable ? (

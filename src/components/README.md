@@ -33,11 +33,11 @@ React Query and i18n:
 
 | Component | Example |
 |---|---|
-| `AppText` | `<AppText variant="heading" color="secondary" numberOfLines={2}>{t('…')}</AppText>` (colors: `default`, `secondary`, `muted`, `inverse`, `onPrimary`, `primary`, any status tone, or a theme color) |
+| `AppText` | `<AppText variant="heading" color="secondary" numberOfLines={2}>{t('…')}</AppText>` (colors: `default`, `secondary`, `muted`, `inverse`, `onPrimary`, `primary`, any status tone, or a theme color). User-written text: `<AppText userContent>{request.description}</AppText>` aligns it by its own language |
 | `Icon` | `<Icon name="chevron-right" flipInRTL color="muted" size={20} />` (unknown names from data fall back safely) |
 | `Button` | `<Button label={t('common:actions.save')} onPress={save} loading={isPending} fullWidth />` variants `primary · secondary · outline · ghost · danger · success`, sizes `sm · md · lg`, `leftIcon`, `rightIcon`, `shape="pill"` |
 | `IconButton` | `<IconButton icon="bell-outline" accessibilityLabel={t('…')} badgeCount={unread} onPress={…} variant="surface" />` |
-| `Card` | `<Card onPress={open} variant="elevated" padding="lg" highlighted>{…}</Card>` |
+| `Card` | `<Card onPress={open} variant="elevated" padding="lg" highlighted>{…}</Card>` (padding in `style`, e.g. `<Card padding="none" style={{ paddingHorizontal: 16 }}>`, always wins over the token) |
 | `Badge` | `<Badge label={t('common:verified')} tone="brand" icon="check-decagram" size="sm" />` |
 | `Chip` | `<Chip label="Urgent" selected={on} onPress={toggle} count={12} />` / `onRemove` adds a close button |
 | `Avatar` | `<Avatar name={pro.displayName} uri={pro.avatarUrl} size="lg" verified />` |
@@ -50,18 +50,20 @@ React Query and i18n:
 | `SegmentedControl` | `<SegmentedControl options={[{ value: 'list', label: t('…'), icon: 'view-list' }, …]} value={mode} onChange={setMode} />` |
 | `Stepper` | `<Stepper steps={[t('…'), t('…'), t('…')]} current={step} />` |
 | `SwitchRow` | `<SwitchRow icon="bell-outline" title={t('…')} description={t('…')} value={on} onValueChange={setOn} />` |
+| `AppSwitch` | `<AppSwitch value={on} onValueChange={setOn} accessibilityLabel={t('…')} />` (the only switch: themed on every platform, mirrored in RTL on web; never use RN `Switch` directly) |
 | `EmptyState` | `<EmptyState icon="clipboard-text-outline" title={t('…')} description={t('…')} actionLabel={t('…')} onAction={…} />` |
 | `ErrorState` | `<ErrorState error={query.error} onRetry={query.refetch} />` (maps `ApiError.code` → `errors:codes.<CODE>`) |
-| `useErrorText` | `const errorText = useErrorText(); toast.show({ ...errorText(error), tone: 'danger' })` (for mutation failures) |
+| `useErrorToast` | `const showError = useErrorToast(); showError(error)` or `showError(error, { title: t('…fixFields') })` – danger toast with the error's title and explanation (for mutation failures) |
+| `useErrorText` | `const { title, description } = useErrorText()(error)` – localized texts of an error, for inline alerts (a toast takes `message`, not `description`: use `useErrorToast`) |
 | `LoadingState` | `<LoadingState />` |
 | `Skeleton` | `<Skeleton width="60%" height={14} />`, `<SkeletonCard />`, `<SkeletonList count={4} variant="row" />` |
 | `QueryState` | `<QueryState query={q} loading={<SkeletonList />} empty={(d) => d.items.length === 0} emptyState={<EmptyState … />}>{(data) => …}</QueryState>` |
 | `ListItem` / `MenuRow` | `<MenuRow icon="translate" iconTone="brand" title={t('…')} trailing={t('common:languages.he')} onPress={…} />` (`destructive` for sign-out) |
 | `KeyValueRow` | `<KeyValueRow icon="cash" label={t('…')} value={<PriceText amount={450} currency="ILS" />} />` |
-| `StatTile` | `<StatTile icon="tag-outline" tone="brand" value={3} label={t('…')} onPress={…} />` |
+| `StatTile` | `<StatTile icon="tag-outline" tone="brand" value={3} label={t('…')} onPress={…} />` (tiles share a row equally, three fit a phone; pass `style={{ minWidth }}` in wrapping grids) |
 | `InlineAlert` / `Banner` | `<InlineAlert tone="warning" title={t('…')} message={t('…')} actionLabel={t('…')} onAction={…} onDismiss={…} />` |
 | `Sheet` | `<Sheet visible={open} onClose={close} title={t('…')} footer={<Button … />}>{…}</Sheet>` (`fullHeight` for searchable lists) |
-| `useConfirm` | `const confirm = useConfirm(); if (await confirm({ title, message, confirmLabel, destructive: true })) …` |
+| `useConfirm` | `const confirm = useConfirm(); if (await confirm({ title, message, confirmLabel, destructive: true })) …` (buttons stack vertically when a label is too long for half the dialog, so natural labels like "Confirm appointment" are fine) |
 | `useToast` | `const toast = useToast(); toast.show({ title, message, tone: 'success', icon, onPress, durationMs, id })` (top banner; also used as the simulated push notification) |
 | `RatingStars` | `<RatingStars value={4.5} count={32} showValue />` / `variant="compact"` → ★ 4.8 (32) |
 | `RatingInput` | `<RatingInput value={rating} onChange={setRating} />` |
@@ -99,7 +101,14 @@ React Query and i18n:
 
 `AppMap` uses `react-native-maps` on iOS/Android (`app-map.tsx`) and an interactive canvas on the web
 (`app-map.web.tsx`: pan, zoom buttons, tap-to-place, draggable pin). Pass `region` to move the map
-programmatically (it animates whenever the value changes).
+programmatically (it animates whenever the value changes). To move the camera on demand, even back
+to the region it already has (a "recenter" button), use the ref API:
+
+```tsx
+const mapRef = useRef<AppMapHandle>(null);
+<AppMap ref={mapRef} region={home} … />
+<IconButton icon="crosshairs-gps" onPress={() => mapRef.current?.animateToRegion(home)} … />
+```
 
 ## `forms/`
 
@@ -119,7 +128,8 @@ programmatically (it animates whenever the value changes).
 - `useAppLanguage()`, `useLocalizedText()`, `useCategory(id)`, `useCategoryName(id)`, `useFormatters()` — `src/i18n/hooks.ts`
 - `useCategoryCatalog()`, `useCategoryLookup()` — `src/hooks/queries/use-category-catalog.ts`
 - `usePlaceSearch(query)`, `useReverseGeocode(coords)` — `src/hooks/queries/use-geo.ts`
-- `formatCurrency`, `formatDistanceKm`, `formatDate`, `formatDateLabel`, `formatDateTime`, `formatTime`, `formatRelative`, `formatDuration`, `formatDayLabel` — `src/utils/format.ts`
+- `formatCurrency`, `formatDistanceKm`, `formatDate`, `formatDateLabel`, `formatDateTime`, `formatTime`, `formatRelative`, `formatDuration`, `formatDayLabel` — `src/utils/format.ts`. Relative words are capitalized by default (`Tomorrow at 14:00`); inside a sentence pass `{ casing: 'inline' }` (`format.dateTime(date, { casing: 'inline' })` → "Starts tomorrow at 14:00", `format.relative(date, now, { casing: 'inline' })` → "Started just now").
+- Bidi — `src/utils/bidi.ts`: `isolateText(name)` for person/business names and quoted user text interpolated into a sentence (Latin names inside Hebrew and vice versa; also re-exported from `utils/format`), `alignForText(text, theme.isRTL)` → `<AppText align=…>` for user-written blocks in custom layouts (chat messages, review comments; plain paragraphs use `<AppText userContent>`), `getTextDirection(text)`.
 - `locateDevice()`, `getCurrentCoordinates()`, `requestLocationPermission()` — `src/services/location`
 
 ## Testing components

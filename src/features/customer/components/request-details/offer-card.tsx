@@ -4,10 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { OfferStatusBadge } from '@/components/offers';
 import { AppText, Avatar, Badge, Button, Card, Divider, Icon, PriceText, RatingStars, type IconName } from '@/components/ui';
 import type { StatusTone } from '@/constants/tones';
-import { isOfferExpired } from '@/features/offers/offer-status-machine';
+import { canCustomerAcceptOffer, isOfferExpired } from '@/features/offers/offer-status-machine';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
-import type { OfferWithProfessional } from '@/types/domain';
+import type { OfferWithProfessional, ServiceRequest } from '@/types/domain';
 
 /** Remaining validity below which the expiry is shown as a warning. */
 const EXPIRY_WARNING_MS = 3 * 60 * 60 * 1000;
@@ -24,8 +24,8 @@ export interface OfferCardProps {
   offer: OfferWithProfessional;
   highlights: readonly OfferHighlightKey[];
   now: Date;
-  /** Accept is offered only when the request still accepts offers. */
-  canAccept: boolean;
+  /** The request the offer belongs to (Accept follows the shared accept rule). */
+  request: Pick<ServiceRequest, 'status' | 'acceptedOfferId'>;
   accepting: boolean;
   /** Another offer is being accepted right now. */
   disabled: boolean;
@@ -34,7 +34,7 @@ export interface OfferCardProps {
 }
 
 /** One offer: price, proposed appointment, the professional's credentials and the decision. */
-export function OfferCard({ offer, highlights, now, canAccept, accepting, disabled, onAccept, onOpenProfessional }: OfferCardProps) {
+export function OfferCard({ offer, highlights, now, request, accepting, disabled, onAccept, onOpenProfessional }: OfferCardProps) {
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation(['customer', 'common']);
@@ -43,6 +43,7 @@ export function OfferCard({ offer, highlights, now, canAccept, accepting, disabl
   const isPending = offer.status === 'pending';
   const isAccepted = offer.status === 'accepted';
   const expired = isOfferExpired(offer, now);
+  const canAccept = canCustomerAcceptOffer(offer, request, now);
   const expiresSoon = isPending && Date.parse(offer.expiresAt) - now.getTime() < EXPIRY_WARNING_MS;
   const muted = !isPending && !isAccepted;
   const message = offer.message?.trim();
@@ -134,7 +135,7 @@ export function OfferCard({ offer, highlights, now, canAccept, accepting, disabl
 
         {message ? (
           <View style={[styles.message, { borderStartColor: theme.colors.primary }]}>
-            <AppText variant="body" color="secondary" numberOfLines={3}>
+            <AppText variant="body" color="secondary" numberOfLines={3} userContent>
               {message}
             </AppText>
           </View>
@@ -159,10 +160,10 @@ export function OfferCard({ offer, highlights, now, canAccept, accepting, disabl
               <AppText variant="caption" color={expiresSoon ? 'warning' : 'muted'} numberOfLines={2} style={styles.shrink}>
                 {expired
                   ? t('common:offerStatus.expired')
-                  : t('customer:offers.expires', { time: format.relative(offer.expiresAt, now) })}
+                  : t('customer:offers.expires', { time: format.relative(offer.expiresAt, now, { casing: 'inline' }) })}
               </AppText>
             </View>
-            {canAccept && !expired ? (
+            {canAccept ? (
               <Button
                 label={t('customer:offers.accept')}
                 leftIcon="check"

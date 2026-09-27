@@ -10,7 +10,7 @@ import type { AppNotification, NotificationPreferences, Offer, ServiceRequest } 
 
 import type { ServerContext } from '../context';
 import type { StoredJob } from '../db';
-import { paginate } from '../pagination';
+import { compareNewestFirst, paginateNewestFirst } from '../pagination';
 import { findProfessionalByUserId, offersForRequest, professionalUserId, requireRequest } from '../queries';
 
 function preferencesOf(ctx: ServerContext, userId: string): NotificationPreferences | null {
@@ -86,14 +86,11 @@ export function emitProfileUpdated(ctx: ServerContext, professionalId: string): 
 
 // ────────────────────────────── Notification inbox ──────────────────────────────
 
-const newestFirst = (a: AppNotification, b: AppNotification) =>
-  Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id.localeCompare(a.id);
-
 export function listNotifications(ctx: ServerContext, userId: string, params: NotificationsParams): Paginated<AppNotification> {
-  const items = ctx.db.notifications
-    .filter((notification) => notification.userId === userId && (!params.unreadOnly || notification.readAt === null))
-    .sort(newestFirst);
-  return paginate(items, params);
+  const items = ctx.db.notifications.filter(
+    (notification) => notification.userId === userId && (!params.unreadOnly || notification.readAt === null),
+  );
+  return paginateNewestFirst(items, params);
 }
 
 export function unreadNotificationCount(ctx: ServerContext, userId: string): number {
@@ -103,7 +100,7 @@ export function unreadNotificationCount(ctx: ServerContext, userId: string): num
 export function recentNotifications(ctx: ServerContext, userId: string, limit: number): AppNotification[] {
   return ctx.db.notifications
     .filter((notification) => notification.userId === userId)
-    .sort(newestFirst)
+    .sort(compareNewestFirst)
     .slice(0, limit);
 }
 

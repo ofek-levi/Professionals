@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
 
 import { FormSection, FormTextField, PriceInput, useTranslatedError } from '@/components/forms';
-import { Button, ErrorState, Screen, SkeletonCard, SwitchRow, useConfirm, useErrorText, useToast } from '@/components/ui';
+import { Button, ErrorState, Screen, SkeletonCard, SwitchRow, useConfirm, useErrorToast, useToast } from '@/components/ui';
 import { APP_CONFIG } from '@/constants/app-config';
 import { useOwnProfessionalProfile, useUpdateProfessionalProfile } from '@/hooks';
 import { routes } from '@/lib/routes';
@@ -69,7 +69,7 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
   const translateError = useTranslatedError();
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const update = useUpdateProfessionalProfile();
   const [defaults] = useState(() => professionalProfileToFormValues(profile));
   const { control, handleSubmit, setError, formState } = useForm<ProfessionalProfileFormValues, unknown, ProfessionalProfileFormOutput>({
@@ -114,7 +114,7 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
         const fieldErrors = mapProfileServerFieldErrors(toApiError(error).fieldErrors);
         const entries = Object.entries(fieldErrors);
         entries.forEach(([field, message]) => setError(field as keyof ProfessionalProfileFormValues, { type: 'server', message }));
-        toast.show({ ...errorText(error), title: entries.length > 0 ? t('professional:form.fixFields') : errorText(error).title, tone: 'danger' });
+        showError(error, entries.length > 0 ? { title: t('professional:form.fixFields') } : undefined);
       }
     },
     () => toast.show({ title: t('professional:form.fixFields'), message: t('professional:form.fixFieldsMessage'), tone: 'warning' }),

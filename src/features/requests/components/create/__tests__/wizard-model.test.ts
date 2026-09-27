@@ -10,6 +10,8 @@ import {
   getInitialStepIndex,
   photosToUpload,
   pickedPhotosToForm,
+  PREFERRED_DATE_DAYS,
+  preferredDateDayCount,
   REQUEST_WIZARD_STEPS,
   serviceLocationToForm,
   stepIndexForField,
@@ -100,5 +102,17 @@ describe('location and error helpers', () => {
       'validation:location.addressRequired',
     );
     expect(firstErrorMessage(undefined)).toBeUndefined();
+  });
+});
+
+describe('preferredDateDayCount', () => {
+  it('limits the preferred dates to what the urgency allows', () => {
+    const morning = new Date(2026, 8, 27, 9, 0);
+    expect(preferredDateDayCount(null, morning)).toBe(PREFERRED_DATE_DAYS);
+    expect(preferredDateDayCount('flexible', morning)).toBe(PREFERRED_DATE_DAYS);
+    expect(preferredDateDayCount('normal', morning)).toBe(PREFERRED_DATE_DAYS);
+    // Emergency: within 24 h → today and tomorrow. Urgent: within 72 h → today + 3 days.
+    expect(preferredDateDayCount('emergency', morning)).toBe(2);
+    expect(preferredDateDayCount('urgent', morning)).toBe(4);
   });
 });

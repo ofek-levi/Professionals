@@ -13,6 +13,9 @@ import { getFixedT } from 'i18next';
 
 import type { AppLanguage, CurrencyCode } from '@/types/domain';
 
+/** Bidi isolation for names/user text interpolated into sentences (see `utils/bidi`). */
+export { isolateText } from './bidi';
+
 /** Anything that can be turned into a `Date`: `Date`, epoch ms, ISO date-time or `YYYY-MM-DD`. */
 export type DateLike = Date | string | number;
 
@@ -83,6 +86,42 @@ export function toDateValue(value: DateLike): Date {
 
 function t(language: AppLanguage) {
   return getFixedT(language, 'common');
+}
+
+/**
+ * Casing of the relative words `Today` / `Tomorrow` / `Yesterday` / `Just now`:
+ * - `sentence` (default): standalone labels and the start of a sentence ("Tomorrow at 14:00").
+ * - `inline`: inside a sentence ("Starts tomorrow at 14:00", "Started just now"). Languages without
+ *   letter case (Hebrew) read the same either way.
+ */
+export type TextCasing = 'sentence' | 'inline';
+
+type RelativeWord = 'today' | 'tomorrow' | 'yesterday' | 'justNow';
+
+function relativeWord(language: AppLanguage, word: RelativeWord, casing: TextCasing): string {
+  const translate = t(language);
+  if (casing === 'inline') {
+    switch (word) {
+      case 'today':
+        return translate('time.inline.today');
+      case 'tomorrow':
+        return translate('time.inline.tomorrow');
+      case 'yesterday':
+        return translate('time.inline.yesterday');
+      case 'justNow':
+        return translate('time.inline.justNow');
+    }
+  }
+  switch (word) {
+    case 'today':
+      return translate('time.today');
+    case 'tomorrow':
+      return translate('time.tomorrow');
+    case 'yesterday':
+      return translate('time.yesterday');
+    case 'justNow':
+      return translate('time.justNow');
+  }
 }
 
 // ─────────────────────────────── Numbers & money ───────────────────────────────
@@ -157,23 +196,28 @@ export function formatTime(value: DateLike, language: AppLanguage): string {
   return format(date, TIME_PATTERN, { locale: DATE_FNS_LOCALES[language] });
 }
 
+export interface CasingOptions {
+  /** `inline` lower-cases relative words for use inside a sentence. Defaults to `sentence`. */
+  casing?: TextCasing;
+}
+
 /**
  * `Today`, `Tomorrow`, `Yesterday`, the weekday name within the coming week, otherwise a short
  * date (`Oct 5` / `5 באוק׳`).
  */
-export function formatDayLabel(value: DateLike, language: AppLanguage, now: Date = new Date()): string {
+export function formatDayLabel(value: DateLike, language: AppLanguage, now: Date = new Date(), options: CasingOptions = {}): string {
   const date = toDateValue(value);
   if (!isValid(date)) return '';
   const days = differenceInCalendarDays(date, now);
-  const translate = t(language);
-  if (days === 0) return translate('time.today');
-  if (days === 1) return translate('time.tomorrow');
-  if (days === -1) return translate('time.yesterday');
+  const casing = options.casing ?? 'sentence';
+  if (days === 0) return relativeWord(language, 'today', casing);
+  if (days === 1) return relativeWord(language, 'tomorrow', casing);
+  if (days === -1) return relativeWord(language, 'yesterday', casing);
   if (days > 1 && days < 7) return formatDate(date, language, 'weekday');
   return formatDate(date, language, 'dayMonth');
 }
 
-export interface FormatDateTimeOptions {
+export interface FormatDateTimeOptions extends CasingOptions {
   /** Date layout when the date is not replaced by a relative day. Defaults to `short`. */
   preset?: DatePreset;
   /** Use `Today` / `Tomorrow` / `Yesterday` for nearby dates. Defaults to `true`. */
@@ -185,12 +229,15 @@ export interface FormatDateTimeOptions {
 export function formatDateLabel(value: DateLike, language: AppLanguage, options: FormatDateTimeOptions = {}): string {
   const date = toDateValue(value);
   if (!isValid(date)) return '';
-  const { preset = 'short', relativeDay = true, now = new Date() } = options;
+  const { preset = 'short', relativeDay = true, now = new Date(), casing } = options;
   const days = differenceInCalendarDays(date, now);
-  return relativeDay && Math.abs(days) <= 1 ? formatDayLabel(date, language, now) : formatDate(date, language, preset);
+  return relativeDay && Math.abs(days) <= 1 ? formatDayLabel(date, language, now, { casing }) : formatDate(date, language, preset);
 }
 
-/** `Tomorrow at 14:30`, `Sun, Sep 27 at 09:00` / `מחר בשעה 14:30`. */
+/**
+ * `Tomorrow at 14:30`, `Sun, Sep 27 at 09:00` / `מחר בשעה 14:30`; with `casing: 'inline'`:
+ * `tomorrow at 14:30` (for "Starts {{date}}").
+ */
 export function formatDateTime(value: DateLike, language: AppLanguage, options: FormatDateTimeOptions = {}): string {
   const date = toDateValue(value);
   if (!isValid(date)) return '';
@@ -199,13 +246,13 @@ export function formatDateTime(value: DateLike, language: AppLanguage, options: 
 
 /**
  * Relative time: `Just now`, `5 minutes ago`, `in 3 hours`, `2 days ago`; older than a week falls
- * back to a short date.
+ * back to a short date. `casing: 'inline'` gives `just now` for use inside a sentence.
  */
-export function formatRelative(value: DateLike, language: AppLanguage, now: Date = new Date()): string {
+export function formatRelative(value: DateLike, language: AppLanguage, now: Date = new Date(), options: CasingOptions = {}): string {
   const date = toDateValue(value);
   if (!isValid(date)) return '';
   const seconds = differenceInSeconds(date, now);
-  if (Math.abs(seconds) < 60) return t(language)('time.justNow');
+  if (Math.abs(seconds) < 60) return relativeWord(language, 'justNow', options.casing ?? 'sentence');
   if (Math.abs(seconds) >= 7 * 24 * 60 * 60) {
     return formatDate(date, language, date.getFullYear() === now.getFullYear() ? 'dayMonth' : 'medium');
   }

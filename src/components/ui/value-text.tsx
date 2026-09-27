@@ -4,7 +4,7 @@ import { View, type StyleProp, type TextStyle, type ViewStyle } from 'react-nati
 import { useFormatters } from '@/i18n/hooks';
 import { useTheme, type TypographyVariant } from '@/theme';
 import type { CurrencyCode } from '@/types/domain';
-import type { DateLike } from '@/utils/format';
+import type { DateLike, TextCasing } from '@/utils/format';
 
 import { AppText, type TextAlign } from './app-text';
 import type { ColorProp } from './colors';
@@ -58,17 +58,19 @@ export interface TimeAgoProps {
   color?: ColorProp;
   /** Refresh interval (default 30 s). */
   refreshMs?: number;
+  /** `inline` when the time continues a sentence ("Posted just now"). Defaults to `sentence`. */
+  casing?: TextCasing;
   style?: StyleProp<TextStyle>;
   testID?: string;
 }
 
 /** Relative time ("5 minutes ago" / "לפני 5 דקות") that keeps itself up to date. */
-export function TimeAgo({ date, variant = 'caption', color = 'muted', refreshMs, style, testID }: TimeAgoProps) {
+export function TimeAgo({ date, variant = 'caption', color = 'muted', refreshMs, casing, style, testID }: TimeAgoProps) {
   const format = useFormatters();
   const now = useNow(refreshMs);
   return (
     <AppText variant={variant} color={color} numberOfLines={1} style={style} testID={testID}>
-      {format.relative(date, now)}
+      {format.relative(date, now, { casing })}
     </AppText>
   );
 }

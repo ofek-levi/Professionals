@@ -6,7 +6,6 @@ import { Stack, useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { OfferStatusBadge } from '@/components/offers';
 import { ProfessionalSummaryCard } from '@/components/professionals';
 import {
   AppText,
@@ -21,22 +20,30 @@ import {
   SkeletonCard,
   TimeAgo,
   useConfirm,
-  useErrorText,
+  useErrorToast,
   useNow,
   useToast,
 } from '@/components/ui';
-import { OFFER_STATUS_META } from '@/constants/offer-statuses';
 import { useSession } from '@/features/auth/session-provider';
-import { getProfessionalOfferActions, isOfferExpired } from '@/features/offers/offer-status-machine';
+import {
+  canCustomerAcceptOffer,
+  getProfessionalOfferActions,
+  getProfessionalOfferOutcome,
+  isOfferExpired,
+  type ProfessionalOfferOutcome,
+} from '@/features/offers/offer-status-machine';
 import { requestAcceptsOffers } from '@/features/requests/request-status-machine';
 import { useAcceptOffer, useOffer, useRefetchOnFocus, useRequest, useRouteParam, type OfferDetails } from '@/hooks';
 import { useFormatters } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
+import type { UserRole } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
 import { ExpiryBadge } from '../components/expiry-badge';
 import { OfferRequestSummary } from '../components/offer-request-summary';
 import { OfferTerms } from '../components/offer-terms';
+import { ProfessionalOfferStatusBadge, useOfferReason } from '../components/offer-status-display';
 import { useWithdrawOfferFlow } from '../components/use-withdraw-offer-flow';
 
 export default function OfferDetailsScreen() {
@@ -49,6 +56,7 @@ export default function OfferDetailsScreen() {
   const offer = query.data;
   const jobId = requestQuery.data?.request.jobId ?? null;
   const requestStatus = requestQuery.data?.request.status ?? offer?.request.status;
+  const acceptedOfferId = requestQuery.data?.request.acceptedOfferId ?? null;
 
   if (!offer) {
     return (
@@ -72,7 +80,15 @@ export default function OfferDetailsScreen() {
   };
 
   return role === 'customer' ? (
-    <CustomerOfferView offer={offer} jobId={jobId} requestStatus={requestStatus ?? offer.request.status} refreshing={query.isRefetching} onRefresh={refresh} title={t('offers:details.customerTitle')} />
+    <CustomerOfferView
+      offer={offer}
+      jobId={jobId}
+      requestStatus={requestStatus ?? offer.request.status}
+      acceptedOfferId={acceptedOfferId}
+      refreshing={query.isRefetching}
+      onRefresh={refresh}
+      title={t('offers:details.customerTitle')}
+    />
   ) : (
     <ProfessionalOfferView offer={offer} jobId={jobId} requestStatus={requestStatus ?? offer.request.status} refreshing={query.isRefetching} onRefresh={refresh} title={t('offers:details.proTitle')} />
   );
@@ -87,21 +103,22 @@ interface OfferViewProps {
   title: string;
 }
 
-function StatusCard({ offer }: { offer: OfferDetails }) {
+/** `outcome` is the offer status as its reader sees it (a professional's cancelled job). */
+function StatusCard({ offer, outcome, viewer }: { offer: OfferDetails; outcome: ProfessionalOfferOutcome; viewer: UserRole }) {
   const styles = useStyles();
   const { t } = useTranslation(['offers', 'common']);
-  const meta = OFFER_STATUS_META[offer.status];
+  const reason = useOfferReason(outcome, offer.statusReason, viewer);
   return (
     <Card padding="lg" style={styles.gap} testID="offer-status-card">
       <View style={styles.statusRow}>
-        <OfferStatusBadge status={offer.status} />
+        <ProfessionalOfferStatusBadge outcome={outcome} />
         {offer.status === 'pending' ? <ExpiryBadge expiresAt={offer.expiresAt} /> : null}
       </View>
-      {offer.status !== 'pending' && offer.statusReason ? (
+      {reason ? (
         <View style={styles.inline}>
-          <Icon name={meta.icon} size={16} color={meta.tone} />
+          <Icon name={reason.icon} size={16} color={reason.tone} />
           <AppText variant="caption" color="secondary" style={styles.flex}>
-            {t(`common:offerStatusReason.${offer.statusReason}`)}
+            {reason.text}
           </AppText>
         </View>
       ) : null}
@@ -131,10 +148,11 @@ function ProfessionalOfferView({ offer, jobId, requestStatus, refreshing, onRefr
   const now = useNow(30_000);
   const { withdraw, pendingOfferId } = useWithdrawOfferFlow();
   const actions = getProfessionalOfferActions(offer, requestStatus, now);
-  const accepted = offer.status === 'accepted';
+  const outcome = getProfessionalOfferOutcome(offer.status, requestStatus);
+  const won = outcome === 'accepted';
 
   let footer = null;
-  if (accepted && jobId) {
+  if (won && jobId) {
     footer = (
       <Button label={t('offers:actions.goToJob')} size="lg" variant="success" leftIcon="briefcase-check-outline" onPress={() => router.push(routes.job(jobId))} fullWidth testID="offer-go-to-job" />
     );
@@ -170,12 +188,14 @@ function ProfessionalOfferView({ offer, jobId, requestStatus, refreshing, onRefr
   return (
     <Screen edges={['left', 'right', 'bottom']} gap="lg" refreshing={refreshing} onRefresh={onRefresh} footer={footer} testID="offer-details-pro">
       <Stack.Screen options={{ title }} />
-      {accepted ? (
+      {won ? (
         <InlineAlert tone="success" icon="party-popper" title={t('offers:details.acceptedTitle')} message={t('offers:details.acceptedMessage')} />
+      ) : outcome === 'job_cancelled' ? (
+        <InlineAlert tone="danger" icon="briefcase-remove-outline" title={t('offers:jobCancelled.title')} message={t('offers:jobCancelled.message')} />
       ) : offer.status === 'pending' && !requestAcceptsOffers(requestStatus) ? (
         <InlineAlert tone="warning" message={t('offers:details.requestClosed')} />
       ) : null}
-      <StatusCard offer={offer} />
+      <StatusCard offer={offer} outcome={outcome} viewer="professional" />
       <Card variant="elevated" padding="lg">
         <OfferTerms
           price={offer.price}
@@ -193,7 +213,15 @@ function ProfessionalOfferView({ offer, jobId, requestStatus, refreshing, onRefr
   );
 }
 
-function CustomerOfferView({ offer, jobId, requestStatus, refreshing, onRefresh, title }: OfferViewProps) {
+function CustomerOfferView({
+  offer,
+  jobId,
+  requestStatus,
+  acceptedOfferId,
+  refreshing,
+  onRefresh,
+  title,
+}: OfferViewProps & { acceptedOfferId: string | null }) {
   const styles = useStyles();
   const router = useRouter();
   const { t } = useTranslation(['offers', 'common']);
@@ -201,17 +229,17 @@ function CustomerOfferView({ offer, jobId, requestStatus, refreshing, onRefresh,
   const now = useNow(30_000);
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const accept = useAcceptOffer();
   const expired = isOfferExpired(offer, now);
-  const canAccept = offer.status === 'pending' && !expired && requestAcceptsOffers(requestStatus);
+  const canAccept = canCustomerAcceptOffer(offer, { status: requestStatus, acceptedOfferId }, now);
   const accepted = offer.status === 'accepted';
 
   const onAccept = async () => {
     const ok = await confirm({
       title: t('offers:accept.title'),
       message: t('offers:accept.message', {
-        name: offer.professional.displayName,
+        name: isolateText(offer.professional.displayName),
         price: format.currency(offer.price, offer.currency),
         when: format.dateTime(offer.proposedStartAt),
       }),
@@ -224,12 +252,12 @@ function CustomerOfferView({ offer, jobId, requestStatus, refreshing, onRefresh,
       onSuccess: ({ job }) =>
         toast.show({
           title: t('offers:accept.success'),
-          message: t('offers:accept.successMessage', { name: offer.professional.displayName }),
+          message: t('offers:accept.successMessage', { name: isolateText(offer.professional.displayName) }),
           tone: 'success',
           icon: 'check-circle-outline',
           onPress: () => router.push(routes.job(job.id)),
         }),
-      onError: (error) => toast.show({ ...errorText(error), tone: 'danger' }),
+      onError: (error) => showError(error),
     });
   };
 
@@ -263,7 +291,7 @@ function CustomerOfferView({ offer, jobId, requestStatus, refreshing, onRefresh,
         onPress={() => router.push(routes.professionalProfile(offer.professional.id))}
         testID="offer-professional"
       />
-      <StatusCard offer={offer} />
+      <StatusCard offer={offer} outcome={offer.status} viewer="customer" />
       <Card variant="elevated" padding="lg">
         <OfferTerms
           price={offer.price}

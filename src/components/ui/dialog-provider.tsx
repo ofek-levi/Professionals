@@ -1,13 +1,13 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import type { StatusTone } from '@/constants/tones';
-import { makeStyles, useTheme } from '@/theme';
+import { makeStyles, useTheme, type Theme } from '@/theme';
 
 import { AppText } from './app-text';
-import { Button } from './button';
+import { BUTTON_SIZE_TOKENS, Button } from './button';
 import { haptics } from './haptics';
 import { Icon, type IconSource } from './icon';
 
@@ -73,14 +73,36 @@ export function useConfirm(): ConfirmFn {
   return useContext(DialogContext) ?? fallbackConfirm;
 }
 
+const DIALOG_MAX_WIDTH = 400;
+/** Average glyph advance of the button font, as a fraction of its size (Latin and Hebrew). */
+const AVERAGE_GLYPH_WIDTH_EM = 0.56;
+
+/**
+ * `true` when the dialog buttons should be stacked (full width, one per row) because a label would
+ * not fit in half of the dialog's width, e.g. "Confirm appointment" on a phone.
+ */
+export function shouldStackDialogActions(labels: readonly string[], windowWidth: number, theme: Theme): boolean {
+  if (labels.length < 2) return false;
+  const { spacing, typography } = theme;
+  const button = BUTTON_SIZE_TOKENS.md;
+  const cardWidth = Math.min(windowWidth - 2 * spacing.xxl, DIALOG_MAX_WIDTH);
+  const buttonWidth = (cardWidth - 2 * spacing.xxl - spacing.md) / 2;
+  const labelBudget = buttonWidth - 2 * (button.paddingX + 1);
+  const glyphWidth = typography[button.text].fontSize * AVERAGE_GLYPH_WIDTH_EM;
+  return labels.some((label) => label.length * glyphWidth > labelBudget);
+}
+
 function ConfirmDialog({ options, onSettle }: { options: ConfirmOptions; onSettle: (result: boolean) => void }) {
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation('common');
+  const { width: windowWidth } = useWindowDimensions();
   const progress = useSharedValue(0);
   const tone = theme.colors.tones[options.tone ?? (options.destructive ? 'danger' : 'brand')];
   const icon = options.icon ?? (options.destructive ? 'alert-outline' : 'help-circle-outline');
   const cancelLabel = options.cancelLabel === undefined ? t('actions.cancel') : options.cancelLabel;
+  const confirmLabel = options.confirmLabel ?? t('actions.confirm');
+  const stacked = shouldStackDialogActions(cancelLabel ? [confirmLabel, cancelLabel] : [confirmLabel], windowWidth, theme);
 
   useEffect(() => {
     progress.set(withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) }));
@@ -113,17 +135,21 @@ function ConfirmDialog({ options, onSettle }: { options: ConfirmOptions; onSettl
               {options.message}
             </AppText>
           ) : null}
-          <View style={styles.actions}>
-            {cancelLabel ? (
-              <Button label={cancelLabel} variant="outline" onPress={dismiss} style={styles.action} fullWidth />
+          {/* Side by side (cancel, confirm) when both labels fit; otherwise stacked with the
+              confirm action on top. Labels may still wrap to two lines rather than clip. */}
+          <View style={stacked ? styles.actionsStacked : styles.actions} testID="confirm-dialog-actions">
+            {cancelLabel && !stacked ? (
+              <Button label={cancelLabel} variant="outline" onPress={dismiss} style={styles.action} labelLines={2} fullWidth />
             ) : null}
             <Button
-              label={options.confirmLabel ?? t('actions.confirm')}
+              label={confirmLabel}
               variant={options.destructive ? 'danger' : 'primary'}
               onPress={() => onSettle(true)}
-              style={styles.action}
+              style={stacked ? null : styles.action}
+              labelLines={2}
               fullWidth
             />
+            {cancelLabel && stacked ? <Button label={cancelLabel} variant="outline" onPress={dismiss} labelLines={2} fullWidth /> : null}
           </View>
         </Animated.View>
       </View>
@@ -143,7 +169,7 @@ const useStyles = makeStyles((t) => ({
   },
   card: {
     width: '100%',
-    maxWidth: 400,
+    maxWidth: DIALOG_MAX_WIDTH,
     alignItems: 'center',
     gap: t.spacing.md,
     padding: t.spacing.xxl,
@@ -163,6 +189,11 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignSelf: 'stretch',
     gap: t.spacing.md,
+    marginTop: t.spacing.sm,
+  },
+  actionsStacked: {
+    alignSelf: 'stretch',
+    gap: t.spacing.sm,
     marginTop: t.spacing.sm,
   },
   action: {

@@ -2,14 +2,14 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { CategoryIcon } from '@/components/categories';
-import { JobStatusBadge } from '@/components/jobs';
+import { JobStatusBadge, useJobWhen } from '@/components/jobs';
 import { AppText, Icon, Skeleton, haptics } from '@/components/ui';
-import { useCategoryName, useFormatters } from '@/i18n/hooks';
+import { useCategoryName } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { Job } from '@/types/domain';
 
 export interface JobContextBannerProps {
-  job: Pick<Job, 'categoryId' | 'status' | 'scheduledStartAt'>;
+  job: Pick<Job, 'categoryId' | 'status' | 'scheduledStartAt' | 'completedAt'>;
   onPress: () => void;
 }
 
@@ -17,9 +17,8 @@ export interface JobContextBannerProps {
 export function JobContextBanner({ job, onPress }: JobContextBannerProps) {
   const styles = useStyles();
   const { t } = useTranslation(['messaging', 'common']);
-  const format = useFormatters();
   const categoryName = useCategoryName(job.categoryId) || t('common:category.unknown');
-  const appointment = format.dateTime(job.scheduledStartAt);
+  const { completed, text: appointment } = useJobWhen(job);
 
   return (
     <Pressable
@@ -42,7 +41,7 @@ export function JobContextBanner({ job, onPress }: JobContextBannerProps) {
           <JobStatusBadge status={job.status} size="sm" withIcon={false} />
         </View>
         <View style={styles.dateRow}>
-          <Icon name="calendar-clock" size={14} color="muted" />
+          <Icon name={completed ? 'calendar-check' : 'calendar-clock'} size={14} color="muted" />
           <AppText variant="caption" color="secondary" numberOfLines={1} style={styles.flexShrink}>
             {appointment}
           </AppText>

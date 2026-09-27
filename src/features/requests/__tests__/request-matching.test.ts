@@ -47,6 +47,7 @@ function request(overrides: Partial<ServiceRequest> & { km?: number } = {}): Ser
     publishedAt: `2026-09-2${sequence % 7}T10:00:00.000Z`,
     cancelledAt: null,
     cancellationReason: null,
+    cancellationComment: null,
     createdAt: '2026-09-20T10:00:00.000Z',
     updatedAt: '2026-09-20T10:00:00.000Z',
     ...rest,
@@ -97,7 +98,9 @@ describe('request matching', () => {
     const withDate = request({ preferredSchedule: { date: '2026-10-05', timeWindow: 'morning' } });
     const withOffers = request({ offerCount: 2, pendingOfferCount: 2, status: 'offers_received' });
     const noDate = request();
-    const all = [emergency, withDate, withOffers, noDate];
+    // Its only offer expired: counted in the history (`offerCount`) but no competition any more.
+    const expiredOnly = request({ offerCount: 1, pendingOfferCount: 0 });
+    const all = [emergency, withDate, withOffers, noDate, expiredOnly];
 
     expect(filterNearbyRequests(all, pro, { urgencies: ['emergency'] }).map((r) => r.id)).toEqual([emergency.id]);
     expect(
@@ -105,17 +108,28 @@ describe('request matching', () => {
     ).toEqual([withDate.id]);
     expect(filterNearbyRequests(all, pro, { preferredDateTo: '2026-10-01' })).toEqual([]);
     expect(filterNearbyRequests(all, pro, { offerPresence: 'has_offers' }).map((r) => r.id)).toEqual([withOffers.id]);
-    expect(filterNearbyRequests(all, pro, { offerPresence: 'no_offers' })).toHaveLength(3);
+    expect(filterNearbyRequests(all, pro, { offerPresence: 'no_offers' }).map((r) => r.id)).toEqual([
+      emergency.id,
+      withDate.id,
+      noDate.id,
+      expiredOnly.id,
+    ]);
     expect(
       filterNearbyRequests(all, pro, { excludeWithMyOffer: true }, { myActiveOfferRequestIds: new Set([noDate.id]) }),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
     // Without the flag, requests with my offer are still listed.
-    expect(filterNearbyRequests(all, pro, {}, { myActiveOfferRequestIds: new Set([noDate.id]) })).toHaveLength(4);
+    expect(filterNearbyRequests(all, pro, {}, { myActiveOfferRequestIds: new Set([noDate.id]) })).toHaveLength(5);
   });
 
   it('sorts by newest, nearest, urgency and fewest offers', () => {
-    const a = { ...request({ km: 5, urgency: 'flexible', offerCount: 3, publishedAt: '2026-09-25T10:00:00.000Z' }), distanceKm: 5 };
-    const b = { ...request({ km: 1, urgency: 'emergency', offerCount: 1, publishedAt: '2026-09-20T10:00:00.000Z' }), distanceKm: 1 };
+    const a = {
+      ...request({ km: 5, urgency: 'flexible', offerCount: 3, pendingOfferCount: 3, publishedAt: '2026-09-25T10:00:00.000Z' }),
+      distanceKm: 5,
+    };
+    const b = {
+      ...request({ km: 1, urgency: 'emergency', offerCount: 4, pendingOfferCount: 1, publishedAt: '2026-09-20T10:00:00.000Z' }),
+      distanceKm: 1,
+    };
     const c = { ...request({ km: 3, urgency: 'urgent', offerCount: 0, publishedAt: '2026-09-26T10:00:00.000Z' }), distanceKm: 3 };
     expect(sortNearbyRequests([a, b, c], 'newest').map((r) => r.id)).toEqual([c.id, a.id, b.id]);
     expect(sortNearbyRequests([a, b, c], 'nearest').map((r) => r.id)).toEqual([b.id, c.id, a.id]);

@@ -6,8 +6,8 @@ import { AppText, IconButton, resolveTextAlign } from '@/components/ui';
 import { APP_CONFIG } from '@/constants/app-config';
 import { isSendableMessageText } from '@/features/messaging/message-rules';
 import { makeStyles, useTheme } from '@/theme';
+import { alignForTextDirection, getTextDirection } from '@/utils/bidi';
 
-import { alignForTextDirection, getTextDirection } from './chat-model';
 
 export interface ChatComposerProps {
   value: string;

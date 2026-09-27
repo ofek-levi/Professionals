@@ -29,6 +29,14 @@ describe('notifications API', () => {
     expect(page.items).toHaveLength(2);
     expect(page.nextCursor).not.toBeNull();
 
+    // Keyset cursors: reading items of the first page (they leave the unread filter) does not make
+    // the next page skip or repeat anything.
+    const unreadFirst = await api.getNotifications({ unreadOnly: true, limit: 2 });
+    const unreadIds = (await api.getNotifications({ unreadOnly: true, limit: 50 })).items.map((notification) => notification.id);
+    for (const notification of unreadFirst.items) await api.markNotificationAsRead(notification.id);
+    const unreadSecond = await api.getNotifications({ unreadOnly: true, limit: 2, cursor: unreadFirst.nextCursor });
+    expect(unreadSecond.items.map((notification) => notification.id)).toEqual(unreadIds.slice(2, 4));
+
     await expect(api.markAllNotificationsAsRead()).resolves.toEqual({ success: true });
     expect((await api.getUnreadCount()).count).toBe(0);
     expect(await expectApiError(env.as(PRO_IDS.avi).notifications.markNotificationAsRead(all.items[0].id))).toMatchObject({

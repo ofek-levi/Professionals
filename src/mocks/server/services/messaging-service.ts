@@ -8,7 +8,7 @@ import type { Conversation, Message } from '@/types/domain';
 import type { Actor } from '../auth';
 import type { ServerContext } from '../context';
 import type { StoredConversation } from '../db';
-import { paginate } from '../pagination';
+import { paginateNewestFirst } from '../pagination';
 import { messagesForConversation, requireConversation, requireStoredUser } from '../queries';
 import { parseBody } from '../validate';
 import { toConversation } from '../views';
@@ -72,18 +72,25 @@ export function listMessages(
   params: PaginationParams,
 ): Paginated<Message> {
   requireParticipantConversation(ctx, userId, conversationId);
-  return paginate(messagesForConversation(ctx.db, conversationId).reverse(), params);
+  return paginateNewestFirst(messagesForConversation(ctx.db, conversationId), params);
 }
 
-/** Marks the counterpart's messages (and related notifications) as read. Returns how many changed. */
+/**
+ * Marks the counterpart's messages (and related notifications) as read and, when anything changed,
+ * pushes a `conversation.read` receipt to both participants. Returns how many messages changed.
+ */
 export function markConversationRead(ctx: ServerContext, userId: string, conversationId: string): number {
-  requireParticipantConversation(ctx, userId, conversationId);
+  const conversation = requireParticipantConversation(ctx, userId, conversationId);
   const readAt = ctx.nowIso();
   const unread = ctx.db.messages.filter(
     (message) => message.conversationId === conversationId && message.senderId !== userId && message.readAt === null,
   );
   unread.forEach((message) => ctx.db.messages.update(message.id, { readAt }));
   markConversationNotificationsRead(ctx, userId, conversationId);
+  if (unread.length > 0) {
+    const event = { type: 'conversation.read', conversationId, readerId: userId, readAt } as const;
+    conversation.participants.forEach((participant) => ctx.emit(participant.userId, event));
+  }
   return unread.length;
 }
 

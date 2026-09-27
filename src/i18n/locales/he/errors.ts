@@ -45,7 +45,7 @@ export const errors: LocaleNamespace<typeof enErrors> = {
     },
     DUPLICATE_OFFER: {
       title: 'כבר שלחתם הצעה',
-      description: 'אפשר לערוך את ההצעה הקיימת לבקשה הזו או לבטל אותה.',
+      description: 'אפשר לערוך את ההצעה הקיימת לקריאה הזו או למשוך אותה.',
     },
     OFFER_EXPIRED: {
       title: 'תוקף ההצעה פג',
@@ -61,7 +61,7 @@ export const errors: LocaleNamespace<typeof enErrors> = {
     },
     OUTSIDE_SERVICE_AREA: {
       title: 'מחוץ לאזור השירות שלכם',
-      description: 'הבקשה נמצאת מחוץ לאזור שבו אתם עובדים. עדכנו את אזור השירות כדי להגיש הצעה.',
+      description: 'הקריאה נמצאת מחוץ לאזור שבו אתם עובדים. עדכנו את אזור השירות כדי להגיש הצעה.',
     },
     RATE_LIMITED: {
       title: 'יותר מדי ניסיונות',

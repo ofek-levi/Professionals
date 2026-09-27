@@ -181,6 +181,8 @@ const useStyles = makeStyles((t) => ({
     pointerEvents: 'none',
     start: 0,
     end: 0,
+    // Same physical order as the pager and the web arrows, so the active dot moves with "next".
+    direction: 'ltr',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: t.spacing.xs + 2,

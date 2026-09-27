@@ -4,9 +4,11 @@
  */
 import type { CategoryGroupId } from '@/constants/professional-categories';
 import type { PickedPhoto } from '@/components/forms';
+import { isPreferredDateWithinUrgency } from '@/features/offers/offer-rules';
 import type { RequestFormLocation, RequestFormPhoto, RequestFormValues } from '@/lib/validation';
 import type { UploadImagePayload } from '@/types/api';
-import type { ServiceLocation } from '@/types/domain';
+import type { ServiceLocation, UrgencyLevel } from '@/types/domain';
+import { addDays, toDateKey } from '@/utils/dates';
 
 export const REQUEST_WIZARD_STEPS = ['service', 'details', 'location', 'schedule', 'review'] as const;
 export type RequestWizardStep = (typeof REQUEST_WIZARD_STEPS)[number];
@@ -158,4 +160,18 @@ export function firstErrorMessage(error: unknown): string | undefined {
     if (nested) return nested;
   }
   return undefined;
+}
+
+/** Days offered in the preferred-date strip when the urgency doesn't limit them. */
+export const PREFERRED_DATE_DAYS = 21;
+
+/**
+ * Number of days (from today) the preferred-date strip offers: an emergency or urgent request only
+ * shows dates professionals are still allowed to propose (see `isPreferredDateWithinUrgency`).
+ */
+export function preferredDateDayCount(urgency: UrgencyLevel | null, now: Date): number {
+  if (!urgency) return PREFERRED_DATE_DAYS;
+  let count = 0;
+  while (count < PREFERRED_DATE_DAYS && isPreferredDateWithinUrgency(urgency, toDateKey(addDays(now, count)), now)) count += 1;
+  return Math.max(1, count);
 }

@@ -83,7 +83,8 @@ See `src/types/domain`. Key relationships:
 - Requests are delivered only to professionals whose categories include the request category **and**
   whose service area (center + radiusKm) contains the request location.
 - Professionals see an **approximate** request location (`isApproximate: true`, `addressLine: ''`)
-  until their offer is accepted. Distances are still computed from the real location.
+  and no customer `notes` (access details such as building codes and parking) until their offer is
+  accepted. Distances are still computed from the real location.
 
 ### Status models (src/constants/*-statuses.ts)
 
@@ -175,6 +176,12 @@ Who can do what:
 | GET /conversations · /conversations/:id · /conversations/:id/messages | participant | … |
 | POST /conversations/:id/messages · /conversations/:id/read | participant | `Message` · `SuccessResponse` |
 
+Realtime events (`src/services/realtime/types.ts`, pushed to the affected users):
+`notification.created`, `message.created`, `conversation.read` (read receipt: `readerId` read the
+other participant's messages up to `readAt`; emitted to both participants when
+`POST /conversations/:id/read` or a reply marks messages read), `request.updated`, `offer.updated`,
+`job.updated`, `profile.updated`. `src/providers/realtime-events.ts` applies them to the cache.
+
 Pagination: list endpoints take `cursor` (opaque) and `limit` (default `APP_CONFIG.pageSize` = 20,
 at most `APP_CONFIG.maxPageSize` = 100; larger values are rejected with 422 `VALIDATION_ERROR`) and
 return `Paginated<T> { items, nextCursor, totalCount }`.
@@ -223,5 +230,20 @@ Errors: `ApiErrorBody { code, message, fieldErrors? }` with HTTP status: 400/422
   form fields translate them.
 - Category names come from the catalog as `LocalizedText` (`{ en, he }`), so a backend can add
   categories without an app release; use `useLocalizedText()` / `useCategoryName()`.
-- RTL: Hebrew forces RTL (`I18nManager.forceRTL`) and reloads the app once (`reloadAppAsync`); on web
-  `<html dir>` is switched live.
+- RTL: Hebrew forces RTL (`I18nManager.forceRTL`) and reloads the app once (`reloadAppAsync`). On web
+  the direction switches live without a reload: `LayoutDirectionRoot` (`src/providers/layout-direction.tsx`)
+  wraps the whole tree in a `View dir="rtl|ltr"`, which is what makes React Native Web resolve logical
+  styles (`paddingStart`, `start`/`end`, `borderStart*`) for every screen, header, tab bar and portal
+  (sheets, dialogs, toasts), and `<html dir lang>` is kept in sync for portal DOM nodes.
+- User data inside sentences: wrap names in `isolateText()` (`src/utils/bidi.ts`). User-written
+  blocks (descriptions, notes, offer messages, bios) are aligned by their own language: plain text
+  with `<AppText userContent>`, custom layouts with `alignForText(text, theme.isRTL)`.
+- Hebrew glossary (keep one term per concept; a title and its message must agree):
+  - service request: **בקשה** in customer-facing text, **קריאה** in professional-facing text
+    (shared `errors:` titles stay role-neutral, so professional screens use their own titles);
+  - appointment: **ביקור** (not פגישה/הזמנה); review: **ביקורת** (not חוות דעת);
+    withdrawn offer: **נמשכה** (withdraw = משיכה); a cancelled job/request: **בוטלה**;
+  - address the user with plural imperatives (gender-neutral) and keep one person within a
+    sentence; singular only where the written form is gender-neutral (שלך, בחרת). Never a gendered
+    verb or adjective for a named person: use a slash form (אישר/ה), a noun phrase or the passive;
+  - quotes are gershayim (״…״).

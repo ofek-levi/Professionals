@@ -42,6 +42,8 @@ function ProfessionalTabs() {
         name="notifications"
         options={{
           title: notificationsLabel,
+          // Six tabs leave no room for the full word under the icon.
+          tabBarLabel: t('tabs.notificationsShort'),
           tabBarIcon: tabBarIcon({ idle: 'bell-outline', focused: 'bell' }),
           tabBarBadge: formatTabBadge(unread),
           tabBarAccessibilityLabel:

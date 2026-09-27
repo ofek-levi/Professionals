@@ -4,14 +4,12 @@
  */
 export {
   invalidateConversation,
-  invalidateDashboards,
   invalidateJobGraph,
   invalidateNotifications,
   invalidateOfferGraph,
   invalidateOwnProfile,
   invalidateProfessional,
   invalidateRequestGraph,
-  invalidateUserData,
   type JobRef,
   type OfferRef,
 } from './invalidation';

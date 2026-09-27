@@ -2,7 +2,7 @@
  * Native map (iOS: Apple Maps, Android: Google Maps) built on `react-native-maps`.
  * The web build resolves `app-map.web.tsx` instead, which never imports `react-native-maps`.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import MapView, { Circle, Marker, PROVIDER_DEFAULT, type MapStyleElement } from 'react-native-maps';
 import { useTranslation } from 'react-i18next';
@@ -74,11 +74,16 @@ export function AppMap({
   accessibilityLabel,
   style,
   testID,
+  ref,
 }: AppMapProps) {
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation('location');
   const mapRef = useRef<MapView>(null);
+
+  useImperativeHandle(ref, () => ({
+    animateToRegion: (target, durationMs = ANIMATION_MS) => mapRef.current?.animateToRegion(target, durationMs),
+  }));
   const [initial] = useState(() =>
     resolveInitialRegion({ region, initialRegion, fitToMarkers, markers, circles, pin: draggablePin }),
   );

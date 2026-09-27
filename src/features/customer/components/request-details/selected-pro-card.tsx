@@ -47,11 +47,11 @@ export function SelectedProCard({ job, error, loading, onRetry }: SelectedProCar
         onPress={() => router.push(routes.professionalProfile(job.professional.id))}
         footer={
           <View style={styles.footer}>
-            <KeyValueRow
-              icon="calendar-clock"
-              label={t('customer:details.appointment')}
-              value={format.dateTime(job.scheduledStartAt)}
-            />
+            {job.status === 'completed' && job.completedAt ? (
+              <KeyValueRow icon="calendar-check" label={t('common:jobStatus.completed')} value={format.dateTime(job.completedAt)} />
+            ) : (
+              <KeyValueRow icon="calendar-clock" label={t('customer:details.appointment')} value={format.dateTime(job.scheduledStartAt)} />
+            )}
             {job.estimatedDurationMinutes ? (
               <KeyValueRow
                 icon="timer-outline"

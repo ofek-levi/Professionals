@@ -35,6 +35,7 @@ export const requests = {
     photosHelper: 'Photos help pros understand the job and quote accurately.',
     notesLabel: 'Notes for the pro',
     notesPlaceholder: 'Parking, building code, pets at home, best way to reach you…',
+    notesHelper: 'Only the pro you hire sees these notes.',
   },
   location: {
     title: 'Where is the job?',
@@ -85,6 +86,11 @@ export const requests = {
     message: 'Your request hasn’t been saved. If you leave now, the details you entered will be lost.',
     draftMessage: 'Your changes to this draft haven’t been saved.',
     keepEditing: 'Keep editing',
+  },
+  customersOnly: {
+    title: 'Requests are posted by customers',
+    description: 'Sign in with a customer account to post a service request.',
+    action: 'Back to home',
   },
   alreadyPublished: {
     title: 'This request is already published',

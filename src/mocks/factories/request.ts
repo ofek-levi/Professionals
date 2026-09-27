@@ -23,6 +23,7 @@ export function createRequest(input: RequestInput): ServiceRequest {
     publishedAt: status === 'draft' ? null : input.createdAt,
     cancelledAt: null,
     cancellationReason: null,
+    cancellationComment: null,
     updatedAt: input.createdAt,
     ...input,
   };

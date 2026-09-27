@@ -42,7 +42,8 @@ function allKeys(userId: string) {
     customerProfile: queryKeys.customer.profile(userId),
     ownPro: queryKeys.professionals.own(userId),
     proProfile: queryKeys.professionals.profile(userId, 'pro_1'),
-    proReviews: queryKeys.professionals.reviews(userId, 'pro_1'),
+    proReviews: queryKeys.professionals.reviews(userId, 'pro_1', { limit: 20 }),
+    proReviewsPreview: queryKeys.professionals.reviews(userId, 'pro_1', { limit: 3 }),
     otherProProfile: queryKeys.professionals.profile(userId, 'pro_2'),
     search: queryKeys.professionals.search(userId, { categoryId: 'plumbing' }),
   } satisfies Record<string, QueryKey>;
@@ -106,7 +107,16 @@ describe('invalidation helpers', () => {
     const { qc, invalidated } = setup();
     await invalidateJobGraph(qc, ME, { jobId: 'job_1', requestId: 'req_a' });
     expect(invalidated()).toEqual(
-      sorted(['jobDetail', 'jobsActive', 'requestA', 'customerList', 'conversations', 'dashboardCustomer', 'dashboardPro']),
+      sorted([
+        'jobDetail',
+        'jobsActive',
+        'requestA',
+        'customerList',
+        'conversations',
+        'conversation',
+        'dashboardCustomer',
+        'dashboardPro',
+      ]),
     );
   });
 
@@ -141,7 +151,7 @@ describe('invalidation helpers', () => {
   it('invalidateProfessional targets one professional (and searches)', async () => {
     const { qc, invalidated } = setup();
     await invalidateProfessional(qc, ME, 'pro_1');
-    expect(invalidated()).toEqual(sorted(['proProfile', 'proReviews', 'search']));
+    expect(invalidated()).toEqual(sorted(['proProfile', 'proReviews', 'proReviewsPreview', 'search']));
   });
 
   it('invalidateOwnProfile refreshes identity, profiles, matching requests and dashboards', async () => {
@@ -154,6 +164,7 @@ describe('invalidation helpers', () => {
         'ownPro',
         'proProfile',
         'proReviews',
+        'proReviewsPreview',
         'otherProProfile',
         'search',
         'nearbyList',

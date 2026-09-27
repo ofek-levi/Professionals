@@ -13,6 +13,8 @@ jest.mock('@/services/api', () => ({
 }));
 
 const NOW = new Date(2026, 8, 27, 10, 0);
+const OPEN_REQUEST = { status: 'offers_received', acceptedOfferId: null } as const;
+const DECIDED_REQUEST = { status: 'professional_selected', acceptedOfferId: 'c' } as const;
 const inHours = (hours: number) => new Date(NOW.getTime() + hours * 3_600_000).toISOString();
 
 function offer(id: string, overrides: Partial<OfferWithProfessional> = {}): OfferWithProfessional {
@@ -63,7 +65,7 @@ describe('OfferCard', () => {
         offer={offer('a')}
         highlights={['lowestPrice', 'topRated']}
         now={NOW}
-        canAccept
+        request={OPEN_REQUEST}
         accepting={false}
         disabled={false}
         onAccept={onAccept}
@@ -93,7 +95,7 @@ describe('OfferCard', () => {
         offer={offer('b', { status: 'rejected', statusReason: 'another_offer_accepted' })}
         highlights={['earliest']}
         now={NOW}
-        canAccept={false}
+        request={DECIDED_REQUEST}
         accepting={false}
         disabled={false}
         onAccept={jest.fn()}
@@ -114,7 +116,7 @@ describe('OfferCard', () => {
         offer={offer('c', { status: 'accepted', statusReason: 'accepted_by_customer' })}
         highlights={[]}
         now={NOW}
-        canAccept={false}
+        request={DECIDED_REQUEST}
         accepting={false}
         disabled={false}
         onAccept={jest.fn()}
@@ -139,7 +141,7 @@ describe('OffersCompareTable', () => {
       <OffersCompareTable
         offers={[cheap, early]}
         now={NOW}
-        canAccept
+        request={OPEN_REQUEST}
         acceptingOfferId={null}
         onAccept={onAccept}
         onOpenProfessional={jest.fn()}

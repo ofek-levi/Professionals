@@ -4,7 +4,7 @@
  * non-demo ones to send offers).
  */
 import type { CategoryId } from '@/constants/professional-categories';
-import { WEEKDAYS, type Weekday, type WeeklyAvailability } from '@/types/domain';
+import { WEEKDAYS, type LocalizedText, type Weekday, type WeeklyAvailability } from '@/types/domain';
 
 export interface ProfessionalSeed {
   /** Used both as the user id and the professional profile id. */
@@ -34,7 +34,7 @@ export interface ProfessionalSeed {
   /** Number of generated historical completed jobs. */
   historyJobs: number;
   isDemo: boolean;
-  demoDescription: string | null;
+  demoDescription: LocalizedText | null;
 }
 
 type Hours = readonly [string, string];
@@ -107,8 +107,10 @@ export const PROFESSIONALS: readonly ProfessionalSeed[] = [
     availability: weekly(workWeek('07:30', '18:00'), true),
     historyJobs: 5,
     isDemo: true,
-    demoDescription:
-      'Plumber in Tel Aviv. Explore leaks and water-heater jobs on the map, follow your pending offer on Noa’s bathroom leak and read your reviews.',
+    demoDescription: {
+      en: 'Plumber in Tel Aviv. Explore leaks and water-heater jobs on the map, follow your pending offer on Noa’s bathroom leak and read your reviews.',
+      he: 'אינסטלטור בתל אביב. חפשו במפה קריאות של נזילות ודודים, עקבו אחר ההצעה הממתינה שלכם לנזילה באמבטיה של נועה וקראו את הביקורות שלכם.',
+    },
   },
   {
     id: PRO_IDS.yael,
@@ -135,8 +137,10 @@ export const PROFESSIONALS: readonly ProfessionalSeed[] = [
     availability: weekly(workWeek('08:00', '17:00', ['08:00', '12:00'])),
     historyJobs: 4,
     isDemo: true,
-    demoDescription:
-      'Electrician in Ramat Gan. Confirm, start and complete Noa’s lighting job, chat with her, and send offers on nearby electrical and smart-home requests.',
+    demoDescription: {
+      en: 'Electrician in Ramat Gan. Confirm, start and complete Noa’s lighting job, chat with her, and send offers on nearby electrical and smart-home requests.',
+      he: 'חשמלאית ברמת גן. אשרו, התחילו וסיימו את עבודת התאורה של נועה, התכתבו איתה ושלחו הצעות לקריאות חשמל ובית חכם בסביבה.',
+    },
   },
   {
     id: PRO_IDS.moshe,
@@ -162,8 +166,10 @@ export const PROFESSIONALS: readonly ProfessionalSeed[] = [
     availability: weekly(workWeek('08:00', '19:00', ['08:00', '14:00']), true),
     historyJobs: 4,
     isDemo: true,
-    demoDescription:
-      'AC & appliance technician in Holon. Quote on Noa’s AC request, track your pending offer in Bat Yam and see how expired offers look.',
+    demoDescription: {
+      en: 'AC & appliance technician in Holon. Quote on Noa’s AC request, track your pending offer in Bat Yam and see how expired offers look.',
+      he: 'טכנאי מזגנים ומכשירי חשמל בחולון. הציעו מחיר לקריאת המזגן של נועה, עקבו אחר ההצעה הממתינה שלכם בבת ים וראו איך נראות הצעות שפג תוקפן.',
+    },
   },
   {
     id: PRO_IDS.dana,
@@ -189,8 +195,10 @@ export const PROFESSIONALS: readonly ProfessionalSeed[] = [
     availability: weekly(workWeek('09:00', '19:00', ['09:00', '14:00'])),
     historyJobs: 4,
     isDemo: true,
-    demoDescription:
-      'Handywoman in Tel Aviv. Read Noa’s new 5★ review and quote on furniture assembly, TV mounting and painting jobs nearby.',
+    demoDescription: {
+      en: 'Handywoman in Tel Aviv. Read Noa’s new 5★ review and quote on furniture assembly, TV mounting and painting jobs nearby.',
+      he: 'הנדימנית בתל אביב. קראו את ביקורת ה-5★ החדשה של נועה והציעו מחיר לקריאות של הרכבת רהיטים, תליית טלוויזיה וצביעה בסביבה.',
+    },
   },
   {
     id: PRO_IDS.rami,
@@ -217,8 +225,10 @@ export const PROFESSIONALS: readonly ProfessionalSeed[] = [
     availability: weekly({ ...workWeek('07:00', '20:00', ['07:00', '14:00']) }),
     historyJobs: 4,
     isDemo: true,
-    demoDescription:
-      'Mover covering the whole center. Compete for Daniel’s move next week and browse junk-removal and heavy-lifting requests.',
+    demoDescription: {
+      en: 'Mover covering the whole center. Compete for Daniel’s move next week and browse junk-removal and heavy-lifting requests.',
+      he: 'מוביל שמכסה את כל אזור המרכז. התחרו על ההובלה של דניאל בשבוע הבא ועיינו בקריאות לפינוי פסולת ולהרמת משאות כבדים.',
+    },
   },
   {
     id: PRO_IDS.lior,
@@ -244,8 +254,10 @@ export const PROFESSIONALS: readonly ProfessionalSeed[] = [
     availability: weekly(workWeek('09:00', '20:00', ['09:00', '13:00'])),
     historyJobs: 3,
     isDemo: true,
-    demoDescription:
-      'IT technician in Herzliya. Finish Daniel’s in-progress Wi‑Fi job, chat with him and pick up laptop and network requests in the Sharon area.',
+    demoDescription: {
+      en: 'IT technician in Herzliya. Finish Daniel’s in-progress Wi‑Fi job, chat with him and pick up laptop and network requests in the Sharon area.',
+      he: 'טכנאי מחשבים בהרצליה. סיימו את עבודת ה-Wi‑Fi של דניאל שנמצאת בביצוע, התכתבו איתו וקחו קריאות למחשבים ניידים ולרשתות באזור השרון.',
+    },
   },
   // ───────────────────────────── Other professionals ─────────────────────────────
   {

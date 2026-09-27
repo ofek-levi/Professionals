@@ -1,14 +1,11 @@
 import type { Conversation, Message } from '@/types/domain';
 
 import {
-  alignForTextDirection,
   buildChatRows,
   getConversationPreview,
   getCounterpart,
   getLatestIncomingUnreadId,
   getListTimeKind,
-  getTextDirection,
-  isolateText,
   type ChatMessageRow,
   type ChatRow,
 } from '../chat-model';
@@ -94,12 +91,12 @@ describe('buildChatRows', () => {
     expect(byId.m1.groupedWithNext).toBe(false);
   });
 
-  it('derives the delivery state of own messages', () => {
+  it('derives the delivery state of own messages from the server read receipt', () => {
     const messages = [
       message('optimistic:c3', ME, at(27, 12), { clientMessageId: 'c3' }),
       message('m3', ME, at(27, 11)),
       message('m2', THEM, at(27, 10)),
-      message('m1', ME, at(27, 9)),
+      message('m1', ME, at(27, 9), { readAt: at(27, 9, 58) }),
       message('m0', ME, at(27, 8), { readAt: at(27, 8, 30) }),
     ];
     const rows = messageRows(
@@ -107,6 +104,12 @@ describe('buildChatRows', () => {
     );
     const delivery = Object.fromEntries(rows.map((row) => [row.message.id, row.delivery]));
     expect(delivery).toEqual({ 'optimistic:c3': 'sending', m3: 'sent', m2: null, m1: 'read', m0: 'read' });
+  });
+
+  it('does not guess read state from replies (only `readAt` counts)', () => {
+    const messages = [message('m2', THEM, at(27, 10)), message('m1', ME, at(27, 9))];
+    const rows = messageRows(buildChatRows({ messages, currentUserId: ME, now: NOW, isPending: () => false }));
+    expect(rows.find((row) => row.message.id === 'm1')?.delivery).toBe('sent');
   });
 
   it('merges failed messages by time and drops those the server already has', () => {
@@ -155,26 +158,5 @@ describe('getLatestIncomingUnreadId', () => {
     const read = [message('m2', THEM, at(27, 11), { readAt: at(27, 11, 5) })];
     expect(getLatestIncomingUnreadId(read, ME)).toBeNull();
     expect(getLatestIncomingUnreadId([message('m1', ME, at(27, 9))], ME)).toBeNull();
-  });
-});
-
-describe('text direction', () => {
-  it('detects the direction from the first strong character', () => {
-    expect(getTextDirection('שלום, מה נשמע?')).toBe('rtl');
-    expect(getTextDirection('  123 Hello')).toBe('ltr');
-    expect(getTextDirection('10:00 👍 בסדר')).toBe('rtl');
-    expect(getTextDirection('12345 !!')).toBeNull();
-  });
-
-  it('aligns text to its natural side in either layout', () => {
-    expect(alignForTextDirection('ltr', false)).toBe('start');
-    expect(alignForTextDirection('ltr', true)).toBe('end');
-    expect(alignForTextDirection('rtl', true)).toBe('start');
-    expect(alignForTextDirection('rtl', false)).toBe('end');
-    expect(alignForTextDirection(null, true)).toBe('start');
-  });
-
-  it('wraps text in first-strong isolates', () => {
-    expect(isolateText('Hi')).toBe('⁨Hi⁩');
   });
 });

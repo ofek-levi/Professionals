@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { Button, Card, EmptyState, ErrorState, InlineAlert, ListItem, Screen, useConfirm, useErrorText, useToast } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, InlineAlert, ListItem, Screen, useConfirm, useErrorToast, useToast } from '@/components/ui';
 import { getCustomerRequestActions } from '@/features/requests/request-status-machine';
 import { useDeleteDraftRequest, useJob, usePublishRequest, useRefetchOnFocus, useRequest } from '@/hooks';
 import { useFormatters } from '@/i18n/hooks';
@@ -92,7 +92,7 @@ function RequestDetailsContent({ request, job, jobError, jobLoading, onRetryJob,
   const { t } = useTranslation(['customer', 'common']);
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const format = useFormatters();
   const publish = usePublishRequest();
   const deleteDraft = useDeleteDraftRequest();
@@ -119,7 +119,7 @@ function RequestDetailsContent({ request, job, jobError, jobLoading, onRetryJob,
     publish.mutate(request.id, {
       onSuccess: () =>
         toast.show({ title: t('customer:details.draft.published'), message: t('customer:details.draft.publishedMessage'), tone: 'success' }),
-      onError: (error) => toast.show({ ...errorText(error), tone: 'danger' }),
+      onError: (error) => showError(error),
     });
   };
 
@@ -137,7 +137,7 @@ function RequestDetailsContent({ request, job, jobError, jobLoading, onRetryJob,
         toast.show({ title: t('customer:details.draft.deleted'), tone: 'neutral', icon: 'trash-can-outline' });
         leave();
       },
-      onError: (error) => toast.show({ ...errorText(error), tone: 'danger' }),
+      onError: (error) => showError(error),
     });
   };
 
@@ -147,6 +147,7 @@ function RequestDetailsContent({ request, job, jobError, jobLoading, onRetryJob,
         <Button
           label={t('customer:details.draft.publish')}
           leftIcon="send-outline"
+          flipIconsInRTL
           fullWidth
           size="lg"
           loading={publish.isPending}
@@ -205,10 +206,10 @@ function RequestDetailsContent({ request, job, jobError, jobLoading, onRetryJob,
           message={
             request.cancellationReason
               ? t('customer:details.cancelledMessageWithReason', {
-                  date: format.dateTime(request.cancelledAt ?? request.updatedAt),
+                  date: format.dateTime(request.cancelledAt ?? request.updatedAt, { casing: 'inline' }),
                   reason: t(`common:cancellationReason.${request.cancellationReason}`),
                 })
-              : t('customer:details.cancelledMessage', { date: format.dateTime(request.cancelledAt ?? request.updatedAt) })
+              : t('customer:details.cancelledMessage', { date: format.dateTime(request.cancelledAt ?? request.updatedAt, { casing: 'inline' }) })
           }
         />
       ) : null}

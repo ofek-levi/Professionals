@@ -68,21 +68,35 @@ export function useSendMessage(conversationId: string) {
 }
 
 /**
- * `POST /conversations/:id/read` – optimistic: clears the conversation's unread counter; the
- * server also marks its message notifications read, so notifications are refreshed afterwards.
+ * `POST /conversations/:id/read` – optimistic: clears the conversation's unread counter (rolled
+ * back on error); the server also marks its message notifications read, so notifications are
+ * refreshed afterwards.
  */
 export function useMarkConversationAsRead() {
   const qc = useQueryClient();
   const { userId } = useQueryScope();
   return useMutation({
     mutationFn: (conversationId: string) => api.conversations.markConversationAsRead(conversationId),
-    onMutate: (conversationId) => {
-      qc.setQueryData<Conversation[]>(queryKeys.conversations.list(userId), (list) =>
+    onMutate: async (conversationId) => {
+      const listKey = queryKeys.conversations.list(userId);
+      const detailKey = queryKeys.conversations.detail(userId, conversationId);
+      // A refetch already in flight (e.g. after a realtime message) must not land after the
+      // optimistic update and bring the old unread badge back.
+      await Promise.all([qc.cancelQueries({ queryKey: listKey }), qc.cancelQueries({ queryKey: detailKey })]);
+      const snapshot = {
+        list: qc.getQueryData<Conversation[]>(listKey),
+        detail: qc.getQueryData<Conversation>(detailKey),
+      };
+      qc.setQueryData<Conversation[]>(listKey, (list) =>
         list?.map((conversation) => (conversation.id === conversationId ? markConversationRead(conversation) : conversation)),
       );
-      qc.setQueryData<Conversation>(queryKeys.conversations.detail(userId, conversationId), (conversation) =>
-        conversation ? markConversationRead(conversation) : conversation,
-      );
+      qc.setQueryData<Conversation>(detailKey, (conversation) => (conversation ? markConversationRead(conversation) : conversation));
+      return snapshot;
+    },
+    onError: (_error, conversationId, snapshot) => {
+      if (!snapshot) return;
+      qc.setQueryData(queryKeys.conversations.list(userId), snapshot.list);
+      qc.setQueryData(queryKeys.conversations.detail(userId, conversationId), snapshot.detail);
     },
     onSettled: (_result, _error, conversationId) => {
       void invalidateConversation(qc, userId, conversationId);

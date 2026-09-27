@@ -8,12 +8,13 @@ import { useTranslation } from 'react-i18next';
 
 import { Button, ErrorState, InlineAlert, Screen, SectionHeader, useNow } from '@/components/ui';
 import { useWithdrawOfferFlow } from '@/features/offers/components/use-withdraw-offer-flow';
-import { isOfferActive } from '@/features/offers/offer-status-machine';
+import { getProfessionalOfferOutcome, isOfferActive } from '@/features/offers/offer-status-machine';
 import { isRequestOpenForOffers } from '@/features/requests/request-matching';
 import { useRefetchOnFocus, useRequest } from '@/hooks';
 import { useCategoryName } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
+import { isolateText } from '@/utils/bidi';
 
 import { ApproximateLocationCard } from './request-details/approximate-location-card';
 import { MyOfferCard } from './request-details/my-offer-card';
@@ -65,8 +66,14 @@ export function ProfessionalRequestDetails({ requestId }: ProfessionalRequestDet
   const myOffer = request.myOffer;
   const hasActiveOffer = myOffer !== null && isOfferActive(myOffer.status);
   const acceptsOffers = isRequestOpenForOffers(request);
-  const accepted = myOffer?.status === 'accepted';
+  const outcome = myOffer ? getProfessionalOfferOutcome(myOffer.status, request.status) : null;
+  // Hired and the job still stands (an accepted offer stays accepted after a cancellation).
+  const accepted = outcome === 'accepted';
   const canSendOffer = acceptsOffers && !hasActiveOffer;
+  const customerNote = request.status === 'cancelled' && request.cancellationComment
+    ? t('professional:request.banner.customerNote', { note: isolateText(request.cancellationComment) })
+    : null;
+  const withNote = (message: string) => (customerNote ? `${message}\n${customerNote}` : message);
 
   let footer = null;
   if (accepted && request.jobId) {
@@ -111,14 +118,22 @@ export function ProfessionalRequestDetails({ requestId }: ProfessionalRequestDet
           tone="success"
           icon="party-popper"
           title={t('professional:request.banner.acceptedTitle')}
-          message={t('professional:request.banner.acceptedMessage', { customer: request.customer.displayName })}
+          message={t('professional:request.banner.acceptedMessage', { customer: isolateText(request.customer.displayName) })}
+        />
+      ) : outcome === 'job_cancelled' ? (
+        <InlineAlert
+          tone="danger"
+          icon="briefcase-remove-outline"
+          title={t('offers:jobCancelled.title')}
+          message={withNote(t('offers:jobCancelled.message'))}
+          testID="pro-request-job-cancelled"
         />
       ) : !acceptsOffers ? (
         <InlineAlert
           tone="warning"
           icon="lock-outline"
           title={t('professional:request.banner.closedTitle')}
-          message={t(`professional:request.banner.closed.${request.status === 'cancelled' ? 'cancelled' : 'taken'}`)}
+          message={withNote(t(`professional:request.banner.closed.${request.status === 'cancelled' ? 'cancelled' : 'taken'}`))}
         />
       ) : null}
 
@@ -150,7 +165,7 @@ export function ProfessionalRequestDetails({ requestId }: ProfessionalRequestDet
         <CustomerCard customer={request.customer} />
       </View>
 
-      {acceptsOffers && !accepted ? <CompetitionCard request={request} /> : null}
+      {acceptsOffers && !accepted ? <CompetitionCard request={request} hasOwnPendingOffer={myOffer?.status === 'pending'} /> : null}
 
       {!acceptsOffers && !myOffer ? (
         <Button

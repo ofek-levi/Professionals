@@ -58,7 +58,9 @@ export function ExploreFiltersSheet({
   const format = useFormatters();
   // Live result count for the draft (shares the cache with the map once applied).
   const preview = useNearbyRequestsForMap(filtersToParams(draft, now));
-  const count = preview.data?.totalCount;
+  // While the draft's count loads, the query still holds the previous filters' result: never show
+  // that stale number on the Apply button.
+  const count = preview.isPlaceholderData ? undefined : preview.data?.totalCount;
   const counting = preview.isFetching || preview.isPlaceholderData;
   const activeCount = countActiveFilters(draft);
   const update = (patch: Partial<ExploreFilters>) => onChangeDraft({ ...draft, ...patch });

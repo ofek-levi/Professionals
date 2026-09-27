@@ -24,7 +24,7 @@ export const settings: LocaleNamespace<typeof ensettings> = {
   appearance: {
     sectionTitle: 'מראה',
     description: 'התאמה להגדרות המכשיר או ערכת נושא קבועה.',
-    system: 'לפי המכשיר',
+    system: 'אוטומטי',
     light: 'בהיר',
     dark: 'כהה',
   },
@@ -48,8 +48,8 @@ export const settings: LocaleNamespace<typeof ensettings> = {
       description: 'הודעות צ׳אט חדשות מלקוחות ומבעלי מקצוע',
     },
     reminders: {
-      title: 'תזכורות לפגישות',
-      description: 'תזכורת לפני כל פגישה מתוכננת',
+      title: 'תזכורות לביקורים',
+      description: 'תזכורת לפני כל ביקור מתוכנן',
     },
     emailEnabled: {
       title: 'עדכונים במייל',
@@ -66,7 +66,7 @@ export const settings: LocaleNamespace<typeof ensettings> = {
     },
     networkFailures: {
       title: 'רשת לא יציבה',
-      description: 'כאחת מכל חמש בקשות נכשלת, כדי לבדוק את הטיפול בשגיאות',
+      description: 'בערך אחת מכל חמש פניות לשרת תיכשל, כדי לבדוק את הטיפול בשגיאות',
     },
     reset: {
       title: 'איפוס נתוני ההדגמה',

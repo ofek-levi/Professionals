@@ -5,8 +5,8 @@ import { ReviewCard } from '@/components/professionals';
 import { AppText, Card, Icon, InlineAlert, SectionHeader } from '@/components/ui';
 import { makeStyles, useTheme } from '@/theme';
 import type { JobDetails, UserRole } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
-import { isolateText } from './bidi';
 
 export interface JobReviewSectionProps {
   job: JobDetails;

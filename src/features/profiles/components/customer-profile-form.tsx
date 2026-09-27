@@ -23,10 +23,11 @@ import {
   SkeletonCard,
   TextField,
   useConfirm,
-  useErrorText,
+  useErrorToast,
   useToast,
 } from '@/components/ui';
 import { useCustomerProfile, useUpdateCustomerProfile, useUploadImage } from '@/hooks';
+import { routes } from '@/lib/routes';
 import {
   customerProfileFormSchema,
   customerProfileToFormValues,
@@ -92,7 +93,7 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
   const translateError = useTranslatedError();
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
   const upload = useUploadImage();
   const update = useUpdateCustomerProfile();
   const { control, handleSubmit, setError, formState } = useForm<CustomerProfileFormValues, unknown, CustomerProfileFormOutput>({
@@ -119,7 +120,10 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
   });
 
   useEffect(() => {
-    if (saved) router.back();
+    if (!saved) return;
+    // Opened directly (deep link / web refresh): there is nothing to go back to.
+    if (router.canGoBack()) router.back();
+    else router.replace(routes.customer.profile);
   }, [saved, router]);
 
   const pickAvatar = async () => {
@@ -138,7 +142,7 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
       });
       setAvatarUrl(uploaded.url);
     } catch (error) {
-      toast.show({ ...errorText(error), tone: 'danger' });
+      showError(error);
     }
   };
 
@@ -170,11 +174,7 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
           mapped = true;
         }
       }
-      toast.show({
-        ...errorText(error),
-        title: mapped ? t('profile:edit.fixFields') : errorText(error).title,
-        tone: 'danger',
-      });
+      showError(error, mapped ? { title: t('profile:edit.fixFields') } : undefined);
     }
   });
 

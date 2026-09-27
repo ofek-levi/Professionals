@@ -82,6 +82,50 @@ describe('applyRealtimeEvent', () => {
     expect(conversation.lastMessage?.id).toBe('msg_2');
   });
 
+  describe('conversation.read receipts', () => {
+    const mine = (id: string, createdAt: string): Message => ({
+      id,
+      conversationId: 'conv_1',
+      senderId: USER,
+      text: id,
+      createdAt,
+      readAt: null,
+      clientMessageId: `c_${id}`,
+    });
+    const readAt = '2026-09-27T09:00:00.000Z';
+
+    it('marks my messages read when the counterpart reads the chat', () => {
+      const qc = createClient();
+      const theirs: Message = { ...mine('their', '2026-09-27T07:30:00.000Z'), senderId: 'other', clientMessageId: null };
+      qc.setQueryData(
+        queryKeys.conversations.messages(USER, 'conv_1'),
+        page<Message>([
+          mine('optimistic:c_new', '2026-09-27T08:59:00.000Z'),
+          mine('after', '2026-09-27T09:05:00.000Z'),
+          mine('before', '2026-09-27T08:00:00.000Z'),
+          theirs,
+        ]),
+      );
+      qc.setQueryData<Conversation[]>(queryKeys.conversations.list(USER), [{ id: 'conv_1', unreadCount: 2 } as Conversation]);
+
+      applyRealtimeEvent(qc, USER, { type: 'conversation.read', conversationId: 'conv_1', readerId: 'other', readAt });
+
+      const items = qc.getQueryData<PaginatedInfiniteData<Message>>(queryKeys.conversations.messages(USER, 'conv_1'))?.pages[0].items ?? [];
+      const readById = Object.fromEntries(items.map((item) => [item.id, item.readAt]));
+      expect(readById).toEqual({ 'optimistic:c_new': null, after: null, before: readAt, their: null });
+      // Someone else reading does not touch my unread badge.
+      expect(qc.getQueryData<Conversation[]>(queryKeys.conversations.list(USER))?.[0].unreadCount).toBe(2);
+      expect(qc.getQueryState(queryKeys.conversations.list(USER))?.isInvalidated).toBe(true);
+    });
+
+    it('clears my unread badge when I read the chat on another device', () => {
+      const qc = createClient();
+      qc.setQueryData<Conversation[]>(queryKeys.conversations.list(USER), [{ id: 'conv_1', unreadCount: 2 } as Conversation]);
+      applyRealtimeEvent(qc, USER, { type: 'conversation.read', conversationId: 'conv_1', readerId: USER, readAt });
+      expect(qc.getQueryData<Conversation[]>(queryKeys.conversations.list(USER))?.[0].unreadCount).toBe(0);
+    });
+  });
+
   it('invalidates the request, offer and job graphs', () => {
     const qc = createClient();
     const requestKey = queryKeys.requests.detail(USER, 'req_1');

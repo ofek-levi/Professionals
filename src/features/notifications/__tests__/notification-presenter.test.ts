@@ -1,6 +1,7 @@
 import { NOTIFICATION_TYPE_META, NOTIFICATION_TYPES, type NotificationType } from '@/constants/notification-types';
 import { i18n, initI18n } from '@/i18n';
 import type { AppLanguage } from '@/types/domain';
+import { isolateText, stripIsolates } from '@/utils/bidi';
 
 import { buildNotification, type NotificationInput } from '../notification-factory';
 import { getNotificationContent, type NotificationLookups } from '../notification-presenter';
@@ -74,14 +75,28 @@ describe('getNotificationContent', () => {
   it('interpolates names, category, price and date', () => {
     expect(contentFor('offer_received', 'en')).toMatchObject({
       title: 'New offer: ILS450',
-      body: 'Yossi Mizrahi sent an offer for your PLUMBING request.',
+      body: `${isolateText('Yossi Mizrahi')} sent an offer for your PLUMBING request.`,
     });
     expect(contentFor('offer_accepted', 'en').body).toContain('WED 10:00');
     expect(contentFor('new_matching_request', 'en').body).toContain('3.2KM');
     expect(contentFor('new_message', 'en')).toMatchObject({
-      title: 'New message from Yossi Mizrahi',
+      title: `New message from ${isolateText('Yossi Mizrahi')}`,
       body: 'I can come tomorrow at 10:00',
     });
+  });
+
+  it('isolates names so they keep their direction inside the other language', () => {
+    const t = i18n.getFixedT('he', 'notifications');
+    const message = { type: 'new_message' as const, params: { professionalName: 'BrightSpark Electric', conversationId: 'c1' } };
+    const content = getNotificationContent(message, t, lookups);
+    expect(content.title).toBe(`הודעה חדשה מאת ${isolateText('BrightSpark Electric')}`);
+    // No Hebrew prefix letter glued to a Latin name.
+    expect(stripIsolates(contentFor('offer_received', 'he').body)).toContain('מאת Yossi Mizrahi');
+    expect(stripIsolates(contentFor('review_received', 'he').body)).toContain('מאת Noa Levi');
+    // Fallback names are translated text, not user data, and stay as they are.
+    expect(getNotificationContent({ type: 'job_started', params: {} }, i18n.getFixedT('en', 'notifications'), lookups).body).not.toMatch(
+      /[\u2066-\u2069]/,
+    );
   });
 
   it('uses the recipient-specific completion text', () => {
@@ -94,7 +109,7 @@ describe('getNotificationContent', () => {
     };
     const notification = buildNotification(professionalInput, { id: 'n', userId: 'u', now: '2026-09-27T07:00:00.000Z' });
     const content = getNotificationContent(notification, i18n.getFixedT('en', 'notifications'), lookups);
-    expect(content.body).toBe('The PLUMBING job for Noa Levi is complete. Great work!');
+    expect(content.body).toBe(`The PLUMBING job for ${isolateText('Noa Levi')} is complete. Great work!`);
   });
 
   it('pluralizes review stars (including the Hebrew dual)', () => {

@@ -38,13 +38,22 @@ export interface PaginatedList<T> extends PaginatedInfiniteData<T> {
   totalCount: number;
 }
 
-/** `select` for cursor-paginated infinite queries (stable reference → memoized by React Query). */
-export function selectPaginatedList<T>(data: PaginatedInfiniteData<T>): PaginatedList<T> {
-  return {
-    ...data,
-    items: data.pages.flatMap((page) => page.items),
-    totalCount: data.pages[0]?.totalCount ?? 0,
-  };
+/**
+ * `select` for cursor-paginated infinite queries (stable reference → memoized by React Query).
+ * Items are de-duplicated by id: when a list reorders between two page loads (or the cache got an
+ * item prepended) the same row must not render twice (duplicate list keys).
+ */
+export function selectPaginatedList<T extends { id: string }>(data: PaginatedInfiniteData<T>): PaginatedList<T> {
+  const seen = new Set<string>();
+  const items: T[] = [];
+  for (const page of data.pages) {
+    for (const item of page.items) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      items.push(item);
+    }
+  }
+  return { ...data, items, totalCount: data.pages[0]?.totalCount ?? 0 };
 }
 
 export function getNextPageParam<T>(lastPage: Paginated<T>): PageParam {

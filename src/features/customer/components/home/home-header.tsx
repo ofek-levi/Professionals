@@ -6,6 +6,7 @@ import { AppText, Icon, IconButton, Skeleton, useNow } from '@/components/ui';
 import { useCurrentUser, useUnreadNotificationsCount } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
+import { isolateText } from '@/utils/bidi';
 
 import { getGreetingPeriod } from '../../customer-home-model';
 
@@ -29,7 +30,7 @@ export function HomeHeader() {
         </AppText>
         {user ? (
           <AppText variant="display" accessibilityRole="header" numberOfLines={1}>
-            {t('customer:home.hello', { name: user.firstName })}
+            {t('customer:home.hello', { name: isolateText(user.firstName) })}
           </AppText>
         ) : (
           <Skeleton width="55%" height={30} style={styles.nameSkeleton} />

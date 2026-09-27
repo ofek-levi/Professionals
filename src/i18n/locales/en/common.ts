@@ -53,6 +53,8 @@ export const common = {
     home: 'Home',
     requests: 'My Requests',
     notifications: 'Notifications',
+    /** Tab bars with six tabs have no room for the full word. */
+    notificationsShort: 'Alerts',
     profile: 'Profile',
     explore: 'Explore',
     offers: 'My Offers',
@@ -148,6 +150,13 @@ export const common = {
     yesterday: 'Yesterday',
     dateAtTime: '{{date}} at {{time}}',
     justNow: 'Just now',
+    /** The same words inside a sentence ("Starts tomorrow at 14:00"). */
+    inline: {
+      today: 'today',
+      tomorrow: 'tomorrow',
+      yesterday: 'yesterday',
+      justNow: 'just now',
+    },
   },
   units: {
     distanceKm: '{{value}} km',
@@ -213,6 +222,15 @@ export const common = {
     next: 'Next',
     decrease: 'Decrease',
     increase: 'Increase',
+    /** Progress timeline steps: the state is otherwise shown only by color and icon. */
+    timelineStep: {
+      done: 'Done',
+      current: 'Current step',
+      next: 'Next step',
+      upcoming: 'Not yet',
+      skipped: 'Skipped',
+      cancelled: 'Cancelled',
+    },
   },
   confirm: {
     discardTitle: 'Discard changes?',
@@ -286,6 +304,9 @@ export const common = {
     jobsDone_one: '{{count}} job completed',
     jobsDone_other: '{{count}} jobs completed',
     moreCategories: '+{{count}}',
+  },
+  job: {
+    completedAt: 'Completed {{date}}',
   },
   /** Navigation titles (native stack headers, document titles on web). */
   screens: {

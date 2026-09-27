@@ -34,15 +34,25 @@ jest.mock('@/services/api', () => ({
   },
 }));
 
-function Harness() {
-  const [value, setValue] = useState<ServiceLocation | null>(null);
+function Harness({ initial = null }: { initial?: ServiceLocation | null }) {
+  const [value, setValue] = useState<ServiceLocation | null>(initial);
   return (
     <>
       <LocationPicker value={value} onChange={setValue} />
       <AppText testID="picked">{value ? `${value.addressLine}|${value.city}|${value.coordinates.latitude}` : 'none'}</AppText>
+      <AppText testID="picked-details">{value?.details ?? 'no details'}</AppText>
     </>
   );
 }
+
+const SAVED_ADDRESS: ServiceLocation = {
+  coordinates: { latitude: 32.082, longitude: 34.813 },
+  addressLine: 'Bialik St 45',
+  city: 'Ramat Gan',
+  neighborhood: 'City Center',
+  details: 'Building B, 4th floor',
+  isApproximate: false,
+};
 
 describe('LocationPicker', () => {
   beforeAll(async () => {
@@ -59,6 +69,17 @@ describe('LocationPicker', () => {
     expect(screen.getByTestId('picked')).toHaveTextContent('Dizengoff St 120|Tel Aviv-Yafo|32.08');
     // Editable address fields appear once a location is chosen.
     expect(screen.getByDisplayValue('Dizengoff St 120')).toBeOnTheScreen();
+  });
+
+  it('drops the previous address details when a different address is picked', async () => {
+    await renderWithProviders(<Harness initial={SAVED_ADDRESS} />);
+    expect(screen.getByTestId('picked-details')).toHaveTextContent('Building B, 4th floor');
+    const search = screen.getByTestId('location-search');
+    await fireEvent(search, 'focus');
+    await fireEvent.changeText(search, 'Dizen');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Dizengoff St 120, Center, Tel Aviv-Yafo' }));
+    expect(screen.getByTestId('picked')).toHaveTextContent('Dizengoff St 120|Tel Aviv-Yafo|32.08');
+    expect(screen.getByTestId('picked-details')).toHaveTextContent('no details');
   });
 
   it('places the pin on map tap and fills the address by reverse geocoding', async () => {

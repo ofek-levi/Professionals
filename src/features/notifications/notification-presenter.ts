@@ -5,12 +5,17 @@
  * `notifications:types.<type>.*` so they follow the active language. Formatting of values that
  * depend on the language (category names from the catalog, prices, dates, distances) is injected
  * through `lookups`, which keeps this module pure and easy to test.
+ *
+ * Person and business names are user data in any script, so they are wrapped in Unicode isolates
+ * (`isolateText`): a Latin name inside a Hebrew sentence (or vice versa) keeps its own direction
+ * and does not reorder the surrounding words and punctuation.
  */
 import type { TFunction } from 'i18next';
 
 import { NOTIFICATION_TYPE_META } from '@/constants/notification-types';
 import type { StatusTone } from '@/constants/tones';
 import type { AppNotification } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
 export interface NotificationLookups {
   /** Localized category name (from the catalog's `LocalizedText`); `''` when unknown. */
@@ -43,12 +48,12 @@ export function getNotificationContent(
   const meta = NOTIFICATION_TYPE_META[notification.type];
 
   const category = (params.categoryId && lookups.categoryName(params.categoryId)) || t('fallbacks.service');
-  const professionalName = params.professionalName || t('fallbacks.professional');
-  const customerName = params.customerName || t('fallbacks.customer');
+  const professionalName = params.professionalName ? isolateText(params.professionalName) : t('fallbacks.professional');
+  const customerName = params.customerName ? isolateText(params.customerName) : t('fallbacks.customer');
   const price = params.price !== undefined ? lookups.formatPrice(params.price, params.currency ?? FALLBACK_CURRENCY) : '';
   const date = params.scheduledAt ? lookups.formatDateTime(params.scheduledAt) : '';
   /** The other party of a job: professionals get `customerName`, customers `professionalName`. */
-  const counterpart = params.professionalName || params.customerName || '';
+  const counterpart = isolateText(params.professionalName || params.customerName || '');
 
   const content = (title: string, body: string): NotificationContent => ({ title, body, icon: meta.icon, tone: meta.tone });
 
@@ -100,7 +105,7 @@ export function getNotificationContent(
       return content(
         t('types.job_completed.title'),
         params.professionalName
-          ? t('types.job_completed.bodyForCustomer', { category, name: params.professionalName })
+          ? t('types.job_completed.bodyForCustomer', { category, name: professionalName })
           : t('types.job_completed.bodyForProfessional', { category, name: customerName }),
       );
     case 'review_received':

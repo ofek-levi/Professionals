@@ -1,4 +1,5 @@
 /** Customer accounts of the demo data set (2 demo customers + non-demo customers). */
+import type { LocalizedText } from '@/types/domain';
 
 export interface CustomerSeed {
   id: string;
@@ -10,7 +11,7 @@ export interface CustomerSeed {
   home: { placeId: string; streetIndex: number; houseNumber: number; details: string | null };
   memberSinceDaysAgo: number;
   isDemo: boolean;
-  demoDescription: string | null;
+  demoDescription: LocalizedText | null;
 }
 
 export const DEMO_CUSTOMER_IDS = { noa: 'user_noa_levi', daniel: 'user_daniel_cohen' } as const;
@@ -25,8 +26,10 @@ export const CUSTOMERS: readonly CustomerSeed[] = [
     home: { placeId: 'tlv-florentin', streetIndex: 0, houseNumber: 24, details: 'Apartment 7, 3rd floor, entrance from the courtyard' },
     memberSinceDaysAgo: 540,
     isDemo: true,
-    demoDescription:
-      'Customer in Florentin, Tel Aviv. Compare three offers on a bathroom leak, chat with your electrician, review a finished dishwasher repair and continue a saved draft.',
+    demoDescription: {
+      en: 'Customer in Florentin, Tel Aviv. Compare three offers on a bathroom leak, chat with your electrician, review a finished dishwasher repair and continue a saved draft.',
+      he: 'לקוחה בפלורנטין, תל אביב. השוו שלוש הצעות לתיקון נזילה באמבטיה, התכתבו עם החשמלאי, כתבו ביקורת על תיקון מדיח שהסתיים והמשיכו טיוטה שמורה.',
+    },
   },
   {
     id: DEMO_CUSTOMER_IDS.daniel,
@@ -37,8 +40,10 @@ export const CUSTOMERS: readonly CustomerSeed[] = [
     home: { placeId: 'rg-center', streetIndex: 0, houseNumber: 45, details: 'Building B, 4th floor, apartment 12' },
     memberSinceDaysAgo: 410,
     isDemo: true,
-    demoDescription:
-      'Customer in Ramat Gan. Pick a mover for next week, follow a Wi‑Fi job that is in progress and publish a new request to watch offers arrive live.',
+    demoDescription: {
+      en: 'Customer in Ramat Gan. Pick a mover for next week, follow a Wi‑Fi job that is in progress and publish a new request to watch offers arrive live.',
+      he: 'לקוח ברמת גן. בחרו מוביל לשבוע הבא, עקבו אחר עבודת Wi‑Fi שנמצאת בביצוע ופרסמו בקשה חדשה כדי לראות הצעות מגיעות בזמן אמת.',
+    },
   },
   {
     id: 'user_tamar_shalev',

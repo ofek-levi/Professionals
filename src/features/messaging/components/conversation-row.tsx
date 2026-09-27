@@ -6,8 +6,9 @@ import { AppText, Avatar, Badge, Card, Skeleton } from '@/components/ui';
 import { useCategoryName, useFormatters } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { Conversation, JobSummary } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
-import { getConversationActivityAt, getConversationPreview, getCounterpart, getListTimeKind, isolateText } from './chat-model';
+import { getConversationActivityAt, getConversationPreview, getCounterpart, getListTimeKind } from './chat-model';
 
 export interface ConversationRowProps {
   conversation: Conversation;
@@ -83,14 +84,23 @@ export function ConversationRow({ conversation, currentUserId, job, now, onPress
             {closed ? <Badge label={t('messaging:conversations.closed')} icon="lock-outline" size="sm" style={styles.noShrink} /> : null}
           </View>
           <View style={styles.previewLine}>
-            <AppText
-              variant={unread ? 'bodyStrong' : 'body'}
-              color={unread ? 'default' : preview ? 'secondary' : 'muted'}
-              numberOfLines={1}
-              style={styles.preview}
-            >
-              {previewText}
-            </AppText>
+            <View style={styles.previewTexts}>
+              {preview?.mine ? (
+                // A separate "You:" keeps the message in its own direction: inside one RTL sentence a
+                // truncated English message would lose its beginning instead of its end.
+                <AppText variant={unread ? 'bodyStrong' : 'body'} color={unread ? 'default' : 'secondary'} style={styles.noShrink}>
+                  {t('messaging:conversations.youPrefix')}
+                </AppText>
+              ) : null}
+              <AppText
+                variant={unread ? 'bodyStrong' : 'body'}
+                color={unread ? 'default' : preview ? 'secondary' : 'muted'}
+                numberOfLines={1}
+                style={styles.preview}
+              >
+                {preview ? preview.text : t('messaging:conversations.noMessages')}
+              </AppText>
+            </View>
             {unread ? (
               <View style={styles.unreadBadge}>
                 <AppText variant="tiny" color="onPrimary" tabular>
@@ -164,6 +174,12 @@ const useStyles = makeStyles((t) => ({
     alignItems: 'center',
     gap: t.spacing.sm,
     marginTop: t.spacing.xxs,
+  },
+  previewTexts: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: t.spacing.xs,
   },
   preview: {
     flex: 1,

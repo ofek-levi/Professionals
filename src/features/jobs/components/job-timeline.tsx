@@ -51,17 +51,19 @@ function TimelineItem({
 }) {
   const theme = useTheme();
   const styles = useStyles();
-  const { t } = useTranslation('jobs');
+  const { t } = useTranslation(['jobs', 'common']);
   const format = useFormatters();
 
   const label = t(`details.timeline.steps.${step.key}`);
+  // Screen readers get the state that sighted users read from color and icon.
+  const stateLabel = t(`common:a11y.timelineStep.${STEP_A11Y_STATE[step.state]}`);
   let hint: string | null = step.at ? format.dateTime(step.at) : null;
   if (step.state === 'next') {
     if (step.key === 'confirmed') hint = t(`details.timeline.hints.confirmedNext.${role}`);
-    else if (step.key === 'in_progress') hint = t('details.timeline.hints.inProgressNext', { date: format.dateTime(job.scheduledStartAt, { relativeDay: false }) });
+    else if (step.key === 'in_progress') hint = t('details.timeline.hints.inProgressNext', { date: format.dateTime(job.scheduledStartAt, { casing: 'inline' }) });
     else if (step.key === 'completed') hint = t('details.timeline.hints.completedNext');
   } else if (step.state === 'active' && step.at) {
-    hint = t('details.timeline.hints.inProgressActive', { relative: format.relative(step.at, now) });
+    hint = t('details.timeline.hints.inProgressActive', { relative: format.relative(step.at, now, { casing: 'inline' }) });
   } else if (step.state === 'skipped') {
     hint = t('details.timeline.hints.skipped');
   }
@@ -87,7 +89,7 @@ function TimelineItem({
   const emphasized = step.state === 'next' || step.state === 'active' || step.state === 'cancelled';
 
   return (
-    <View style={styles.item} accessible accessibilityLabel={[label, hint].filter(Boolean).join(', ')}>
+    <View style={styles.item} accessible accessibilityLabel={[label, stateLabel, hint].filter(Boolean).join(', ')}>
       <View style={styles.rail}>
         <View style={[styles.indicator, { backgroundColor: indicator.background, borderColor: indicator.border }]}>
           {STEP_ICONS[step.state] ? (
@@ -116,6 +118,15 @@ function TimelineItem({
 }
 
 const INDICATOR_SIZE = 24;
+
+const STEP_A11Y_STATE: Record<JobTimelineStepState, 'done' | 'current' | 'next' | 'upcoming' | 'skipped' | 'cancelled'> = {
+  done: 'done',
+  active: 'current',
+  next: 'next',
+  upcoming: 'upcoming',
+  skipped: 'skipped',
+  cancelled: 'cancelled',
+};
 
 const useStyles = makeStyles((t) => ({
   list: {

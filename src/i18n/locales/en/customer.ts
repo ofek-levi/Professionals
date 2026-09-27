@@ -234,6 +234,9 @@ export const customer = {
     },
     compare: {
       legend: 'Best value in each row',
+      /** Screen reader text of one cell: metric, value and whether it is the best in its row. */
+      cellA11y: '{{metric}}: {{value}}',
+      cellBestA11y: '{{metric}}: {{value}}, best value',
       unknown: '—',
       ratingValue: '★ {{value}}',
       years_one: '{{count}} yr',

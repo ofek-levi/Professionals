@@ -3,10 +3,10 @@
  * See src/components/README.md for usage examples.
  */
 export { AppSwitch, type AppSwitchProps } from './app-switch';
-export { AppText, resolveTextAlign, type AppTextProps, type TextAlign } from './app-text';
+export { AppText, resolveTextAlign, resolveTextDir, type AppTextProps, type TextAlign } from './app-text';
 export { Avatar, getInitials, type AvatarProps, type AvatarSize } from './avatar';
 export { Badge, type BadgeProps, type BadgeSize, type BadgeVariant } from './badge';
-export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
+export { BUTTON_SIZE_TOKENS, Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './button';
 export { Card, type CardPadding, type CardProps, type CardVariant } from './card';
 export { Chip, type ChipProps, type ChipSize } from './chip';
 export { resolveColor, withAlpha, type ColorName, type ColorProp } from './colors';
@@ -47,6 +47,7 @@ export {
   LoadingState,
   QueryState,
   useErrorText,
+  useErrorToast,
   type EmptyStateProps,
   type ErrorStateProps,
   type LoadingStateProps,

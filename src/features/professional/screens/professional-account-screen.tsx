@@ -153,6 +153,7 @@ export default function ProfessionalAccountScreen() {
         <Divider inset={68} />
         <MenuRow
           icon="logout"
+          iconFlipInRTL
           destructive
           title={t('professional:account.signOut')}
           onPress={() => void confirmSignOut()}

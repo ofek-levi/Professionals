@@ -26,7 +26,7 @@ export function RequestHeaderCard({ request }: { request: ProfessionalRequestVie
             <AppText variant="caption" color="muted">
               {t('professional:request.posted')}
             </AppText>
-            <TimeAgo date={request.publishedAt ?? request.createdAt} />
+            <TimeAgo date={request.publishedAt ?? request.createdAt} casing="inline" />
           </View>
         </View>
       </View>
@@ -58,13 +58,13 @@ export function RequestDescriptionCard({ request }: { request: ProfessionalReque
   return (
     <Card padding="lg" style={styles.gap} testID="pro-request-description">
       <AppText variant="subheading">{t('request.aboutJob')}</AppText>
-      <AppText variant="body" color="secondary" selectable>
+      <AppText variant="body" color="secondary" selectable userContent>
         {request.description}
       </AppText>
       {request.notes ? (
         <View style={styles.notes}>
           <Icon name="note-text-outline" size={16} color="secondary" />
-          <AppText variant="caption" color="secondary" style={styles.flex}>
+          <AppText variant="caption" color="secondary" style={styles.flex} userContent>
             {request.notes}
           </AppText>
         </View>
@@ -115,22 +115,32 @@ export function CustomerCard({ customer }: { customer: CustomerSummary }) {
   );
 }
 
-export function CompetitionCard({ request }: { request: ProfessionalRequestView }) {
+/**
+ * How many pros compete for the request. Once the viewer has a pending offer, it counts the
+ * *other* pending offers so the professional isn't told to compete with themselves.
+ */
+export function CompetitionCard({ request, hasOwnPendingOffer }: { request: ProfessionalRequestView; hasOwnPendingOffer: boolean }) {
   const styles = useStyles();
   const theme = useTheme();
   const { t } = useTranslation('professional');
-  const count = request.offerCount;
+  const count = hasOwnPendingOffer ? Math.max(0, request.pendingOfferCount - 1) : request.pendingOfferCount;
   const tone = count === 0 ? 'accent' : count >= 4 ? 'warning' : 'info';
   const colors = theme.colors.tones[tone];
+  let title: string;
+  if (hasOwnPendingOffer) title = count === 0 ? t('request.competition.onlyYours') : t('request.competition.others', { count });
+  else title = count === 0 ? t('request.competition.none') : t('request.competition.some', { count });
+  let hint: string;
+  if (hasOwnPendingOffer) hint = t('request.competition.yoursHint');
+  else hint = count === 0 ? t('request.competition.noneHint') : t('request.competition.someHint');
   return (
     <View style={[styles.competition, { backgroundColor: colors.bg }]} testID="pro-request-competition">
       <Icon name={count === 0 ? 'rocket-launch-outline' : 'account-group-outline'} size={22} color={colors.fg} />
       <View style={styles.flex}>
         <AppText variant="bodyStrong" color={colors.fg}>
-          {count === 0 ? t('request.competition.none') : t('request.competition.some', { count })}
+          {title}
         </AppText>
         <AppText variant="caption" color="secondary">
-          {count === 0 ? t('request.competition.noneHint') : t('request.competition.someHint')}
+          {hint}
         </AppText>
       </View>
     </View>

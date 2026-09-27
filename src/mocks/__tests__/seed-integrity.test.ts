@@ -125,7 +125,8 @@ describe('seed data integrity', () => {
       Object.values(DEMO_PROFESSIONAL_IDS).sort(),
     );
     for (const account of accounts) {
-      expect(account.description.length).toBeGreaterThan(40);
+      expect(account.description.en.length).toBeGreaterThan(40);
+      expect(account.description.he.length).toBeGreaterThan(40);
       expect(account.city).not.toBe('');
     }
   });

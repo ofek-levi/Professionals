@@ -24,7 +24,7 @@ import { createEventBus } from './event-bus';
 import { ROUTES } from './handlers';
 import { languageFromHeaders, QueryReader, RouteResponse, Router, splitPath } from './router';
 import { runScheduledTasks } from './services/scheduler';
-import { createSimulator } from './services/simulator';
+import { createSimulator, type Simulator } from './services/simulator';
 import type { MockServer, MockServerOptions } from './types';
 
 export interface CreateMockServerOptions extends MockServerOptions {
@@ -32,7 +32,15 @@ export interface CreateMockServerOptions extends MockServerOptions {
   storage?: DatabaseStorage;
   /** Debounce of persisted saves in ms (default 300). */
   persistDebounceMs?: number;
+  /**
+   * Persisted demo data seeded longer ago than this is replaced by a fresh seed at launch (default
+   * 12 h). Seed timestamps are relative to the seeding time, so showcase offers would otherwise
+   * expire and the demo scenario fall apart for anyone returning the next day.
+   */
+  maxSeedAgeMs?: number;
 }
+
+const DEFAULT_MAX_SEED_AGE_MS = 12 * 60 * 60 * 1000;
 
 /** Test/dev access to the server internals. The app itself only uses the `MockServer` contract. */
 export interface MockServerInternals {
@@ -65,20 +73,25 @@ export function createMockServer(options: CreateMockServerOptions = {}): Interna
   const saver = createDebouncedSaver(() => storage.save(db.snapshot(clock())), options.persistDebounceMs ?? 300);
 
   // The simulator needs the runner and the runner needs the hooks: resolve lazily.
-  let simulatorHooks: ServerHooks | null = null;
+  let simulator: Simulator | null = null;
   const hooks: ServerHooks = {
-    onRequestPublished: (ctx, requestId) => simulatorHooks?.onRequestPublished(ctx, requestId),
-    onMessageSent: (ctx, message) => simulatorHooks?.onMessageSent(ctx, message),
+    onRequestPublished: (ctx, requestId) => simulator?.onRequestPublished(ctx, requestId),
+    onMessageSent: (ctx, message) => simulator?.onMessageSent(ctx, message),
   };
   const run = createUnitOfWorkRunner({ db, clock, bus, hooks });
-  simulatorHooks = createSimulator({ run, schedule, isEnabled: () => simulationEnabled });
+  simulator = createSimulator({ run, schedule, isEnabled: () => simulationEnabled });
 
   let readyPromise: Promise<void> | null = null;
 
   async function load(): Promise<void> {
     if (persist) {
       const snapshot = await storage.load();
-      if (snapshot && snapshot.version === MOCK_DB_SCHEMA_VERSION) {
+      const maxSeedAgeMs = options.maxSeedAgeMs ?? DEFAULT_MAX_SEED_AGE_MS;
+      const usable =
+        snapshot !== null &&
+        snapshot.version === MOCK_DB_SCHEMA_VERSION &&
+        clock().getTime() - Date.parse(snapshot.seededAt) < maxSeedAgeMs;
+      if (snapshot && usable) {
         db.restore(snapshot);
       } else {
         seedDatabase(db, clock());
@@ -134,6 +147,7 @@ export function createMockServer(options: CreateMockServerOptions = {}): Interna
     async reset() {
       await ready();
       saver.cancel();
+      simulator?.reset();
       seedDatabase(db, clock());
       if (persist) await saver.flush();
     },

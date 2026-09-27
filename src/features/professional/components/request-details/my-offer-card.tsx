@@ -5,11 +5,10 @@
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { OfferStatusBadge } from '@/components/offers';
 import { AppText, Button, Card, Divider, Icon, KeyValueRow, PriceText, Skeleton } from '@/components/ui';
-import { OFFER_STATUS_META } from '@/constants/offer-statuses';
 import { ExpiryBadge } from '@/features/offers/components/expiry-badge';
-import { getProfessionalOfferActions } from '@/features/offers/offer-status-machine';
+import { ProfessionalOfferStatusBadge, useOfferReason } from '@/features/offers/components/offer-status-display';
+import { getProfessionalOfferActions, getProfessionalOfferOutcome } from '@/features/offers/offer-status-machine';
 import { useOffer } from '@/hooks';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
@@ -37,7 +36,8 @@ export function MyOfferCard({ myOffer, requestStatus, jobId, now, withdrawing, o
     ? getProfessionalOfferActions(details, requestStatus, now)
     : { canEdit: false, canWithdraw: false };
   const status = details?.status ?? myOffer.status;
-  const accepted = status === 'accepted';
+  const outcome = getProfessionalOfferOutcome(status, requestStatus);
+  const reason = useOfferReason(outcome, details?.statusReason ?? null);
 
   return (
     <Card variant="elevated" padding="none" highlighted style={styles.card} testID="pro-request-my-offer">
@@ -46,7 +46,7 @@ export function MyOfferCard({ myOffer, requestStatus, jobId, now, withdrawing, o
           <Icon name="tag-check-outline" size={20} color="primary" />
           <AppText variant="subheading">{t('professional:request.myOffer.title')}</AppText>
         </View>
-        <OfferStatusBadge status={status} size="sm" />
+        <ProfessionalOfferStatusBadge outcome={outcome} size="sm" />
       </View>
       <View style={styles.body}>
         <View style={styles.priceRow}>
@@ -61,23 +61,23 @@ export function MyOfferCard({ myOffer, requestStatus, jobId, now, withdrawing, o
         {details?.message ? (
           <View style={styles.message}>
             <Icon name="format-quote-open" size={18} color="muted" />
-            <AppText variant="caption" color="secondary" numberOfLines={3} style={styles.flex}>
+            <AppText variant="caption" color="secondary" numberOfLines={3} style={styles.flex} userContent>
               {details.message}
             </AppText>
           </View>
         ) : null}
-        {details && status !== 'pending' && details.statusReason ? (
+        {reason ? (
           <View style={styles.reason}>
-            <Icon name={OFFER_STATUS_META[status].icon} size={16} color={OFFER_STATUS_META[status].tone} />
+            <Icon name={reason.icon} size={16} color={reason.tone} />
             <AppText variant="caption" color="secondary" style={styles.flex}>
-              {t(`common:offerStatusReason.${details.statusReason}`)}
+              {reason.text}
             </AppText>
           </View>
         ) : null}
       </View>
       <Divider />
       <View style={styles.actions}>
-        {accepted && jobId ? (
+        {outcome === 'accepted' && jobId ? (
           <Button label={t('offers:actions.goToJob')} size="sm" variant="success" leftIcon="briefcase-check-outline" onPress={() => onOpenJob(jobId)} style={styles.flex} />
         ) : null}
         {actions.canEdit ? (

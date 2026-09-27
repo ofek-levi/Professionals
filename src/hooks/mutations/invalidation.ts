@@ -18,11 +18,6 @@ async function invalidateAll(qc: Invalidator, keys: readonly (QueryKey | null)[]
   );
 }
 
-/** Customer and professional dashboards. */
-export function invalidateDashboards(qc: Invalidator, userId: UserScope): Promise<void> {
-  return invalidateAll(qc, [queryKeys.dashboard.all(userId)]);
-}
-
 /**
  * A request changed (created, edited, published, cancelled, got offers…): its details and offers,
  * every request list (customer lists, nearby lists and the map) and the dashboards.
@@ -67,8 +62,9 @@ export interface JobRef {
 
 /**
  * A job changed (created by accepting an offer, confirmed, started, completed, cancelled,
- * reviewed): the job, job lists, the mirrored request, conversations (opened/closed with the job)
- * and dashboards.
+ * reviewed): the job, job lists, the mirrored request, conversations (the list and every open
+ * chat's details: a chat closes with its cancelled job, which disables the composer) and
+ * dashboards.
  */
 export function invalidateJobGraph(qc: Invalidator, userId: UserScope, { jobId, requestId }: JobRef): Promise<void> {
   return invalidateAll(qc, [
@@ -77,6 +73,7 @@ export function invalidateJobGraph(qc: Invalidator, userId: UserScope, { jobId, 
     requestId ? queryKeys.requests.detail(userId, requestId) : null,
     queryKeys.requests.customerLists(userId),
     queryKeys.conversations.list(userId),
+    queryKeys.conversations.details(userId),
     queryKeys.dashboard.all(userId),
   ]);
 }
@@ -110,7 +107,7 @@ export function invalidateProfessional(qc: Invalidator, userId: UserScope, profe
     professionalId
       ? [
           queryKeys.professionals.profile(userId, professionalId),
-          queryKeys.professionals.reviews(userId, professionalId),
+          queryKeys.professionals.reviewsOf(userId, professionalId),
           queryKeys.professionals.searches(userId),
         ]
       : [queryKeys.professionals.all(userId)],
@@ -130,9 +127,4 @@ export function invalidateOwnProfile(qc: Invalidator, userId: UserScope): Promis
     queryKeys.requests.nearbyLists(userId),
     queryKeys.dashboard.all(userId),
   ]);
-}
-
-/** Everything cached for the user (e.g. after resetting the demo data). */
-export function invalidateUserData(qc: Invalidator, userId: UserScope): Promise<void> {
-  return invalidateAll(qc, [queryKeys.user(userId)]);
 }

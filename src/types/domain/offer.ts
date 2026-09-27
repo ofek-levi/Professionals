@@ -47,6 +47,15 @@ export interface OfferWithProfessional extends Offer {
 export interface OfferWithRequest extends Offer {
   request: Pick<
     ServiceRequest,
-    'id' | 'categoryId' | 'description' | 'urgency' | 'status' | 'location' | 'preferredSchedule' | 'offerCount' | 'createdAt'
+    | 'id'
+    | 'categoryId'
+    | 'description'
+    | 'urgency'
+    | 'status'
+    | 'location'
+    | 'preferredSchedule'
+    | 'offerCount'
+    | 'pendingOfferCount'
+    | 'createdAt'
   >;
 }

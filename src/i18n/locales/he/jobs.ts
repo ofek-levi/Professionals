@@ -1,19 +1,20 @@
 import type { jobs as enjobs } from '../en/jobs';
 import type { LocaleNamespace } from '../../types';
+import { isolateLtr } from '@/utils/bidi';
 
 export const jobs: LocaleNamespace<typeof enjobs> = {
   details: {
     headline: {
       awaiting_confirmation: {
         customer: 'ממתינים לאישור המועד מ-{{name}}',
-        professional: 'אשרו את המועד כדי ש-{{name}} יידעו שאתם מגיעים',
+        professional: 'אשרו את המועד כדי לעדכן את {{name}} שאתם מגיעים',
       },
       scheduled: {
         customer: 'המועד עם {{name}} נקבע ל{{date}}',
         professional: 'העבודה שלכם נקבעה ל{{date}}',
       },
       in_progress: {
-        customer: '{{name}} עובדים על העבודה שלכם',
+        customer: 'העבודה שלכם בביצוע על ידי {{name}}',
         professional: 'העבודה בביצוע. סמנו אותה כהושלמה כשתסיימו.',
       },
       completed: {
@@ -21,8 +22,8 @@ export const jobs: LocaleNamespace<typeof enjobs> = {
         professional: 'עבודה מצוינת! העבודה הושלמה ב-{{date}}.',
       },
       cancelled: {
-        customer: 'העבודה בוטלה. הפגישה לא תתקיים והצ׳אט נסגר.',
-        professional: 'הלקוח ביטל את העבודה. הפגישה לא תתקיים והצ׳אט נסגר.',
+        customer: 'העבודה בוטלה. הביקור לא יתקיים והצ׳אט נסגר.',
+        professional: 'הלקוח ביטל את העבודה. הביקור לא יתקיים והצ׳אט נסגר.',
       },
     },
     timeline: {
@@ -45,8 +46,8 @@ export const jobs: LocaleNamespace<typeof enjobs> = {
       },
     },
     appointment: {
-      title: 'מועד הפגישה',
-      timeRange: '{{start}}–{{end}}',
+      title: 'מועד הביקור',
+      timeRange: isolateLtr('{{start}}–{{end}}'),
       startsIn: 'מתחילה {{relative}}',
       startsTomorrow: 'מתחילה מחר',
       startsInDays_one: 'מתחילה בעוד יום',
@@ -99,12 +100,12 @@ export const jobs: LocaleNamespace<typeof enjobs> = {
     complete: 'סימון כהושלמה',
     review: 'כתיבת ביקורת',
     message: 'הודעה',
-    cancel: 'ביטול ההזמנה',
+    cancel: 'ביטול הביקור',
   },
   confirmDialogs: {
     confirm: {
       title: 'לאשר את המועד?',
-      confirmLabel: 'אישור',
+      confirmLabel: 'אישור המועד',
       message: 'נעדכן את {{name}} שתגיעו {{date}}.',
     },
     start: {

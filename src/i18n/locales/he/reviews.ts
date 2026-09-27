@@ -11,9 +11,9 @@ export const reviews: LocaleNamespace<typeof enreviews> = {
     commentHelper: 'הביקורת פומבית ומוצג בה השם הפרטי שלכם והאות הראשונה של שם המשפחה.',
     highlightsTitle: 'הדגשים מהירים',
     highlights: {
-      punctual: 'הגיע בזמן',
+      punctual: 'הגעה בזמן',
       quality: 'עבודה איכותית',
-      tidy: 'השאיר הכול נקי',
+      tidy: 'ניקיון בסיום העבודה',
       communication: 'תקשורת ברורה',
       price: 'מחיר הוגן',
     },

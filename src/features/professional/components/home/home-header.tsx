@@ -9,6 +9,7 @@ import { AppText, Avatar, Icon, IconButton, Skeleton } from '@/components/ui';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import type { OwnProfessionalProfile } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 
 import { getTodayAvailability, greetingPeriod } from '../../home-model';
 
@@ -26,7 +27,7 @@ export function HomeHeader({ profile, unreadCount, now, onOpenNotifications, onE
   const { t } = useTranslation(['professional', 'common']);
   const format = useFormatters();
   const firstName = profile?.fullName.split(/\s+/)[0] ?? '';
-  const greeting = t(`professional:home.greeting.${greetingPeriod(now)}`, { name: firstName });
+  const greeting = t(`professional:home.greeting.${greetingPeriod(now)}`, { name: isolateText(firstName) });
 
   const today = profile ? getTodayAvailability(profile.availability, now) : null;
   const status = !today

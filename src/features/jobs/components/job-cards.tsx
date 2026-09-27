@@ -12,10 +12,10 @@ import type { StatusTone } from '@/constants/tones';
 import { useCategoryName, useFormatters } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import type { JobDetails, UserRole } from '@/types/domain';
+import { isolateText } from '@/utils/bidi';
 import { addMinutes } from '@/utils/dates';
 import { regionForRadius } from '@/utils/geo';
 
-import { isolateText } from './bidi';
 import { JobTimeline } from './job-timeline';
 import { getAppointmentCountdown } from './job-view-model';
 
@@ -83,16 +83,16 @@ export function AppointmentCard({ job, now }: { job: JobDetails; now: Date }) {
     const countdown = getAppointmentCountdown(start, now);
     switch (countdown.kind) {
       case 'soon':
-        badge = { label: t('details.appointment.startsIn', { relative: format.relative(start, now) }), tone: 'warning', icon: 'timer-sand' };
+        badge = { label: t('details.appointment.startsIn', { relative: format.relative(start, now, { casing: 'inline' }) }), tone: 'warning', icon: 'timer-sand' };
         break;
       case 'tomorrow':
         badge = { label: t('details.appointment.startsTomorrow'), tone: 'brand', icon: 'timer-sand' };
         break;
       case 'days':
-        badge = { label: t('details.appointment.startsInDays', { count: countdown.days }), tone: 'brand', icon: 'calendar-arrow-right' };
+        badge = { label: t('details.appointment.startsInDays', { count: countdown.days }), tone: 'brand', icon: 'calendar-clock' };
         break;
       case 'overdue':
-        badge = { label: t('details.appointment.startedAgo', { relative: format.relative(start, now) }), tone: 'warning', icon: 'clock-alert-outline' };
+        badge = { label: t('details.appointment.startedAgo', { relative: format.relative(start, now, { casing: 'inline' }) }), tone: 'warning', icon: 'clock-alert-outline' };
         break;
     }
   } else if (job.status === 'completed' && job.completedAt) {
@@ -236,7 +236,9 @@ export function RequestSummaryCard({ job, onViewRequest }: { job: JobDetails; on
   return (
     <Card padding="none" testID="job-request">
       <View style={styles.requestBody}>
-        <AppText variant="body">{job.description}</AppText>
+        <AppText variant="body" userContent>
+          {job.description}
+        </AppText>
         {job.request.photos.length > 0 ? <PhotoStrip photos={job.request.photos} maxVisible={4} /> : null}
         {notes ? (
           <View style={styles.notes}>
@@ -245,7 +247,7 @@ export function RequestSummaryCard({ job, onViewRequest }: { job: JobDetails; on
               <AppText variant="captionStrong" color="muted">
                 {t('details.request.notes')}
               </AppText>
-              <AppText variant="caption" color="secondary">
+              <AppText variant="caption" color="secondary" userContent>
                 {notes}
               </AppText>
             </View>

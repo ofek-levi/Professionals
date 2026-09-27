@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { JOB_STATUS_META, type JobStatus } from '@/constants/job-statuses';
 import { useCategoryName, useFormatters } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
-import type { JobSummary, UserRole } from '@/types/domain';
+import type { Job, JobSummary, UserRole } from '@/types/domain';
 
 import { CategoryIcon } from '../categories/category-icon';
 import { AppText } from '../ui/app-text';
@@ -40,6 +40,25 @@ export function JobStatusBadge({ status, size = 'md', withIcon = true, style }: 
   );
 }
 
+export interface JobWhen {
+  /** The job is done: `text` is its completion time instead of the (possibly later) appointment. */
+  completed: boolean;
+  text: string;
+}
+
+/**
+ * The time to show for a job: the appointment, or once completed when it was completed (a job can
+ * finish before its planned appointment, so "Tomorrow at 09:00" would be misleading).
+ */
+export function useJobWhen(job: Pick<Job, 'status' | 'scheduledStartAt' | 'completedAt'>): JobWhen {
+  const { t } = useTranslation('common');
+  const format = useFormatters();
+  if (job.status === 'completed' && job.completedAt) {
+    return { completed: true, text: t('job.completedAt', { date: format.dateTime(job.completedAt, { casing: 'inline' }) }) };
+  }
+  return { completed: false, text: format.dateTime(job.scheduledStartAt) };
+}
+
 export interface JobCardProps {
   job: JobSummary;
   /** Who is looking: the card shows the *other* party. */
@@ -59,8 +78,8 @@ export function JobCard({ job, viewerRole, onPress, style, testID }: JobCardProp
     viewerRole === 'customer'
       ? { name: job.professional.displayName, avatarUrl: job.professional.avatarUrl, verified: job.professional.isVerified, role: t('roles.professional') }
       : { name: job.customer.displayName, avatarUrl: job.customer.avatarUrl, verified: false, role: t('roles.customer') };
-  const when = format.dateTime(job.scheduledStartAt);
-  const duration = job.estimatedDurationMinutes ? format.duration(job.estimatedDurationMinutes, 'short') : null;
+  const { completed, text: when } = useJobWhen(job);
+  const duration = !completed && job.estimatedDurationMinutes ? format.duration(job.estimatedDurationMinutes, 'short') : null;
 
   return (
     <Card
@@ -81,14 +100,14 @@ export function JobCard({ job, viewerRole, onPress, style, testID }: JobCardProp
               </AppText>
               <JobStatusBadge status={job.status} size="sm" style={styles.statusBadge} />
             </View>
-            <AppText variant="caption" color="secondary" numberOfLines={2}>
+            <AppText variant="caption" color="secondary" numberOfLines={2} userContent>
               {job.description}
             </AppText>
           </View>
         </View>
 
-        <View style={styles.when}>
-          <Icon name="calendar-clock" size={18} color="primary" />
+        <View style={[styles.when, completed ? styles.whenDone : null]}>
+          <Icon name={completed ? 'calendar-check' : 'calendar-clock'} size={18} color={completed ? 'success' : 'primary'} />
           <AppText variant="captionStrong" numberOfLines={1} style={styles.flexShrink}>
             {when}
           </AppText>
@@ -185,6 +204,9 @@ const useStyles = makeStyles((t) => ({
     borderRadius: t.radii.md,
     backgroundColor: t.colors.primarySoft,
     maxWidth: '100%',
+  },
+  whenDone: {
+    backgroundColor: t.colors.tones.success.bg,
   },
   footer: {
     flexDirection: 'row',

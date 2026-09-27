@@ -49,6 +49,7 @@ function request(overrides: Partial<CustomerRequestView> = {}): CustomerRequestV
     publishedAt: '2026-09-26T10:00:00.000Z',
     cancelledAt: null,
     cancellationReason: null,
+    cancellationComment: null,
     createdAt: '2026-09-26T09:50:00.000Z',
     updatedAt: '2026-09-26T10:00:00.000Z',
     latestOfferAt: null,

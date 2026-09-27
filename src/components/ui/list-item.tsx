@@ -14,6 +14,8 @@ export interface ListItemProps {
   /** Leading icon inside a soft rounded square. */
   icon?: IconSource;
   iconTone?: StatusTone;
+  /** Mirrors a directional leading icon (e.g. `logout`) in RTL. */
+  iconFlipInRTL?: boolean;
   /** Custom leading element (avatar, category icon…); overrides `icon`. */
   leading?: ReactNode;
   /** Trailing value text (e.g. current language) or a custom element (badge, switch…). */
@@ -26,6 +28,11 @@ export interface ListItemProps {
   disabled?: boolean;
   /** Lines of subtitle before truncation (default 2). */
   subtitleLines?: number;
+  /**
+   * One choice of a single-select list (e.g. the app language): the row is announced as a radio
+   * button with this checked state. Wrap the rows in a `View accessibilityRole="radiogroup"`.
+   */
+  checked?: boolean;
   accessibilityHint?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;
@@ -37,6 +44,7 @@ export function ListItem({
   subtitle,
   icon,
   iconTone = 'neutral',
+  iconFlipInRTL = false,
   leading,
   trailing,
   onPress,
@@ -44,6 +52,7 @@ export function ListItem({
   destructive = false,
   disabled = false,
   subtitleLines = 2,
+  checked,
   accessibilityHint,
   style,
   testID,
@@ -58,7 +67,7 @@ export function ListItem({
       {leading ??
         (icon ? (
           <View style={[styles.iconBox, { backgroundColor: tone.bg }]}>
-            <Icon name={icon} size={20} color={tone.fg} />
+            <Icon name={icon} size={20} color={tone.fg} flipInRTL={iconFlipInRTL} />
           </View>
         ) : null)}
       <View style={styles.texts}>
@@ -93,10 +102,12 @@ export function ListItem({
   return (
     <Pressable
       testID={testID}
-      accessibilityRole="button"
+      accessibilityRole={checked === undefined ? 'button' : 'radio'}
       accessibilityLabel={subtitle ? `${title}, ${subtitle}` : title}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled }}
+      // `aria-checked` (unlike `accessibilityState.checked`) also reaches the DOM on web.
+      aria-checked={checked}
       disabled={disabled}
       onPress={() => {
         haptics.light();

@@ -4,15 +4,13 @@ import { useTranslation } from 'react-i18next';
 
 import { DateSlotPicker, useTranslatedError } from '@/components/forms';
 import { UrgencyPicker } from '@/components/requests';
-import { AppText, Chip, Field, InlineAlert, type IconName } from '@/components/ui';
+import { AppText, Chip, Field, InlineAlert, useNow, type IconName } from '@/components/ui';
 import { makeStyles } from '@/theme';
 import { PREFERRED_TIME_WINDOWS, type PreferredTimeWindow } from '@/types/domain';
 
 import type { RequestFormControl } from './form-types';
 import { StepIntro } from './step-intro';
-
-/** Days offered in the preferred-date strip. */
-const DATE_DAYS = 21;
+import { preferredDateDayCount } from './wizard-model';
 
 const WINDOW_ICONS: Record<PreferredTimeWindow, IconName> = {
   morning: 'weather-sunset-up',
@@ -30,7 +28,10 @@ export function ScheduleStep({ control }: ScheduleStepProps) {
   const styles = useStyles();
   const { t } = useTranslation(['requests', 'common']);
   const translateError = useTranslatedError();
-  const preferredDate = useWatch({ control, name: 'preferredDate' });
+  const [preferredDate, urgency] = useWatch({ control, name: ['preferredDate', 'urgency'] });
+  const now = useNow(60_000);
+  // An emergency or urgent request only offers dates professionals can still propose.
+  const dateDays = preferredDateDayCount(urgency, now);
 
   return (
     <View style={styles.container}>
@@ -73,7 +74,7 @@ export function ScheduleStep({ control }: ScheduleStepProps) {
                 onPress={() => onChange(null)}
                 testID="wizard-date-flexible"
               />
-              <DateSlotPicker value={value ?? null} onChange={onChange} days={DATE_DAYS} error={translateError(error?.message)} />
+              <DateSlotPicker value={value ?? null} onChange={onChange} days={dateDays} error={translateError(error?.message)} />
             </View>
           )}
         />

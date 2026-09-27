@@ -138,8 +138,9 @@ function isGrouped(a: Message, b: Message): boolean {
  * separator after the oldest message of each day (so it renders above that day's messages).
  *
  * Failed messages are merged in by time unless the server already has them (same
- * `clientMessageId`). The current user's messages count as `read` once the counterpart replied
- * after them (replying marks the conversation read on the server) or when `readAt` is set.
+ * `clientMessageId`). The current user's messages count as `read` once `readAt` is set: the server
+ * sets it when the counterpart opens the chat or replies, and pushes a `conversation.read` receipt
+ * that updates the cached messages live.
  */
 export function buildChatRows({ messages, failed = [], currentUserId, now, isPending }: BuildChatRowsInput): ChatRow[] {
   const knownClientIds = new Set(messages.map((message) => message.clientMessageId).filter(Boolean));
@@ -156,11 +157,6 @@ export function buildChatRows({ messages, failed = [], currentUserId, now, isPen
   // Newest first; the sort is stable so equal timestamps keep the server order.
   const all = [...messages, ...failedMessages].sort((a, b) => toTime(b.createdAt) - toTime(a.createdAt));
 
-  const latestIncomingAt = all.reduce(
-    (latest, message) => (message.senderId !== currentUserId ? Math.max(latest, toTime(message.createdAt)) : latest),
-    Number.NEGATIVE_INFINITY,
-  );
-
   const rows: ChatRow[] = [];
   all.forEach((message, index) => {
     const mine = message.senderId === currentUserId;
@@ -169,7 +165,7 @@ export function buildChatRows({ messages, failed = [], currentUserId, now, isPen
     if (mine) {
       if (failedItem) delivery = 'failed';
       else if (isPending(message)) delivery = 'sending';
-      else if (message.readAt !== null || toTime(message.createdAt) <= latestIncomingAt) delivery = 'read';
+      else if (message.readAt !== null) delivery = 'read';
       else delivery = 'sent';
     }
     const newer = all[index - 1];
@@ -203,33 +199,4 @@ export function buildChatRows({ messages, failed = [], currentUserId, now, isPen
 export function getLatestIncomingUnreadId(messages: readonly Message[], currentUserId: string | null): string | null {
   const newestIncoming = messages.find((message) => message.senderId !== currentUserId);
   return newestIncoming && newestIncoming.readAt === null ? newestIncoming.id : null;
-}
-
-// ─────────────────────────────── Text direction ───────────────────────────────
-
-const RTL_CHAR = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
-const LTR_CHAR = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF]/;
-
-/**
- * Direction of user-written text from its first strong character (`null` when it has none, e.g.
- * only digits or emoji). Chat bubbles align each message by its own direction, so an English
- * message reads naturally in the Hebrew UI and vice versa.
- */
-export function getTextDirection(text: string): 'rtl' | 'ltr' | null {
-  for (const char of text) {
-    if (RTL_CHAR.test(char)) return 'rtl';
-    if (LTR_CHAR.test(char)) return 'ltr';
-  }
-  return null;
-}
-
-/** Logical alignment (`start`/`end`) that puts text of `textDirection` on its natural side. */
-export function alignForTextDirection(textDirection: 'rtl' | 'ltr' | null, layoutIsRTL: boolean): 'start' | 'end' {
-  if (textDirection === null) return 'start';
-  return (textDirection === 'rtl') === layoutIsRTL ? 'start' : 'end';
-}
-
-/** Wraps text in Unicode first-strong isolates so it keeps its own direction inside a sentence. */
-export function isolateText(text: string): string {
-  return `\u2068${text}\u2069`;
 }

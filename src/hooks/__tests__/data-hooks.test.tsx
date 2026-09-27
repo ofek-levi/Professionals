@@ -9,11 +9,14 @@ import type { ReactNode } from 'react';
 
 import { isPendingMessage } from '@/hooks/mutations/cache-updates';
 import { useMarkNotificationAsRead } from '@/hooks/mutations/use-notification-mutations';
-import { useSendMessage } from '@/hooks/mutations/use-message-mutations';
+import { useUpdateCustomerProfile } from '@/hooks/mutations/use-profile-mutations';
+import { useMarkConversationAsRead, useSendMessage } from '@/hooks/mutations/use-message-mutations';
 import { useAcceptOffer } from '@/hooks/mutations/use-offer-mutations';
 import { useCurrentUser } from '@/hooks/queries/use-auth-queries';
-import { useConversationMessages } from '@/hooks/queries/use-conversation-queries';
+import { useConversationMessages, useConversations } from '@/hooks/queries/use-conversation-queries';
+import { useCustomerProfile } from '@/hooks/queries/use-customer-queries';
 import { useCustomerDashboard, useProfessionalDashboard } from '@/hooks/queries/use-dashboard-queries';
+import { queryKeys } from '@/hooks/queries/query-keys';
 import { useNotifications, useUnreadNotificationsCount } from '@/hooks/queries/use-notification-queries';
 import { useRequestOffers } from '@/hooks/queries/use-offer-queries';
 import { NEARBY_MAP_LIMIT, useNearbyRequestsForMap, useRequest } from '@/hooks/queries/use-request-queries';
@@ -181,6 +184,69 @@ describe('useSendMessage', () => {
     await waitFor(() => expect(result.current.sender.isError).toBe(true));
     expect(result.current.messages.data!.items).toHaveLength(countBefore);
     expect(result.current.messages.data!.items.some(isPendingMessage)).toBe(false);
+  });
+});
+
+describe('useMarkConversationAsRead', () => {
+  it('clears the unread counter optimistically and restores it when the request fails', async () => {
+    await signInAs(customer);
+    const [conversation] = (await env.as(customer.userId).conversations.getConversations()).filter((item) => item.isOpen);
+    const counterpart = conversation.participants.find((participant) => participant.userId !== customer.userId)!;
+    await env.as(counterpart.userId).conversations.sendMessage(conversation.id, { text: 'Are you home?', clientMessageId: 'unread-1' });
+
+    const { wrapper } = createWrapper();
+    const { result } = await renderHook(() => ({ list: useConversations(), markRead: useMarkConversationAsRead() }), { wrapper });
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true));
+    const unreadOf = () => result.current.list.data!.find((item) => item.id === conversation.id)?.unreadCount;
+    const before = unreadOf();
+    expect(before).toBeGreaterThan(0);
+
+    // Every request fails (simulated network error) → the optimistic update is rolled back.
+    apiClient.setTransport(createMockTransport(env.server, { minLatencyMs: 0, maxLatencyMs: 0, failureRate: 1 }).transport);
+    try {
+      await act(async () => {
+        await result.current.markRead.mutateAsync(conversation.id).catch(() => undefined);
+      });
+      expect(result.current.markRead.isError).toBe(true);
+      expect(unreadOf()).toBe(before);
+    } finally {
+      apiClient.setTransport(createMockTransport(env.server, { minLatencyMs: 0, maxLatencyMs: 0, failureRate: 0 }).transport);
+    }
+  });
+});
+
+describe('useUpdateCustomerProfile', () => {
+  it('never flips a quickly toggled preference back while an earlier update settles', async () => {
+    await signInAs(customer);
+    const { client, wrapper } = createWrapper();
+    const { result } = await renderHook(() => ({ profile: useCustomerProfile(), update: useUpdateCustomerProfile() }), { wrapper });
+    await waitFor(() => expect(result.current.profile.isSuccess).toBe(true));
+    const initial = result.current.profile.data!.profile.notificationPreferences;
+    const key = queryKeys.customer.profile(customer.userId);
+    const remindersSeen: boolean[] = [];
+    const unsubscribe = client.getQueryCache().subscribe(() => {
+      const data = client.getQueryData<{ profile: { notificationPreferences: typeof initial } }>(key);
+      if (data) remindersSeen.push(data.profile.notificationPreferences.reminders);
+    });
+
+    const first = { ...initial, messages: !initial.messages };
+    const second = { ...first, reminders: !initial.reminders };
+    await act(async () => {
+      await Promise.all([
+        result.current.update.mutateAsync({ notificationPreferences: first }),
+        result.current.update.mutateAsync({ notificationPreferences: second }),
+      ]);
+    });
+    await waitFor(() => expect(client.isFetching()).toBe(0));
+    unsubscribe();
+
+    const toggledAt = remindersSeen.indexOf(!initial.reminders);
+    expect(toggledAt).toBeGreaterThanOrEqual(0);
+    expect(remindersSeen.slice(toggledAt).every((value) => value === !initial.reminders)).toBe(true);
+    expect(result.current.profile.data!.profile.notificationPreferences).toMatchObject({
+      messages: !initial.messages,
+      reminders: !initial.reminders,
+    });
   });
 });
 

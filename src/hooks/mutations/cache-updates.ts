@@ -176,6 +176,24 @@ export function applyMessageToConversation(conversation: Conversation, message: 
   };
 }
 
+/**
+ * Read receipt: marks the messages `readerId` received up to `readAt` as read (messages sent by the
+ * other participant, not yet read, created no later than `readAt`; pending optimistic copies are
+ * left alone). Returns `data` unchanged when nothing changes.
+ */
+export function markMessagesReadBy(
+  data: PaginatedInfiniteData<Message> | undefined,
+  readerId: string,
+  readAt: string,
+): PaginatedInfiniteData<Message> | undefined {
+  const readTime = Date.parse(readAt);
+  return mapPaginatedItems(data, (message) =>
+    message.senderId !== readerId && message.readAt === null && !isPendingMessage(message) && Date.parse(message.createdAt) <= readTime
+      ? { ...message, readAt }
+      : message,
+  );
+}
+
 /** Clears the unread counter of a conversation. */
 export function markConversationRead(conversation: Conversation): Conversation {
   return conversation.unreadCount === 0 ? conversation : { ...conversation, unreadCount: 0 };

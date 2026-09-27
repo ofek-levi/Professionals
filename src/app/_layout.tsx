@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useSession } from '@/features/auth/session-provider';
-import { AppProviders, buildStackScreenOptions, useAppBootstrap } from '@/providers';
+import { AppProviders, buildStackScreenOptions, renderHeaderHomeButton, useAppBootstrap } from '@/providers';
 import { useTheme } from '@/theme';
 
 // Keep the native splash screen until fonts, i18n, layout direction and the session are ready.
@@ -40,11 +40,17 @@ function RootStack() {
   const { t } = useTranslation('common');
   const { status } = useSession();
   const signedIn = status === 'signedIn';
+  const stackOptions = buildStackScreenOptions(theme);
 
   return (
     <>
       <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} />
-      <Stack screenOptions={buildStackScreenOptions(theme)}>
+      <Stack
+        screenOptions={({ navigation }) =>
+          // Nothing to go back to (deep link, web refresh): the header offers a way home instead.
+          navigation.canGoBack() ? stackOptions : { ...stackOptions, headerLeft: renderHeaderHomeButton }
+        }
+      >
         <Stack.Screen name="index" options={{ headerShown: false, title: t('appName') }} />
 
         <Stack.Protected guard={!signedIn}>

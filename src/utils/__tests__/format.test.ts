@@ -56,6 +56,20 @@ describe('utils/format', () => {
     expect(formatDateTime(new Date(2026, 8, 28, 9, 0), 'he', { now })).toBe('מחר בשעה 09:00');
   });
 
+  it('lower-cases relative words for use inside a sentence', () => {
+    const tomorrowMorning = new Date(2026, 8, 28, 9, 0);
+    expect(formatDayLabel(now, 'en', now, { casing: 'inline' })).toBe('today');
+    expect(formatDayLabel(new Date(2026, 8, 26), 'en', now, { casing: 'inline' })).toBe('yesterday');
+    expect(formatDateTime(tomorrowMorning, 'en', { now, casing: 'inline' })).toBe('tomorrow at 09:00');
+    expect(formatDateTime(tomorrowMorning, 'en', { now, casing: 'sentence' })).toBe('Tomorrow at 09:00');
+    expect(formatDateTime(tomorrowMorning, 'he', { now, casing: 'inline' })).toBe('מחר בשעה 09:00');
+    expect(formatRelative(new Date(now.getTime() - 20_000), 'en', now, { casing: 'inline' })).toBe('just now');
+    expect(formatRelative(new Date(now.getTime() - 20_000), 'he', now, { casing: 'inline' })).toBe('הרגע');
+    // Weekday names and dates keep their own casing.
+    expect(formatDayLabel(new Date(2026, 8, 30), 'en', now, { casing: 'inline' })).toBe('Wednesday');
+    expect(formatRelative(new Date(now.getTime() - 5 * 60_000), 'en', now, { casing: 'inline' })).toBe('5 minutes ago');
+  });
+
   it('formats relative times', () => {
     expect(formatRelative(new Date(now.getTime() - 20_000), 'en', now)).toBe('Just now');
     expect(formatRelative(new Date(now.getTime() - 5 * 60_000), 'en', now)).toBe('5 minutes ago');

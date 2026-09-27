@@ -17,6 +17,7 @@ import {
   formatRelative,
   formatTime,
   getCurrencySymbol,
+  type CasingOptions,
   type DateLike,
   type DatePreset,
   type FormatDateTimeOptions,
@@ -67,8 +68,9 @@ export interface Formatters {
   dateLabel: (value: DateLike, options?: FormatDateTimeOptions) => string;
   time: (value: DateLike) => string;
   dateTime: (value: DateLike, options?: FormatDateTimeOptions) => string;
-  relative: (value: DateLike, now?: Date) => string;
-  dayLabel: (value: DateLike, now?: Date) => string;
+  /** `options.casing: 'inline'` for use inside a sentence ("Started just now"). */
+  relative: (value: DateLike, now?: Date, options?: CasingOptions) => string;
+  dayLabel: (value: DateLike, now?: Date, options?: CasingOptions) => string;
   duration: (minutes: number, style?: 'long' | 'short') => string;
 }
 
@@ -84,8 +86,8 @@ export function useFormatters(): Formatters {
     dateLabel: (value, options) => formatDateLabel(value, language, options),
     time: (value) => formatTime(value, language),
     dateTime: (value, options) => formatDateTime(value, language, options),
-    relative: (value, now) => formatRelative(value, language, now),
-    dayLabel: (value, now) => formatDayLabel(value, language, now),
+    relative: (value, now, options) => formatRelative(value, language, now, options),
+    dayLabel: (value, now, options) => formatDayLabel(value, language, now, options),
     duration: (minutes, style) => formatDuration(minutes, language, style),
   };
 }

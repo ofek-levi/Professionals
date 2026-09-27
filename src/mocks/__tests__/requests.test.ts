@@ -183,11 +183,60 @@ describe('service requests', () => {
     expect(send.code).toBe('CONFLICT');
     // The accepted offer stays accepted (terminal).
     expect(env.server.internals.db.offers.require(SEED_IDS.offers.lightingYael, 'Offer').status).toBe('accepted');
+    // The customer's note for the pros is kept and shown to them on the request.
+    const forYael = await env.as(PRO_IDS.yael).requests.getRequestById(SEED_IDS.requests.noaLighting);
+    expect(forYael.request).toMatchObject({ status: 'cancelled', cancellationComment: 'Moving abroad' });
+  });
+
+  it('stores no cancellation comment when none was written', async () => {
+    const cancelled = await env.as(NOA).requests.cancelRequest(SEED_IDS.requests.noaLeak, { reason: 'other', comment: '   ' });
+    expect(cancelled.cancellationComment).toBeNull();
+  });
+
+  it('tells every matching professional when a request leaves the explorer', async () => {
+    const updates: string[] = [];
+    // Avi is a matching plumber who never sends an offer in this test.
+    env.server.events.subscribe(PRO_IDS.avi, (event) => {
+      if (event.type === 'request.updated') updates.push(event.requestId);
+    });
+
+    const toCancel = await env.as(NOA).requests.createRequest(payload());
+    expect(updates).toEqual([toCancel.id]);
+    await env.as(NOA).requests.cancelRequest(toCancel.id, { reason: 'other' });
+    expect(updates).toEqual([toCancel.id, toCancel.id]);
+
+    const toAccept = await env.as(NOA).requests.createRequest(payload());
+    const offer = await env.as(PRO_IDS.yossi).offers.createOffer(toAccept.id, {
+      price: 350,
+      currency: 'ILS',
+      proposedStartAt: minutesFromNow(env, 24 * 60),
+      estimatedDurationMinutes: 60,
+      message: null,
+    });
+    updates.length = 0;
+    await env.as(NOA).offers.acceptOffer(offer.id);
+    expect(updates).toEqual([toAccept.id]);
   });
 
   it('does not allow cancelling work in progress', async () => {
     const error = await expectApiError(env.as(DANIEL).requests.cancelRequest(SEED_IDS.requests.danielWifi, { reason: 'other' }));
     expect(error).toMatchObject({ status: 409, code: 'INVALID_STATE_TRANSITION' });
+  });
+
+  it('rejects a preferred date the urgency does not allow any offer to use', async () => {
+    const nextWeek = new Date(Date.parse(minutesFromNow(env, 7 * 24 * 60)));
+    const dateKey = `${nextWeek.getFullYear()}-${String(nextWeek.getMonth() + 1).padStart(2, '0')}-${String(nextWeek.getDate()).padStart(2, '0')}`;
+    const error = await expectApiError(
+      env.as(NOA).requests.createRequest(payload({ urgency: 'emergency', preferredSchedule: { date: dateKey, timeWindow: 'any' } })),
+    );
+    expect(error.fieldErrors?.['preferredSchedule.date']).toEqual(['validation:request.preferredDateBeyondUrgency']);
+
+    // A draft that was fine becomes invalid when only its urgency is raised.
+    const draft = await env.as(NOA).requests.createRequest(
+      payload({ publish: false, urgency: 'normal', preferredSchedule: { date: dateKey, timeWindow: 'any' } }),
+    );
+    const raised = await expectApiError(env.as(NOA).requests.updateDraftRequest(draft.id, { urgency: 'urgent' }));
+    expect(raised.fieldErrors?.['preferredSchedule.date']).toEqual(['validation:request.preferredDateBeyondUrgency']);
   });
 
   it('validates the preferred date against the server clock at publish time', async () => {

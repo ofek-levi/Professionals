@@ -1,12 +1,11 @@
-import type { ReactNode } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { AppText, Avatar, Button, Card, Icon, type IconName } from '@/components/ui';
-import { isOfferExpired } from '@/features/offers/offer-status-machine';
+import { canCustomerAcceptOffer } from '@/features/offers/offer-status-machine';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
-import type { OfferWithProfessional } from '@/types/domain';
+import type { OfferWithProfessional, ServiceRequest } from '@/types/domain';
 
 import { COMPARE_METRICS, getCompareBestIds, type CompareMetric } from '../../offer-comparison';
 
@@ -30,14 +29,15 @@ const METRIC_ICONS: Record<CompareMetric, IconName> = {
 export interface OffersCompareTableProps {
   offers: readonly OfferWithProfessional[];
   now: Date;
-  canAccept: boolean;
+  /** The request the offers belong to (Accept follows the shared accept rule). */
+  request: Pick<ServiceRequest, 'status' | 'acceptedOfferId'>;
   acceptingOfferId: string | null;
   onAccept: (offer: OfferWithProfessional) => void;
   onOpenProfessional: (offer: OfferWithProfessional) => void;
 }
 
 /** Pending offers side by side; the best value of each row is highlighted. */
-export function OffersCompareTable({ offers, now, canAccept, acceptingOfferId, onAccept, onOpenProfessional }: OffersCompareTableProps) {
+export function OffersCompareTable({ offers, now, request, acceptingOfferId, onAccept, onOpenProfessional }: OffersCompareTableProps) {
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation(['customer', 'common']);
@@ -45,7 +45,7 @@ export function OffersCompareTable({ offers, now, canAccept, acceptingOfferId, o
   const best = getCompareBestIds(offers);
   const dash = t('customer:offers.compare.unknown');
 
-  const value = (offer: OfferWithProfessional, metric: CompareMetric): ReactNode => {
+  const value = (offer: OfferWithProfessional, metric: CompareMetric): string => {
     const pro = offer.professional;
     switch (metric) {
       case 'price':
@@ -91,7 +91,7 @@ export function OffersCompareTable({ offers, now, canAccept, acceptingOfferId, o
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.flex}>
           {offers.map((offer) => {
             const pro = offer.professional;
-            const expired = isOfferExpired(offer, now);
+            const canAccept = canCustomerAcceptOffer(offer, request, now);
             return (
               <View key={offer.id} style={[styles.column, { borderEndColor: theme.colors.border }]}>
                 <Pressable
@@ -107,9 +107,18 @@ export function OffersCompareTable({ offers, now, canAccept, acceptingOfferId, o
                 </Pressable>
                 {COMPARE_METRICS.map((metric, index) => {
                   const isBest = best[metric].has(offer.id);
+                  const text = value(offer, metric);
+                  // Read as "Price: ₪480, best value": the row label sits in another column and the
+                  // best value is otherwise shown only by color and a trophy.
+                  const a11yLabel = t(isBest ? 'customer:offers.compare.cellBestA11y' : 'customer:offers.compare.cellA11y', {
+                    metric: t(`customer:offers.compare.metrics.${metric}`),
+                    value: text.replace(/\n/g, ' '),
+                  });
                   return (
                     <View
                       key={metric}
+                      accessible
+                      accessibilityLabel={a11yLabel}
                       style={[
                         styles.valueCell,
                         index % 2 === 0 ? { backgroundColor: theme.colors.surfaceMuted } : null,
@@ -125,13 +134,13 @@ export function OffersCompareTable({ offers, now, canAccept, acceptingOfferId, o
                         tabular
                         style={styles.shrink}
                       >
-                        {value(offer, metric)}
+                        {text}
                       </AppText>
                     </View>
                   );
                 })}
                 <View style={styles.actionCell}>
-                  {canAccept && !expired ? (
+                  {canAccept ? (
                     <Button
                       label={t('customer:offers.accept')}
                       variant="success"

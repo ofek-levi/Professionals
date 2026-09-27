@@ -1,5 +1,6 @@
 import type { common as enCommon } from '../en/common';
 import type { LocaleNamespace } from '../../types';
+import { isolateLtr } from '@/utils/bidi';
 
 export const common: LocaleNamespace<typeof enCommon> = {
   appName: 'Professionals',
@@ -56,10 +57,11 @@ export const common: LocaleNamespace<typeof enCommon> = {
     home: 'בית',
     requests: 'הבקשות שלי',
     notifications: 'התראות',
+    notificationsShort: 'התראות',
     profile: 'פרופיל',
-    explore: 'עבודות',
-    offers: 'ההצעות שלי',
-    jobs: 'עבודות פעילות',
+    explore: 'חיפוש',
+    offers: 'הצעות',
+    jobs: 'עבודות',
   },
   roles: {
     customer: 'לקוח',
@@ -80,7 +82,7 @@ export const common: LocaleNamespace<typeof enCommon> = {
     },
     flexible: {
       label: 'גמיש',
-      description: 'אני גמיש לגבי המועד',
+      description: 'המועד גמיש',
     },
   },
   requestStatus: {
@@ -97,7 +99,7 @@ export const common: LocaleNamespace<typeof enCommon> = {
     pending: 'ממתינה',
     accepted: 'התקבלה',
     rejected: 'לא נבחרה',
-    withdrawn: 'בוטלה',
+    withdrawn: 'נמשכה',
     expired: 'פג תוקף',
   },
   offerStatusReason: {
@@ -115,9 +117,9 @@ export const common: LocaleNamespace<typeof enCommon> = {
     cancelled: 'בוטלה',
   },
   timeWindow: {
-    morning: 'בוקר (8:00–12:00)',
-    afternoon: 'צהריים (12:00–17:00)',
-    evening: 'ערב (17:00–21:00)',
+    morning: `בוקר (${isolateLtr('8:00–12:00')})`,
+    afternoon: `צהריים (${isolateLtr('12:00–17:00')})`,
+    evening: `ערב (${isolateLtr('17:00–21:00')})`,
     any: 'כל שעה',
   },
   weekdays: {
@@ -139,7 +141,7 @@ export const common: LocaleNamespace<typeof enCommon> = {
     sat: 'ש׳',
   },
   cancellationReason: {
-    no_longer_needed: 'אני כבר לא צריך את השירות',
+    no_longer_needed: 'כבר אין לי צורך בשירות',
     found_elsewhere: 'מצאתי בעל מקצוע במקום אחר',
     too_expensive: 'ההצעות היו יקרות מדי',
     scheduling_conflict: 'התנגשות בלוח הזמנים',
@@ -151,6 +153,12 @@ export const common: LocaleNamespace<typeof enCommon> = {
     yesterday: 'אתמול',
     dateAtTime: '{{date}} בשעה {{time}}',
     justNow: 'הרגע',
+    inline: {
+      today: 'היום',
+      tomorrow: 'מחר',
+      yesterday: 'אתמול',
+      justNow: 'הרגע',
+    },
   },
   units: {
     distanceKm: '{{value}} ק״מ',
@@ -226,6 +234,14 @@ export const common: LocaleNamespace<typeof enCommon> = {
     next: 'הבא',
     decrease: 'הפחתה',
     increase: 'הוספה',
+    timelineStep: {
+      done: 'הושלם',
+      current: 'שלב נוכחי',
+      next: 'השלב הבא',
+      upcoming: 'עדיין לא',
+      skipped: 'דולג',
+      cancelled: 'בוטל',
+    },
   },
   confirm: {
     discardTitle: 'לבטל את השינויים?',
@@ -304,6 +320,9 @@ export const common: LocaleNamespace<typeof enCommon> = {
     jobsDone_two: 'שתי עבודות הושלמו',
     jobsDone_other: '{{count}} עבודות הושלמו',
     moreCategories: '+{{count}}',
+  },
+  job: {
+    completedAt: 'הושלמה {{date}}',
   },
   screens: {
     signIn: 'התחברות',

@@ -15,6 +15,14 @@ declare module 'react-native' {
     dir?: 'ltr' | 'rtl' | 'auto';
   }
 
+  interface TextProps {
+    /**
+     * @platform web
+     * Base direction of the paragraph (DOM `dir`). React Native Web defaults root texts to `auto`.
+     */
+    dir?: 'ltr' | 'rtl' | 'auto';
+  }
+
   interface SwitchProps {
     /**
      * @platform web

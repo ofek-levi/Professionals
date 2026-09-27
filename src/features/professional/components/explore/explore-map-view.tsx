@@ -4,12 +4,12 @@
  * floating "N jobs in your area" / recenter controls and an empty overlay.
  */
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown, useReducedMotion } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
-import { AppMap, type AppMapCircle, type AppMapMarker, type MapRegion } from '@/components/map';
+import { AppMap, type AppMapCircle, type AppMapHandle, type AppMapMarker } from '@/components/map';
 import { AppText, Button, ErrorState, Icon, IconButton } from '@/components/ui';
 import { URGENCY_META } from '@/constants/urgency-levels';
 import { useCategoryLookup, useNearbyRequestsForMap, useRefetchOnFocus } from '@/hooks';
@@ -31,11 +31,6 @@ export interface ExploreMapViewProps {
   onClearFilters: () => void;
 }
 
-/** Nudges a region by a sub-meter amount so re-focusing the same region still animates. */
-function nudge(region: MapRegion, generation: number): MapRegion {
-  return { ...region, latitudeDelta: region.latitudeDelta * (1 + (generation % 2) * 0.0002) };
-}
-
 export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters, onAdjustFilters, onClearFilters }: ExploreMapViewProps) {
   const styles = useStyles();
   const theme = useTheme();
@@ -48,15 +43,10 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
   const query = useNearbyRequestsForMap(params);
   useRefetchOnFocus(query.refetch);
 
+  // The camera follows the service area (it animates when the profile's area changes); the
+  // recenter button brings it back after the user panned away.
   const homeRegion = regionForRadius(serviceArea.center, serviceArea.radiusKm);
-  const areaKey = `${serviceArea.center.latitude}|${serviceArea.center.longitude}|${serviceArea.radiusKm}`;
-  const [focus, setFocus] = useState<{ region: MapRegion; generation: number; areaKey: string }>({
-    region: homeRegion,
-    generation: 0,
-    areaKey,
-  });
-  // The service area changed (profile edited): move the camera to the new area.
-  if (focus.areaKey !== areaKey) setFocus({ region: nudge(homeRegion, focus.generation + 1), generation: focus.generation + 1, areaKey });
+  const mapRef = useRef<AppMapHandle>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const requests = query.data?.items ?? [];
@@ -88,7 +78,7 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
 
   const recenter = () => {
     setSelectedId(null);
-    setFocus((current) => ({ region: nudge(homeRegion, current.generation + 1), generation: current.generation + 1, areaKey }));
+    mapRef.current?.animateToRegion(homeRegion);
   };
 
   const showEmpty = query.data !== undefined && total === 0 && !query.isPlaceholderData;
@@ -98,9 +88,10 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
   return (
     <View style={styles.container} testID="explore-map">
       <AppMap
+        ref={mapRef}
         style={styles.map}
         initialRegion={homeRegion}
-        region={focus.region}
+        region={homeRegion}
         markers={markers}
         circles={circles}
         onMarkerPress={(id) => setSelectedId((current) => (current === id ? null : id))}

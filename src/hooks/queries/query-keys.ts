@@ -72,7 +72,11 @@ export const queryKeys = {
   professionals: {
     all: (userId: Scope) => ['u', userId, 'professionals'] as const,
     profile: (userId: Scope, professionalId: string) => ['u', userId, 'professionals', 'profile', professionalId] as const,
-    reviews: (userId: Scope, professionalId: string) => ['u', userId, 'professionals', 'reviews', professionalId] as const,
+    /** Prefix of every review list of a professional (all page sizes). */
+    reviewsOf: (userId: Scope, professionalId: string) => ['u', userId, 'professionals', 'reviews', professionalId] as const,
+    /** Pages differ by size, so the page size is part of the key (profile preview vs. full list). */
+    reviews: (userId: Scope, professionalId: string, params: { limit: number }) =>
+      ['u', userId, 'professionals', 'reviews', professionalId, params] as const,
     /** Prefix of every professional search. */
     searches: (userId: Scope) => ['u', userId, 'professionals', 'search'] as const,
     search: (userId: Scope, params: SearchProfessionalsParams) => ['u', userId, 'professionals', 'search', params] as const,
@@ -94,6 +98,8 @@ export const queryKeys = {
   conversations: {
     all: (userId: Scope) => ['u', userId, 'conversations'] as const,
     list: (userId: Scope) => ['u', userId, 'conversations', 'list'] as const,
+    /** Prefix of every conversation detail (not their messages). */
+    details: (userId: Scope) => ['u', userId, 'conversations', 'detail'] as const,
     detail: (userId: Scope, conversationId: string) => ['u', userId, 'conversations', 'detail', conversationId] as const,
     messages: (userId: Scope, conversationId: string) =>
       ['u', userId, 'conversations', 'messages', conversationId] as const,

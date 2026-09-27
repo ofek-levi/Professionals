@@ -30,7 +30,7 @@ export function OfferRequestSummary({ request, onPress }: { request: OfferWithRe
         </View>
         <Icon name="chevron-right" size={20} color="muted" flipInRTL />
       </View>
-      <AppText variant="body" color="secondary" numberOfLines={3}>
+      <AppText variant="body" color="secondary" numberOfLines={3} userContent>
         {request.description}
       </AppText>
       <View style={styles.meta}>

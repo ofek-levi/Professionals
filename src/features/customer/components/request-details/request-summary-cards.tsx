@@ -32,7 +32,7 @@ export function RequestOverviewCard({ request }: { request: CustomerRequestView 
             <AppText variant="caption" color="muted">
               {isDraft ? t('details.savedAsDraft') : t('details.posted')}
             </AppText>
-            <TimeAgo date={request.publishedAt ?? request.createdAt} />
+            <TimeAgo date={request.publishedAt ?? request.createdAt} casing="inline" />
           </View>
         </View>
       </View>
@@ -41,7 +41,7 @@ export function RequestOverviewCard({ request }: { request: CustomerRequestView 
         <UrgencyBadge level={request.urgency} />
       </View>
       <Divider spacing="md" />
-      <AppText variant="body" selectable>
+      <AppText variant="body" selectable userContent>
         {request.description}
       </AppText>
       {request.photos.length > 0 ? (
@@ -106,7 +106,7 @@ export function RequestLogisticsCard({ request }: { request: CustomerRequestView
         </InfoRow>
         {request.notes ? (
           <InfoRow icon="note-text-outline" label={t('customer:details.notes')}>
-            <AppText variant="body" selectable>
+            <AppText variant="body" selectable userContent>
               {request.notes}
             </AppText>
           </InfoRow>

@@ -41,6 +41,7 @@ const baseRequest: ServiceRequest = {
   publishedAt: minutesAgo(5),
   cancelledAt: null,
   cancellationReason: null,
+  cancellationComment: null,
   createdAt: minutesAgo(5),
   updatedAt: minutesAgo(1),
 };

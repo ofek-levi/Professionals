@@ -17,12 +17,34 @@ interface ProfessionalSnapshot {
 }
 
 /**
+ * Profile updates of one user share a mutation key and a scope: they reach the server one after
+ * the other, and while several are in flight (e.g. flipping two notification switches quickly)
+ * only the last one to settle writes the server copy and refetches. An earlier response lacks the
+ * later optimistic change and would briefly flip that switch back.
+ */
+function profileMutationKey(userId: string | null) {
+  return ['profile-update', userId] as const;
+}
+
+function useProfileUpdateCoordination(userId: string | null) {
+  const qc = useQueryClient();
+  const mutationKey = profileMutationKey(userId);
+  return {
+    mutationKey,
+    scope: { id: `profile-update:${userId ?? ''}` },
+    /** Whether another profile update is still in flight (the caller counts itself). */
+    othersPending: () => qc.isMutating({ mutationKey }) > 1,
+  };
+}
+
+/**
  * `PATCH /professional/profile` – optimistic: the own profile (and `/me`) update immediately and
  * roll back if the server rejects the change.
  */
 export function useUpdateProfessionalProfile() {
   const qc = useQueryClient();
   const { userId } = useQueryScope();
+  const { mutationKey, scope, othersPending } = useProfileUpdateCoordination(userId);
   const ownKey = queryKeys.professionals.own(userId);
   const meKey = queryKeys.auth.me(userId);
 
@@ -34,6 +56,8 @@ export function useUpdateProfessionalProfile() {
   };
 
   return useMutation({
+    mutationKey,
+    scope,
     mutationFn: (payload: UpdateProfessionalProfilePayload) => api.professionals.updateProfessionalProfile(payload),
     onMutate: async (payload): Promise<ProfessionalSnapshot> => {
       await Promise.all([qc.cancelQueries({ queryKey: ownKey }), qc.cancelQueries({ queryKey: meKey })]);
@@ -45,13 +69,16 @@ export function useUpdateProfessionalProfile() {
       return snapshot;
     },
     onError: (_error, _payload, snapshot) => {
-      if (!snapshot) return;
+      // With later updates in flight the snapshot is outdated; the final refetch settles it.
+      if (!snapshot || othersPending()) return;
       qc.setQueryData(ownKey, snapshot.own);
       qc.setQueryData(meKey, snapshot.me);
     },
-    onSuccess: (profile) => write(() => profile),
+    onSuccess: (profile) => {
+      if (!othersPending()) write(() => profile);
+    },
     onSettled: () => {
-      void invalidateOwnProfile(qc, userId);
+      if (!othersPending()) void invalidateOwnProfile(qc, userId);
     },
   });
 }
@@ -76,6 +103,7 @@ function applyCustomerPatch(data: CustomerProfileData, payload: UpdateCustomerPr
 export function useUpdateCustomerProfile() {
   const qc = useQueryClient();
   const { userId } = useQueryScope();
+  const { mutationKey, scope, othersPending } = useProfileUpdateCoordination(userId);
   const profileKey = queryKeys.customer.profile(userId);
   const meKey = queryKeys.auth.me(userId);
 
@@ -89,6 +117,8 @@ export function useUpdateCustomerProfile() {
   };
 
   return useMutation({
+    mutationKey,
+    scope,
     mutationFn: (payload: UpdateCustomerProfilePayload) => api.customers.updateCustomerProfile(payload),
     onMutate: async (payload): Promise<CustomerSnapshot> => {
       await Promise.all([qc.cancelQueries({ queryKey: profileKey }), qc.cancelQueries({ queryKey: meKey })]);
@@ -100,13 +130,16 @@ export function useUpdateCustomerProfile() {
       return snapshot;
     },
     onError: (_error, _payload, snapshot) => {
-      if (!snapshot) return;
+      // With later updates in flight the snapshot is outdated; the final refetch settles it.
+      if (!snapshot || othersPending()) return;
       qc.setQueryData(profileKey, snapshot.profile);
       qc.setQueryData(meKey, snapshot.me);
     },
-    onSuccess: (data) => write(() => data),
+    onSuccess: (data) => {
+      if (!othersPending()) write(() => data);
+    },
     onSettled: () => {
-      void invalidateOwnProfile(qc, userId);
+      if (!othersPending()) void invalidateOwnProfile(qc, userId);
     },
   });
 }

@@ -44,9 +44,9 @@ export function RequestTimelineCard({ request, job }: RequestTimelineCardProps) 
       if (step.key === 'scheduled') return t('customer:details.timeline.current.scheduled');
       if (step.key === 'in_progress') {
         return job?.startedAt
-          ? t('customer:details.timeline.current.inProgressStarted', { time: format.dateTime(job.startedAt) })
+          ? t('customer:details.timeline.current.inProgressStarted', { time: format.dateTime(job.startedAt, { casing: 'inline' }) })
           : step.at
-            ? t('customer:details.timeline.current.upcoming', { time: format.dateTime(step.at) })
+            ? t('customer:details.timeline.current.upcoming', { time: format.dateTime(step.at, { casing: 'inline' }) })
             : null;
       }
     }
@@ -55,7 +55,7 @@ export function RequestTimelineCard({ request, job }: RequestTimelineCardProps) 
       if (step.key === 'selected' && job) return job.professional.displayName;
     }
     if (step.state === 'upcoming' && step.key === 'in_progress' && step.at) {
-      return t('customer:details.timeline.planned', { time: format.dateTime(step.at) });
+      return t('customer:details.timeline.planned', { time: format.dateTime(step.at, { casing: 'inline' }) });
     }
     return step.at ? format.dateTime(step.at) : null;
   };
@@ -80,7 +80,12 @@ export function RequestTimelineCard({ request, job }: RequestTimelineCardProps) 
         const text = caption(step);
         const label = t(`customer:details.timeline.steps.${step.key}`);
         return (
-          <View key={step.key} style={styles.step} accessible accessibilityLabel={[label, text].filter(Boolean).join(', ')}>
+          <View
+            key={step.key}
+            style={styles.step}
+            accessible
+            accessibilityLabel={[label, t(`common:a11y.timelineStep.${step.state}`), text].filter(Boolean).join(', ')}
+          >
             <View style={styles.rail}>
               <View
                 style={[

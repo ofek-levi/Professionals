@@ -16,7 +16,7 @@ export const customer: LocaleNamespace<typeof encustomer> = {
       eyebrow: 'הצעות תוך דקות',
       title: 'במה אפשר לעזור היום?',
       subtitle: 'מתארים את העבודה פעם אחת ומקבלים הצעות מאנשי מקצוע מהאזור.',
-      searchPlaceholder: 'למשל „ברז מטפטף”',
+      searchPlaceholder: 'למשל ״ברז מטפטף״',
       searchA11y: 'חיפוש שירות להזמנה',
       perks: {
         free: 'פרסום בחינם',
@@ -49,7 +49,7 @@ export const customer: LocaleNamespace<typeof encustomer> = {
     },
     review: {
       title: 'איך היה עם {{name}}?',
-      action: 'כתיבת חוות דעת',
+      action: 'כתיבת ביקורת',
     },
     browse: {
       sheetSubtitle: 'בחרו שירות כדי להתחיל בקשה',
@@ -66,7 +66,7 @@ export const customer: LocaleNamespace<typeof encustomer> = {
       },
       compare: {
         title: 'משווים הצעות',
-        description: 'אנשי מקצוע מאומתים מהאזור שולחים מחיר ומועד. בודקים דירוג, חוות דעת וניסיון.',
+        description: 'אנשי מקצוע מאומתים מהאזור שולחים מחיר ומועד. בודקים דירוג, ביקורות וניסיון.',
       },
       hire: {
         title: 'שוכרים בביטחון',
@@ -137,7 +137,7 @@ export const customer: LocaleNamespace<typeof encustomer> = {
     estimatedDuration: 'משך משוער',
     agreedPrice: 'מחיר מוסכם',
     viewJob: 'לפרטי העבודה',
-    leaveReview: 'כתיבת חוות דעת',
+    leaveReview: 'כתיבת ביקורת',
     cancelRequest: 'ביטול הבקשה',
     cancelHint: 'עדכנו את אנשי המקצוע שכבר אין צורך',
     draft: {
@@ -197,7 +197,7 @@ export const customer: LocaleNamespace<typeof encustomer> = {
       lowest_price: 'המחיר הנמוך',
       earliest_availability: 'המוקדמות',
       highest_rating: 'הדירוג הגבוה',
-      most_reviews: 'הכי הרבה חוות דעת',
+      most_reviews: 'הכי הרבה ביקורות',
     },
     highlights: {
       lowestPrice: 'המחיר הנמוך',
@@ -244,6 +244,8 @@ export const customer: LocaleNamespace<typeof encustomer> = {
     },
     compare: {
       legend: 'הערך הטוב ביותר בכל שורה',
+      cellA11y: '{{metric}}: {{value}}',
+      cellBestA11y: '{{metric}}: {{value}}, הערך הטוב ביותר',
       unknown: '—',
       ratingValue: '★ {{value}}',
       years_one: 'שנה',
@@ -254,7 +256,7 @@ export const customer: LocaleNamespace<typeof encustomer> = {
         start: 'תאריך ושעה',
         duration: 'משך',
         rating: 'דירוג',
-        reviews: 'חוות דעת',
+        reviews: 'ביקורות',
         experience: 'ניסיון',
         completedJobs: 'עבודות',
         distance: 'מרחק',
@@ -263,7 +265,7 @@ export const customer: LocaleNamespace<typeof encustomer> = {
     howToChoose: 'איך בוחרים את בעל המקצוע הנכון',
     howToChooseTitle: 'בחירת בעל המקצוע',
     howToChooseMessage:
-      'לא רק המחיר קובע: בדקו את הדירוג ומספר חוות הדעת, את המועד המוצע ואת משך העבודה. אנשי מקצוע מאומתים אישרו את זהותם. שום דבר לא נקבע עד שתאשרו הצעה.',
+      'לא רק המחיר קובע: בדקו את הדירוג ומספר הביקורות, את המועד המוצע ואת משך העבודה. אנשי מקצוע מאומתים אישרו את זהותם. שום דבר לא נקבע עד שתאשרו הצעה.',
   },
   cancel: {
     title: 'ביטול הבקשה',
