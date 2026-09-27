@@ -1,0 +1,197 @@
+/**
+ * Data hooks against the real endpoint modules and the in-app mock backend (zero latency):
+ * user scoping, role gating, seeding + invalidation after accepting an offer and the optimistic
+ * flows (chat messages, notifications).
+ */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
+import type { ReactNode } from 'react';
+
+import { isPendingMessage } from '@/hooks/mutations/cache-updates';
+import { useMarkNotificationAsRead } from '@/hooks/mutations/use-notification-mutations';
+import { useSendMessage } from '@/hooks/mutations/use-message-mutations';
+import { useAcceptOffer } from '@/hooks/mutations/use-offer-mutations';
+import { useCurrentUser } from '@/hooks/queries/use-auth-queries';
+import { useConversationMessages } from '@/hooks/queries/use-conversation-queries';
+import { useCustomerDashboard, useProfessionalDashboard } from '@/hooks/queries/use-dashboard-queries';
+import { useNotifications, useUnreadNotificationsCount } from '@/hooks/queries/use-notification-queries';
+import { useRequestOffers } from '@/hooks/queries/use-offer-queries';
+import { useRequest } from '@/hooks/queries/use-request-queries';
+import { createAccessToken } from '@/mocks/server/auth';
+import { createTestEnvironment, type TestEnvironment } from '@/mocks/testing/test-server';
+import { createMockTransport } from '@/mocks/transport';
+import { apiClient } from '@/services/api';
+import { sessionStore } from '@/services/auth/session-store';
+import type { DemoAccount } from '@/types/domain';
+
+let env: TestEnvironment;
+let customer: DemoAccount;
+let professional: DemoAccount;
+
+beforeAll(async () => {
+  env = await createTestEnvironment();
+  apiClient.setTransport(createMockTransport(env.server, { minLatencyMs: 0, maxLatencyMs: 0, failureRate: 0 }).transport);
+  const accounts = await env.as(null).auth.getDemoAccounts();
+  customer = accounts.find((account) => account.role === 'customer')!;
+  professional = accounts.find((account) => account.role === 'professional')!;
+});
+
+afterEach(async () => {
+  await sessionStore.signOut();
+});
+
+async function signInAs(account: DemoAccount) {
+  await sessionStore.signIn(createAccessToken(account.userId), { id: account.userId, role: account.role });
+}
+
+function createWrapper() {
+  const client = new QueryClient({
+    // Infinite gcTime: no garbage-collection timers keep Jest alive after the tests.
+    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } },
+  });
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+  return { client, wrapper: Wrapper };
+}
+
+describe('query scoping', () => {
+  it('stays idle while signed out', async () => {
+    await sessionStore.signOut();
+    const { wrapper } = createWrapper();
+    const { result } = await renderHook(() => useCurrentUser(), { wrapper });
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(result.current.data).toBeUndefined();
+  });
+
+  it('only runs role-specific queries for that role', async () => {
+    await signInAs(professional);
+    const { wrapper } = createWrapper();
+    const { result } = await renderHook(
+      () => ({ customerDashboard: useCustomerDashboard(), professionalDashboard: useProfessionalDashboard() }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.professionalDashboard.isSuccess).toBe(true));
+    expect(result.current.customerDashboard.fetchStatus).toBe('idle');
+  });
+
+  it('keys every query by the signed-in user', async () => {
+    await signInAs(customer);
+    const { wrapper, client } = createWrapper();
+    const { result } = await renderHook(() => useCurrentUser(), { wrapper });
+    await waitFor(() => expect(result.current.data?.user.id).toBe(customer.userId));
+    expect(client.getQueryCache().getAll().map((query) => query.queryKey[1])).toEqual([customer.userId]);
+  });
+});
+
+describe('useAcceptOffer', () => {
+  it('seeds the request detail and refreshes offers and dashboards', async () => {
+    await signInAs(customer);
+    const customerApi = env.as(customer.userId);
+    const { items } = await customerApi.requests.getCustomerRequests({ section: 'has_offers' });
+    const request = items.find((item) => item.pendingOfferCount > 0)!;
+    const offers = await customerApi.offers.getOffersForRequest(request.id);
+    const offer = offers.find((item) => item.status === 'pending')!;
+    const { wrapper } = createWrapper();
+    const { result } = await renderHook(
+      () => ({
+        request: useRequest(request.id),
+        offers: useRequestOffers(request.id),
+        dashboard: useCustomerDashboard(),
+        accept: useAcceptOffer(),
+      }),
+      { wrapper },
+    );
+    await waitFor(() => {
+      expect(result.current.request.isSuccess).toBe(true);
+      expect(result.current.offers.isSuccess).toBe(true);
+      expect(result.current.dashboard.isSuccess).toBe(true);
+    });
+    const activeJobsBefore = result.current.dashboard.data!.activeJobsCount;
+
+    await act(async () => {
+      await result.current.accept.mutateAsync(offer.id);
+    });
+
+    // Seeded synchronously from the mutation response…
+    expect(result.current.request.data?.request.status).toBe('professional_selected');
+    expect(result.current.request.data?.request.acceptedOfferId).toBe(offer.id);
+    // …and refetched together with the offers and the dashboard.
+    await waitFor(() => {
+      expect(result.current.offers.data?.find((item) => item.id === offer.id)?.status).toBe('accepted');
+      expect(result.current.dashboard.data?.activeJobsCount).toBe(activeJobsBefore + 1);
+    });
+    expect(result.current.offers.data?.filter((item) => item.status === 'pending')).toEqual([]);
+  });
+});
+
+describe('useSendMessage', () => {
+  it('shows the message optimistically and reconciles it with the server copy', async () => {
+    await signInAs(customer);
+    const conversations = await env.as(customer.userId).conversations.getConversations();
+    const conversation = conversations.find((item) => item.isOpen)!;
+
+    const { wrapper } = createWrapper();
+    const { result } = await renderHook(
+      () => ({ messages: useConversationMessages(conversation.id), sender: useSendMessage(conversation.id) }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.messages.isSuccess).toBe(true));
+
+    await act(async () => {
+      result.current.sender.send('Is Thursday morning OK?');
+    });
+    await waitFor(() => expect(result.current.sender.isSuccess).toBe(true));
+
+    const sent = result.current.messages.data!.items.filter((item) => item.text === 'Is Thursday morning OK?');
+    expect(sent).toHaveLength(1);
+    expect(isPendingMessage(sent[0])).toBe(false);
+    expect(result.current.messages.data!.items[0].id).toBe(sent[0].id);
+  });
+
+  it('rolls the optimistic message back when sending fails', async () => {
+    await signInAs(customer);
+    const conversations = await env.as(customer.userId).conversations.getConversations();
+    const conversation = conversations.find((item) => item.isOpen)!;
+    const { wrapper } = createWrapper();
+    const { result } = await renderHook(
+      () => ({ messages: useConversationMessages(conversation.id), sender: useSendMessage(conversation.id) }),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.messages.isSuccess).toBe(true));
+    const countBefore = result.current.messages.data!.items.length;
+
+    await act(async () => {
+      // Over the length limit → rejected by the server's validation.
+      result.current.sender.send('x'.repeat(5000));
+    });
+    await waitFor(() => expect(result.current.sender.isError).toBe(true));
+    expect(result.current.messages.data!.items).toHaveLength(countBefore);
+    expect(result.current.messages.data!.items.some(isPendingMessage)).toBe(false);
+  });
+});
+
+describe('useMarkNotificationAsRead', () => {
+  it('marks the notification read and decrements the unread badge', async () => {
+    await signInAs(customer);
+    const { wrapper } = createWrapper();
+    const { result } = await renderHook(
+      () => ({ list: useNotifications(), unread: useUnreadNotificationsCount(), markRead: useMarkNotificationAsRead() }),
+      { wrapper },
+    );
+    await waitFor(() => {
+      expect(result.current.list.isSuccess).toBe(true);
+      expect(result.current.unread.isSuccess).toBe(true);
+    });
+    const unread = result.current.list.data!.items.find((item) => item.readAt === null);
+    expect(unread).toBeDefined();
+    const before = result.current.unread.data!;
+
+    await act(async () => {
+      await result.current.markRead.mutateAsync(unread!.id);
+    });
+
+    await waitFor(() => expect(result.current.unread.data).toBe(before - 1));
+    expect(result.current.list.data!.items.find((item) => item.id === unread!.id)?.readAt).not.toBeNull();
+  });
+});

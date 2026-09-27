@@ -1,0 +1,203 @@
+import type { offers as enoffers } from '../en/offers';
+import type { LocaleNamespace } from '../../types';
+
+export const offers: LocaleNamespace<typeof enoffers> = {
+  list: {
+    title: 'ההצעות שלי',
+    subtitle: 'מעקב אחר כל הצעות המחיר ששלחת',
+  },
+  filters: {
+    pending: 'ממתינות',
+    accepted: 'התקבלו',
+    rejected: 'לא נבחרו',
+    withdrawn: 'בוטלו',
+    expired: 'פג תוקפן',
+    all: 'הכול',
+  },
+  empty: {
+    pending: {
+      title: 'אין הצעות ממתינות',
+      description: 'מצאו קריאות פתוחות בסביבה ושלחו את הצעת המחיר הראשונה.',
+    },
+    accepted: {
+      title: 'עדיין אין הצעות שהתקבלו',
+      description: 'כשלקוח בוחר בהצעה שלך, היא עוברת לכאן והופכת לעבודה.',
+    },
+    rejected: {
+      title: 'אין כאן כלום',
+      description: 'הצעות שהלקוח לא בחר בהן יופיעו כאן.',
+    },
+    withdrawn: {
+      title: 'אין הצעות שבוטלו',
+      description: 'הצעות שביטלת נשמרות כאן לעיון.',
+    },
+    expired: {
+      title: 'אין הצעות שפג תוקפן',
+      description: 'תוקפה של הצעה ממתינה פג אם הלקוח לא מגיב בזמן.',
+    },
+    all: {
+      title: 'עדיין אין הצעות',
+      description: 'עברו על העבודות באזור שלך ושלחו הצעת מחיר בפחות מדקה.',
+    },
+    browseJobs: 'לחיפוש עבודות',
+  },
+  card: {
+    yourPrice: 'המחיר שלך',
+    duration: 'כ־{{duration}}',
+    competition_one: 'הצעה אחת לקריאה הזו',
+    competition_two: '{{count}} הצעות לקריאה הזו',
+    competition_other: '{{count}} הצעות לקריאה הזו',
+  },
+  actions: {
+    edit: 'עריכה',
+    withdraw: 'ביטול ההצעה',
+    viewRequest: 'לפרטי הקריאה',
+    viewOffer: 'לצפייה בהצעה',
+    editOffer: 'עריכת ההצעה',
+    goToJob: 'מעבר לעבודה',
+    viewJob: 'לצפייה בעבודה',
+  },
+  terms: {
+    price: 'מחיר',
+    priceEmpty: 'קבעו מחיר',
+    date: 'תאריך',
+    time: 'שעת הגעה',
+    duration: 'משך',
+    durationUnknown: 'לא צוין',
+    notSet: 'לא נבחר',
+  },
+  details: {
+    proTitle: 'ההצעה שלך',
+    customerTitle: 'פרטי ההצעה',
+    sent: 'נשלחה',
+    edited: '· נערכה',
+    request: 'הקריאה',
+    yourRequest: 'הקריאה שלך',
+    acceptedTitle: 'העבודה שלך!',
+    acceptedMessage: 'אשרו את מועד הביקור בעמוד העבודה כדי שהלקוח יידע שאתם מגיעים.',
+    requestClosed: 'הקריאה הזו כבר לא מקבלת הצעות.',
+    requestClosedCustomer: 'הקריאה הזו כבר לא מקבלת הצעות.',
+    expiredNotice: 'תוקף ההצעה פג ולא ניתן עוד לאשר אותה.',
+  },
+  accept: {
+    button: 'אישור ההצעה · {{price}}',
+    title: 'לאשר את ההצעה?',
+    message: '{{name}} יבצע את העבודה תמורת {{price}}.\nמועד: {{when}}.\n\nשאר ההצעות לקריאה יידחו.',
+    confirm: 'אישור ההצעה',
+    success: 'ההצעה אושרה',
+    successMessage: '{{name}} יאשר בקרוב את מועד הביקור. הקישו לצפייה בעבודה.',
+    hint: 'אישור ההצעה יוצר את העבודה ופותח צ׳אט עם בעל המקצוע. שאר ההצעות נדחות אוטומטית.',
+  },
+  form: {
+    editTitle: 'עריכת ההצעה',
+    viewRequestHint: 'פותח את פרטי הקריאה',
+    guidance: {
+      window: 'קריאה במצב {{urgency}}: יש להציע מועד ב־{{hours}} השעות הקרובות.',
+      flexible: 'אפשר להציע כל מועד ב־{{days}} הימים הקרובים – רצוי בתאריך המועדף על הלקוח.',
+    },
+    price: {
+      title: 'המחיר שלך',
+      description: 'הסכום הכולל שהלקוח ישלם, כולל עבודה וחומרים סטנדרטיים.',
+      label: 'מחיר',
+      placeholder: '0',
+      helper: 'מינימום {{min}}',
+    },
+    when: {
+      title: 'מתי תוכלו להגיע?',
+      description: 'בחרו את היום ואת שעת ההגעה.',
+      date: 'תאריך',
+      time: 'שעת הגעה',
+      workingHours: 'שעות העבודה שלך ב{{day}}: {{start}}–{{end}}',
+      dayOff: '{{day}} הוא יום חופש לפי שעות העבודה שלך',
+    },
+    duration: {
+      title: 'משך משוער',
+      helper: 'עוזר ללקוח לתכנן את היום.',
+    },
+    message: {
+      title: 'הודעה ללקוח',
+      description: 'הציגו את עצמכם והסבירו מה כלול במחיר.',
+      label: 'הודעה',
+      placeholder: 'היי! אשמח לטפל בזה…',
+    },
+    templates: {
+      insertA11y: 'הוספת נוסח מוכן: {{label}}',
+      intro: {
+        label: 'היכרות',
+        text: 'היי! כאן {{name}}, ואשמח לטפל בזה בשבילך.',
+      },
+      arrival: {
+        label: 'הגעה בזמן',
+        text: 'אגיע בזמן בשעה שהצעתי, ואשתדל לסיים הכול בביקור אחד.',
+      },
+      included: {
+        label: 'מה כלול',
+        text: 'המחיר כולל עבודה וחומרים סטנדרטיים – בלי הפתעות.',
+      },
+      warranty: {
+        label: 'אחריות',
+        text: 'על כל העבודות שלי יש אחריות ל־12 חודשים.',
+      },
+      questions: {
+        label: 'בקשת תמונה',
+        text: 'אפשר לשלוח תמונה של האזור הבעייתי? כך אדע אילו חלקים להביא.',
+      },
+    },
+    preview: {
+      title: 'כך הלקוח יראה את ההצעה שלך',
+      description: 'הפרופיל שלך מוצג לצד המחיר והמועד.',
+    },
+    submit: 'שליחת ההצעה',
+    submitWithPrice: 'שליחת ההצעה · {{price}}',
+    submitEdit: 'שמירת השינויים',
+    sent: 'ההצעה נשלחה',
+    sentMessage: '{{name}} יקבל על כך הודעה מיד.',
+    updated: 'ההצעה עודכנה',
+    updatedMessage: 'הלקוח יראה את התנאים החדשים שלך.',
+    fixFields: 'כדאי לבדוק את השדות המסומנים',
+    discard: {
+      title: 'לוותר על ההצעה?',
+      editTitle: 'לבטל את השינויים?',
+      message: 'מה שהזנת לא יישמר.',
+      keepEditing: 'המשך עריכה',
+    },
+    problem: {
+      DUPLICATE_OFFER: 'כבר יש לך הצעה פעילה לקריאה הזו. אפשר לערוך אותה מעמוד הקריאה.',
+      REQUEST_NOT_ACCEPTING_OFFERS: 'הלקוח כבר בחר בעל מקצוע או ביטל את הקריאה.',
+      OUTSIDE_SERVICE_AREA: 'העבודה הזו מחוץ לאזור השירות שלך. כדי לשלוח הצעה יש להרחיב את אזור השירות.',
+      OFFER_EXPIRED: 'תוקף ההצעה פג ולכן אי אפשר לערוך אותה. כל עוד הקריאה פתוחה אפשר לשלוח הצעה חדשה.',
+      UNSUPPORTED_CATEGORY: 'השירות הזה לא מופיע ברשימת השירותים שלך. הוסיפו אותו כדי לשלוח הצעה.',
+      backToRequest: 'חזרה לקריאה',
+      editProfile: 'עדכון הפרופיל',
+    },
+    locked: {
+      title: 'אי אפשר לערוך את ההצעה',
+      description: 'אפשר לשנות רק הצעות ממתינות לקריאות פתוחות.',
+    },
+    duplicate: {
+      title: 'כבר שלחת הצעה',
+      description: 'אפשר להגיש הצעה פעילה אחת לכל קריאה. במקום זאת, ערכו את ההצעה הממתינה.',
+      edit: 'עריכת ההצעה שלי',
+    },
+    closed: {
+      title: 'הקריאה סגורה',
+      description: 'הלקוח כבר לא מקבל הצעות לעבודה הזו.',
+      browse: 'לעבודות אחרות',
+    },
+  },
+  expiry: {
+    expiresIn: 'בתוקף עוד {{time}}',
+    expired: 'פג תוקף',
+    days_one: 'יום אחד',
+    days_two: 'יומיים',
+    days_other: '{{count}} ימים',
+  },
+  withdraw: {
+    title: 'לבטל את ההצעה?',
+    message: 'הלקוח לא יראה עוד את הצעת המחיר שלך. כל עוד הקריאה פתוחה אפשר לשלוח הצעה חדשה.',
+    confirm: 'ביטול ההצעה',
+    keep: 'השארת ההצעה',
+    success: 'ההצעה בוטלה',
+    successMessage: 'הלקוח קיבל על כך הודעה.',
+  },
+};

@@ -1,0 +1,78 @@
+{
+  "expo": {
+    "name": "Professionals",
+    "slug": "professionals",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "professionals",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "icon": "./assets/expo.icon",
+      "supportsTablet": false,
+      "bundleIdentifier": "com.professionals.marketplace",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Your location is used to set the service address and to show nearby jobs.",
+        "NSPhotoLibraryUsageDescription": "Photos help professionals understand the job before sending an offer.",
+        "NSCameraUsageDescription": "Take photos of the problem to attach them to your request."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#EEF2FF",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.professionals.marketplace",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#3B5BDB",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportsRTL": true
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Your location is used to set the service address and to show nearby jobs."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Photos help professionals understand the job before sending an offer.",
+          "cameraPermission": "Take photos of the problem to attach them to your request."
+        }
+      ],
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": false,
+      "reactCompiler": true
+    },
+    "extra": {
+      "supportsRTL": true
+    }
+  }
+}
