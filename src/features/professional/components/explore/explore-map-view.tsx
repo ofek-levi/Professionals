@@ -4,12 +4,12 @@
  * floating "N jobs in your area" chip, a recenter button and a one-line empty overlay.
  */
 import { useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { ActivityIndicator, View, type LayoutChangeEvent } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown, useReducedMotion } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
-import { AppMap, type AppMapCircle, type AppMapHandle, type AppMapMarker } from '@/components/map';
+import { AppMap, type AppMapCircle, type AppMapHandle, type AppMapInsets, type AppMapMarker } from '@/components/map';
 import { AppText, Button, ErrorState, IconButton } from '@/components/ui';
 import { URGENCY_META } from '@/constants/urgency-levels';
 import { useCategoryLookup, useNearbyRequestsForMap, useRefetchOnFocus } from '@/hooks';
@@ -21,6 +21,10 @@ import { regionForRadius } from '@/utils/geo';
 
 import type { NearbyFilterParams } from '../../explore-filters';
 import { MapRequestPreview } from './map-request-preview';
+
+/** Height of a measured overlay (state setter for `onLayout`). */
+const measureHeight = (setHeight: (height: number) => void) => (event: LayoutChangeEvent) =>
+  setHeight(Math.ceil(event.nativeEvent.layout.height));
 
 interface ExploreMapViewProps {
   serviceArea: ServiceArea;
@@ -76,9 +80,28 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
     circles.push({ id: 'max-distance', center: serviceArea.center, radiusKm: maxDistanceKm, tone: 'accent' });
   }
 
+  // The floating chip, the recenter button and the preview card cover the map's edges: the
+  // attribution, camera fitting and the selected marker keep clear of them (offsets and gap as in
+  // `topOverlay` / `bottomOverlay` below).
+  const [chipHeight, setChipHeight] = useState(0);
+  const [recenterHeight, setRecenterHeight] = useState(0);
+  const [previewHeight, setPreviewHeight] = useState(0);
+  const { spacing } = theme;
+  const controlInsets: AppMapInsets = {
+    top: spacing.md + chipHeight,
+    bottom: spacing.lg + recenterHeight + (selected ? spacing.md + previewHeight : 0),
+  };
+
+  // Recentering closes the preview first; the camera moves after that render, so the service area
+  // is fitted without the card's inset.
+  const [recenterCount, setRecenterCount] = useState(0);
+  const moveHome = useEffectEvent(() => mapRef.current?.animateToRegion(homeRegion));
+  useEffect(() => {
+    if (recenterCount > 0) moveHome();
+  }, [recenterCount]);
   const recenter = () => {
     setSelectedId(null);
-    mapRef.current?.animateToRegion(homeRegion);
+    setRecenterCount((count) => count + 1);
   };
 
   const showEmpty = query.data !== undefined && total === 0 && !query.isPlaceholderData;
@@ -96,13 +119,13 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
         circles={circles}
         onMarkerPress={(id) => setSelectedId((current) => (current === id ? null : id))}
         onPress={() => setSelectedId(null)}
-        showPreviewBadge={!selected}
+        controlInsets={controlInsets}
         accessibilityLabel={t('explore:map.label')}
         testID="explore-app-map"
       />
 
       {/* Floating status chip */}
-      <View style={styles.topOverlay}>
+      <View style={styles.topOverlay} onLayout={measureHeight(setChipHeight)}>
         <View style={styles.countChip} accessibilityRole="text" accessibilityLiveRegion="polite">
           {query.isPending || query.isFetching ? <ActivityIndicator size="small" color={theme.colors.primary} /> : null}
           <AppText variant="captionStrong" numberOfLines={1} tabular>
@@ -141,7 +164,7 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
 
       {/* Bottom: recenter + preview */}
       <View style={styles.bottomOverlay}>
-        <View style={styles.recenterRow}>
+        <View style={styles.recenterRow} onLayout={measureHeight(setRecenterHeight)}>
           <IconButton
             icon="crosshairs-gps"
             variant="surface"
@@ -154,7 +177,7 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
           />
         </View>
         {selected ? (
-          <Animated.View key={selected.id} entering={entering} exiting={exiting}>
+          <Animated.View key={selected.id} entering={entering} exiting={exiting} onLayout={measureHeight(setPreviewHeight)}>
             <MapRequestPreview request={selected} onOpen={() => router.push(routes.request(selected.id))} />
           </Animated.View>
         ) : null}

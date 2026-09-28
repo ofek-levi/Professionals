@@ -15,6 +15,8 @@ import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-ar
 
 import { makeStyles, useTheme, type Theme } from '@/theme';
 
+import { ScrollLockProvider, useScrollLockHost } from './scroll-lock';
+
 interface ScreenProps {
   children: ReactNode;
   /** Scrollable content (default) or a static, full-height container. */
@@ -88,6 +90,8 @@ export function Screen({
   const styles = useStyles();
   const insets = useSafeAreaInsets();
   const headerHeight = useContext(HeaderHeightContext) ?? 0;
+  // A map in the content can hold the scroll while it is dragged (see scroll-lock.tsx).
+  const scrollLock = useScrollLockHost();
 
   const wantsBottomInset = edges.includes('bottom');
   const containerEdges = edges.filter((edge) => edge !== 'bottom');
@@ -107,6 +111,7 @@ export function Screen({
       keyboardDismissMode={KEYBOARD_DISMISS_MODE}
       showsVerticalScrollIndicator={false}
       {...scrollProps}
+      scrollEnabled={!scrollLock.locked && scrollProps?.scrollEnabled !== false}
       contentContainerStyle={[
         styles.scrollContent,
         constrained,
@@ -126,7 +131,7 @@ export function Screen({
         ) : undefined
       }
     >
-      {children}
+      <ScrollLockProvider value={scrollLock.lock}>{children}</ScrollLockProvider>
     </ScrollView>
   ) : (
     <View style={[styles.flex, constrained, contentPadding, { paddingBottom: bottomInset }, contentContainerStyle]}>

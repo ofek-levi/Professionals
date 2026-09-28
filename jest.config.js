@@ -8,6 +8,6 @@ module.exports = {
   },
   testPathIgnorePatterns: ['/node_modules/', '/dist/', '/.expo/'],
   transformIgnorePatterns: [
-    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|react-native-maps|react-native-svg|@tanstack/.*|i18next|react-i18next|date-fns|standard-navigation)',
+    'node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|react-native-svg|@tanstack/.*|i18next|react-i18next|date-fns|standard-navigation)',
   ],
 };

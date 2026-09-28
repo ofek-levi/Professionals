@@ -298,6 +298,47 @@ home. Build every link with `routes` (`src/lib/routes.ts`).
   never in the URL): "Sign in with this email" (sign-up → sign in) and "Forgot password?"
   (sign in → reset) prefill it.
 
+### Maps (src/components/map)
+
+One component, `AppMap`, renders every map: Leaflet with OpenStreetMap raster tiles (no API key,
+no native module; usage and examples in `src/components/README.md`).
+
+```
+AppMap (app-map.tsx)          props + theme → MapPageState (map-page-state.ts); focus region,
+  │                           ref.animateToRegion, zoom buttons (RN IconButtons)
+  └─ LeafletMap host          leaflet/leaflet-map.tsx: react-native-webview (iOS/Android)
+       │                      leaflet/leaflet-map.web.tsx: sandboxed <iframe srcdoc> (web)
+       ├─ useMapBridge        channel, ready handshake, command queue, state dedupe, validation,
+       │                      reload after a crashed page, 15 s timeout → error + retry
+       └─ page document       map-document.ts: CSP + Leaflet CSS/JS + our CSS + glyph table +
+                              map-page-script.ts (the in-page runtime, a plain ES5 string)
+```
+
+- **Bridge** (`leaflet/map-protocol.ts`): JSON messages tagged with a random per-mount channel id.
+  Host → page: the full declarative `state` (markers, circles, pin, theme colors, tiles and
+  attribution, RTL, insets, labels) – the page diffs it by id, so updates never reset the camera
+  or the selection – plus camera commands (`setView`, `animateToRegion`, `zoomIn`/`zoomOut`) in
+  Leaflet bounds (the host converts regions with `map-geometry.ts`). Page → host: `ready`,
+  `markerPress`, `mapPress`, `pinDragEnd`, `regionChange`, `error`, all validated by
+  `parsePageMessage` (channel, shape, ranges, size) before any callback runs. Native hosts inject
+  `window.__appMap.receive(<escaped JSON>)` and listen to `ReactNativeWebView.postMessage`; the
+  web host uses `postMessage` both ways and accepts only its own iframe's messages.
+- **Hosts:** the document is built once per mount and never reloaded for prop, theme or language
+  changes. The WebView is locked down (https `baseUrl`, no file access or storage, a navigation
+  policy that opens links in the browser); the iframe has no `allow-same-origin`. Inside scroll
+  views, Android keeps drags through `nestedScrollEnabled`, iOS through the scroll lock that
+  `Screen`/`Sheet` provide (`ui/scroll-lock.tsx`).
+- **Generated assets** (`leaflet/generated/`, eslint-ignored, committed): Leaflet's JS/CSS and the
+  SVG paths of the marker glyphs (every catalog icon + `MAP_EXTRA_ICONS`), written by
+  `npm run generate:map-assets` from the `leaflet` and `@mdi/js` dev dependencies. App code never
+  imports those packages.
+- **Tiles:** `src/constants/map-tiles.ts` (`EXPO_PUBLIC_MAP_TILE_URL` /
+  `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION`, https only, plain-text credit). The public OSM servers are
+  for light use – production should use a tile provider or its own tiles (README → Maps).
+- **Tests:** `jest.setup.ts` mocks `react-native-webview` with a prop-exposing View;
+  `__test-utils__/map-bridge.ts` plays the page's side. The page runtime itself is tested in jsdom
+  with the real document and Leaflet (`leaflet/__tests__/map-page.test.ts`).
+
 ## 7. Localization
 
 - i18next + react-i18next, typed keys (`src/i18n/i18next.d.ts`). English is the source of truth;

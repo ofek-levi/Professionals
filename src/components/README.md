@@ -113,18 +113,87 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 | `JobCard` | `<JobCard job={job} viewerRole={user.role} onPress={…} />` – category + status pill, counterpart, date/time (`showPrice` appends the price) · `<JobCardSkeleton />` (a completed job shows its completion time) |
 | `useJobWhen` | `const { completed, text } = useJobWhen(job)` – the appointment, or "Completed today at 19:28" once done |
 | `LocationPicker` | `<LocationPicker value={location} onChange={setLocation} error={errorText} required initialRegion={regionForRadius(center, 5)} />` (until an address is chosen the error shows under the label, next to the search field) |
-| `AppMap` | `<AppMap style={{ height: 320 }} markers={[{ id, coordinate, tone: 'danger', icon, label, selected }]} circles={[{ center, radiusKm: 15 }]} onMarkerPress={select} />` (web: `showPreviewBadge={false}` while a card covers the bottom) |
+| `AppMap` | The app's only map – use it anywhere a map is needed (see below) |
 
-`AppMap` uses `react-native-maps` on iOS/Android (`app-map.tsx`) and an interactive canvas on the web
-(`app-map.web.tsx`: pan, zoom buttons, tap-to-place, draggable pin). Pass `region` to move the map
-programmatically (it animates whenever the value changes). To move the camera on demand, even back
-to the region it already has (a "recenter" button), use the ref API:
+### `AppMap` – the map, everywhere
+
+`AppMap` (`@/components/map`) is **the** reusable map: Leaflet with free OpenStreetMap tiles, the
+same component on iOS, Android (in a `react-native-webview` WebView) and the web (in a sandboxed
+`<iframe srcdoc>`). No API key, works in Expo Go. Markers, circles, the pin, colors (theme tones),
+labels, RTL and Reduce Motion come from props and the theme; never draw map content yourself.
+
+Markers with circles (the job explorer):
+
+```tsx
+<AppMap
+  style={{ height: 320 }}
+  region={regionForRadius(area.center, area.radiusKm)}
+  markers={jobs.map((job) => ({
+    id: job.id,
+    coordinate: job.location.coordinates,
+    tone: URGENCY_META[job.urgency].tone, // any StatusTone; default 'brand'
+    icon: category?.icon, // a catalog category icon (or an extra from leaflet/marker-icons.ts)
+    label: categoryName, // shown under the marker while selected
+    selected: job.id === selectedId,
+    accessibilityLabel: …,
+  }))}
+  circles={[{ id: 'area', center: area.center, radiusKm: area.radiusKm, tone: 'brand' }]}
+  onMarkerPress={setSelectedId}
+  onPress={() => setSelectedId(null)} // an empty spot (never fired for marker/pin taps)
+/>
+```
+
+A draggable pin (the location picker):
+
+```tsx
+<AppMap
+  region={focusRegion} // animates whenever this value changes
+  draggablePin={value ? { coordinate: value.coordinates, onChange: movePin } : undefined}
+  onPress={movePin} // tap to place
+  showZoomControls
+/>
+```
+
+A static preview (a card or list row – no gestures, taps or zoom buttons; touches reach the
+screen behind, screen readers get one image with `accessibilityLabel`):
+
+```tsx
+<AppMap interactive={false} style={{ height: 140 }} initialRegion={regionForRadius(point, 1)} markers={[{ id: 'job', coordinate: point }]} accessibilityLabel={address} />
+```
+
+Overlays on top of the map (floating chips, a preview card): pass their measured sizes as
+`controlInsets` (`top` / `bottom` / `start` / `end`, points; `start`/`end` flip in RTL). The
+attribution (always visible – the tile licence requires it) and the zoom buttons move clear of
+them, camera fitting (`initialRegion`, `region`, `animateToRegion`) centers in the uncovered part,
+and a newly selected marker is panned out from under them:
+
+```tsx
+const [cardHeight, setCardHeight] = useState(0);
+<AppMap controlInsets={{ top: chipBottom, bottom: spacing.lg + cardHeight }} … />
+<View style={styles.card} onLayout={(event) => setCardHeight(event.nativeEvent.layout.height)}>…</View>
+```
+
+Move the camera on demand – even back to the region it already has (a "recenter" button) – with the
+ref API (animated, instant with Reduce Motion); `onRegionChange` reports where the camera settled:
 
 ```tsx
 const mapRef = useRef<AppMapHandle>(null);
-<AppMap ref={mapRef} region={home} … />
+<AppMap ref={mapRef} region={home} onRegionChange={setVisibleRegion} … />
 <IconButton icon="crosshairs-gps" onPress={() => mapRef.current?.animateToRegion(home)} … />
 ```
+
+Notes:
+- Until the page is ready a skeleton covers the map; if it can't start, a localized "The map
+  couldn't load" with **Try again** replaces it. Without network the map still works over a plain
+  grid (only the tiles are missing).
+- Marker glyphs are baked SVG paths (the page can't load the icon font): every catalog category
+  icon plus `MAP_EXTRA_ICONS`; other names show a neutral glyph. After adding one, run
+  `npm run generate:map-assets`.
+- An interactive map inside a `ScrollView` keeps its drags: Android through `nestedScrollEnabled`;
+  on iOS the map holds the scroll lock of the enclosing `Screen` / `Sheet`. A custom `ScrollView`
+  around a map provides the lock itself (`useScrollLockHost` in `ui/scroll-lock.tsx`).
+- Internals: `app-map.tsx` (props + theme → page state) → `leaflet/` (the page document, its
+  script, the JSON bridge and the WebView/iframe hosts). See docs/ARCHITECTURE.md → Maps.
 
 ## `forms/`
 
@@ -153,5 +222,15 @@ Components that use the catalog need React Query; some use Reanimated or maps. I
 import { renderWithProviders } from '@/components/__test-utils__/render';
 jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
-jest.mock('react-native-maps', () => require('@/components/map/react-native-maps.mock')); // AppMap / LocationPicker
+```
+
+Maps need no extra mock: `jest.setup.ts` replaces `react-native-webview` for every test with a View
+that exposes the WebView's props (`__test-utils__/react-native-webview.mock.tsx`). Play the page's
+side of the bridge with `__test-utils__/map-bridge.ts`:
+
+```ts
+const webView = screen.getByTestId('map-webview'); // the WebView inside an AppMap
+await emitMapMessage(webView, { type: 'ready' }); // the page loaded: state and camera are sent
+await emitMapMessage(webView, { type: 'markerPress', id: 'r1' }); // or mapPress / pinDragEnd { coordinate }
+const state = injectedMapMessages().filter((message) => message.type === 'state').pop()?.state; // markers, circles, pin, insets…
 ```

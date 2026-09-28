@@ -31,18 +31,28 @@ npx expo start           # press i / a / w, or scan the QR code with Expo Go
 
 ### Maps
 
-The job map and location pickers use **react-native-maps**
-(version 1.27.2, the one bundled with SDK 57; checked with `expo install --check`).
+Every map (the job explorer and the location pickers) is one component, `AppMap`: **Leaflet** with
+free **OpenStreetMap** raster tiles. It needs **no API key and no native module**, so it works the
+same in Expo Go, development builds, production builds and the browser.
 
-- **Expo Go (iOS & Android):** works out of the box (Apple Maps on iOS, Google Maps on Android).
-- **Development / production builds:**
-  - **iOS** uses Apple Maps and needs no key.
-  - **Android** needs a Google Maps SDK key. Set `GOOGLE_MAPS_ANDROID_API_KEY` before
-    `npx expo prebuild` / `eas build`. `app.config.ts` passes it to the `react-native-maps` config
-    plugin.
-- **Web:** `react-native-maps` has no web support, so `AppMap` has a `.web.tsx` implementation.
-  It is an interactive, pannable/zoomable canvas with the same markers, radius circles and
-  tap-to-place pin, so every flow can be tested in a browser.
+- **iOS / Android:** the map page runs in a `react-native-webview` WebView.
+- **Web:** the same page runs in a sandboxed `<iframe srcdoc>`.
+- Leaflet's JS/CSS and the marker glyphs are bundled with the app (no CDN); only the tiles are
+  downloaded. Without a connection the map still shows its markers, circles and pin over a plain
+  grid in the theme colors.
+- The attribution ("© OpenStreetMap contributors") is always visible, as the tile licence requires.
+
+**Tile usage policy.** The public `tile.openstreetmap.org` servers are run on donated resources and
+are meant for light use: the [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/)
+requires the attribution, forbids heavy or bulk use (prefetching, offline downloads, scraping) and
+can block apps that cause too much traffic. They are fine for development and demos. **For
+production**, point `EXPO_PUBLIC_MAP_TILE_URL` at a tile provider (many have a free tier) or at your
+own tile server, and set `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION` to the credit that provider requires.
+
+**Updating Leaflet or the icons.** `leaflet` and `@mdi/js` are dev dependencies read only by
+`npm run generate:map-assets`, which writes `src/components/map/leaflet/generated/` (commit the
+result). Run it after upgrading either package or adding a category icon; a Jest test fails until
+you do.
 
 ### Environment variables
 
@@ -52,7 +62,8 @@ The job map and location pickers use **react-native-maps**
 | `EXPO_PUBLIC_API_BASE_URL` | `https://api.example.com/v1` | Real API base URL (http mode) |
 | `EXPO_PUBLIC_MOCK_FAILURE_RATE` | `0` | Probability (0–1) of simulated network failures |
 | `EXPO_PUBLIC_MOCK_PERSIST` | `true` | Persist the mock database across launches |
-| `GOOGLE_MAPS_ANDROID_API_KEY` | – | Google Maps key for Android native builds |
+| `EXPO_PUBLIC_MAP_TILE_URL` | OpenStreetMap | Map tile URL template (`https://…/{z}/{x}/{y}.png`); use a tile provider or your own server in production |
+| `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION` | `© OpenStreetMap contributors` | Plain-text credit shown on the map for a custom tile provider |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | – | Google OAuth client id for the web (unset → simulated Google sign-in) |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | – | Google OAuth client id for iOS builds |
 | `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | – | Google OAuth client id for Android builds |
@@ -288,15 +299,16 @@ Key decisions:
 
 ## Testing
 
-`npm test` runs 86 Jest suites (541 tests). They cover the category catalog, sign-in/sign-up,
+`npm test` runs 94 Jest suites (602 tests). They cover the category catalog, sign-in/sign-up,
 request/offer/profile validation, the auth endpoints (registration of both roles, credentials,
 Google sign-in, password reset), status transitions, request filtering by category and service area, offer creation
 and duplicate prevention, offer acceptance (including preventing two accepted offers),
 cancellation cascades, offer expiry and reminders, notification generation for every scenario,
 role separation and address privacy, seed data integrity, the React Query hooks against the mock
 backend, the navigation shell and role guards, the account screens (sign-in errors, the sign-up
-steps for both roles, Google demo sign-in, password reset), realtime handling, and view models and
-components of the main screens.
+steps for both roles, Google demo sign-in, password reset), realtime handling, the map (bridge
+protocol, the Leaflet page in jsdom, the WebView host, the explore map and the location picker), and
+view models and components of the main screens.
 
 ---
 
@@ -322,6 +334,8 @@ realtime events over WebSocket, image uploads (pre-signed URLs), geocoding, and 
 - Saved demo data older than 12 hours is replaced with a fresh seed at launch, so the showcase
   offers never expire under you.
 - Map markers of nearby requests can overlap at the default zoom (no clustering yet).
+- Map tiles need a network connection, and the default OpenStreetMap servers are for light use only
+  (see [Maps](#maps)).
 - Native iOS/Android were verified by type-checking and building the Hermes bundles; interactive
   testing was done on the web build (no simulators were available in the build environment).
 - No payments, identity verification or moderation.

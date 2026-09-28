@@ -1,3 +1,3 @@
-// Metro resolves `app-map.web.tsx` on web and `app-map.tsx` (react-native-maps) on iOS/Android.
+// One implementation for every platform; Metro picks the WebView or iframe host inside `leaflet/`.
 export { AppMap } from './app-map';
-export type { AppMapCircle, AppMapHandle, AppMapMarker } from './types';
+export type { AppMapCircle, AppMapHandle, AppMapInsets, AppMapMarker } from './types';

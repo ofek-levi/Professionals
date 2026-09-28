@@ -5,6 +5,8 @@
  */
 import { act, cleanup, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
+import { emitMapMessage, injectedMapMessages } from '@/components/__test-utils__/map-bridge';
+import type { MapPageState } from '@/components/map/leaflet/map-protocol';
 import { i18n } from '@/i18n';
 import { queryClient } from '@/lib/query-client';
 import { createTestEnvironment } from '@/mocks/testing/test-server';
@@ -14,7 +16,6 @@ import { sessionStore } from '@/services/auth/session-store';
 import type { DemoAccount } from '@/types/domain';
 
 jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
-jest.mock('react-native-maps', () => require('@/components/map/react-native-maps.mock'));
 
 jest.setTimeout(30_000);
 
@@ -111,6 +112,19 @@ describe('app shell', () => {
 
     // Professional tabs: Home · Explore · Work · Inbox · Profile.
     expectTabs({ home: 'Home', explore: 'Explore', work: 'Work', inbox: 'Inbox', profile: 'Profile' });
+
+    // Explore opens on the map: the service-area circle and a marker per nearby job.
+    await navigate('/professional/explore');
+    const map = await screen.findByTestId('map-webview', {}, { timeout: 10_000 });
+    await emitMapMessage(map, { type: 'ready' });
+    await waitFor(
+      () => {
+        const state = injectedMapMessages().filter((message) => message.type === 'state').pop()?.state as MapPageState | undefined;
+        expect(state?.circles[0]?.id).toBe('service-area');
+        expect(state?.markers.length).toBeGreaterThan(0);
+      },
+      { timeout: 10_000 },
+    );
   });
 
   it('redirects a customer away from professional screens', async () => {

@@ -21,6 +21,7 @@ import { makeStyles, useTheme } from '@/theme';
 import { AppText } from './app-text';
 import { IconButton } from './icon-button';
 import { usePanGesture } from './pan-gesture';
+import { ScrollLockProvider, useScrollLockHost } from './scroll-lock';
 
 interface SheetProps {
   visible: boolean;
@@ -72,6 +73,8 @@ export function Sheet({
   const { t } = useTranslation('common');
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
+  // A map in the content can hold the scroll while it is dragged (see scroll-lock.tsx).
+  const scrollLock = useScrollLockHost();
 
   // Keep the modal mounted while the exit animation runs.
   const [prevVisible, setPrevVisible] = useState(visible);
@@ -120,8 +123,9 @@ export function Sheet({
       contentContainerStyle={[padded ? styles.padded : null, styles.scrollContent, contentContainerStyle]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
+      scrollEnabled={!scrollLock.locked}
     >
-      {children}
+      <ScrollLockProvider value={scrollLock.lock}>{children}</ScrollLockProvider>
     </ScrollView>
   ) : (
     <View style={[padded ? styles.padded : null, fullHeight ? styles.flex : null, contentContainerStyle]}>{children}</View>

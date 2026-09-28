@@ -6,6 +6,7 @@
  */
 import { cleanup, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
 
+import { emitMapMessage } from '@/components/__test-utils__/map-bridge';
 import { pendingGoogleSignUpStore } from '@/features/auth/pending-google-sign-up';
 import { i18n } from '@/i18n';
 import { queryClient } from '@/lib/query-client';
@@ -15,7 +16,6 @@ import { apiClient } from '@/services/api';
 import { sessionStore } from '@/services/auth/session-store';
 
 jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
-jest.mock('react-native-maps', () => require('@/components/map/react-native-maps.mock'));
 
 jest.setTimeout(60_000);
 
@@ -248,11 +248,20 @@ describe('sign up', () => {
     await type('location-search', 'Florentin');
     const suggestions = await screen.findAllByRole('button', { name: /^Florentin St,/ }, TIMEOUT);
     await fireEvent.press(suggestions[0]);
+    // A tap on the map fine-tunes the base location (the address is looked up again).
+    const tapped = { latitude: 32.0571, longitude: 34.7694 };
+    const map = screen.getByTestId('map-webview');
+    await emitMapMessage(map, { type: 'ready' });
+    await emitMapMessage(map, { type: 'mapPress', coordinate: tapped });
+    await waitFor(() => expect(screen.queryByText('Looking up the address…')).toBeNull(), TIMEOUT);
     await press('sign-up-radius-10');
     await press('sign-up-continue');
 
     await waitFor(() => expect(app.getPathname()).toBe('/professional/home'), TIMEOUT);
-    expect(sessionStore.getState()).toMatchObject({ status: 'signedIn', role: 'professional' });
+    const session = sessionStore.getState();
+    expect(session).toMatchObject({ status: 'signedIn', role: 'professional' });
+    const profile = await env.as(session.userId).professionals.getOwnProfessionalProfile();
+    expect(profile.serviceArea).toMatchObject({ center: tapped, radiusKm: 10 });
   });
 });
 

@@ -1,71 +1,39 @@
 /**
- * Native map (iOS: Apple Maps, Android: Google Maps) built on `react-native-maps`.
- * The web build resolves `app-map.web.tsx` instead, which never imports `react-native-maps`.
+ * The app's map on every platform: Leaflet with free OpenStreetMap tiles, rendered by a WebView on
+ * iOS/Android (`leaflet/leaflet-map.tsx`) and by a sandboxed iframe on the web
+ * (`leaflet/leaflet-map.web.tsx`). This component maps props and the theme to the page state
+ * (`map-page-state.ts`), keeps the camera API and draws the zoom buttons natively.
  */
 import { useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
-import MapView, { Circle, Marker, PROVIDER_DEFAULT, type MapStyleElement } from 'react-native-maps';
+import { StyleSheet, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
-import { makeStyles, useTheme, type Theme } from '@/theme';
+import { makeStyles, useTheme } from '@/theme';
 
-import { withAlpha } from '../ui/colors';
 import { IconButton } from '../ui/icon-button';
-import { LocationPin, MarkerBubble } from './map-markers';
+import { LeafletMap } from './leaflet/leaflet-map';
+import type { LeafletMapHandle, MapStatus } from './leaflet/types';
+import { buildMapPageState } from './map-page-state';
 import { regionKey, resolveInitialRegion } from './map-region';
-import type { AppMapMarker, AppMapProps, MapRegion } from './types';
+import type { AppMapCircle, AppMapMarker, AppMapProps } from './types';
 
 const ANIMATION_MS = 350;
-
-/** Google Maps dark style derived from theme tokens (Android; iOS uses `userInterfaceStyle`). */
-function darkMapStyle(theme: Theme): MapStyleElement[] {
-  const { colors } = theme;
-  return [
-    { elementType: 'geometry', stylers: [{ color: colors.surface }] },
-    { elementType: 'labels.text.fill', stylers: [{ color: colors.textMuted }] },
-    { elementType: 'labels.text.stroke', stylers: [{ color: colors.background }] },
-    { featureType: 'road', elementType: 'geometry', stylers: [{ color: colors.surfaceMuted }] },
-    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: colors.borderStrong }] },
-    { featureType: 'poi', elementType: 'geometry', stylers: [{ color: colors.surfaceMuted }] },
-    { featureType: 'water', elementType: 'geometry', stylers: [{ color: colors.background }] },
-    { featureType: 'transit', stylers: [{ visibility: 'off' }] },
-  ];
-}
-
-function MarkerItem({ marker, onPress }: { marker: AppMapMarker; onPress?: (id: string) => void }) {
-  // Custom marker views are rasterized; track changes only briefly after (re)mount for performance.
-  const [tracksViewChanges, setTracksViewChanges] = useState(true);
-  useEffect(() => {
-    const timer = setTimeout(() => setTracksViewChanges(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  return (
-    <Marker
-      coordinate={marker.coordinate}
-      anchor={{ x: 0.5, y: 0.5 }}
-      tracksViewChanges={tracksViewChanges}
-      zIndex={marker.selected ? 10 : 1}
-      accessibilityLabel={marker.accessibilityLabel ?? marker.label}
-      onPress={(event) => {
-        event.stopPropagation();
-        onPress?.(marker.id);
-      }}
-    >
-      <MarkerBubble tone={marker.tone} icon={marker.icon} label={marker.label} selected={marker.selected} />
-    </Marker>
-  );
-}
+const NO_MARKERS: readonly AppMapMarker[] = [];
+const NO_CIRCLES: readonly AppMapCircle[] = [];
 
 export function AppMap({
   initialRegion,
   region,
-  markers = [],
-  circles = [],
+  markers = NO_MARKERS,
+  circles = NO_CIRCLES,
   onMarkerPress,
   onPress,
+  onRegionChange,
   draggablePin,
   showZoomControls = false,
+  interactive = true,
+  controlInsets,
   accessibilityLabel,
   style,
   testID,
@@ -73,16 +41,17 @@ export function AppMap({
 }: AppMapProps) {
   const theme = useTheme();
   const styles = useStyles();
-  const { t } = useTranslation('location');
-  const mapRef = useRef<MapView>(null);
+  const { t, i18n } = useTranslation('location');
+  const reduceMotion = useReducedMotion();
+  const mapRef = useRef<LeafletMapHandle>(null);
+  const [status, setStatus] = useState<MapStatus>('loading');
+  const [initial] = useState(() =>
+    resolveInitialRegion({ region, initialRegion, markers, circles, pin: draggablePin }),
+  );
 
   useImperativeHandle(ref, () => ({
     animateToRegion: (target, durationMs = ANIMATION_MS) => mapRef.current?.animateToRegion(target, durationMs),
   }));
-  const [initial] = useState(() =>
-    resolveInitialRegion({ region, initialRegion, markers, circles, pin: draggablePin }),
-  );
-  const [currentRegion, setCurrentRegion] = useState<MapRegion>(initial);
 
   // Animate to the focus region whenever it changes (skip the initial mount).
   const focusKey = regionKey(region);
@@ -93,73 +62,56 @@ export function AppMap({
     mapRef.current?.animateToRegion(region, ANIMATION_MS);
   }, [focusKey, region]);
 
-  const zoom = (factor: number) => {
-    mapRef.current?.animateToRegion(
-      {
-        ...currentRegion,
-        latitudeDelta: Math.min(Math.max(currentRegion.latitudeDelta * factor, 0.002), 60),
-        longitudeDelta: Math.min(Math.max(currentRegion.longitudeDelta * factor, 0.002), 60),
-      },
-      250,
-    );
-  };
+  const label = accessibilityLabel ?? t('map.label');
+  // Rebuilt every render; the bridge only sends it when its content changed.
+  const state = buildMapPageState({
+    theme,
+    markers,
+    circles,
+    pin: draggablePin?.coordinate ?? null,
+    interactive,
+    reduceMotion,
+    insets: controlInsets,
+    labels: { map: label, pin: t('map.pin'), marker: (text) => t('map.marker', { label: text }) },
+    lang: i18n.language,
+  });
 
   return (
-    <View style={[styles.container, style]} testID={testID}>
-      <MapView
+    <View
+      style={[styles.container, style]}
+      testID={testID}
+      // A static preview is one image for screen readers; an interactive map exposes its markers.
+      accessible={!interactive}
+      accessibilityRole={interactive ? undefined : 'image'}
+      accessibilityLabel={interactive ? undefined : label}
+    >
+      <LeafletMap
         ref={mapRef}
-        provider={PROVIDER_DEFAULT}
-        style={StyleSheet.absoluteFill}
+        state={state}
         initialRegion={initial}
-        accessibilityLabel={accessibilityLabel ?? t('map.label')}
-        onPress={(event) => onPress?.(event.nativeEvent.coordinate)}
-        onRegionChangeComplete={setCurrentRegion}
-        showsMyLocationButton={false}
-        showsCompass={false}
-        toolbarEnabled={false}
-        rotateEnabled={false}
-        pitchEnabled={false}
-        userInterfaceStyle={theme.scheme}
-        customMapStyle={Platform.OS === 'android' && theme.scheme === 'dark' ? darkMapStyle(theme) : undefined}
-      >
-        {circles.map((circle, index) => {
-          const tone = theme.colors.tones[circle.tone ?? 'brand'];
-          return (
-            <Circle
-              key={circle.id ?? `circle-${index}`}
-              center={circle.center}
-              radius={circle.radiusKm * 1000}
-              strokeColor={tone.solid}
-              strokeWidth={2}
-              fillColor={withAlpha(tone.solid, 0.12)}
-            />
-          );
-        })}
-        {markers.map((marker) => (
-          <MarkerItem
-            // Re-mount on visual changes so the rasterized marker view is refreshed.
-            key={`${marker.id}:${marker.selected ? 1 : 0}:${marker.tone ?? ''}:${marker.icon ?? ''}:${marker.label ?? ''}`}
-            marker={marker}
-            onPress={onMarkerPress}
+        onMarkerPress={onMarkerPress}
+        onMapPress={onPress}
+        onPinDragEnd={draggablePin?.onChange}
+        onRegionChange={onRegionChange}
+        onStatusChange={setStatus}
+        style={StyleSheet.absoluteFill}
+      />
+      {showZoomControls && interactive && status === 'ready' ? (
+        <View style={[styles.zoom, { top: theme.spacing.md + (controlInsets?.top ?? 0), end: theme.spacing.md + (controlInsets?.end ?? 0) }]}>
+          <IconButton
+            icon="plus"
+            variant="surface"
+            accessibilityLabel={t('map.zoomIn')}
+            onPress={() => mapRef.current?.zoomIn()}
+            style={styles.zoomButton}
           />
-        ))}
-        {draggablePin ? (
-          <Marker
-            coordinate={draggablePin.coordinate}
-            draggable
-            anchor={{ x: 0.5, y: 1 }}
-            zIndex={20}
-            accessibilityLabel={t('map.pin')}
-            onDragEnd={(event) => draggablePin.onChange(event.nativeEvent.coordinate)}
-          >
-            <LocationPin />
-          </Marker>
-        ) : null}
-      </MapView>
-      {showZoomControls ? (
-        <View style={styles.zoom}>
-          <IconButton icon="plus" variant="surface" accessibilityLabel={t('map.zoomIn')} onPress={() => zoom(0.5)} />
-          <IconButton icon="minus" variant="surface" accessibilityLabel={t('map.zoomOut')} onPress={() => zoom(2)} />
+          <IconButton
+            icon="minus"
+            variant="surface"
+            accessibilityLabel={t('map.zoomOut')}
+            onPress={() => mapRef.current?.zoomOut()}
+            style={styles.zoomButton}
+          />
         </View>
       ) : null}
     </View>
@@ -175,8 +127,9 @@ const useStyles = makeStyles((t) => ({
   },
   zoom: {
     position: 'absolute',
-    top: t.spacing.md,
-    end: t.spacing.md,
     gap: t.spacing.sm,
+  },
+  zoomButton: {
+    ...t.shadows.md,
   },
 }));

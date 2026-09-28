@@ -1,17 +1,18 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 import { fireEvent, screen } from '@testing-library/react-native';
 import { useState } from 'react';
 
 import { initI18n } from '@/i18n';
 import type { ServiceLocation } from '@/types/domain';
+import { regionForRadius } from '@/utils/geo';
 
+import { emitMapMessage, injectedMapMessages } from '../../__test-utils__/map-bridge';
+import { webViewMock } from '../../__test-utils__/react-native-webview.mock';
 import { renderWithProviders } from '../../__test-utils__/render';
+import { regionToBounds } from '../../map/leaflet/map-geometry';
+import type { MapPageState } from '../../map/leaflet/map-protocol';
 import { AppText } from '../../ui/app-text';
 import { LocationPicker } from '../location-picker';
 
-jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
-jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
-jest.mock('react-native-maps', () => require('@/components/map/react-native-maps.mock'));
 jest.mock('@/services/location', () => ({
   locateDevice: jest.fn(async () => ({ ok: false, reason: 'permission_blocked' })),
   openLocationSettings: jest.fn(async () => undefined),
@@ -45,6 +46,8 @@ function Harness({ initial = null }: { initial?: ServiceLocation | null }) {
   );
 }
 
+const lastPin = () => (injectedMapMessages().filter((message) => message.type === 'state').pop()?.state as MapPageState | undefined)?.pin;
+
 const SAVED_ADDRESS: ServiceLocation = {
   coordinates: { latitude: 32.082, longitude: 34.813 },
   addressLine: 'Bialik St 45',
@@ -57,6 +60,10 @@ const SAVED_ADDRESS: ServiceLocation = {
 describe('LocationPicker', () => {
   beforeAll(async () => {
     await initI18n('en');
+  });
+
+  beforeEach(() => {
+    webViewMock.injectJavaScript.mockClear();
   });
 
   it('searches addresses (debounced) and selects a suggestion', async () => {
@@ -84,11 +91,47 @@ describe('LocationPicker', () => {
 
   it('places the pin on map tap and fills the address by reverse geocoding', async () => {
     await renderWithProviders(<Harness />);
-    await fireEvent(screen.getByTestId('mock-map-view'), 'press', {
-      nativeEvent: { coordinate: { latitude: 32.0801, longitude: 34.7801 } },
-    });
+    const map = screen.getByTestId('map-webview');
+    await emitMapMessage(map, { type: 'ready' });
+    await emitMapMessage(map, { type: 'mapPress', coordinate: { latitude: 32.0801, longitude: 34.7801 } });
     expect(await screen.findByDisplayValue('Ibn Gabirol St 50')).toBeOnTheScreen();
     expect(screen.getByTestId('picked')).toHaveTextContent('Ibn Gabirol St 50|Tel Aviv-Yafo|32.0801');
+  });
+
+  it('moves the map to a picked suggestion and puts the pin there', async () => {
+    await renderWithProviders(<Harness />);
+    await emitMapMessage(screen.getByTestId('map-webview'), { type: 'ready' });
+    expect(lastPin()).toBeNull();
+
+    const search = screen.getByTestId('location-search');
+    await fireEvent(search, 'focus');
+    await fireEvent.changeText(search, 'Dizen');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Dizengoff St 120, Center, Tel Aviv-Yafo' }));
+    const animation = injectedMapMessages().find((message) => message.type === 'animateToRegion');
+    expect(animation?.bounds).toEqual(regionToBounds(regionForRadius({ latitude: 32.08, longitude: 34.77 }, 0.45)));
+    expect(lastPin()).toMatchObject({ latitude: 32.08, longitude: 34.77 });
+  });
+
+  it('fine-tunes the address by dragging the pin, keeping the apartment details', async () => {
+    await renderWithProviders(<Harness initial={SAVED_ADDRESS} />);
+    const map = screen.getByTestId('map-webview');
+    await emitMapMessage(map, { type: 'ready' });
+    expect(lastPin()).toMatchObject({ latitude: 32.082, longitude: 34.813 });
+
+    await emitMapMessage(map, { type: 'pinDragEnd', coordinate: { latitude: 32.0801, longitude: 34.7801 } });
+    expect(await screen.findByDisplayValue('Ibn Gabirol St 50')).toBeOnTheScreen();
+    expect(screen.getByTestId('picked')).toHaveTextContent('Ibn Gabirol St 50|Tel Aviv-Yafo|32.0801');
+    expect(screen.getByTestId('picked-details')).toHaveTextContent('Building B, 4th floor');
+    expect(lastPin()).toMatchObject({ latitude: 32.0801, longitude: 34.7801 });
+  });
+
+  it('zooms with its own buttons once the map is ready', async () => {
+    await renderWithProviders(<Harness initial={SAVED_ADDRESS} />);
+    expect(screen.queryByRole('button', { name: 'Zoom in' })).toBeNull();
+    await emitMapMessage(screen.getByTestId('map-webview'), { type: 'ready' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Zoom in' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(injectedMapMessages().map((message) => message.type)).toEqual(expect.arrayContaining(['zoomIn', 'zoomOut']));
   });
 
   it('explains a blocked location permission with a settings shortcut', async () => {

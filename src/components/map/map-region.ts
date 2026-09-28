@@ -1,5 +1,5 @@
 /**
- * Viewport helpers shared by both map implementations.
+ * Viewport helpers of `AppMap` (initial camera, focus-region changes).
  * Distance/region primitives come from `utils/geo`.
  */
 import type { GeoCoordinates } from '@/types/domain';

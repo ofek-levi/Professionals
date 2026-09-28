@@ -45,8 +45,8 @@ export const location: LocaleNamespace<typeof enLocation> = {
     pin: 'המיקום שנבחר',
     zoomIn: 'התקרבות',
     zoomOut: 'התרחקות',
-    preview: 'מפה לתצוגה מקדימה',
     marker: 'סמן במפה: {{label}}',
+    unavailable: 'לא הצלחנו לטעון את המפה',
   },
   fields: {
     addressLine: 'רחוב ומספר',

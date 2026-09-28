@@ -10,28 +10,20 @@ interface PanGesture {
 }
 
 interface PanGestureConfig {
-  /** Become the responder as soon as the touch starts (draggable handles, map canvas). */
-  claimOnStart?: boolean;
   /** Become the responder once the touch moves (swipe-to-dismiss inside pressable content). */
   claimOnMove?: (gesture: PanGesture) => boolean;
-  /** Refuse to hand the gesture over to a parent (e.g. a ScrollView) while dragging. */
-  lockResponder?: boolean;
-  onGrant?: (event: GestureResponderEvent) => void;
   onMove?: (gesture: PanGesture, event: GestureResponderEvent) => void;
   onRelease?: (gesture: PanGesture, event: GestureResponderEvent) => void;
   onTerminate?: () => void;
 }
 
-export type PanGestureHandlers = Pick<
+type PanGestureHandlers = Pick<
   ViewProps,
   | 'onStartShouldSetResponderCapture'
-  | 'onStartShouldSetResponder'
   | 'onMoveShouldSetResponder'
-  | 'onResponderGrant'
   | 'onResponderMove'
   | 'onResponderRelease'
   | 'onResponderTerminate'
-  | 'onResponderTerminationRequest'
 >;
 
 interface Track {
@@ -82,12 +74,9 @@ export function usePanGesture(config: PanGestureConfig): PanGestureHandlers {
       begin(event);
       return false;
     },
-    onStartShouldSetResponder: () => Boolean(config.claimOnStart),
     onMoveShouldSetResponder: (event) => (config.claimOnMove ? config.claimOnMove(measure(event, false)) : false),
-    onResponderGrant: (event) => config.onGrant?.(event),
     onResponderMove: (event) => config.onMove?.(measure(event, true), event),
     onResponderRelease: (event) => config.onRelease?.(measure(event, true), event),
     onResponderTerminate: () => config.onTerminate?.(),
-    onResponderTerminationRequest: () => !config.lockResponder,
   };
 }

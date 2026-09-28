@@ -43,8 +43,8 @@ export const location = {
     pin: 'Selected location',
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
-    preview: 'Preview map',
     marker: 'Map marker: {{label}}',
+    unavailable: 'The map couldn’t load',
   },
   fields: {
     addressLine: 'Street and number',

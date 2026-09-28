@@ -14,10 +14,14 @@ export interface AppMapMarker {
   coordinate: GeoCoordinates;
   /** Marker color (default `brand`). */
   tone?: StatusTone;
-  /** Glyph inside the marker (default `map-marker`). */
+  /**
+   * Glyph inside the marker (default `map-marker`). Category icons and the few extras in
+   * `leaflet/marker-icons.ts` are available; other names show a neutral glyph.
+   */
   icon?: IconSource;
   /** Short text shown under the marker when selected (e.g. category name or price). */
   label?: string;
+  /** Drawn larger with a halo and its label; a newly selected marker is panned clear of `controlInsets`. */
   selected?: boolean;
   accessibilityLabel?: string;
 }
@@ -35,18 +39,32 @@ export interface AppMapDraggablePin {
   onChange: (coordinate: GeoCoordinates) => void;
 }
 
+/**
+ * Edges of the map covered by overlays (floating cards, chips), in points. The attribution, the
+ * zoom buttons, camera fitting (`initialRegion`, `region`, `animateToRegion`) and a newly selected
+ * marker keep clear of them. Pass measured overlay sizes; changes apply without moving the camera
+ * (except to bring the selected marker into view).
+ */
+export interface AppMapInsets {
+  top?: number;
+  bottom?: number;
+  start?: number;
+  end?: number;
+}
+
 /** Imperative camera control (`const mapRef = useRef<AppMapHandle>(null)`, `<AppMap ref={mapRef} />`). */
 export interface AppMapHandle {
   /**
    * Moves the camera to `region`, even when it equals the current `region` prop (e.g. a "recenter"
-   * button after the user panned away). `durationMs` applies to native maps; the web canvas jumps.
+   * button after the user panned away). Animates for `durationMs` (default 350); instant with
+   * Reduce Motion.
    */
   animateToRegion: (region: MapRegion, durationMs?: number) => void;
 }
 
 /**
- * Cross-platform map contract. `app-map.tsx` implements it with `react-native-maps`,
- * `app-map.web.tsx` with an interactive, dependency-free canvas.
+ * The app's map (iOS, Android and web): Leaflet with OpenStreetMap tiles, rendered in a WebView on
+ * native and a sandboxed iframe on the web (see `leaflet/`).
  */
 export interface AppMapProps {
   /** Initial viewport (ignored after mount). */
@@ -59,17 +77,21 @@ export interface AppMapProps {
   markers?: readonly AppMapMarker[];
   circles?: readonly AppMapCircle[];
   onMarkerPress?: (id: string) => void;
-  /** Tap on an empty spot of the map. */
+  /** Tap on an empty spot of the map (not fired for taps on markers or the pin). */
   onPress?: (coordinate: GeoCoordinates) => void;
+  /** The camera settled after the user or an animation moved it. */
+  onRegionChange?: (region: MapRegion) => void;
   /** A draggable location pin (location picker). */
   draggablePin?: AppMapDraggablePin;
-  /** Zoom buttons (always shown on web; optional on native). */
+  /** Zoom buttons in the top end corner (default `false`). */
   showZoomControls?: boolean;
   /**
-   * Web only: the small "Preview map" note in the bottom corner (default `true`). Hide it while
-   * something covers the bottom of the map, e.g. a floating preview card.
+   * `false` renders a static preview: no gestures, taps, zoom buttons or keyboard focus, and
+   * touches reach the screen behind (e.g. a scrolling list). Default `true`.
    */
-  showPreviewBadge?: boolean;
+  interactive?: boolean;
+  /** Overlays covering the map's edges (see `AppMapInsets`). */
+  controlInsets?: AppMapInsets;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;

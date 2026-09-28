@@ -6,7 +6,7 @@ import type { GeoCoordinates } from '@/types/domain';
 
 const EARTH_RADIUS_KM = 6371.0088;
 
-/** Map viewport in the shape `react-native-maps` expects. */
+/** Map viewport: center plus the latitude/longitude span it shows (`AppMap` converts it to map bounds). */
 export interface MapRegion {
   latitude: number;
   longitude: number;

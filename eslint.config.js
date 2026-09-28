@@ -5,6 +5,7 @@ const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ["dist/*"],
+    // Generated map assets (minified Leaflet, icon paths) are type-checked but not linted.
+    ignores: ["dist/*", "src/components/map/leaflet/generated/*"],
   }
 ]);

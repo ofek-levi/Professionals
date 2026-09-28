@@ -11,6 +11,9 @@ declare namespace NodeJS {
     EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?: string;
     EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?: string;
     EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID?: string;
-    GOOGLE_MAPS_ANDROID_API_KEY?: string;
+    /** Map tile URL template (https, `{z}/{x}/{y}`). Unset → OpenStreetMap (see src/constants/map-tiles.ts). */
+    EXPO_PUBLIC_MAP_TILE_URL?: string;
+    /** Plain-text credit for a custom tile provider. Unset → "© OpenStreetMap contributors". */
+    EXPO_PUBLIC_MAP_TILE_ATTRIBUTION?: string;
   }
 }
