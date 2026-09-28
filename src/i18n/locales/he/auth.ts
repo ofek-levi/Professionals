@@ -61,7 +61,6 @@ export const auth: LocaleNamespace<typeof enauth> = {
   },
   signUp: {
     progress: 'שלב {{step}} מתוך {{total}}',
-    progressUnknownTotal: 'שלב {{step}}',
     continue: 'המשך',
     submit: 'יצירת חשבון',
     haveAccount: 'כבר יש לכם חשבון?',

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -33,6 +34,8 @@ interface ButtonProps extends Omit<PressableProps, 'children' | 'style' | 'disab
   loading?: boolean;
   disabled?: boolean;
   leftIcon?: IconSource;
+  /** Custom element before the label (e.g. a brand logo); takes precedence over `leftIcon`. */
+  leftElement?: ReactNode;
   fullWidth?: boolean;
   /** Light haptic on press (native only). Defaults to `true`. */
   haptic?: boolean;
@@ -83,6 +86,7 @@ export function Button({
   loading = false,
   disabled = false,
   leftIcon,
+  leftElement,
   fullWidth = false,
   haptic = true,
   labelLines = 1,
@@ -130,7 +134,7 @@ export function Button({
       ]}
     >
       <View style={[styles.content, { gap: tokens.gap }, loading ? styles.hidden : null]}>
-        {leftIcon ? <Icon name={leftIcon} size={tokens.icon} color={colors.foreground} /> : null}
+        {leftElement ?? (leftIcon ? <Icon name={leftIcon} size={tokens.icon} color={colors.foreground} /> : null)}
         <AppText variant={tokens.text} color={colors.foreground} numberOfLines={labelLines} align="center" style={styles.label}>
           {label}
         </AppText>

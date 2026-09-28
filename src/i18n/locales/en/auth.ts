@@ -59,7 +59,6 @@ export const auth = {
   },
   signUp: {
     progress: 'Step {{step}} of {{total}}',
-    progressUnknownTotal: 'Step {{step}}',
     continue: 'Continue',
     submit: 'Create account',
     haveAccount: 'Already have an account?',

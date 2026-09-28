@@ -135,8 +135,9 @@ describe('sign in', () => {
 describe('sign up', () => {
   it('creates a customer account step by step', async () => {
     const app = await renderApp('/auth/sign-up');
-    // The length of the flow depends on the role: no total until one is chosen.
-    expect(await screen.findByTestId('sign-up-progress', {}, TIMEOUT)).toHaveTextContent(/^Step 1$/);
+    // The length of the flow depends on the role: no progress bar until one is chosen.
+    expect(await screen.findByTestId('sign-up-step-role', {}, TIMEOUT)).toBeOnTheScreen();
+    expect(screen.queryByTestId('sign-up-progress')).toBeNull();
 
     // Step 1: the role is required.
     await press('sign-up-continue');

@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AppText } from '@/components/ui';
 import { makeStyles } from '@/theme';
@@ -7,27 +9,37 @@ import { makeStyles } from '@/theme';
 interface StepProgressProps {
   /** 1-based number of the current step. */
   step: number;
-  /** Number of steps, or `null` while it isn't known yet (it depends on an answer still to give). */
-  total: number | null;
-  /** The longest the flow can be: sizes the bar while `total` is unknown. */
-  maxTotal: number;
+  /** Number of steps in the flow. */
+  total: number;
   testID?: string;
 }
 
-/** "Step 2 of 4" (or just "Step 1" while the length is unknown) above a slim progress bar. */
-export function StepProgress({ step, total, maxTotal, testID }: StepProgressProps) {
+/** How long the bar takes to glide to the new step. */
+const FILL_DURATION_MS = 420;
+
+/**
+ * "Step 2 of 4" above a slim progress bar. The bar starts empty and glides to the current share,
+ * then animates again whenever the step or the number of steps changes (instant with reduced motion).
+ */
+export function StepProgress({ step, total, testID }: StepProgressProps) {
   const styles = useStyles();
   const { t } = useTranslation('auth');
-  const label = total === null ? t('signUp.progressUnknownTotal', { step }) : t('signUp.progress', { step, total });
-  const denominator = total ?? maxTotal;
-  const share = denominator > 0 ? Math.min(1, Math.max(0, step / denominator)) : 0;
+  const reduceMotion = useReducedMotion();
+  const label = t('signUp.progress', { step, total });
+  const share = total > 0 ? Math.min(1, Math.max(0, step / total)) : 0;
+
+  const fill = useSharedValue(0);
+  useEffect(() => {
+    fill.set(reduceMotion ? share : withTiming(share, { duration: FILL_DURATION_MS, easing: Easing.out(Easing.cubic) }));
+  }, [fill, share, reduceMotion]);
+  const fillStyle = useAnimatedStyle(() => ({ width: `${fill.get() * 100}%` }));
 
   return (
     <View
       accessible
       accessibilityRole="progressbar"
       accessibilityLabel={label}
-      accessibilityValue={total === null ? { text: label } : { min: 1, max: total, now: step, text: label }}
+      accessibilityValue={{ min: 1, max: total, now: step, text: label }}
       style={styles.container}
       testID={testID}
     >
@@ -35,7 +47,7 @@ export function StepProgress({ step, total, maxTotal, testID }: StepProgressProp
         {label}
       </AppText>
       <View style={styles.track}>
-        <View style={[styles.fill, { width: `${share * 100}%` }]} />
+        <Animated.View style={[styles.fill, fillStyle]} />
       </View>
     </View>
   );

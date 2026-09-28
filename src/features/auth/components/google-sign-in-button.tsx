@@ -14,6 +14,7 @@ import { useDemoTools } from '@/features/settings/use-demo-tools';
 import { googleAuthConfig } from '@/services/auth/google-auth';
 import { useRealGoogleIdToken } from '@/services/auth/use-real-google-id-token';
 
+import { GoogleLogo } from './google-logo';
 import { SimulatedGoogleSheet } from './simulated-google-sheet';
 
 /**
@@ -67,7 +68,7 @@ export function GoogleSignInButton({ onIdToken, loading = false, disabled = fals
       <Button
         label={t('google.continue')}
         variant="outline"
-        leftIcon="google"
+        leftElement={<GoogleLogo />}
         fullWidth
         loading={loading || prompting}
         disabled={disabled || (google.isAvailable && !google.isReady)}

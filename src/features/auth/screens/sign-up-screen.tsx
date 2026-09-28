@@ -20,6 +20,7 @@ import { usePreventRemove } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch, type FieldErrors } from 'react-hook-form';
 import { View, type LayoutChangeEvent, type ScrollView } from 'react-native';
+import Animated, { Easing, FadeInDown, LinearTransition, useReducedMotion } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
 
@@ -33,7 +34,6 @@ import {
   PROFILE_LIMITS,
   registerFieldErrorsToForm,
   SIGN_UP_STEP_FIELDS,
-  SIGN_UP_STEPS,
   signUpFormSchema,
   signUpStepsFor,
   toRegisterRequest,
@@ -61,6 +61,12 @@ import { useSingleFlight } from '../use-single-flight';
 import { useWelcomeToast } from '../use-welcome-toast';
 
 type SignUpFormOutput = z.output<typeof signUpFormSchema>;
+
+
+/** The progress bar's entrance once the role is chosen. */
+const PROGRESS_ENTERING = FadeInDown.duration(320).easing(Easing.out(Easing.cubic));
+/** Keeps the content under the progress bar moving smoothly when the bar appears. */
+const CONTENT_LAYOUT = LinearTransition.duration(320).easing(Easing.out(Easing.cubic));
 
 export default function SignUpScreen() {
   const theme = useTheme();
@@ -98,6 +104,9 @@ export default function SignUpScreen() {
   const step = steps[index];
   const isLastStep = index === steps.length - 1;
   const progress = signUpProgress(steps, index, firstIndex, role);
+  const reduceMotion = useReducedMotion();
+  // Content below the progress bar glides down when the bar appears (no jump).
+  const contentLayout = reduceMotion ? undefined : CONTENT_LAYOUT;
   const mutating = register.isPending || googleAuth.isPending;
   // Validating a step, creating the account or exchanging a Google token.
   const busy = flight.running || mutating;
@@ -284,15 +293,21 @@ export default function SignUpScreen() {
           bodyY.current = event.nativeEvent.layout.y;
         }}
       >
-        {progress.total === 1 ? null : (
-          <StepProgress step={progress.step} total={progress.total} maxTotal={SIGN_UP_STEPS.length} testID="sign-up-progress" />
-        )}
-        <AuthIntro title={intro.title} subtitle={intro.subtitle} />
+        {/* Hidden until the role (and so the flow's length) is known; then it slides in and fills. */}
+        {progress.total !== null && progress.total > 1 ? (
+          <Animated.View entering={reduceMotion ? undefined : PROGRESS_ENTERING}>
+            <StepProgress step={progress.step} total={progress.total} testID="sign-up-progress" />
+          </Animated.View>
+        ) : null}
+        <Animated.View layout={contentLayout}>
+          <AuthIntro title={intro.title} subtitle={intro.subtitle} />
+        </Animated.View>
         {/* The Google tap took effect: say so from the first step on (the account step has its own). */}
         {withGoogle && step === 'role' ? <GoogleIdentityNote email={getValues('email')} testID="sign-up-google-identity" /> : null}
 
-        <View
+        <Animated.View
           key={step}
+          layout={contentLayout}
           style={styles.step}
           onLayout={(event) => {
             stepY.current = event.nativeEvent.layout.y;
@@ -317,17 +332,17 @@ export default function SignUpScreen() {
           ) : null}
           {step === 'services' ? <ServicesStep control={control} anchor={anchor} /> : null}
           {step === 'area' ? <AreaStep control={control} anchor={anchor} /> : null}
-        </View>
+        </Animated.View>
 
         {step === 'role' || step === 'account' ? (
-          <View style={styles.bottom}>
+          <Animated.View layout={contentLayout} style={styles.bottom}>
             <AuthLinkRow
               prompt={t('auth:signUp.haveAccount')}
               actionLabel={t('auth:signUp.signIn')}
               onPress={() => setExitTo(routes.auth.login)}
               testID="sign-up-sign-in"
             />
-          </View>
+          </Animated.View>
         ) : null}
       </View>
     </Screen>
