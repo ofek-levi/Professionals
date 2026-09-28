@@ -2,7 +2,6 @@
  * Helpers used to write the seed scenarios: a clock relative to the seed "now" and thin wrappers
  * around the factories that insert rows into the database.
  */
-import type { CategoryId } from '@/constants/professional-categories';
 import { computeRequestOfferStats } from '@/features/offers/offer-counters';
 import { validateOfferAgainstRequest } from '@/features/offers/offer-rules';
 import { findNextWorkingSlot } from '@/features/profiles/availability';
@@ -34,7 +33,7 @@ import { locationFromPlace } from '../server/services/geo-service';
 const MINUTE_MS = 60_000;
 
 /** Time helpers relative to the seed's "now" (local wall-clock where a time of day is given). */
-export class SeedTime {
+class SeedTime {
   constructor(readonly now: Date) {}
 
   minutesAgo(minutes: number): ISODateTimeString {
@@ -208,9 +207,4 @@ export class SeedBuilder {
       this.db.customerProfiles.update(profile.userId, { stats: computeCustomerStats(this.db, profile.userId) });
     }
   }
-}
-
-/** Category of a request by id (for notification inputs). */
-export function categoryOf(builder: SeedBuilder, requestId: string): CategoryId {
-  return builder.db.requests.require(requestId, 'Request').categoryId;
 }

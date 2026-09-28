@@ -2,14 +2,14 @@ import { useRef } from 'react';
 import type { GestureResponderEvent, ViewProps } from 'react-native';
 
 /** Gesture deltas since the touch started (px) and current velocity (px/ms). */
-export interface PanGesture {
+interface PanGesture {
   dx: number;
   dy: number;
   vx: number;
   vy: number;
 }
 
-export interface PanGestureConfig {
+interface PanGestureConfig {
   /** Become the responder as soon as the touch starts (draggable handles, map canvas). */
   claimOnStart?: boolean;
   /** Become the responder once the touch moves (swipe-to-dismiss inside pressable content). */

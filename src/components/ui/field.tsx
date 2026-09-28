@@ -7,7 +7,7 @@ import { makeStyles } from '@/theme';
 import { AppText } from './app-text';
 import { Icon } from './icon';
 
-export interface FieldProps {
+interface FieldProps {
   label?: string;
   /** Adds a required marker next to the label. */
   required?: boolean;
@@ -18,8 +18,6 @@ export interface FieldProps {
   error?: string | null;
   /** Trailing text under the control (e.g. `120/500`). */
   counter?: string;
-  /** Element rendered at the end of the label row (e.g. a "Clear" link). */
-  labelAccessory?: ReactNode;
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   /** Links the label to the control for web accessibility. */
@@ -30,25 +28,20 @@ export interface FieldProps {
  * Label + control + helper/error layout shared by every form control (text fields, pickers,
  * chips…), so all fields look and space the same.
  */
-export function Field({ label, required, optional, helperText, error, counter, labelAccessory, children, style, nativeID }: FieldProps) {
+export function Field({ label, required, optional, helperText, error, counter, children, style, nativeID }: FieldProps) {
   const styles = useStyles();
   const { t } = useTranslation('common');
   const hasFooter = Boolean(error || helperText || counter);
 
   return (
     <View style={[styles.container, style]}>
-      {label || labelAccessory ? (
+      {label ? (
         <View style={styles.labelRow}>
-          {label ? (
-            <AppText variant="captionStrong" color="secondary" nativeID={nativeID} style={styles.label} numberOfLines={2}>
-              {label}
-              {required ? <AppText variant="captionStrong" color="danger">{` *`}</AppText> : null}
-              {optional && !required ? <AppText variant="caption" color="muted">{` · ${t('optional')}`}</AppText> : null}
-            </AppText>
-          ) : (
-            <View style={styles.label} />
-          )}
-          {labelAccessory}
+          <AppText variant="captionStrong" color="secondary" nativeID={nativeID} style={styles.label} numberOfLines={2}>
+            {label}
+            {required ? <AppText variant="captionStrong" color="danger">{` *`}</AppText> : null}
+            {optional && !required ? <AppText variant="caption" color="muted">{` · ${t('optional')}`}</AppText> : null}
+          </AppText>
         </View>
       ) : null}
       {children}

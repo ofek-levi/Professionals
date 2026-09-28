@@ -33,22 +33,18 @@ export function createDefaultAvailability(): WeeklyAvailability {
 }
 
 /** Local weekday of an instant. */
-export function weekdayOf(value: DateInput): Weekday {
+function weekdayOf(value: DateInput): Weekday {
   return WEEKDAYS[toDate(value).getDay()];
 }
 
 /** A disabled day is always valid; an enabled day needs valid times with `end` after `start`. */
-export function isValidDayAvailability(day: DayAvailability): boolean {
+function isValidDayAvailability(day: DayAvailability): boolean {
   if (!isValidTimeOfDay(day.start) || !isValidTimeOfDay(day.end)) return !day.enabled;
   return !day.enabled || timeToMinutes(day.end) > timeToMinutes(day.start);
 }
 
 export function hasAnyWorkingDay(availability: WeeklyAvailability): boolean {
   return WEEKDAYS.some((weekday) => availability.days[weekday].enabled);
-}
-
-export function isValidWeeklyAvailability(availability: WeeklyAvailability): boolean {
-  return hasAnyWorkingDay(availability) && WEEKDAYS.every((weekday) => isValidDayAvailability(availability.days[weekday]));
 }
 
 /** Working hours for the local date of `value`, or `null` on a day off. */
@@ -74,7 +70,7 @@ export function isWithinWorkingHours(availability: WeeklyAvailability, value: Da
   return start >= dayStart && (durationMinutes > 0 ? start + durationMinutes <= dayEnd : start < dayEnd);
 }
 
-export interface NextSlotOptions {
+interface NextSlotOptions {
   /** Slot granularity in minutes (default 15). */
   slotMinutes?: number;
   /** The appointment must fit before the end of the working day (default 60). */

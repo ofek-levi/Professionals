@@ -1,10 +1,9 @@
-import { APP_CONFIG } from '@/constants/app-config';
 import { createDefaultAvailability } from '@/features/profiles/availability';
 import type { OwnProfessionalProfile } from '@/types/domain';
 
 import { DEFAULT_NOTIFICATION_PREFERENCES } from './user';
 
-export type ProfessionalInput = Pick<
+type ProfessionalInput = Pick<
   OwnProfessionalProfile,
   'id' | 'userId' | 'fullName' | 'displayName' | 'categoryIds' | 'serviceArea' | 'memberSince'
 > &
@@ -29,5 +28,3 @@ export function createProfessional(input: ProfessionalInput): OwnProfessionalPro
     ...input,
   };
 }
-
-export const defaultStartingPrice = (amount: number) => ({ amount, currency: APP_CONFIG.defaultCurrency });

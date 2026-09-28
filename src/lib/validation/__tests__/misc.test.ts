@@ -2,7 +2,7 @@ import { en } from '@/i18n/locales/en';
 import { he } from '@/i18n/locales/he';
 
 import { cancelRequestSchema } from '../cancel';
-import { firstFieldError, zodIssuesToFieldErrors } from '../field-errors';
+import { zodIssuesToFieldErrors } from '../field-errors';
 import { sendMessageSchema } from '../message';
 import { vm } from '../messages';
 import { createReviewSchema, reviewFormSchema, toCreateReviewPayload } from '../review';
@@ -78,8 +78,6 @@ describe('field errors', () => {
       ],
     });
     expect(errors).toEqual({ 'location.city': ['a'], 'photos.2.uri': ['b'], root: ['c'] });
-    expect(firstFieldError(errors, 'photos.2.uri')).toBe('b');
-    expect(firstFieldError(undefined, 'x')).toBeUndefined();
   });
 });
 

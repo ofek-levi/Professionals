@@ -1,29 +1,30 @@
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { CategoryIcon } from '@/components/categories';
-import { JobStatusBadge, useJobWhen } from '@/components/jobs';
+import { useJobWhen } from '@/components/jobs';
 import { AppText, Icon, Skeleton, haptics } from '@/components/ui';
 import { useCategoryName } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { Job } from '@/types/domain';
 
-export interface JobContextBannerProps {
+interface JobContextBannerProps {
   job: Pick<Job, 'categoryId' | 'status' | 'scheduledStartAt' | 'completedAt'>;
   onPress: () => void;
 }
 
-/** Compact job summary pinned above the chat (category, status, appointment) linking to the job. */
+/** One-line job context above the chat ("Plumbing · Tomorrow at 10:00") linking to the job. */
 export function JobContextBanner({ job, onPress }: JobContextBannerProps) {
   const styles = useStyles();
   const { t } = useTranslation(['messaging', 'common']);
   const categoryName = useCategoryName(job.categoryId) || t('common:category.unknown');
-  const { completed, text: appointment } = useJobWhen(job);
+  const { text: when } = useJobWhen(job);
+  const cancelled = job.status === 'cancelled';
+  const detail = cancelled ? t('common:jobStatus.cancelled') : when;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={[categoryName, t(`common:jobStatus.${job.status}`), appointment].join(', ')}
+      accessibilityLabel={[categoryName, detail].join(', ')}
       accessibilityHint={t('messaging:chat.a11y.jobDetails')}
       onPress={() => {
         haptics.light();
@@ -32,22 +33,18 @@ export function JobContextBanner({ job, onPress }: JobContextBannerProps) {
       style={({ pressed }) => [styles.banner, pressed ? styles.pressed : null]}
       testID="chat-job-banner"
     >
-      <CategoryIcon categoryId={job.categoryId} size="sm" />
       <View style={styles.texts}>
-        <View style={styles.titleRow}>
-          <AppText variant="captionStrong" numberOfLines={1} style={styles.flexShrink}>
-            {categoryName}
-          </AppText>
-          <JobStatusBadge status={job.status} size="sm" withIcon={false} />
-        </View>
-        <View style={styles.dateRow}>
-          <Icon name={completed ? 'calendar-check' : 'calendar-clock'} size={14} color="muted" />
-          <AppText variant="caption" color="secondary" numberOfLines={1} style={styles.flexShrink}>
-            {appointment}
-          </AppText>
-        </View>
+        <AppText variant="captionStrong" numberOfLines={1} style={styles.noShrink}>
+          {categoryName}
+        </AppText>
+        <AppText variant="caption" color={cancelled ? 'danger' : 'secondary'} numberOfLines={1} style={styles.shrink}>
+          {`· ${detail}`}
+        </AppText>
       </View>
-      <Icon name="chevron-right" size={20} color="muted" flipInRTL />
+      <AppText variant="captionStrong" color="primary">
+        {t('messaging:chat.viewJob')}
+      </AppText>
+      <Icon name="chevron-right" size={16} color="primary" flipInRTL />
     </Pressable>
   );
 }
@@ -56,11 +53,7 @@ export function JobContextBannerSkeleton() {
   const styles = useStyles();
   return (
     <View style={styles.banner}>
-      <Skeleton width={36} height={36} radius={10} />
-      <View style={[styles.texts, styles.skeletonTexts]}>
-        <Skeleton width="50%" height={12} />
-        <Skeleton width="35%" height={10} />
-      </View>
+      <Skeleton width="55%" height={12} />
     </View>
   );
 }
@@ -69,35 +62,27 @@ const useStyles = makeStyles((t) => ({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: t.spacing.md,
-    paddingHorizontal: t.spacing.lg,
-    paddingVertical: t.spacing.sm + 2,
-    minHeight: 56,
-    backgroundColor: t.colors.surface,
-    borderBottomWidth: 1,
+    gap: t.spacing.xs,
+    paddingHorizontal: t.spacing.screen,
+    minHeight: 44,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: t.colors.border,
+    backgroundColor: t.colors.background,
   },
   pressed: {
-    backgroundColor: t.colors.surfacePressed,
+    opacity: 0.6,
   },
   texts: {
     flex: 1,
-    gap: t.spacing.xxs,
-  },
-  skeletonTexts: {
-    gap: t.spacing.sm,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.sm,
-  },
-  dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: t.spacing.xs,
   },
-  flexShrink: {
+  noShrink: {
+    flexShrink: 0,
+    maxWidth: '60%',
+  },
+  shrink: {
     flexShrink: 1,
   },
 }));

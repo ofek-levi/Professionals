@@ -12,8 +12,3 @@ export function canTransition<S extends string>(table: TransitionTable<S>, from:
 export function assertTransition<S extends string>(table: TransitionTable<S>, entity: string, from: S, to: S): void {
   if (!canTransition(table, from, to)) throw DomainError.invalidTransition(entity, from, to);
 }
-
-/** States without outgoing transitions. */
-export function terminalStates<S extends string>(table: TransitionTable<S>): S[] {
-  return (Object.keys(table) as S[]).filter((state) => table[state].length === 0);
-}

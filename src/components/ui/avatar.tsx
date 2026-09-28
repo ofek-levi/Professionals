@@ -9,11 +9,11 @@ import { AppText } from './app-text';
 import { DECORATIVE_TONES, hashToIndex } from './colors';
 import { Icon } from './icon';
 
-export type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
 const SIZES: Record<AvatarSize, number> = { xs: 28, sm: 36, md: 44, lg: 64, xl: 88 };
 
-export interface AvatarProps {
+interface AvatarProps {
   /** Used for initials, the deterministic color and the accessibility label. */
   name: string;
   uri?: string | null;
@@ -27,7 +27,7 @@ export interface AvatarProps {
 }
 
 /** First letters of the first two words (works for Hebrew and Latin names). */
-export function getInitials(name: string): string {
+function getInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return '?';
   const letters = words.length === 1 ? [words[0][0]] : [words[0][0], words[words.length - 1][0]];

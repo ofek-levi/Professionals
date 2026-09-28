@@ -6,7 +6,7 @@ import { queryKeys } from './query-keys';
 import { getNextPageParam, INITIAL_PAGE_PARAM, selectPaginatedList, useQueryScope } from './query-scope';
 
 /** Messages per page in a chat. */
-export const MESSAGES_PAGE_SIZE = 30;
+const MESSAGES_PAGE_SIZE = 30;
 
 /** `GET /conversations` – the user's conversations, most recent activity first. */
 export function useConversations() {

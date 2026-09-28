@@ -1,6 +1,9 @@
-/** All data hooks: `import { useRequest, useAcceptOffer } from '@/hooks';` */
+/**
+ * Data hooks for screens: `import { useRequest, useAcceptOffer } from '@/hooks';`. Shared
+ * components, providers and other hooks import the hook files directly.
+ */
 export * from './queries';
 export * from './mutations';
-export { createNotificationLookups, useNotificationPresenter } from './use-notification-presenter';
+export { useNotificationPresenter } from './use-notification-presenter';
 export { useOpenNotification } from './use-open-notification';
 export { useRouteParam } from './use-route-param';

@@ -15,7 +15,7 @@ import {
 } from './cache-updates';
 import { invalidateConversation, invalidateNotifications } from './invalidation';
 
-export interface SendMessageVariables {
+interface SendMessageVariables {
   /** Normalized message text (see `normalizeMessageText`). */
   text: string;
   /**

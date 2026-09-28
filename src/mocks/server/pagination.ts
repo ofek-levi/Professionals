@@ -23,11 +23,11 @@ function pageLimit(limit: number | undefined): number {
   return Math.min(Math.max(1, Math.floor(limit ?? APP_CONFIG.pageSize)), MAX_PAGE_SIZE);
 }
 
-export function encodeCursor(offset: number): string {
+function encodeCursor(offset: number): string {
   return `${OFFSET_PREFIX}${offset.toString(36)}`;
 }
 
-export function decodeCursor(cursor: string | null | undefined): number {
+function decodeCursor(cursor: string | null | undefined): number {
   if (!cursor) return 0;
   const offset = cursor.startsWith(OFFSET_PREFIX) ? parseInt(cursor.slice(1), 36) : NaN;
   if (!Number.isInteger(offset) || offset < 0) throw invalidCursor();
@@ -48,7 +48,7 @@ export function paginate<T>(items: readonly T[], params: PaginationParams = {}):
 
 // ────────────────────────────── Keyset (newest first) ──────────────────────────────
 
-export interface FeedKey {
+interface FeedKey {
   createdAt: string;
   id: string;
 }
@@ -58,11 +58,11 @@ export function compareNewestFirst(a: FeedKey, b: FeedKey): number {
   return Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id.localeCompare(a.id);
 }
 
-export function encodeKeysetCursor(item: FeedKey): string {
+function encodeKeysetCursor(item: FeedKey): string {
   return `${KEYSET_PREFIX}${Date.parse(item.createdAt).toString(36)}${KEYSET_SEPARATOR}${item.id}`;
 }
 
-export function decodeKeysetCursor(cursor: string | null | undefined): FeedKey | null {
+function decodeKeysetCursor(cursor: string | null | undefined): FeedKey | null {
   if (!cursor) return null;
   const separator = cursor.indexOf(KEYSET_SEPARATOR);
   if (!cursor.startsWith(KEYSET_PREFIX) || separator === -1) throw invalidCursor();

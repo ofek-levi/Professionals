@@ -1,7 +1,7 @@
 /** Customer accounts of the demo data set (2 demo customers + non-demo customers). */
 import type { LocalizedText } from '@/types/domain';
 
-export interface CustomerSeed {
+interface CustomerSeed {
   id: string;
   firstName: string;
   lastName: string;

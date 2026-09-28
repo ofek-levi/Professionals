@@ -2,10 +2,11 @@
  * Navigation look & feel derived from the design tokens: the React Navigation theme, root stack
  * header options and bottom tab bar options. Used by `src/app` layouts.
  */
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { Theme as NavigationTheme } from 'expo-router';
-import type { ColorValue } from 'react-native';
+import type { ComponentProps } from 'react';
+import { StyleSheet, type ColorValue } from 'react-native';
 
-import { Icon, type IconName } from '@/components/ui';
 import type { Theme } from '@/theme';
 
 /** React Navigation theme built from tokens (drives native headers, tab bar defaults, backgrounds). */
@@ -16,7 +17,7 @@ export function buildNavigationTheme(theme: Theme): NavigationTheme {
     colors: {
       primary: colors.primary,
       background: colors.background,
-      card: colors.surface,
+      card: colors.background,
       text: colors.text,
       border: colors.border,
       notification: colors.danger,
@@ -30,7 +31,11 @@ export function buildNavigationTheme(theme: Theme): NavigationTheme {
   };
 }
 
-/** Options shared by every screen of the root stack. */
+/**
+ * Options shared by every screen of the root stack: a minimal header on the screen background
+ * (no shadow or border), a 17pt semibold centered title and an icon-only back arrow that mirrors
+ * in RTL.
+ */
 export function buildStackScreenOptions(theme: Theme) {
   const { colors, fonts } = theme;
   return {
@@ -46,39 +51,69 @@ export function buildStackScreenOptions(theme: Theme) {
   };
 }
 
-/** Options shared by every tab of the customer/professional tab bars (screens render their own headers). */
-export function buildTabScreenOptions(theme: Theme) {
-  const { colors, fonts } = theme;
+/** Size of every tab bar glyph (outline when idle, filled when focused). */
+const TAB_BAR_ICON_SIZE = 24;
+
+/** Tab bar glyphs come from Ionicons: soft, rounded shapes with matching outline/filled pairs. */
+type TabIconName = ComponentProps<typeof Ionicons>['name'];
+
+/**
+ * Options shared by every tab of the customer/professional tab bars (screens render their own
+ * headers). The bar sits on the screen background with a single hairline on top – no shadow,
+ * elevation or selection pill – and is `layout.tabBarHeight` tall above the bottom inset.
+ */
+export function buildTabScreenOptions(theme: Theme, bottomInset = 0) {
+  const { colors, fonts, layout } = theme;
   return {
     headerShown: false,
     tabBarActiveTintColor: colors.primary,
     tabBarInactiveTintColor: colors.textMuted,
+    tabBarLabelPosition: 'below-icon' as const,
     tabBarStyle: {
+      // Item: 5 padding + 28 icon box + 14 label + 5 padding, vertically centered in the bar.
+      height: layout.tabBarHeight + bottomInset,
+      paddingTop: 3,
       backgroundColor: colors.tabBar,
       borderTopColor: colors.border,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      elevation: 0,
+      shadowOpacity: 0,
+      boxShadow: 'none',
     },
-    tabBarLabelStyle: { fontFamily: fonts.medium, fontSize: 11 },
+    tabBarLabelStyle: { fontFamily: fonts.medium, fontSize: 11, lineHeight: 14 },
     tabBarBadgeStyle: {
-      backgroundColor: colors.danger,
+      backgroundColor: colors.tones.danger.solid,
       color: colors.onPrimary,
       fontFamily: fonts.medium,
       fontSize: 10,
+      lineHeight: 16,
+      height: 16,
+      minWidth: 16,
+      borderRadius: 8,
+      paddingHorizontal: 4,
+      top: -2,
     },
     sceneStyle: { backgroundColor: colors.background },
     tabBarHideOnKeyboard: true,
   };
 }
 
-export interface TabIconSet {
-  idle: IconName;
-  focused: IconName;
+interface TabIconSet {
+  idle: TabIconName;
+  focused: TabIconName;
 }
 
 /** `tabBarIcon` renderer switching between the outline (idle) and filled (focused) glyph. */
 export function tabBarIcon(icons: TabIconSet) {
-  function renderTabBarIcon({ focused, color, size }: { focused: boolean; color: ColorValue; size: number }) {
+  function renderTabBarIcon({ focused, color }: { focused: boolean; color: ColorValue; size: number }) {
     // Tints come from the theme as plain strings; platform colors fall back to the default text color.
-    return <Icon name={focused ? icons.focused : icons.idle} color={typeof color === 'string' ? color : undefined} size={size} />;
+    return (
+      <Ionicons
+        name={focused ? icons.focused : icons.idle}
+        color={typeof color === 'string' ? color : undefined}
+        size={TAB_BAR_ICON_SIZE}
+      />
+    );
   }
   return renderTabBarIcon;
 }

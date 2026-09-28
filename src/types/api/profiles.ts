@@ -1,7 +1,6 @@
 import type {
   CategoryId,
   CurrencyCode,
-  CustomerProfile,
   NotificationPreferences,
   ProfessionalBusinessInfo,
   ProfessionalContact,
@@ -38,8 +37,6 @@ export interface UpdateCustomerProfilePayload {
   defaultLocation?: ServiceLocation | null;
   notificationPreferences?: NotificationPreferences;
 }
-
-export type { CustomerProfile };
 
 /** `GET /professionals/:id/reviews` */
 export type ProfessionalReviewsParams = PaginationParams;

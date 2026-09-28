@@ -1,32 +1,26 @@
-/** Presentational cards of the job tracking screen. */
-import { Pressable, View } from 'react-native';
+/** Presentational blocks of the job tracking screen. */
+import type { ReactNode } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { CategoryIcon } from '@/components/categories';
-import { JobStatusBadge } from '@/components/jobs';
-import { LocationSummary } from '@/components/location';
-import { AppMap } from '@/components/map';
-import { PhotoStrip } from '@/components/requests';
-import { AppText, Avatar, Badge, Card, Divider, Icon, PriceText, Skeleton, SkeletonCard, type IconSource } from '@/components/ui';
-import type { StatusTone } from '@/constants/tones';
+import { AppText, Avatar, Card, Icon, PriceText, RatingStars, Skeleton } from '@/components/ui';
 import { useCategoryName, useFormatters } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import type { JobDetails, UserRole } from '@/types/domain';
 import { isolateText } from '@/utils/bidi';
 import { addMinutes } from '@/utils/dates';
-import { regionForRadius } from '@/utils/geo';
 
-import { JobTimeline } from './job-timeline';
-import { getAppointmentCountdown } from './job-view-model';
+import { getJobTimeline, type JobTimelineStep } from './job-view-model';
 
 /** Name of the other party of the job, from the viewer's perspective. */
 export function getCounterpartName(job: Pick<JobDetails, 'professional' | 'customer'>, role: UserRole): string {
   return role === 'customer' ? job.professional.displayName : job.customer.displayName;
 }
 
-// ─────────────────────────────── Hero ───────────────────────────────
+// ─────────────────────────────── Status ───────────────────────────────
 
-export function JobHeroCard({ job, role, now }: { job: JobDetails; role: UserRole; now: Date }) {
+/** Category, one status sentence and a slim progress indicator. */
+export function JobStatusHeader({ job, role }: { job: JobDetails; role: UserRole }) {
   const styles = useStyles();
   const { t } = useTranslation(['jobs', 'common']);
   const format = useFormatters();
@@ -35,239 +29,177 @@ export function JobHeroCard({ job, role, now }: { job: JobDetails; role: UserRol
   const headlineDate =
     job.status === 'completed'
       ? format.date(job.completedAt ?? job.updatedAt, 'dayMonth')
-      : format.dateTime(job.scheduledStartAt, { relativeDay: false });
+      : format.dateTime(job.scheduledStartAt, { casing: 'inline' });
 
   return (
-    <Card padding="lg" style={styles.gapLg} testID="job-hero">
-      <View style={styles.heroHeader}>
-        <CategoryIcon categoryId={job.categoryId} size="lg" />
-        <View style={styles.flex}>
-          <AppText variant="title" accessibilityRole="header" numberOfLines={2}>
-            {categoryName}
-          </AppText>
-          <JobStatusBadge status={job.status} />
-        </View>
+    <View style={styles.header} testID="job-status">
+      <View style={styles.headerTexts}>
+        <AppText variant="title" accessibilityRole="header" numberOfLines={2}>
+          {categoryName}
+        </AppText>
+        <AppText variant="body" color={job.status === 'cancelled' ? 'danger' : 'secondary'}>
+          {t(`jobs:details.headline.${job.status}.${role}`, { name, date: headlineDate })}
+        </AppText>
       </View>
-      <AppText variant="body" color="secondary">
-        {t(`jobs:details.headline.${job.status}.${role}`, { name, date: headlineDate })}
-      </AppText>
-      <Divider />
-      <JobTimeline job={job} role={role} now={now} />
-    </Card>
-  );
-}
-
-// ─────────────────────────────── Appointment & price ───────────────────────────────
-
-function IconBox({ icon, tone }: { icon: IconSource; tone: StatusTone }) {
-  const theme = useTheme();
-  const styles = useStyles();
-  const colors = theme.colors.tones[tone];
-  return (
-    <View style={[styles.iconBox, { backgroundColor: colors.bg }]}>
-      <Icon name={icon} size={22} color={colors.fg} />
+      {job.status === 'cancelled' ? null : <JobProgress steps={getJobTimeline(job)} />}
     </View>
   );
 }
 
-export function AppointmentCard({ job, now }: { job: JobDetails; now: Date }) {
+const REACHED: ReadonlySet<JobTimelineStep['state']> = new Set(['done', 'active', 'skipped']);
+
+/** Four thin segments (booked → confirmed → started → done) with short labels. */
+function JobProgress({ steps }: { steps: JobTimelineStep[] }) {
+  const theme = useTheme();
+  const styles = useStyles();
+  const { t } = useTranslation('jobs');
+  const current = steps.filter((step) => REACHED.has(step.state)).pop();
+  return (
+    <View
+      style={styles.progress}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={current ? t(`details.progress.${current.key}`) : undefined}
+      testID="job-progress"
+    >
+      {steps.map((step) => {
+        const reached = REACHED.has(step.state);
+        return (
+          <View key={step.key} style={styles.progressStep}>
+            <View style={[styles.progressBar, { backgroundColor: reached ? theme.colors.primary : theme.colors.border }]} />
+            <AppText variant="tiny" color={reached ? 'default' : 'muted'} numberOfLines={1}>
+              {t(`details.progress.${step.key}`)}
+            </AppText>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// ─────────────────────────────── Details ───────────────────────────────
+
+function InfoRow({ label, children, first = false }: { label: string; children: ReactNode; first?: boolean }) {
+  const styles = useStyles();
+  return (
+    <View style={[styles.infoRow, first ? null : styles.divider]}>
+      <AppText variant="caption" color="muted">
+        {label}
+      </AppText>
+      {children}
+    </View>
+  );
+}
+
+/** Appointment, agreed price and the full address (with access notes) in one group. */
+export function JobInfoCard({ job }: { job: JobDetails }) {
   const styles = useStyles();
   const { t } = useTranslation('jobs');
   const format = useFormatters();
   const start = new Date(job.scheduledStartAt);
   const end = job.estimatedDurationMinutes ? addMinutes(start, job.estimatedDurationMinutes) : null;
-  const timeText = end ? t('details.appointment.timeRange', { start: format.time(start), end: format.time(end) }) : format.time(start);
-
-  let badge: { label: string; tone: StatusTone; icon: IconSource } | null = null;
-  if (job.status === 'awaiting_confirmation' || job.status === 'scheduled') {
-    const countdown = getAppointmentCountdown(start, now);
-    switch (countdown.kind) {
-      case 'soon':
-        badge = { label: t('details.appointment.startsIn', { relative: format.relative(start, now, { casing: 'inline' }) }), tone: 'warning', icon: 'timer-sand' };
-        break;
-      case 'tomorrow':
-        badge = { label: t('details.appointment.startsTomorrow'), tone: 'brand', icon: 'timer-sand' };
-        break;
-      case 'days':
-        badge = { label: t('details.appointment.startsInDays', { count: countdown.days }), tone: 'brand', icon: 'calendar-clock' };
-        break;
-      case 'overdue':
-        badge = { label: t('details.appointment.startedAgo', { relative: format.relative(start, now, { casing: 'inline' }) }), tone: 'warning', icon: 'clock-alert-outline' };
-        break;
-    }
-  } else if (job.status === 'completed' && job.completedAt) {
-    badge = { label: t('details.appointment.completedAt', { date: format.dateTime(job.completedAt, { relativeDay: false }) }), tone: 'success', icon: 'check-all' };
-  } else if (job.status === 'cancelled' && job.cancelledAt) {
-    badge = { label: t('details.appointment.cancelledAt', { date: format.dateTime(job.cancelledAt, { relativeDay: false }) }), tone: 'danger', icon: 'cancel' };
-  }
+  const time = end ? t('details.appointment.timeRange', { start: format.time(start), end: format.time(end) }) : format.time(start);
+  const { location } = job;
+  const address = [location.addressLine, location.neighborhood, location.city].filter(Boolean).join(', ');
+  const extra = [location.details, job.request.notes?.trim()].filter(Boolean).join(' · ');
 
   return (
-    <Card padding="lg" testID="job-appointment">
-      <View style={styles.row}>
-        <IconBox icon="calendar-clock" tone="brand" />
-        <View style={styles.flex}>
-          <AppText variant="captionStrong" color="muted">
-            {t('details.appointment.title')}
-          </AppText>
-          <AppText variant="subheading">{format.date(start, 'long')}</AppText>
-          <View style={styles.inline}>
-            <Icon name="clock-outline" size={16} color="secondary" />
-            <AppText variant="bodyStrong" tabular>
-              {timeText}
-            </AppText>
-            {job.estimatedDurationMinutes ? (
-              <AppText variant="caption" color="muted">
-                {`· ${format.duration(job.estimatedDurationMinutes)}`}
-              </AppText>
-            ) : null}
-          </View>
-          {badge ? <Badge label={badge.label} tone={badge.tone} icon={badge.icon} style={styles.badge} /> : null}
-        </View>
-      </View>
-    </Card>
-  );
-}
-
-export function PriceCard({ job, onViewOffer }: { job: JobDetails; onViewOffer: () => void }) {
-  const styles = useStyles();
-  const { t } = useTranslation('jobs');
-  return (
-    <Card padding="lg" testID="job-price">
-      <View style={styles.row}>
-        <IconBox icon="cash-multiple" tone="success" />
-        <View style={styles.flex}>
-          <AppText variant="captionStrong" color="muted">
-            {t('details.price.title')}
-          </AppText>
-          <PriceText amount={job.agreedPrice} currency={job.currency} variant="title" />
-          <AppText variant="caption" color="muted">
-            {t('details.price.hint')}
-          </AppText>
-        </View>
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={t('details.price.viewOffer')}
-          onPress={onViewOffer}
-          hitSlop={8}
-          style={({ pressed }) => [styles.link, pressed ? styles.pressed : null]}
-          testID="job-view-offer"
-        >
-          <AppText variant="captionStrong" color="primary">
-            {t('details.price.viewOffer')}
-          </AppText>
-          <Icon name="chevron-right" size={16} color="primary" flipInRTL />
-        </Pressable>
-      </View>
-    </Card>
-  );
-}
-
-// ─────────────────────────────── Location ───────────────────────────────
-
-export function LocationCard({ job }: { job: JobDetails }) {
-  const styles = useStyles();
-  const { t } = useTranslation('jobs');
-  const { coordinates } = job.location;
-  return (
-    <Card padding="none" style={styles.clip} testID="job-location">
-      <AppMap
-        style={styles.map}
-        initialRegion={regionForRadius(coordinates, 0.6)}
-        markers={[{ id: job.id, coordinate: coordinates, tone: 'brand', icon: 'home-map-marker' }]}
-        interactive={false}
-        accessibilityLabel={t('details.location.mapLabel')}
-      />
-      <View style={styles.locationBody}>
-        <LocationSummary location={job.location} showDetails />
-      </View>
-    </Card>
-  );
-}
-
-// ─────────────────────────────── Counterpart (customer, for professionals) ───────────────────────────────
-
-export function CustomerCard({ job }: { job: JobDetails }) {
-  const styles = useStyles();
-  const { t } = useTranslation('jobs');
-  const format = useFormatters();
-  const { customer } = job;
-  return (
-    <Card padding="lg" testID="job-customer">
-      <View style={styles.row}>
-        <Avatar name={customer.displayName} uri={customer.avatarUrl} size="lg" decorative />
-        <View style={styles.flex}>
-          <AppText variant="subheading" numberOfLines={1}>
-            {customer.displayName}
-          </AppText>
-          {customer.city ? (
-            <View style={styles.inline}>
-              <Icon name="map-marker-outline" size={15} color="muted" />
-              <AppText variant="caption" color="secondary">
-                {customer.city}
-              </AppText>
-            </View>
-          ) : null}
-          <View style={styles.inlineWrap}>
-            <View style={styles.inline}>
-              <Icon name="account-clock-outline" size={15} color="muted" />
-              <AppText variant="caption" color="secondary">
-                {t('details.counterpart.memberSince', { date: format.date(customer.memberSince, 'monthYear') })}
-              </AppText>
-            </View>
-            <View style={styles.inline}>
-              <Icon name="check-decagram-outline" size={15} color="muted" />
-              <AppText variant="caption" color="secondary">
-                {t('details.counterpart.jobsCompleted', { count: customer.completedJobsCount })}
-              </AppText>
-            </View>
-          </View>
-        </View>
-      </View>
-    </Card>
-  );
-}
-
-// ─────────────────────────────── Request ───────────────────────────────
-
-export function RequestSummaryCard({ job, onViewRequest }: { job: JobDetails; onViewRequest: () => void }) {
-  const styles = useStyles();
-  const { t } = useTranslation('jobs');
-  const notes = job.request.notes?.trim();
-  return (
-    <Card padding="none" testID="job-request">
-      <View style={styles.requestBody}>
-        <AppText variant="body" userContent>
-          {job.description}
+    <Card padding="none" style={styles.card} testID="job-info">
+      <InfoRow label={t('details.appointment.title')} first>
+        <AppText variant="bodyStrong" tabular>
+          {`${format.date(start, 'short')} · ${time}`}
         </AppText>
-        {job.request.photos.length > 0 ? <PhotoStrip photos={job.request.photos} maxVisible={4} /> : null}
-        {notes ? (
-          <View style={styles.notes}>
-            <Icon name="note-text-outline" size={18} color="muted" />
-            <View style={styles.flex}>
-              <AppText variant="captionStrong" color="muted">
-                {t('details.request.notes')}
-              </AppText>
-              <AppText variant="caption" color="secondary" userContent>
-                {notes}
-              </AppText>
-            </View>
-          </View>
+      </InfoRow>
+      <InfoRow label={t('details.price.title')}>
+        <PriceText amount={job.agreedPrice} currency={job.currency} variant="bodyStrong" />
+      </InfoRow>
+      <InfoRow label={t('details.location.title')}>
+        <AppText variant="bodyStrong">{address}</AppText>
+        {extra ? (
+          <AppText variant="caption" color="secondary" userContent>
+            {extra}
+          </AppText>
         ) : null}
-      </View>
-      <Divider />
-      <Pressable
-        accessibilityRole="link"
-        onPress={onViewRequest}
-        style={({ pressed }) => [styles.footerLink, pressed ? styles.pressedBackground : null]}
-        testID="job-view-request"
-      >
-        <Icon name="clipboard-text-outline" size={20} color="primary" />
-        <AppText variant="bodyStrong" color="primary" style={styles.flex}>
-          {t('details.request.viewRequest')}
-        </AppText>
-        <Icon name="chevron-right" size={20} color="primary" flipInRTL />
-      </Pressable>
+      </InfoRow>
     </Card>
+  );
+}
+
+/** The other party: avatar and name (+ the rating of a professional; the address is in the card below). */
+export function CounterpartRow({ job, role, onPress }: { job: JobDetails; role: UserRole; onPress?: () => void }) {
+  const styles = useStyles();
+  const { t } = useTranslation(['jobs', 'common']);
+  const person = role === 'customer' ? job.professional : job.customer;
+  const label = role === 'customer' ? t('jobs:details.counterpart.professional') : t('jobs:details.counterpart.customer');
+
+  const content = (
+    <>
+      <Avatar name={person.displayName} uri={person.avatarUrl} size="md" decorative />
+      <View style={styles.flex}>
+        <AppText variant="caption" color="muted">
+          {label}
+        </AppText>
+        <AppText variant="bodyStrong" numberOfLines={1}>
+          {person.displayName}
+        </AppText>
+      </View>
+      {role === 'customer' ? (
+        <RatingStars value={job.professional.averageRating} count={job.professional.reviewCount} variant="compact" />
+      ) : null}
+      {onPress ? <Icon name="chevron-right" size={20} color="muted" flipInRTL /> : null}
+    </>
+  );
+
+  if (!onPress) {
+    return (
+      <Card padding="none" style={[styles.card, styles.counterpart]} testID="job-counterpart">
+        {content}
+      </Card>
+    );
+  }
+  return (
+    <Card
+      padding="none"
+      onPress={onPress}
+      accessibilityLabel={`${label}, ${person.displayName}`}
+      style={[styles.card, styles.counterpart]}
+      testID="job-counterpart"
+    >
+      {content}
+    </Card>
+  );
+}
+
+/** Quiet text action (secondary job actions, "View request"). */
+export function TextAction({
+  label,
+  onPress,
+  disabled = false,
+  chevron = false,
+  testID,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  chevron?: boolean;
+  testID?: string;
+}) {
+  const styles = useStyles();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => [styles.textAction, pressed || disabled ? styles.pressed : null]}
+      testID={testID}
+    >
+      <AppText variant="bodyStrong" color="primary">
+        {label}
+      </AppText>
+      {chevron ? <Icon name="chevron-right" size={18} color="primary" flipInRTL /> : null}
+    </Pressable>
   );
 }
 
@@ -277,24 +209,19 @@ export function JobDetailsSkeleton() {
   const styles = useStyles();
   return (
     <View style={styles.skeleton}>
-      <Card padding="lg" style={styles.gapLg}>
-        <View style={styles.heroHeader}>
-          <Skeleton width={56} height={56} radius={16} />
-          <View style={[styles.flex, styles.gapSm]}>
-            <Skeleton width="60%" height={20} />
-            <Skeleton width={120} height={22} radius={999} />
-          </View>
-        </View>
-        <Skeleton width="90%" height={14} />
-        {[0, 1, 2, 3].map((index) => (
-          <View key={index} style={styles.row}>
-            <Skeleton circle height={24} />
-            <Skeleton width="45%" height={13} />
+      <View style={styles.headerTexts}>
+        <Skeleton width="50%" height={24} />
+        <Skeleton width="85%" height={14} />
+      </View>
+      <Skeleton height={4} radius={2} />
+      <Card padding="none" style={styles.card}>
+        {[0, 1, 2].map((index) => (
+          <View key={index} style={[styles.infoRow, index === 0 ? null : styles.divider]}>
+            <Skeleton width="25%" height={11} />
+            <Skeleton width="60%" height={15} />
           </View>
         ))}
       </Card>
-      <SkeletonCard lines={1} />
-      <SkeletonCard lines={1} withAvatar={false} />
     </View>
   );
 }
@@ -304,85 +231,51 @@ const useStyles = makeStyles((t) => ({
     flex: 1,
     gap: t.spacing.xxs,
   },
-  gapLg: {
-    gap: t.spacing.lg,
+  header: {
+    gap: t.spacing.xl,
   },
-  gapSm: {
-    gap: t.spacing.sm,
-  },
-  heroHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.md,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: t.spacing.md,
-  },
-  inline: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  headerTexts: {
     gap: t.spacing.xs,
   },
-  inlineWrap: {
+  progress: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    columnGap: t.spacing.md,
-    rowGap: t.spacing.xxs,
+    gap: t.spacing.xs,
   },
-  badge: {
-    marginTop: t.spacing.sm,
+  progressStep: {
+    flex: 1,
+    gap: t.spacing.xs + 2,
   },
-  iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: t.radii.md,
+  progressBar: {
+    height: 4,
+    borderRadius: 2,
+  },
+  card: {
+    paddingHorizontal: t.spacing.lg,
+  },
+  infoRow: {
+    gap: t.spacing.xxs,
+    paddingVertical: t.spacing.md + 2,
+  },
+  divider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: t.colors.border,
+  },
+  counterpart: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: t.spacing.md,
+    paddingVertical: t.spacing.md,
   },
-  link: {
+  textAction: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: t.spacing.xxs,
     minHeight: 44,
-    alignSelf: 'center',
   },
   pressed: {
-    opacity: 0.6,
-  },
-  pressedBackground: {
-    backgroundColor: t.colors.surfacePressed,
-  },
-  clip: {
-    overflow: 'hidden',
-  },
-  map: {
-    height: 150,
-  },
-  locationBody: {
-    padding: t.spacing.lg,
-  },
-  requestBody: {
-    padding: t.spacing.lg,
-    gap: t.spacing.md,
-  },
-  notes: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: t.spacing.sm,
-    padding: t.spacing.md,
-    borderRadius: t.radii.md,
-    backgroundColor: t.colors.surfaceMuted,
-  },
-  footerLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.md,
-    paddingHorizontal: t.spacing.lg,
-    minHeight: 52,
+    opacity: 0.5,
   },
   skeleton: {
-    gap: t.spacing.lg,
+    gap: t.spacing.xl,
   },
 }));

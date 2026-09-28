@@ -7,7 +7,7 @@ import { useAppLanguage } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import { SUPPORTED_LANGUAGES, type AppLanguage } from '@/types/domain';
 
-export interface LanguageSwitchProps {
+interface LanguageSwitchProps {
   /** `onColor` renders light-on-dark for gradients/hero areas. */
   appearance?: 'default' | 'onColor';
   style?: StyleProp<ViewStyle>;

@@ -33,12 +33,12 @@ export function createConversationForJob(
   });
 }
 
-export function isParticipant(conversation: StoredConversation, userId: string): boolean {
+function isParticipant(conversation: StoredConversation, userId: string): boolean {
   return conversation.participants.some((participant) => participant.userId === userId);
 }
 
 /** Conversation the user takes part in, or 404/403. */
-export function requireParticipantConversation(ctx: ServerContext, userId: string, conversationId: string): StoredConversation {
+function requireParticipantConversation(ctx: ServerContext, userId: string, conversationId: string): StoredConversation {
   const conversation = requireConversation(ctx.db, conversationId);
   if (!isParticipant(conversation, userId)) throw DomainError.forbidden('You are not a participant of this conversation');
   return conversation;

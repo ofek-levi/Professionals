@@ -18,7 +18,7 @@ export function getCounterpart(
   return conversation.participants.find((participant) => participant.userId !== currentUserId) ?? null;
 }
 
-export interface ConversationPreview {
+interface ConversationPreview {
   /** Single-line, truncated message text. */
   text: string;
   /** Sent by the current user (rendered as "You: …"). */
@@ -37,7 +37,7 @@ export function getConversationPreview(
 }
 
 /** Timestamp shown in the conversation list: the time today, "Yesterday", the weekday this week, else a date. */
-export type ListTimeKind = 'time' | 'yesterday' | 'weekday' | 'date';
+type ListTimeKind = 'time' | 'yesterday' | 'weekday' | 'date';
 
 export function getListTimeKind(value: string, now: Date): ListTimeKind {
   const date = parseISO(value);
@@ -93,9 +93,9 @@ export interface ChatDayRow {
 export type ChatRow = ChatMessageRow | ChatDayRow;
 
 /** Consecutive messages of one sender within this window form a visual group. */
-export const MESSAGE_GROUP_WINDOW_MINUTES = 5;
+const MESSAGE_GROUP_WINDOW_MINUTES = 5;
 
-export interface BuildChatRowsInput {
+interface BuildChatRowsInput {
   /** Messages newest first (as returned by `useConversationMessages`). */
   messages: readonly Message[];
   /** Locally failed messages (any order). */

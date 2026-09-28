@@ -1,10 +1,10 @@
-/** Maps anything thrown by a handler to an HTTP-like transport response. */
+/**
+ * Maps anything thrown by a handler to an HTTP-like transport response. `DomainError` is the mock
+ * backend's HTTP error type (code + status + fieldErrors).
+ */
 import { isDomainError } from '@/features/shared/domain-error';
 import type { TransportResponse } from '@/services/api/transport';
 import type { ApiErrorBody } from '@/types/api';
-
-/** `DomainError` is the mock backend's HTTP error type (code + status + fieldErrors). */
-export { DomainError as MockHttpError, isDomainError as isMockHttpError } from '@/features/shared/domain-error';
 
 export function errorToResponse(error: unknown): TransportResponse {
   if (isDomainError(error)) return { status: error.status, data: error.toBody() };

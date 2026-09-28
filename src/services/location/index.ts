@@ -1,14 +1,1 @@
-export {
-  getCurrentCoordinates,
-  getLocationPermissionStatus,
-  locateDevice,
-  openLocationSettings,
-  requestLocationPermission,
-} from './location-service';
-export type {
-  CurrentCoordinatesResult,
-  GetCoordinatesOptions,
-  LocationFailureReason,
-  LocationPermissionState,
-  LocationPermissionStatus,
-} from './location-service';
+export { locateDevice, openLocationSettings, type LocationFailureReason } from './location-service';

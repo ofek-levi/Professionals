@@ -7,7 +7,6 @@ import type {
   RequestCancellationReason,
   RequestStatus,
   ServiceLocation,
-  ServiceRequest,
   UrgencyLevel,
 } from '../domain';
 import type { CustomerRequestSection } from '@/constants/request-statuses';
@@ -68,5 +67,3 @@ export interface NearbyRequestsParams extends PaginationParams {
 export type RequestDetailsResponse =
   | { viewerRole: 'customer'; request: CustomerRequestView }
   | { viewerRole: 'professional'; request: ProfessionalRequestView };
-
-export type { ServiceRequest };

@@ -24,7 +24,7 @@ import { queryKeys } from './query-keys';
 
 const CATALOG_STALE_TIME_MS = 12 * 60 * 60 * 1000;
 
-export function useCategoryCatalog() {
+function useCategoryCatalog() {
   return useQuery({
     queryKey: queryKeys.catalog.categories(),
     queryFn: () => api.catalog.getProfessionalCategories(),

@@ -40,7 +40,7 @@ interface MarketRequestSpec {
   notified?: { professionalId: string; read: boolean }[];
 }
 
-export const MARKETPLACE_REQUESTS: readonly MarketRequestSpec[] = [
+const MARKETPLACE_REQUESTS: readonly MarketRequestSpec[] = [
   {
     id: 'req_tamar_sink',
     customerId: 'user_tamar_shalev',

@@ -1,18 +1,16 @@
-import { ActivityIndicator, Pressable, View, type GestureResponderEvent, type StyleProp, type ViewStyle } from 'react-native';
-import { useTranslation } from 'react-i18next';
+import { ActivityIndicator, Pressable, type GestureResponderEvent, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { StatusTone } from '@/constants/tones';
 import { makeStyles, useTheme, type Theme } from '@/theme';
 
-import { AppText } from './app-text';
 import { resolveColor, type ColorProp } from './colors';
 import { haptics } from './haptics';
 import { Icon, type IconSource } from './icon';
 
-export type IconButtonVariant = 'plain' | 'soft' | 'filled' | 'surface' | 'outline';
-export type IconButtonSize = 'sm' | 'md' | 'lg';
+type IconButtonVariant = 'plain' | 'soft' | 'filled' | 'surface';
+type IconButtonSize = 'sm' | 'md' | 'lg';
 
-export interface IconButtonProps {
+interface IconButtonProps {
   icon: IconSource;
   /** Required: icon-only controls must be labelled for screen readers. */
   accessibilityLabel: string;
@@ -21,10 +19,8 @@ export interface IconButtonProps {
   size?: IconButtonSize;
   /** Tone for `soft`/`filled` variants (defaults to the brand/primary color). */
   tone?: StatusTone;
-  /** Icon color override for `plain`/`surface`/`outline`. */
+  /** Icon color override for `plain`/`surface`. */
   color?: ColorProp;
-  /** Small counter bubble on the top-end corner (hidden when 0/undefined). */
-  badgeCount?: number;
   flipInRTL?: boolean;
   disabled?: boolean;
   loading?: boolean;
@@ -45,8 +41,8 @@ function colorsFor(theme: Theme, variant: IconButtonVariant, tone: StatusTone | 
   switch (variant) {
     case 'filled':
       return {
-        background: toneColors?.solid ?? theme.colors.primary,
-        pressed: toneColors?.fg ?? theme.colors.primaryPressed,
+        background: toneColors?.solid ?? theme.colors.primaryFill,
+        pressed: toneColors?.fg ?? theme.colors.primaryFillPressed,
         foreground: theme.colors.onPrimary,
         border: 'transparent',
       };
@@ -62,19 +58,12 @@ function colorsFor(theme: Theme, variant: IconButtonVariant, tone: StatusTone | 
         background: theme.colors.surface,
         pressed: theme.colors.surfacePressed,
         foreground: resolveColor(theme, color),
-        border: theme.colors.border,
-      };
-    case 'outline':
-      return {
-        background: 'transparent',
-        pressed: theme.colors.surfacePressed,
-        foreground: resolveColor(theme, color),
-        border: theme.colors.borderStrong,
+        border: 'transparent',
       };
     case 'plain':
       return {
         background: 'transparent',
-        pressed: theme.colors.surfacePressed,
+        pressed: theme.colors.surface,
         foreground: resolveColor(theme, color),
         border: 'transparent',
       };
@@ -89,7 +78,6 @@ export function IconButton({
   size = 'md',
   tone,
   color,
-  badgeCount,
   flipInRTL = false,
   disabled = false,
   loading = false,
@@ -100,19 +88,15 @@ export function IconButton({
 }: IconButtonProps) {
   const theme = useTheme();
   const styles = useStyles();
-  const { t } = useTranslation('common');
   const { box, icon: iconSize } = SIZES[size];
   const palette = colorsFor(theme, variant, tone, color);
   const slop = Math.max(0, Math.ceil((theme.layout.minTouchSize - box) / 2));
-  const showBadge = typeof badgeCount === 'number' && badgeCount > 0;
   const inactive = disabled || loading;
-
-  const label = showBadge ? `${accessibilityLabel}, ${t('a11y.unreadCount', { count: badgeCount })}` : accessibilityLabel;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: inactive, busy: loading }}
       disabled={inactive}
@@ -141,42 +125,20 @@ export function IconButton({
       ) : (
         <Icon name={icon} size={iconSize} color={palette.foreground} flipInRTL={flipInRTL} />
       )}
-      {showBadge ? (
-        <View style={styles.badge}>
-          <AppText variant="tiny" color="onPrimary" align="center" maxFontSizeMultiplier={1.1} tabular>
-            {badgeCount > 99 ? '99+' : String(badgeCount)}
-          </AppText>
-        </View>
-      ) : null}
     </Pressable>
   );
 }
 
-const useStyles = makeStyles((t) => ({
+const useStyles = makeStyles(() => ({
   base: {
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
   },
   pressed: {
-    transform: [{ scale: 0.94 }],
+    opacity: 0.85,
   },
   disabled: {
     opacity: 0.4,
-  },
-  badge: {
-    position: 'absolute',
-    pointerEvents: 'none',
-    top: -4,
-    end: -4,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: t.spacing.xs,
-    borderRadius: t.radii.pill,
-    backgroundColor: t.colors.danger,
-    borderWidth: 2,
-    borderColor: t.colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 }));

@@ -5,7 +5,7 @@ import { AppText, Button, Icon, RatingStars, type IconSource } from '@/component
 import type { StatusTone } from '@/constants/tones';
 import { makeStyles, useTheme } from '@/theme';
 
-export interface ReviewResultStateProps {
+interface ReviewResultStateProps {
   icon: IconSource;
   tone: StatusTone;
   title: string;
@@ -41,15 +41,12 @@ export function ReviewResultState({
 
   return (
     <View style={styles.container} testID={testID}>
-      <View style={styles.illustration} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <View style={[styles.outerRing, { backgroundColor: colors.bg }]}>
-          <View style={[styles.innerCircle, { backgroundColor: colors.solid }]}>
-            <Icon name={icon} size={44} color={theme.colors.onPrimary} />
-          </View>
-        </View>
-        <Icon name="star-four-points" size={22} color={theme.colors.star} style={styles.sparkleTop} />
-        <Icon name="star-four-points-outline" size={16} color={colors.solid} style={styles.sparkleBottom} />
-        <Icon name="circle-medium" size={18} color={theme.colors.primary} style={styles.sparkleSide} />
+      <View
+        style={[styles.illustration, { backgroundColor: colors.bg }]}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+      >
+        <Icon name={icon} size={40} color={colors.fg} />
       </View>
       <View style={styles.texts}>
         <AppText variant="title" align="center" accessibilityRole="header">
@@ -80,40 +77,11 @@ const useStyles = makeStyles((t) => ({
     paddingVertical: t.spacing.xxxl,
   },
   illustration: {
-    width: 160,
-    height: 160,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  outerRing: {
-    width: 136,
-    height: 136,
-    borderRadius: 68,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  innerCircle: {
     width: 88,
     height: 88,
     borderRadius: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    ...t.shadows.md,
-  },
-  sparkleTop: {
-    position: 'absolute',
-    top: 6,
-    end: 14,
-  },
-  sparkleBottom: {
-    position: 'absolute',
-    bottom: 12,
-    start: 10,
-  },
-  sparkleSide: {
-    position: 'absolute',
-    top: 40,
-    start: 0,
   },
   texts: {
     alignItems: 'center',

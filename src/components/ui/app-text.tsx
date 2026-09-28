@@ -28,6 +28,7 @@ export interface AppTextProps extends TextProps {
 /** Large display text scales less so layouts survive accessibility font sizes. */
 const MAX_FONT_SCALE: Record<TypographyVariant, number> = {
   display: 1.2,
+  largeTitle: 1.2,
   title: 1.3,
   heading: 1.35,
   subheading: 1.4,

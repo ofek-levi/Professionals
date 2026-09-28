@@ -20,11 +20,6 @@ function subscribe(listener: Listener): () => void {
 
 const getSnapshot = () => snapshot;
 
-/** Current map (outside React). */
-export function getSeenOffers(): SeenOffersMap {
-  return snapshot;
-}
-
 /** Marks the offers of a request as seen up to `latestOfferAt` (never moves backwards). */
 export function markOffersSeen(requestId: string, latestOfferAt: ISODateTimeString | null): void {
   if (!latestOfferAt) return;
@@ -33,12 +28,6 @@ export function markOffersSeen(requestId: string, latestOfferAt: ISODateTimeStri
   const next = new Map(snapshot);
   next.set(requestId, latestOfferAt);
   snapshot = next;
-  listeners.forEach((listener) => listener());
-}
-
-/** Test helper / sign-out reset. */
-export function resetSeenOffers(): void {
-  snapshot = new Map();
   listeners.forEach((listener) => listener());
 }
 

@@ -24,7 +24,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   return debounced;
 }
 
-export interface UsePlaceSearchOptions {
+interface UsePlaceSearchOptions {
   limit?: number;
   enabled?: boolean;
 }

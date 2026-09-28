@@ -8,7 +8,7 @@ import { DEFAULT_MAP_REGION, regionForCoordinates, regionForRadius, type MapRegi
 import type { AppMapCircle, AppMapDraggablePin, AppMapMarker } from './types';
 
 /** All points that should be visible when fitting the map to its content. */
-export function contentCoordinates(
+function contentCoordinates(
   markers: readonly AppMapMarker[],
   circles: readonly AppMapCircle[],
   pin: AppMapDraggablePin | undefined,
@@ -25,21 +25,19 @@ export function contentCoordinates(
   return points;
 }
 
-/** Picks the initial viewport: explicit region → fitted content → default city region. */
+/** Picks the initial viewport: explicit region → pin → fitted content → default city region. */
 export function resolveInitialRegion(options: {
   region?: MapRegion;
   initialRegion?: MapRegion;
-  fitToMarkers?: boolean;
   markers: readonly AppMapMarker[];
   circles: readonly AppMapCircle[];
   pin?: AppMapDraggablePin;
 }): MapRegion {
-  const { region, initialRegion, fitToMarkers, markers, circles, pin } = options;
-  const points = contentCoordinates(markers, circles, pin);
-  if (fitToMarkers && points.length > 0) return regionForCoordinates(points, 1.3);
+  const { region, initialRegion, markers, circles, pin } = options;
   if (region) return region;
   if (initialRegion) return initialRegion;
   if (pin) return regionForRadius(pin.coordinate, 1);
+  const points = contentCoordinates(markers, circles, pin);
   if (points.length > 0) return regionForCoordinates(points, 1.3);
   return DEFAULT_MAP_REGION;
 }

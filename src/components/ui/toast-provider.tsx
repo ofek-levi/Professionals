@@ -13,7 +13,7 @@ import { haptics } from './haptics';
 import { Icon, type IconName, type IconSource } from './icon';
 import { usePanGesture } from './pan-gesture';
 
-export interface ToastOptions {
+interface ToastOptions {
   title: string;
   message?: string;
   tone?: StatusTone;
@@ -26,7 +26,7 @@ export interface ToastOptions {
   id?: string;
 }
 
-export interface ToastApi {
+interface ToastApi {
   /** Shows a toast and returns its id. */
   show: (options: ToastOptions) => string;
   dismiss: (id: string) => void;
@@ -207,8 +207,8 @@ const useStyles = makeStyles((t) => ({
     paddingStart: t.spacing.md,
     paddingEnd: t.spacing.sm,
     borderRadius: t.radii.lg,
-    backgroundColor: t.colors.surface,
-    borderWidth: 1,
+    backgroundColor: t.colors.surfaceElevated,
+    borderWidth: t.scheme === 'dark' ? 1 : 0,
     borderColor: t.colors.border,
     ...t.shadows.lg,
   },
@@ -216,9 +216,9 @@ const useStyles = makeStyles((t) => ({
     backgroundColor: t.colors.surfacePressed,
   },
   iconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },

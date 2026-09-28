@@ -9,7 +9,7 @@ import { PROFESSIONALS, type ProfessionalSeed } from './professionals';
 import type { SeedBuilder } from './seed-builder';
 import { CUSTOMERS } from './users';
 
-export function professionalSeedById(id: string): ProfessionalSeed {
+function professionalSeedById(id: string): ProfessionalSeed {
   const seed = PROFESSIONALS.find((professional) => professional.id === id);
   if (!seed) throw new Error(`Unknown professional seed "${id}"`);
   return seed;

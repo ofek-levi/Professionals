@@ -8,7 +8,7 @@ import type {
   SuccessResponse,
   UpdateDraftRequestPayload,
 } from '@/types/api';
-import type { CustomerRequestView, ProfessionalRequestView, ServiceRequest } from '@/types/domain';
+import type { CustomerRequestView, ProfessionalRequestView } from '@/types/domain';
 import type { ApiClient } from '../client';
 
 const id = (value: string) => encodeURIComponent(value);
@@ -62,5 +62,3 @@ export function createRequestsApi(client: ApiClient) {
       }),
   };
 }
-
-export type { ServiceRequest };

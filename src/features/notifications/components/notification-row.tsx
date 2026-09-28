@@ -1,7 +1,7 @@
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { AppText, Icon, Skeleton, haptics, withAlpha } from '@/components/ui';
+import { AppText, Icon, Skeleton, haptics } from '@/components/ui';
 import type { NotificationContent } from '@/features/notifications/notification-presenter';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
@@ -9,7 +9,7 @@ import type { AppNotification } from '@/types/domain';
 
 import { isNotificationUnread } from './notification-list-model';
 
-export interface NotificationRowProps {
+interface NotificationRowProps {
   notification: AppNotification;
   /** Localized title/body/icon/tone (from `useNotificationPresenter`). */
   content: NotificationContent;
@@ -22,7 +22,9 @@ export interface NotificationRowProps {
   first?: boolean;
 }
 
-/** One notification: tone-colored icon, localized title/body, relative time and unread marker. */
+const ICON_SIZE = 40;
+
+/** One notification: tone-colored icon, localized title/body, time and an unread dot. */
 export function NotificationRow({ notification, content, now, onPress, timeStyle = 'relative', first = false }: NotificationRowProps) {
   const theme = useTheme();
   const styles = useStyles();
@@ -41,32 +43,31 @@ export function NotificationRow({ notification, content, now, onPress, timeStyle
         haptics.light();
         onPress(notification);
       }}
-      style={({ pressed }) => [
-        styles.row,
-        unread ? { backgroundColor: withAlpha(theme.colors.primary, theme.scheme === 'dark' ? 0.1 : 0.05) } : null,
-        first ? null : styles.divider,
-        pressed ? styles.pressed : null,
-      ]}
+      style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
       testID={`notification-${notification.id}`}
     >
-      <View style={[styles.iconCircle, { backgroundColor: tone.bg }]}>
-        <Icon name={content.icon} size={22} color={tone.fg} />
+      <View style={[styles.icon, { backgroundColor: tone.bg }]}>
+        <Icon name={content.icon} size={20} color={tone.fg} />
       </View>
-      <View style={styles.texts}>
-        <View style={styles.titleRow}>
-          <AppText variant={unread ? 'bodyStrong' : 'body'} numberOfLines={2} style={styles.title}>
+      <View style={[styles.texts, first ? null : styles.divider]}>
+        <View style={styles.line}>
+          <AppText variant={unread ? 'bodyStrong' : 'body'} numberOfLines={2} style={styles.flex}>
             {content.title}
           </AppText>
+          <AppText variant="caption" color={unread ? 'primary' : 'muted'} tabular style={styles.time}>
+            {time}
+          </AppText>
+        </View>
+        <View style={styles.line}>
+          {content.body ? (
+            <AppText variant="caption" color="secondary" numberOfLines={2} style={styles.flex}>
+              {content.body}
+            </AppText>
+          ) : (
+            <View style={styles.flex} />
+          )}
           {unread ? <View style={styles.dot} accessibilityElementsHidden importantForAccessibility="no" /> : null}
         </View>
-        {content.body ? (
-          <AppText variant="caption" color="secondary" numberOfLines={3}>
-            {content.body}
-          </AppText>
-        ) : null}
-        <AppText variant="tiny" color={unread ? 'primary' : 'muted'} style={styles.time}>
-          {time}
-        </AppText>
       </View>
     </Pressable>
   );
@@ -76,12 +77,11 @@ export function NotificationRow({ notification, content, now, onPress, timeStyle
 export function NotificationRowSkeleton({ first = false }: { first?: boolean }) {
   const styles = useStyles();
   return (
-    <View style={[styles.row, first ? null : styles.divider]}>
-      <Skeleton circle height={44} />
-      <View style={[styles.texts, styles.skeletonTexts]}>
-        <Skeleton width="65%" height={14} />
-        <Skeleton width="95%" height={11} />
-        <Skeleton width="30%" height={10} />
+    <View style={styles.row}>
+      <Skeleton circle height={ICON_SIZE} />
+      <View style={[styles.texts, styles.skeletonTexts, first ? null : styles.divider]}>
+        <Skeleton width="60%" height={14} />
+        <Skeleton width="90%" height={11} />
       </View>
     </View>
   );
@@ -92,49 +92,47 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: t.spacing.md,
-    paddingHorizontal: t.spacing.lg,
-    paddingVertical: t.spacing.md + 2,
-    minHeight: 72,
-    backgroundColor: t.colors.surface,
-  },
-  divider: {
-    borderTopWidth: 1,
-    borderTopColor: t.colors.border,
   },
   pressed: {
-    backgroundColor: t.colors.surfacePressed,
+    opacity: 0.6,
   },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  icon: {
+    width: ICON_SIZE,
+    height: ICON_SIZE,
+    borderRadius: ICON_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: t.spacing.md,
   },
   texts: {
     flex: 1,
     gap: t.spacing.xxs,
+    paddingVertical: t.spacing.md,
+  },
+  divider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: t.colors.border,
   },
   skeletonTexts: {
     gap: t.spacing.sm,
-    paddingTop: t.spacing.xxs,
+    paddingTop: t.spacing.md + t.spacing.xs,
   },
-  titleRow: {
+  line: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: t.spacing.sm,
+    gap: t.spacing.md,
   },
-  title: {
+  flex: {
     flex: 1,
   },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginTop: 6,
-    backgroundColor: t.colors.primary,
-  },
   time: {
-    marginTop: t.spacing.xxs,
+    marginTop: 2,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 5,
+    backgroundColor: t.colors.primary,
   },
 }));

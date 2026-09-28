@@ -1,6 +1,6 @@
 import type { OfferStatus, OfferWithProfessional } from '@/types/domain';
 
-import { computeRecommendationScores, getOfferHighlights, sortOffers } from '../offer-sorting';
+import { sortOffers } from '../offer-sorting';
 
 let sequence = 0;
 function offer(
@@ -70,27 +70,6 @@ describe('offer sorting', () => {
     const unproven = offer({ price: 350, startInHours: 30, rating: 5, reviews: 1 });
     const solid = offer({ price: 380, startInHours: 20, rating: 4.8, reviews: 60 });
     const expensive = offer({ price: 900, startInHours: 72, rating: 4.2, reviews: 8 });
-    const scores = computeRecommendationScores([unproven, solid, expensive]);
-    expect(scores.get(solid.id)).toBeGreaterThan(scores.get(unproven.id) ?? 0);
     expect(ids(sortOffers([expensive, unproven, solid]))).toEqual([solid.id, unproven.id, expensive.id]);
-  });
-
-  it('highlights the unique best pending offers', () => {
-    const cheap = offer({ price: 300, startInHours: 40, rating: 4.1, reviews: 3 });
-    const early = offer({ price: 450, startInHours: 2, rating: null });
-    const star = offer({ price: 500, startInHours: 30, rating: 4.9, reviews: 50 });
-    const withdrawnCheaper = offer({ status: 'withdrawn', price: 100 });
-    expect(getOfferHighlights([cheap, early, star, withdrawnCheaper])).toEqual({
-      lowestPriceOfferId: cheap.id,
-      earliestOfferId: early.id,
-      topRatedOfferId: star.id,
-    });
-  });
-
-  it('omits highlights with fewer than two pending offers or ties', () => {
-    expect(getOfferHighlights([offer()])).toEqual({ lowestPriceOfferId: null, earliestOfferId: null, topRatedOfferId: null });
-    const a = offer({ price: 300, startInHours: 5, rating: null });
-    const b = offer({ price: 300, startInHours: 5, rating: null });
-    expect(getOfferHighlights([a, b])).toEqual({ lowestPriceOfferId: null, earliestOfferId: null, topRatedOfferId: null });
   });
 });

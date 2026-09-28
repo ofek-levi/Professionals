@@ -18,11 +18,6 @@ export interface ServerHooks {
   onMessageSent(ctx: ServerContext, message: Message): void;
 }
 
-export const NO_HOOKS: ServerHooks = {
-  onRequestPublished: () => undefined,
-  onMessageSent: () => undefined,
-};
-
 export interface ServerContext {
   readonly db: MockDatabase;
   /** Injected clock. */
@@ -35,7 +30,7 @@ export interface ServerContext {
   readonly hooks: ServerHooks;
 }
 
-export interface UnitOfWorkDeps {
+interface UnitOfWorkDeps {
   db: MockDatabase;
   clock: () => Date;
   bus: MockEventBus;

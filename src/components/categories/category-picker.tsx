@@ -1,15 +1,14 @@
 import { useState } from 'react';
-import { Pressable, ScrollView, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { useCategoryLookup } from '@/hooks/queries/use-category-catalog';
 import { useAppLanguage, useLocalizedText } from '@/i18n/hooks';
-import { makeStyles, useTheme } from '@/theme';
+import { makeStyles } from '@/theme';
 import type { CategoryId, ProfessionalCategory } from '@/types/domain';
 
 import { AppText } from '../ui/app-text';
 import { Button } from '../ui/button';
-import { Chip } from '../ui/chip';
 import { haptics } from '../ui/haptics';
 import { Icon } from '../ui/icon';
 import { InlineAlert } from '../ui/inline-alert';
@@ -20,24 +19,18 @@ import { CategoryChip } from './category-chip';
 import { CategoryIcon } from './category-icon';
 
 interface CategoryPickerBaseProps {
-  /** Restrict the choice (e.g. to a professional's own categories). */
-  allowedCategoryIds?: readonly CategoryId[];
-  /** Focus the search field on mount. */
-  autoFocusSearch?: boolean;
-  /** Hide the search field (short lists). */
-  hideSearch?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-export interface CategoryPickerSingleProps extends CategoryPickerBaseProps {
+interface CategoryPickerSingleProps extends CategoryPickerBaseProps {
   /** Customer request: exactly one category. */
   mode: 'single';
   value: CategoryId | null;
   onChange: (id: CategoryId) => void;
 }
 
-export interface CategoryPickerMultipleProps extends CategoryPickerBaseProps {
+interface CategoryPickerMultipleProps extends CategoryPickerBaseProps {
   /** Professional profile: any number of categories. */
   mode: 'multiple';
   value: readonly CategoryId[];
@@ -45,39 +38,31 @@ export interface CategoryPickerMultipleProps extends CategoryPickerBaseProps {
   maxSelected?: number;
 }
 
-export type CategoryPickerProps = CategoryPickerSingleProps | CategoryPickerMultipleProps;
-
-type GroupFilter = 'all' | string;
+type CategoryPickerProps = CategoryPickerSingleProps | CategoryPickerMultipleProps;
 
 /**
- * Searchable category picker grouped by catalog group. Search covers localized names, descriptions
- * and keywords in both languages. Renders plain views (no virtualized list) so it can be embedded in
- * a `Screen` or a `Sheet` scroll view.
+ * Searchable category picker: plain rows (icon + name) in one soft group per catalog group, with a
+ * check on the selected one (single) or checkboxes (multiple). Search covers localized names,
+ * descriptions and keywords in both languages. Renders plain views (no virtualized list) so it can
+ * be embedded in a `Screen` or a `Sheet` scroll view.
  */
 export function CategoryPicker(props: CategoryPickerProps) {
-  const { allowedCategoryIds, autoFocusSearch = false, hideSearch = false, style, testID } = props;
+  const { style, testID } = props;
   const styles = useStyles();
-  const theme = useTheme();
   const { t } = useTranslation('common');
   const language = useAppLanguage();
   const localize = useLocalizedText();
   const lookup = useCategoryLookup();
   const [query, setQuery] = useState('');
-  const [groupFilter, setGroupFilter] = useState<GroupFilter>('all');
 
-  const available = allowedCategoryIds
-    ? lookup.categories.filter((category) => allowedCategoryIds.includes(category.id))
-    : lookup.categories;
   const selectedIds: readonly CategoryId[] = props.mode === 'single' ? (props.value ? [props.value] : []) : props.value;
   const maxSelected = props.mode === 'multiple' ? props.maxSelected : undefined;
   const limitReached = typeof maxSelected === 'number' && selectedIds.length >= maxSelected;
   const searching = query.trim().length > 0;
-  const results = searching ? lookup.searchCategories(query, language).filter((category) => available.includes(category)) : [];
+  const results = searching ? lookup.searchCategories(query, language) : [];
   const groups = lookup.groups
-    .filter((group) => groupFilter === 'all' || group.id === groupFilter)
-    .map((group) => ({ group, items: available.filter((category) => category.groupId === group.id) }))
+    .map((group) => ({ group, items: lookup.categories.filter((category) => category.groupId === group.id) }))
     .filter((section) => section.items.length > 0);
-  const showGroupFilter = !searching && lookup.groups.filter((group) => available.some((c) => c.groupId === group.id)).length > 1;
 
   const toggle = (id: CategoryId) => {
     haptics.selection();
@@ -92,68 +77,52 @@ export function CategoryPicker(props: CategoryPickerProps) {
     }
   };
 
-  const renderRow = (category: ProfessionalCategory, showGroup: boolean) => {
+  const renderRow = (category: ProfessionalCategory, index: number) => {
     const selected = selectedIds.includes(category.id);
     const disabled = !selected && limitReached;
     const name = localize(category.name);
-    const subtitle = showGroup ? localize(lookup.getGroup(category.groupId)?.name) : localize(category.description);
     return (
       <Pressable
         key={category.id}
         accessibilityRole={props.mode === 'single' ? 'radio' : 'checkbox'}
-        accessibilityLabel={subtitle ? `${name}, ${subtitle}` : name}
+        accessibilityLabel={name}
         accessibilityState={{ checked: selected, disabled }}
         disabled={disabled}
         onPress={() => toggle(category.id)}
-        style={({ pressed }) => [
-          styles.row,
-          selected ? styles.rowSelected : null,
-          pressed ? styles.rowPressed : null,
-          disabled ? styles.rowDisabled : null,
-        ]}
+        style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null, disabled ? styles.rowDisabled : null]}
         testID={`category-option-${category.id}`}
       >
         <CategoryIcon categoryId={category.id} size="sm" />
-        <View style={styles.rowTexts}>
-          <AppText variant="bodyStrong" numberOfLines={1}>
+        <View style={[styles.rowMain, index > 0 ? styles.divider : null]}>
+          <AppText variant={selected ? 'bodyStrong' : 'body'} color={selected ? 'primary' : 'default'} numberOfLines={1} style={styles.rowName}>
             {name}
           </AppText>
-          {subtitle ? (
-            <AppText variant="caption" color="muted" numberOfLines={1}>
-              {subtitle}
-            </AppText>
-          ) : null}
+          {props.mode === 'single' ? (
+            selected ? <Icon name="check" size={20} color="primary" /> : null
+          ) : (
+            <View style={[styles.checkbox, selected ? styles.checkboxSelected : null]}>
+              {selected ? <Icon name="check" size={16} color="onPrimary" /> : null}
+            </View>
+          )}
         </View>
-        {props.mode === 'single' ? (
-          <View style={[styles.radio, selected ? { borderColor: theme.colors.primary } : null]}>
-            {selected ? <View style={styles.radioDot} /> : null}
-          </View>
-        ) : (
-          <View style={[styles.checkbox, selected ? styles.checkboxSelected : null]}>
-            {selected ? <Icon name="check" size={16} color="onPrimary" /> : null}
-          </View>
-        )}
       </Pressable>
     );
   };
 
   return (
     <View style={[styles.container, style]} testID={testID}>
-      {!hideSearch ? (
-        <TextField
-          value={query}
-          onChangeText={setQuery}
-          placeholder={t('categoryPicker.searchPlaceholder')}
-          accessibilityLabel={t('categoryPicker.searchLabel')}
-          leftIcon="magnify"
-          clearable
-          autoFocus={autoFocusSearch}
-          autoCorrect={false}
-          autoCapitalize="none"
-          returnKeyType="search"
-          testID="category-search"
-        />
-      ) : null}
+      <TextField
+        value={query}
+        onChangeText={setQuery}
+        placeholder={t('categoryPicker.searchPlaceholder')}
+        accessibilityLabel={t('categoryPicker.searchLabel')}
+        leftIcon="magnify"
+        clearable
+        autoCorrect={false}
+        autoCapitalize="none"
+        returnKeyType="search"
+        testID="category-search"
+      />
 
       {props.mode === 'multiple' && props.value.length > 0 ? (
         <View style={styles.summary}>
@@ -178,31 +147,13 @@ export function CategoryPicker(props: CategoryPickerProps) {
         </View>
       ) : null}
 
-      {showGroupFilter ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters} keyboardShouldPersistTaps="handled">
-          <Chip label={t('categoryPicker.allServices')} size="sm" selected={groupFilter === 'all'} onPress={() => setGroupFilter('all')} />
-          {lookup.groups
-            .filter((group) => available.some((category) => category.groupId === group.id))
-            .map((group) => (
-              <Chip
-                key={group.id}
-                label={localize(group.name)}
-                icon={group.icon}
-                size="sm"
-                selected={groupFilter === group.id}
-                onPress={() => setGroupFilter(groupFilter === group.id ? 'all' : group.id)}
-              />
-            ))}
-        </ScrollView>
-      ) : null}
-
       {searching ? (
         results.length > 0 ? (
           <View style={styles.section}>
             <AppText variant="label" color="muted" accessibilityLiveRegion="polite">
               {t('categoryPicker.resultsCount', { count: results.length })}
             </AppText>
-            <View style={styles.list}>{results.map((category) => renderRow(category, true))}</View>
+            <View style={styles.group}>{results.map(renderRow)}</View>
           </View>
         ) : (
           <EmptyState
@@ -216,16 +167,10 @@ export function CategoryPicker(props: CategoryPickerProps) {
       ) : (
         groups.map(({ group, items }) => (
           <View key={group.id} style={styles.section}>
-            <View style={styles.groupHeader}>
-              <CategoryIcon icon={group.icon} groupId={group.id} size="xs" />
-              <AppText variant="subheading" accessibilityRole="header" style={styles.groupTitle} numberOfLines={1}>
-                {localize(group.name)}
-              </AppText>
-              <AppText variant="caption" color="muted">
-                {t('categoryPicker.servicesCount', { count: items.length })}
-              </AppText>
-            </View>
-            <View style={styles.list}>{items.map((category) => renderRow(category, false))}</View>
+            <AppText variant="label" color="muted" accessibilityRole="header" numberOfLines={1}>
+              {localize(group.name)}
+            </AppText>
+            <View style={styles.group}>{items.map(renderRow)}</View>
           </View>
         ))
       )}
@@ -233,7 +178,7 @@ export function CategoryPicker(props: CategoryPickerProps) {
   );
 }
 
-export type CategoryPickerSheetProps = CategoryPickerProps & {
+type CategoryPickerSheetProps = CategoryPickerProps & {
   visible: boolean;
   onClose: () => void;
   title?: string;
@@ -254,8 +199,6 @@ export function CategoryPickerSheet(props: CategoryPickerSheetProps) {
         <CategoryPicker
           mode="single"
           value={props.value}
-          allowedCategoryIds={props.allowedCategoryIds}
-          hideSearch={props.hideSearch}
           onChange={(id) => {
             onChange(id);
             onClose();
@@ -278,8 +221,6 @@ export function CategoryPickerSheet(props: CategoryPickerSheetProps) {
         value={props.value}
         onChange={props.onChange}
         maxSelected={props.maxSelected}
-        allowedCategoryIds={props.allowedCategoryIds}
-        hideSearch={props.hideSearch}
       />
     </Sheet>
   );
@@ -302,40 +243,19 @@ const useStyles = makeStyles((t) => ({
     flexWrap: 'wrap',
     gap: t.spacing.sm,
   },
-  filters: {
-    gap: t.spacing.sm,
-    paddingVertical: t.spacing.xxs,
-  },
   section: {
     gap: t.spacing.sm,
   },
-  groupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.sm,
-    paddingTop: t.spacing.xs,
-  },
-  groupTitle: {
-    flex: 1,
-  },
-  list: {
-    gap: t.spacing.xs,
+  group: {
+    borderRadius: t.radii.lg,
+    backgroundColor: t.colors.surface,
+    overflow: 'hidden',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: t.spacing.md,
-    minHeight: 60,
-    paddingVertical: t.spacing.sm,
-    paddingHorizontal: t.spacing.md,
-    borderRadius: t.radii.md,
-    borderWidth: 1,
-    borderColor: t.colors.border,
-    backgroundColor: t.colors.surface,
-  },
-  rowSelected: {
-    borderColor: t.colors.primary,
-    backgroundColor: t.colors.primarySoft,
+    paddingStart: t.spacing.lg,
   },
   rowPressed: {
     backgroundColor: t.colors.surfacePressed,
@@ -343,24 +263,20 @@ const useStyles = makeStyles((t) => ({
   rowDisabled: {
     opacity: 0.45,
   },
-  rowTexts: {
+  rowMain: {
     flex: 1,
-    gap: t.spacing.xxs,
-  },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: t.colors.borderStrong,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: t.spacing.md,
+    minHeight: 56,
+    paddingEnd: t.spacing.lg,
   },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: t.colors.primary,
+  divider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: t.colors.border,
+  },
+  rowName: {
+    flex: 1,
   },
   checkbox: {
     width: 22,
@@ -372,7 +288,7 @@ const useStyles = makeStyles((t) => ({
     justifyContent: 'center',
   },
   checkboxSelected: {
-    backgroundColor: t.colors.primary,
+    backgroundColor: t.colors.primaryFill,
     borderColor: t.colors.primary,
   },
 }));

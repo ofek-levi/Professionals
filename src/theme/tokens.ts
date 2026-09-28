@@ -4,7 +4,7 @@
  */
 import type { StatusTone } from '@/constants/tones';
 
-export interface ToneColors {
+interface ToneColors {
   /** Foreground (text/icon) color. */
   fg: string;
   /** Soft background. */
@@ -14,19 +14,34 @@ export interface ToneColors {
 }
 
 export interface ColorPalette {
+  /** Screen background: white (light) / near-black (dark). */
   background: string;
+  /** Soft filled surface for content groups (cards, list groups, inputs, secondary buttons). */
   surface: string;
+  /** Slightly stronger fill (nested groups, tracks, placeholders). */
   surfaceMuted: string;
+  /** Pressed state of filled surfaces. */
   surfacePressed: string;
+  /** Floating layers only: sheets, dialogs, toasts. */
+  surfaceElevated: string;
+  /** Hairline dividers and input outlines. */
   border: string;
   borderStrong: string;
   text: string;
   textSecondary: string;
   textMuted: string;
   textInverse: string;
+  /** Brand color for text, icons, links, dots and bars. */
   primary: string;
   primaryPressed: string;
   primarySoft: string;
+  /**
+   * Brand fill behind `onPrimary` content (filled buttons, selected tiles and chips, count
+   * bubbles, own chat bubbles). Equals `primary` in light mode; deeper in dark mode, where the
+   * lighter `primary` keeps text readable on the dark background but not white labels on it.
+   */
+  primaryFill: string;
+  primaryFillPressed: string;
   onPrimary: string;
   accent: string;
   accentSoft: string;
@@ -46,86 +61,94 @@ export interface ColorPalette {
 }
 
 const lightTones: Record<StatusTone, ToneColors> = {
-  neutral: { fg: '#4B5563', bg: '#F1F3F7', solid: '#6B7280' },
-  info: { fg: '#1864AB', bg: '#E7F5FF', solid: '#1C7ED6' },
-  success: { fg: '#2B8A3E', bg: '#EBFBEE', solid: '#2F9E44' },
-  warning: { fg: '#C25E00', bg: '#FFF4E6', solid: '#F08C00' },
-  danger: { fg: '#C92A2A', bg: '#FFF0F0', solid: '#E03131' },
-  accent: { fg: '#087F5B', bg: '#E6FCF5', solid: '#0CA678' },
-  brand: { fg: '#364FC7', bg: '#EDF1FF', solid: '#3B5BDB' },
+  neutral: { fg: '#4A4F59', bg: '#F1F2F4', solid: '#6B7079' },
+  info: { fg: '#1E63A8', bg: '#EAF3FC', solid: '#1C7ED6' },
+  success: { fg: '#2B7A3D', bg: '#EAF6EC', solid: '#2B8A3E' },
+  warning: { fg: '#B25600', bg: '#FFF3E5', solid: '#F08C00' },
+  danger: { fg: '#C23030', bg: '#FDEEEE', solid: '#E03131' },
+  accent: { fg: '#0B7456', bg: '#E7F7F1', solid: '#0CA678' },
+  brand: { fg: '#3450C4', bg: '#EEF1FD', solid: '#3B5BDB' },
 };
 
 const darkTones: Record<StatusTone, ToneColors> = {
-  neutral: { fg: '#C3CAD9', bg: 'rgba(195, 202, 217, 0.12)', solid: '#8B93A7' },
-  info: { fg: '#74C0FC', bg: 'rgba(116, 192, 252, 0.14)', solid: '#339AF0' },
-  success: { fg: '#8CE99A', bg: 'rgba(140, 233, 154, 0.13)', solid: '#40C057' },
-  warning: { fg: '#FFC078', bg: 'rgba(255, 192, 120, 0.14)', solid: '#FD7E14' },
-  danger: { fg: '#FFA8A8', bg: 'rgba(255, 168, 168, 0.14)', solid: '#FA5252' },
-  accent: { fg: '#63E6BE', bg: 'rgba(99, 230, 190, 0.13)', solid: '#20C997' },
-  brand: { fg: '#A5B8FF', bg: 'rgba(110, 139, 255, 0.18)', solid: '#6E8BFF' },
+  neutral: { fg: '#C7CAD1', bg: 'rgba(199, 202, 209, 0.10)', solid: '#8D919A' },
+  info: { fg: '#7CBFF7', bg: 'rgba(124, 191, 247, 0.12)', solid: '#339AF0' },
+  success: { fg: '#8FD9A0', bg: 'rgba(143, 217, 160, 0.12)', solid: '#2B8A3E' },
+  warning: { fg: '#F7BE7C', bg: 'rgba(247, 190, 124, 0.12)', solid: '#FD7E14' },
+  danger: { fg: '#F7A6A6', bg: 'rgba(247, 166, 166, 0.12)', solid: '#D62F2F' },
+  accent: { fg: '#6EDDBB', bg: 'rgba(110, 221, 187, 0.11)', solid: '#20C997' },
+  brand: { fg: '#A9B9FF', bg: 'rgba(122, 147, 255, 0.15)', solid: '#6E8BFF' },
 };
 
-export const lightColors: ColorPalette = {
-  background: '#F5F6FA',
-  surface: '#FFFFFF',
-  surfaceMuted: '#F0F2F7',
-  surfacePressed: '#E8EBF3',
-  border: '#E3E6EE',
-  borderStrong: '#CBD1DD',
-  text: '#111827',
-  textSecondary: '#4B5563',
-  textMuted: '#8A93A6',
+const lightColors: ColorPalette = {
+  background: '#FFFFFF',
+  surface: '#F4F5F7',
+  surfaceMuted: '#ECEDF0',
+  surfacePressed: '#E6E7EB',
+  surfaceElevated: '#FFFFFF',
+  border: '#E8E9ED',
+  borderStrong: '#D3D6DC',
+  text: '#15171C',
+  textSecondary: '#50555F',
+  // ≥ 4.5:1 on the background and on `surface` (meta lines, timestamps, hints).
+  textMuted: '#6B7079',
   textInverse: '#FFFFFF',
   primary: '#3B5BDB',
-  primaryPressed: '#2F49B8',
-  primarySoft: '#EDF1FF',
+  primaryPressed: '#2F4BC0',
+  primarySoft: '#EEF1FD',
+  primaryFill: '#3B5BDB',
+  primaryFillPressed: '#2F4BC0',
   onPrimary: '#FFFFFF',
   accent: '#0CA678',
-  accentSoft: '#E6FCF5',
+  accentSoft: '#E7F7F1',
   success: '#2F9E44',
   warning: '#F08C00',
   danger: '#E03131',
-  dangerSoft: '#FFF0F0',
+  dangerSoft: '#FDEEEE',
   info: '#1C7ED6',
-  star: '#FAB005',
-  overlay: 'rgba(15, 23, 42, 0.5)',
-  skeleton: '#E6E9F0',
+  star: '#F5A623',
+  overlay: 'rgba(12, 14, 20, 0.42)',
+  skeleton: '#EDEEF1',
   tabBar: '#FFFFFF',
-  shadow: 'rgba(17, 24, 39, 0.08)',
-  heroGradient: ['#3B5BDB', '#5F3DC4'],
-  proGradient: ['#087F5B', '#1864AB'],
+  shadow: 'rgba(16, 18, 24, 0.08)',
+  heroGradient: ['#3B5BDB', '#4A67E0'],
+  proGradient: ['#3B5BDB', '#4A67E0'],
   tones: lightTones,
 };
 
 export const darkColors: ColorPalette = {
-  background: '#0B1020',
-  surface: '#141B2F',
-  surfaceMuted: '#1B2339',
-  surfacePressed: '#222C46',
-  border: '#27314B',
-  borderStrong: '#36425F',
-  text: '#F3F5FA',
-  textSecondary: '#B6BED1',
-  textMuted: '#7F8AA3',
-  textInverse: '#0B1020',
+  background: '#0C0D10',
+  surface: '#17181C',
+  surfaceMuted: '#202227',
+  surfacePressed: '#26282E',
+  surfaceElevated: '#1B1C21',
+  border: '#24262B',
+  borderStrong: '#33363D',
+  text: '#F2F3F5',
+  textSecondary: '#AEB2BA',
+  textMuted: '#7D818A',
+  textInverse: '#0C0D10',
   primary: '#6E8BFF',
   primaryPressed: '#5A76EB',
-  primarySoft: 'rgba(110, 139, 255, 0.16)',
+  primarySoft: 'rgba(110, 139, 255, 0.15)',
+  // White labels need a deeper fill than the text-friendly `primary` (≈ 4.8:1).
+  primaryFill: '#4466F0',
+  primaryFillPressed: '#3A57D9',
   onPrimary: '#FFFFFF',
   accent: '#20C997',
-  accentSoft: 'rgba(32, 201, 151, 0.14)',
+  accentSoft: 'rgba(32, 201, 151, 0.12)',
   success: '#40C057',
   warning: '#FD7E14',
   danger: '#FA5252',
-  dangerSoft: 'rgba(250, 82, 82, 0.14)',
+  dangerSoft: 'rgba(250, 82, 82, 0.12)',
   info: '#339AF0',
   star: '#FCC419',
   overlay: 'rgba(0, 0, 0, 0.6)',
-  skeleton: '#1F2840',
-  tabBar: '#10172A',
-  shadow: 'rgba(0, 0, 0, 0.4)',
-  heroGradient: ['#3048B8', '#4C2D9E'],
-  proGradient: ['#0B6B4F', '#174E86'],
+  skeleton: '#1D1F24',
+  tabBar: '#0C0D10',
+  shadow: 'rgba(0, 0, 0, 0.5)',
+  heroGradient: ['#3A55C9', '#4461D6'],
+  proGradient: ['#3A55C9', '#4461D6'],
   tones: darkTones,
 };
 
@@ -163,8 +186,11 @@ export const fontFamilies = {
 
 export const typography = {
   display: { fontFamily: fontFamilies.bold, fontSize: 30, lineHeight: 38 },
+  /** Tab screen titles. */
+  largeTitle: { fontFamily: fontFamilies.bold, fontSize: 28, lineHeight: 34 },
   title: { fontFamily: fontFamilies.semibold, fontSize: 22, lineHeight: 30 },
-  heading: { fontFamily: fontFamilies.semibold, fontSize: 18, lineHeight: 24 },
+  /** Section titles, sheet titles. */
+  heading: { fontFamily: fontFamilies.semibold, fontSize: 17, lineHeight: 24 },
   subheading: { fontFamily: fontFamilies.medium, fontSize: 16, lineHeight: 22 },
   body: { fontFamily: fontFamilies.regular, fontSize: 15, lineHeight: 22 },
   bodyStrong: { fontFamily: fontFamilies.medium, fontSize: 15, lineHeight: 22 },
@@ -175,18 +201,22 @@ export const typography = {
 } as const;
 export type TypographyVariant = keyof typeof typography;
 
+/** Restrained shadows – only for floating layers (sheets, dialogs, toasts) and selected segments. */
 export const shadows = {
   none: {},
-  sm: { boxShadow: '0px 1px 3px rgba(17, 24, 39, 0.08)' },
-  md: { boxShadow: '0px 4px 14px rgba(17, 24, 39, 0.08)' },
-  lg: { boxShadow: '0px 10px 30px rgba(17, 24, 39, 0.14)' },
+  sm: { boxShadow: '0px 1px 2px rgba(16, 18, 24, 0.08)' },
+  md: { boxShadow: '0px 4px 12px rgba(16, 18, 24, 0.06)' },
+  lg: { boxShadow: '0px 12px 32px rgba(16, 18, 24, 0.12)' },
 } as const;
 
 export const layout = {
   /** Minimum touch target (accessibility). */
   minTouchSize: 44,
   maxContentWidth: 720,
-  tabBarHeight: 64,
+  /** Tab bar height above the bottom safe-area inset. */
+  tabBarHeight: 56,
+  /** Vertical space between screen sections. */
+  sectionGap: 28,
 } as const;
 
 export interface Theme {

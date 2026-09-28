@@ -45,7 +45,7 @@ src/
   app/                      Expo Router routes – thin files that render screens from src/features
   components/
     ui/                     design system primitives (AppText, Button, Card, Badge, TextField, …)
-    categories/ requests/ offers/ professionals/ jobs/ location/ map/ forms/ notifications/
+    categories/ requests/ offers/ professionals/ jobs/ location/ map/ forms/
   features/
     auth/                   session provider, role guards, demo sign-in
     customer/ professional/ requests/ offers/ jobs/ notifications/ messaging/ reviews/ profiles/ settings/
@@ -61,6 +61,7 @@ src/
   hooks/
     queries/                useXxx query hooks + query-keys.ts (ALL keys live there)
     mutations/              useXxx mutation hooks + invalidation.ts
+  providers/                AppProviders, navigation theme + tab bar options, realtime wiring, bootstrap
   types/
     domain/                 entities (User, ServiceRequest, Offer, Job, Review, …)
     api/                    request/response DTOs, pagination, error codes
@@ -127,7 +128,7 @@ Who can do what:
   is the app singleton. Requests go through `handle(TransportRequest)` which: awaits `ready()`,
   authenticates the bearer token, runs scheduled tasks (offer expiry, appointment reminders), routes
   to a handler, deep-clones the JSON response (simulates serialization) and maps thrown
-  `MockHttpError`s to `{ status, data: ApiErrorBody }`.
+  `DomainError`s (`src/features/shared/domain-error.ts`) to `{ status, data: ApiErrorBody }`.
 - Access tokens are `demo-token:<userId>`.
 - The in-memory DB is seeded from `src/mocks/data` (timestamps relative to "now"), persisted to
   AsyncStorage (debounced) and can be reset (`demoTools.resetDemoData()`).
@@ -194,8 +195,10 @@ Errors: `ApiErrorBody { code, message, fieldErrors? }` with HTTP status: 400/422
 ## 5. React Query conventions
 
 - Keys: only from `src/hooks/queries/query-keys.ts`, always scoped by the signed-in user id.
-- One hook per endpoint (`useRequest`, `useNearbyOpenRequests`, `useAcceptOffer`, …). Screens never
-  build keys or call `queryClient` themselves.
+- One hook per endpoint the UI uses (`useRequest`, `useNearbyOpenRequests`, `useAcceptOffer`, …).
+  Screens never build keys or call `queryClient` themselves. Endpoints no screen needs yet (e.g.
+  `GET /professionals` search) keep their typed function in `src/services/api/endpoints` and their
+  mock handler, but get no hook until a screen uses them.
 - Mutations invalidate through helpers in `src/hooks/mutations/invalidation.ts` (e.g.
   `invalidateRequestGraph`). Realtime events reuse the same helpers.
 - Optimistic updates: marking notifications read, sending chat messages, editing profile.
@@ -214,11 +217,23 @@ Errors: `ApiErrorBody { code, message, fieldErrors? }` with HTTP status: 400/422
   `flexDirection: 'row'` mirrors automatically. `AppText` aligns to the start edge.
 - Touch targets ≥ 44pt, `accessibilityRole`/`accessibilityLabel` on interactive elements.
 - Every data screen handles loading (skeleton), error (retry), empty and success states.
-- Destructive/important actions ask for confirmation via `useConfirm()`; results are surfaced with
-  `useToast()`.
+- Only irreversible/important actions ask for confirmation via `useConfirm()` (accept an offer,
+  cancel a request, withdraw an offer, mark a job completed, delete a draft, reset demo data); results
+  are surfaced with `useToast()`. One primary (full-width, usually sticky) action per screen.
+- Navigation: the bottom tabs are the single entry point per feature – customer: Home · Requests ·
+  Inbox · Profile; professional: Home · Explore · Work (`?tab=offers|jobs`) · Inbox
+  (`?tab=updates|messages`) · Profile; the customer's Requests tab takes `?tab=active|past`. Build
+  links with `routes` (`src/lib/routes.ts`); notifications and push payloads resolve through
+  `notificationTargetToHref` straight to these destinations. Offers are seen and acted on from the
+  request screen (`/requests/:id`), for both roles – there is no separate offer screen. Cancelling a
+  booking also lives there only ("Cancel request"; the job screen has no cancel action). The Inbox
+  shows chat messages under Messages only: `new_message` notifications are left out of Updates, and
+  the tab badge is always Updates + Messages (`src/features/notifications/inbox-counts.ts`).
+- Design language and component rules: `src/components/README.md`.
 - Safe areas: use `<Screen>` which handles insets, keyboard avoidance and pull-to-refresh.
 - Stack screens opened with nothing to go back to (deep link, notification on a cold start, web
-  refresh) get a header button to the signed-in role's home (`HeaderHomeButton`, `src/app/_layout.tsx`).
+  refresh) get a header button to the signed-in role's home (`renderHeaderHomeButton`,
+  `src/providers/header-home-button.tsx`, used by `src/app/_layout.tsx`).
 
 ## 7. Localization
 

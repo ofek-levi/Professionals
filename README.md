@@ -2,9 +2,9 @@
 
 A two-sided mobile marketplace that connects **customers** who need help at home (repairs,
 maintenance, renovation, moving, tech and more) with **qualified local professionals**.
-Customers post a request, professionals nearby discover it on a live map and send offers, and the
-customer compares offers and hires the best fit. After that, the two sides track the job, chat and
-leave reviews.
+A customer posts a request in seconds, professionals nearby discover it on a live map and send a
+price and an appointment time, and the customer accepts the best offer. After that, the two sides
+track the job, chat and leave reviews.
 
 Built with **Expo SDK 57** (React Native 0.86, React 19.2, TypeScript 6, Expo Router, React
 Compiler). The app is client-only: an in-app **mock backend** implements the full REST contract
@@ -59,13 +59,13 @@ The job map and location pickers use **react-native-maps**
 ## Demo accounts & walkthrough
 
 There is no registration or password. The sign-in screen lists demo accounts (switch
-**Customer / Professional**). You can switch accounts at any time from **Profile → Settings →
-Switch account**. All data lives in the mock backend and is shared between accounts, so actions
+**Customer / Professional**). You can switch accounts at any time from **Profile → Switch
+account**. All data lives in the mock backend and is shared between accounts, so actions
 by one role show up for the other.
 
 | Account | Role | Good for testing |
 |---|---|---|
-| Noa Levi (Florentin, Tel Aviv) | Customer | Compare 3 offers on a leak, chat with her electrician, review a finished job, continue a draft |
+| Noa Levi (Florentin, Tel Aviv) | Customer | Review 3 offers on a leak, chat with her electrician, review a finished job, continue a draft |
 | Daniel Cohen (Ramat Gan) | Customer | Choose a mover, follow an in-progress Wi-Fi job, publish a request and watch offers arrive live |
 | Avi Mizrahi — AquaFix Plumbing | Professional | Plumbing & leak jobs on the map, pending offer on Noa's leak, reviews |
 | Yael Ben-David — BrightSpark Electric | Professional | Confirm → start → complete Noa's electrical job, chat |
@@ -76,74 +76,90 @@ by one role show up for the other.
 
 ### End-to-end scenario (≈5 minutes)
 
-1. **Customer: Daniel Cohen** → *Request a service* → Plumbing. Describe the problem, optionally add
-   photos, choose the address (search, map pin or current location), pick an urgency
-   (Emergency / Urgent / Normal / Flexible) and optionally a preferred date. Then **Publish**.
-2. Keep the request open. With **Simulated activity** on (Settings → Demo tools, on by default), other plumbers send
-   offers within ~30 seconds. Each one shows a banner (a simulated push notification) and appears
-   in the offers list. Sort by price, date or rating, open **Compare**, and view a pro's profile and
-   reviews.
-3. **Switch to Avi Mizrahi (professional)**. A *new matching request* notification is waiting.
-   **Explore** shows the request on the map (colored by urgency) and in the list, and filters
-   (category, distance, urgency, date, offers) apply to both. Open it; the address is approximate
-   until you are hired. Tap **Send an offer**, then set price, date, time, duration and a message.
-4. **Switch back to Daniel**. Open the request, compare offers and **Accept** Avi's offer. The
-   request becomes *Pro selected*, the other offers are marked *not selected*, and a job and a chat
-   are created.
-5. **Avi**: *Offer accepted* → the job now shows the full address → **Confirm appointment** →
-   **Start job**. Chat with the customer.
+1. **Customer: Daniel Cohen** → Home → **Request a service** (or tap a popular service). On the one
+   request screen pick the service, describe the problem, choose how urgent it is (Normal is
+   preselected), check the address (his default address; **Change** opens the location picker with
+   search, map pin and current location) and optionally add photos. Tap **Post request**.
+2. The request screen opens. With **Simulated activity** on (Settings → Demo tools, on by default),
+   other plumbers send offers within ~30 seconds. Each one shows a banner (a simulated push
+   notification) and appears under **Offers**, sortable by Recommended / Lowest price / Earliest.
+   Tap **View profile** to see a pro's rating and reviews.
+3. **Switch to Avi Mizrahi (professional)**. A *new matching request* update waits in the **Inbox**.
+   **Explore** shows the request on the map (colored by urgency) and in the list; **Filters**
+   (service, distance, urgency) apply to both. Open it: the address is approximate until you are
+   hired. Tap **Send offer**, enter a price, pick a date and a time, optionally add a message, and
+   send.
+4. **Switch back to Daniel**. Open the request and **Accept** Avi's offer. The request becomes
+   *Booked*, the other offers are marked *not selected*, and a job and a chat are created.
+5. **Avi**: *Offer accepted* in the Inbox → the job shows the full address → **Confirm
+   appointment** → **Start job**. Chat with the customer from the job screen.
 6. **Daniel**: **Mark as completed** → **Leave a review**.
 7. **Avi**: *Review received*; the rating and review count update on the public profile.
 
 Other things to try: cancel a request that has offers (the professionals are notified), edit or
-withdraw a pending offer, edit a professional's categories, service area and weekly hours, switch
-to Hebrew (the whole UI mirrors to RTL), dark mode, and **Unreliable network** in Demo tools
-(error states with retry).
+withdraw a pending offer from the request screen, edit a professional's services, service area and
+weekly hours, switch to Hebrew (the whole UI mirrors to RTL), dark mode, and **Unreliable network**
+in Demo tools (error states with retry).
 
 ---
 
 ## Features
 
+Bottom tabs are the main navigation, one entry point per feature:
+
+- **Customer:** Home · Requests · Inbox · Profile
+- **Professional:** Home · Explore · Work · Inbox · Profile
+
 **Customer**
-- Home with a request hero, popular services, browse by service group, a live summary (open
-  requests, waiting offers, active jobs), upcoming jobs, "rate your pro" prompts and recent requests.
-- Multi-step request wizard. Steps: service (from the strict catalog), description, optional photos
-  (multiple, previews, remove), notes, location (search / map pin / GPS with permission fallback),
-  urgency, and optional preferred date and time window. It supports drafts and validates each step.
-- My Requests, grouped as drafts / awaiting offers / with offers / active / completed / cancelled.
-- Request details:
-  - a status timeline;
-  - cancellation with a reason;
-  - offers with sorting (recommended, lowest price, earliest, highest rating, most reviews);
-  - highlight badges and a side-by-side compare table;
-  - explicit acceptance with confirmation.
-- Public professional profiles: bio, categories, rating breakdown, reviews, service area map, weekly
-  hours and business info.
-- Job tracking, chat, completion and reviews.
+- **Home:** a greeting, a "What do you need help with?" card with **Request a service** and a row
+  of popular services, and one **Active** section (up to 3 requests, the ones that need the
+  customer first: offers to review, booked jobs, requests waiting for offers, pros to rate).
+- **New request:** one screen – service, description, urgency (Emergency / Urgent / Normal /
+  Flexible), address (the customer's default address, or search / map pin / GPS) and optional
+  photos – with a sticky **Post request** button. Drafts saved earlier can still be continued,
+  posted or deleted.
+- **Requests tab:** **Active | Past** segments of compact cards with one status line ("3 offers to
+  review", "Waiting for offers", "Booked · Tue 10:00", …).
+- **Request details:** the status line, description, one meta line and photos; offers with a sort
+  control (Recommended / Lowest price / Earliest), **View profile** and **Accept** (with
+  confirmation). After acceptance only the hired pro is shown (appointment, price, **View job**,
+  chat). Cancelling asks for a reason.
+- **Public professional profiles:** rating, about, services, reviews, service area and working
+  hours.
 
 **Professional**
-- Home: earnings, rating, nearby jobs, items that need attention (confirmations, expiring offers),
-  upcoming appointments, pending offers and recent notifications.
-- **Explore jobs:**
-  - an interactive map with the service-area circle and urgency-colored markers;
-  - a preview card for the selected job;
-  - a list view with infinite scroll and sorting;
-  - shared filters for category, distance, urgency, preferred-date window, offer presence and
-    hiding jobs already offered on.
-- Request details that keep the address private until acceptance, plus a submit/edit offer form
-  (price, date, time, duration, message). The form checks the urgency window and working hours
-  and blocks duplicate offers.
-- My Offers by status (edit / withdraw), jobs (upcoming / active / completed), and a
-  confirm → start → complete workflow.
-- A profile editor for categories, service area and radius, weekly availability, contact, business
-  info and starting price, with a profile strength meter.
+- **Home:** a greeting, a "N open jobs near you" card with **Find jobs**, two tiles (pending offers,
+  active jobs) that open the Work tab, and **Up next** (appointments to confirm, the next visit).
+- **Explore:** a map | list toggle over the same results – the service-area circle, urgency-colored
+  markers and a compact preview card on the map, infinite scroll in the list – and one **Filters**
+  sheet (service, distance, urgency).
+- **Request details:** category, urgency, distance and posting time, the description and photos,
+  the approximate area (the exact address is shared once hired), the customer's name and the
+  number of offers so far, with a sticky **Send offer**. Once offered, a compact **Your offer** card
+  with **Edit** / **Withdraw**.
+- **Send offer:** one screen – price, a date (the next days the urgency allows), a 30-minute time
+  slot within the pro's working hours, and an optional message. The same form edits a pending
+  offer; server rejections (duplicate offer, request no longer open, outside the service area) are
+  explained in the form.
+- **Work tab:** **Offers | Jobs** – offers waiting for a reply and past offers; upcoming and completed
+  jobs with this month's total. Jobs follow confirm → start → complete.
+- **Profile editor:** the essentials (photo, names, headline, bio, services, service area and radius,
+  weekly hours, contact) plus a collapsed "More details" section (website, license, insurance,
+  languages, starting price, experience, emergency calls).
 
 **Both roles**
-- Notification center: unread/read, day grouping, mark read, mark all read, deep links. In-app
-  banners act as simulated push notifications.
-- Job chat with optimistic sending, retry, read receipts and day separators.
-- Settings: language (English / עברית with RTL), theme, notification preferences, demo tools
-  (simulated activity, unreliable network, reset data), switch account and sign out.
+- **Inbox:** **Updates | Messages** – notifications grouped by day with unread dots and "Mark all
+  read", and the chats list. The tab badge counts unread updates plus unread messages. In-app
+  banners act as simulated push notifications and deep-link like the notification list.
+- **Job details:** the status, a slim progress indicator and the single next action (Confirm
+  appointment / Start job / Mark as completed / Leave a review) with a chat button, plus the
+  appointment, price, address and the other party.
+- **Chat** with optimistic sending, retry, read receipts and day separators.
+- **Profile tab:** Edit profile, (professionals) View public profile, Settings, Switch account, Sign
+  out.
+- **Settings:** language (English / עברית with RTL), appearance (system / light / dark),
+  notification preferences, and demo tools (simulated activity, unreliable network, reset demo
+  data).
 
 ---
 
@@ -164,6 +180,7 @@ src/
   app/            Expo Router routes (thin; render screens from src/features)
   features/       feature screens + components + pure business logic (state machines, matching,
                   sorting, notification factory, availability, view models)
+  providers/      app providers, navigation theme/tab bar options, realtime wiring, bootstrap
   components/     design system (ui/) + shared domain components (categories, requests, offers,
                   professionals, jobs, location, map, forms)
   hooks/          React Query queries/mutations, centralized query keys and invalidation
@@ -182,8 +199,9 @@ Key decisions:
   `Stack.Protected`, plus shared stack screens and deep links (`professionals://requests/<id>`).
 - **TanStack Query** for all server state. Query keys live in one place and are scoped per user, so
   switching accounts never leaks cached data. Invalidation helpers are centralized and also used
-  by realtime events. Updates are optimistic for notifications, chat and profiles, and job lists use
-  cursor pagination with infinite queries.
+  by realtime events. Updates are optimistic for notifications, chat and profiles. Lists that can
+  grow (requests, offers, notifications, chat messages, reviews) use cursor pagination with infinite
+  queries.
 - **Transport abstraction:** the mock backend receives the same `{ method, path, query, body }`
   requests a server would, with simulated latency, failures and JSON serialization.
 - **Shared business rules:** the state machines and rules in `src/features/*/*.ts` are used by both
@@ -201,7 +219,7 @@ Key decisions:
 
 ## Testing
 
-`npm test` runs 80 Jest suites (479 tests). They cover the category catalog, request/offer/profile
+`npm test` runs 78 Jest suites (455 tests). They cover the category catalog, request/offer/profile
 validation, status transitions, request filtering by category and service area, offer creation
 and duplicate prevention, offer acceptance (including preventing two accepted offers),
 cancellation cascades, offer expiry and reminders, notification generation for every scenario,

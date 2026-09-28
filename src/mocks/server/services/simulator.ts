@@ -25,12 +25,12 @@ import { findMatchingProfessionals } from './matching-service';
 import { counterpartOf, sendMessage } from './messaging-service';
 
 /** Base delays of the simulated offers (a little jitter is added). */
-export const SIMULATED_OFFER_DELAYS_MS = [6_000, 15_000, 28_000] as const;
+const SIMULATED_OFFER_DELAYS_MS = [6_000, 15_000, 28_000] as const;
 export const AUTO_REPLY_DELAY_MS = 4_000;
 /** Client message ids of simulated replies start with this prefix (they never trigger replies). */
-export const AUTO_REPLY_ID_PREFIX = 'sim-';
+const AUTO_REPLY_ID_PREFIX = 'sim-';
 
-export interface SimulatorDeps {
+interface SimulatorDeps {
   /** Runs work in a server unit of work (transaction + event delivery + persistence). */
   run: UnitOfWorkRunner;
   schedule: (callback: () => void, delayMs: number) => void;
@@ -83,7 +83,7 @@ const isAllowed = (request: ServiceRequest, start: Date, now: Date) =>
  * Proposed start respecting urgency (emergency 1–3h, urgent later today/tomorrow, normal 1–3 days,
  * flexible 2–7 days), aligned to 15-minute slots and inside working hours when possible.
  */
-export function proposeSimulatedStart(
+function proposeSimulatedStart(
   request: ServiceRequest,
   professional: Pick<OwnProfessionalProfile, 'availability'>,
   now: Date,
@@ -101,7 +101,7 @@ export function proposeSimulatedStart(
 }
 
 /** A realistic offer payload from `professional` for `request`. */
-export function generateSimulatedOffer(
+function generateSimulatedOffer(
   request: ServiceRequest,
   professional: Pick<OwnProfessionalProfile, 'availability'>,
   now: Date,

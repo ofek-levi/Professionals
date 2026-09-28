@@ -59,9 +59,6 @@ export const validation = {
     urgentWindow: 'Urgent requests need a start time within 3 days',
     durationInvalid: 'Choose a valid duration',
     messageTooLong: `Your message can be up to ${n(APP_CONFIG.offerMessageMaxLength)} characters`,
-    differentFromPreferredDate: 'The customer asked for a different date',
-    outsidePreferredTimeWindow: 'This is outside the customer’s preferred time of day',
-    outsideWorkingHours: 'This is outside your working hours',
   },
   profile: {
     fullNameRequired: 'Enter your full name',

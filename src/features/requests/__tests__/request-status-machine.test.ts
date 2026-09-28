@@ -3,11 +3,8 @@ import { DomainError } from '@/features/shared/domain-error';
 
 import {
   assertRequestTransition,
-  canTransitionRequest,
-  CANCELLABLE_REQUEST_STATUSES,
   getCustomerRequestActions,
   getCustomerRequestSection,
-  REQUEST_TRANSITIONS,
   requestStatusForPendingOffers,
 } from '../request-status-machine';
 
@@ -25,9 +22,10 @@ const EXPECTED: Record<RequestStatus, RequestStatus[]> = {
 describe('request status machine', () => {
   it('matches the documented transition table exactly', () => {
     for (const from of REQUEST_STATUSES) {
-      expect([...REQUEST_TRANSITIONS[from]].sort()).toEqual([...EXPECTED[from]].sort());
       for (const to of REQUEST_STATUSES) {
-        expect(canTransitionRequest(from, to)).toBe(EXPECTED[from].includes(to));
+        const assertion = expect(() => assertRequestTransition(from, to));
+        if (EXPECTED[from].includes(to)) assertion.not.toThrow();
+        else assertion.toThrow(DomainError);
       }
     }
   });
@@ -44,27 +42,23 @@ describe('request status machine', () => {
   });
 
   it('knows which statuses can be cancelled', () => {
-    expect([...CANCELLABLE_REQUEST_STATUSES].sort()).toEqual(
-      ['draft', 'open', 'offers_received', 'professional_selected', 'scheduled'].sort(),
-    );
+    const cancellable = REQUEST_STATUSES.filter((status) => getCustomerRequestActions({ status, pendingOfferCount: 0 }).canCancel);
+    expect([...cancellable].sort()).toEqual(['draft', 'open', 'offers_received', 'professional_selected', 'scheduled'].sort());
   });
 
   it('derives customer actions', () => {
     expect(getCustomerRequestActions({ status: 'draft', pendingOfferCount: 0 })).toEqual({
       canCancel: true,
       canEditDraft: true,
-      canPublish: true,
       canDeleteDraft: true,
-      canReviewOffers: false,
     });
-    expect(getCustomerRequestActions({ status: 'offers_received', pendingOfferCount: 2 })).toMatchObject({
+    expect(getCustomerRequestActions({ status: 'offers_received', pendingOfferCount: 2 })).toEqual({
       canCancel: true,
-      canPublish: false,
-      canReviewOffers: true,
+      canEditDraft: false,
+      canDeleteDraft: false,
     });
     expect(getCustomerRequestActions({ status: 'in_progress', pendingOfferCount: 0 })).toMatchObject({
       canCancel: false,
-      canReviewOffers: false,
     });
   });
 

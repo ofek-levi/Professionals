@@ -1,6 +1,6 @@
-import { DomainError, ERROR_STATUS_BY_CODE, isDomainError } from '../domain-error';
+import { DomainError, isDomainError } from '../domain-error';
 import { createSeededRandom, hashString } from '../seeded-random';
-import { assertTransition, canTransition, terminalStates } from '../state-machine';
+import { assertTransition, canTransition } from '../state-machine';
 
 describe('DomainError', () => {
   it('maps codes to HTTP statuses', () => {
@@ -12,7 +12,7 @@ describe('DomainError', () => {
       code: 'INVALID_STATE_TRANSITION',
       status: 409,
     });
-    expect(ERROR_STATUS_BY_CODE.NETWORK_ERROR).toBe(0);
+    expect(new DomainError('NETWORK_ERROR', 'offline')).toMatchObject({ code: 'NETWORK_ERROR', status: 0 });
   });
 
   it('serializes validation errors with field errors', () => {
@@ -35,7 +35,6 @@ describe('state machine helpers', () => {
     expect(canTransition(table, 'a', 'b')).toBe(true);
     expect(canTransition(table, 'a', 'c')).toBe(false);
     expect(() => assertTransition(table, 'thing', 'b', 'a')).toThrow(DomainError);
-    expect(terminalStates(table)).toEqual(['c']);
   });
 });
 

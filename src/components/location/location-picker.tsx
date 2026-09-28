@@ -16,13 +16,11 @@ import { Icon } from '../ui/icon';
 import { InlineAlert } from '../ui/inline-alert';
 import { TextField } from '../ui/text-field';
 
-export interface LocationPickerProps {
+interface LocationPickerProps {
   value: ServiceLocation | null;
   onChange: (location: ServiceLocation) => void;
   /** Map viewport before anything is selected (e.g. the user's city). */
   initialRegion?: MapRegion;
-  label?: string;
-  required?: boolean;
   /** Already translated error for the whole location. */
   error?: string | null;
   /** Show the apartment/floor/entrance field (default `true`). */
@@ -65,8 +63,6 @@ export function LocationPicker({
   value,
   onChange,
   initialRegion,
-  label,
-  required,
   error,
   showDetailsField = true,
   mapHeight = 220,
@@ -161,7 +157,7 @@ export function LocationPicker({
   const failure = locateError ? FAILURE_KEYS[locateError] : null;
 
   return (
-    <Field label={label ?? t('location:search.label')} required={required} error={error} style={style}>
+    <Field label={t('location:search.label')} error={error} style={style}>
       <View style={styles.container} testID={testID}>
         <TextField
           value={query}

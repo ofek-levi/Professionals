@@ -1,4 +1,4 @@
-/** Spoken languages as multi-select chips. */
+/** Spoken languages as multi-select chips (at least one; the form starts with the UI language). */
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -7,7 +7,7 @@ import { makeStyles } from '@/theme';
 
 import { isLanguageOption, LANGUAGE_OPTIONS } from './pro-form-model';
 
-export interface LanguagesFieldProps {
+interface LanguagesFieldProps {
   value: readonly string[];
   onChange: (languages: string[]) => void;
   error?: string | null;
@@ -19,7 +19,7 @@ export function LanguagesField({ value, onChange, error }: LanguagesFieldProps) 
   // Keep languages from the backend that aren't in the default list.
   const options = [...LANGUAGE_OPTIONS, ...value.filter((code) => !isLanguageOption(code))];
   return (
-    <Field label={t('form.business.languages')} required error={error}>
+    <Field label={t('form.business.languages')} error={error}>
       <View style={styles.chips}>
         {options.map((code) => {
           const selected = value.includes(code);

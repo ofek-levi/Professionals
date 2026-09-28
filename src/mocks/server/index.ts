@@ -27,7 +27,7 @@ import { runScheduledTasks } from './services/scheduler';
 import { createSimulator, type Simulator } from './services/simulator';
 import type { MockServer, MockServerOptions } from './types';
 
-export interface CreateMockServerOptions extends MockServerOptions {
+interface CreateMockServerOptions extends MockServerOptions {
   /** Storage used when `persist` is true (defaults to AsyncStorage). */
   storage?: DatabaseStorage;
   /** Debounce of persisted saves in ms (default 300). */
@@ -177,5 +177,3 @@ export function getMockServer(): InternalMockServer {
   if (!singleton) singleton = createMockServer({ persist: apiConfig.mock.persist, simulation: true });
   return singleton;
 }
-
-export type { MockServer, MockServerOptions } from './types';

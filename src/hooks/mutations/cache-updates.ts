@@ -10,7 +10,7 @@ import type { AppNotification, Conversation, Message, ServiceRequest } from '@/t
 // ─────────────────────────────── Generic ───────────────────────────────
 
 /** Maps every item of an infinite, cursor-paginated cache entry. */
-export function mapPaginatedItems<T>(
+function mapPaginatedItems<T>(
   data: PaginatedInfiniteData<T> | undefined,
   update: (item: T) => T,
 ): PaginatedInfiniteData<T> | undefined {

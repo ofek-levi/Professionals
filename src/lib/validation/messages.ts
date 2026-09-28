@@ -15,7 +15,3 @@ export type ValidationMessageKey = `validation:${ValidationMessagePath}`;
 export function vm<P extends ValidationMessagePath>(path: P): `validation:${P}` {
   return `validation:${path}`;
 }
-
-export function isValidationMessageKey(value: unknown): value is ValidationMessageKey {
-  return typeof value === 'string' && value.startsWith('validation:');
-}

@@ -7,7 +7,7 @@ import { makeStyles, useTheme } from '@/theme';
 import { AppText } from './app-text';
 import { Icon, type IconName, type IconSource } from './icon';
 
-export interface InlineAlertProps {
+interface InlineAlertProps {
   message: string;
   title?: string;
   tone?: StatusTone;
@@ -41,7 +41,7 @@ export function InlineAlert({ message, title, tone = 'info', icon, actionLabel, 
     <View
       testID={testID}
       accessibilityRole={tone === 'danger' || tone === 'warning' ? 'alert' : undefined}
-      style={[styles.container, { backgroundColor: colors.bg, borderColor: colors.bg }, style]}
+      style={[styles.container, { backgroundColor: colors.bg, borderColor: 'transparent' }, style]}
     >
       <Icon name={icon ?? TONE_ICONS[tone]} size={20} color={colors.fg} />
       <View style={styles.texts}>
@@ -70,9 +70,6 @@ export function InlineAlert({ message, title, tone = 'info', icon, actionLabel, 
   );
 }
 
-/** Alias: full-width banner usage reads better as `<Banner />`. */
-export const Banner = InlineAlert;
-export type BannerProps = InlineAlertProps;
 
 const useStyles = makeStyles((t) => ({
   container: {
@@ -81,7 +78,7 @@ const useStyles = makeStyles((t) => ({
     gap: t.spacing.md,
     padding: t.spacing.md + 2,
     borderRadius: t.radii.md,
-    borderWidth: 1,
+    borderWidth: 0,
   },
   texts: {
     flex: 1,

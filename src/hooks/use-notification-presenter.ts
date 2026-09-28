@@ -11,7 +11,7 @@ import type { AppLanguage, AppNotification } from '@/types/domain';
 import { formatCurrency, formatDateTime, formatDistanceKm } from '@/utils/format';
 
 /** Lookups for `getNotificationContent` bound to a catalog and a language. */
-export function createNotificationLookups(catalog: Pick<CategoryLookup, 'getCategory'>, language: AppLanguage): NotificationLookups {
+function createNotificationLookups(catalog: Pick<CategoryLookup, 'getCategory'>, language: AppLanguage): NotificationLookups {
   return {
     categoryName: (categoryId) => pickLocalizedText(catalog.getCategory(categoryId)?.name, language),
     formatPrice: (amount, currency) => formatCurrency(amount, currency, language),

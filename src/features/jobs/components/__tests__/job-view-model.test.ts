@@ -1,7 +1,7 @@
 import { getJobActions } from '@/features/jobs/job-status-machine';
 import type { Job, JobStatus, UserRole } from '@/types/domain';
 
-import { getAppointmentCountdown, getJobTimeline, planJobActions } from '../job-view-model';
+import { getJobTimeline, planJobActions } from '../job-view-model';
 
 type TimelineJob = Pick<Job, 'status' | 'createdAt' | 'confirmedAt' | 'startedAt' | 'completedAt' | 'cancelledAt'>;
 
@@ -69,9 +69,9 @@ describe('planJobActions', () => {
     expect(plan('completed', 'professional')).toEqual({ primary: null, secondary: [], message: true });
   });
 
-  it('gives the customer completion, cancellation and review at the right time', () => {
-    expect(plan('awaiting_confirmation', 'customer')).toEqual({ primary: null, secondary: ['cancel'], message: true });
-    expect(plan('scheduled', 'customer')).toEqual({ primary: null, secondary: ['complete', 'cancel'], message: true });
+  it('gives the customer completion and review at the right time (cancelling lives on the request)', () => {
+    expect(plan('awaiting_confirmation', 'customer')).toEqual({ primary: null, secondary: [], message: true });
+    expect(plan('scheduled', 'customer')).toEqual({ primary: null, secondary: ['complete'], message: true });
     expect(plan('in_progress', 'customer')).toEqual({ primary: 'complete', secondary: [], message: true });
     expect(plan('completed', 'customer')).toEqual({ primary: 'review', secondary: [], message: true });
     expect(plan('completed', 'customer', true)).toEqual({ primary: null, secondary: [], message: true });
@@ -80,21 +80,5 @@ describe('planJobActions', () => {
   it('offers nothing but information once cancelled', () => {
     expect(plan('cancelled', 'customer')).toEqual({ primary: null, secondary: [], message: false });
     expect(plan('cancelled', 'professional')).toEqual({ primary: null, secondary: [], message: false });
-  });
-});
-
-describe('getAppointmentCountdown', () => {
-  const now = new Date(2026, 8, 27, 9, 0);
-
-  it('uses relative time for today, then calendar days', () => {
-    expect(getAppointmentCountdown(new Date(2026, 8, 27, 13, 0), now)).toEqual({ kind: 'soon' });
-    expect(getAppointmentCountdown(new Date(2026, 8, 28, 8, 0), now)).toEqual({ kind: 'tomorrow' });
-    expect(getAppointmentCountdown(new Date(2026, 8, 29, 10, 0), now)).toEqual({ kind: 'days', days: 2 });
-    expect(getAppointmentCountdown(new Date(2026, 8, 27, 8, 0), now)).toEqual({ kind: 'overdue' });
-  });
-
-  it('treats a start within 12 hours as soon, even after midnight', () => {
-    const lateEvening = new Date(2026, 8, 27, 22, 0);
-    expect(getAppointmentCountdown(new Date(2026, 8, 28, 7, 0), lateEvening)).toEqual({ kind: 'soon' });
   });
 });

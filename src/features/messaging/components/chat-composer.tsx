@@ -8,8 +8,7 @@ import { isSendableMessageText } from '@/features/messaging/message-rules';
 import { makeStyles, useTheme } from '@/theme';
 import { alignForTextDirection, getTextDirection } from '@/utils/bidi';
 
-
-export interface ChatComposerProps {
+interface ChatComposerProps {
   value: string;
   onChangeText: (text: string) => void;
   /** Called with the raw text; return `true` when it was sent (clears the input). */
@@ -105,13 +104,12 @@ const useStyles = makeStyles((t) => ({
     justifyContent: 'center',
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: t.colors.border,
-    backgroundColor: t.colors.surfaceMuted,
+    borderColor: 'transparent',
+    backgroundColor: t.colors.surface,
     paddingHorizontal: t.spacing.lg,
   },
   inputFocused: {
-    borderColor: t.colors.primary,
-    backgroundColor: t.colors.surface,
+    borderColor: t.colors.borderStrong,
   },
   inputDisabled: {
     opacity: 0.6,

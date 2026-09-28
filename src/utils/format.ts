@@ -1,5 +1,5 @@
 /**
- * Localized, display-only formatting (money, distances, dates, durations).
+ * Localized, display-only formatting (money, distances, dates and times).
  *
  * Every function is pure given its `language` argument: it never reads the active i18n language,
  * so results are deterministic in tests and on the server. Components normally use the bound
@@ -13,16 +13,13 @@ import { getFixedT } from 'i18next';
 
 import type { AppLanguage, CurrencyCode } from '@/types/domain';
 
-/** Bidi isolation for names/user text interpolated into sentences (see `utils/bidi`). */
-export { isolateText } from './bidi';
-
 /** Anything that can be turned into a `Date`: `Date`, epoch ms, ISO date-time or `YYYY-MM-DD`. */
 export type DateLike = Date | string | number;
 
 const DATE_FNS_LOCALES = { en: enUS, he } as const;
 
 /** BCP-47 locale used for `Intl` number formatting per app language. */
-export const INTL_LOCALES: Record<AppLanguage, string> = { en: 'en-US', he: 'he-IL' };
+const INTL_LOCALES: Record<AppLanguage, string> = { en: 'en-US', he: 'he-IL' };
 
 /** Named date layouts. Hebrew layouts follow local conventions ("27 בספט׳ 2026"). */
 export type DatePreset =
@@ -30,11 +27,8 @@ export type DatePreset =
   | 'medium'
   | 'long'
   | 'dayMonth'
-  | 'dayOfMonth'
-  | 'monthShort'
   | 'weekday'
-  | 'weekdayShort'
-  | 'monthYear';
+  | 'weekdayShort';
 
 const DATE_PATTERNS: Record<AppLanguage, Record<DatePreset, string>> = {
   en: {
@@ -42,22 +36,16 @@ const DATE_PATTERNS: Record<AppLanguage, Record<DatePreset, string>> = {
     medium: 'MMM d, yyyy',
     long: 'EEEE, MMMM d, yyyy',
     dayMonth: 'MMM d',
-    dayOfMonth: 'd',
-    monthShort: 'MMM',
     weekday: 'EEEE',
     weekdayShort: 'EEE',
-    monthYear: 'MMMM yyyy',
   },
   he: {
     short: 'EEE, d בMMM',
     medium: 'd בMMM yyyy',
     long: 'EEEE, d בMMMM yyyy',
     dayMonth: 'd בMMM',
-    dayOfMonth: 'd',
-    monthShort: 'MMM',
     weekday: 'EEEE',
     weekdayShort: 'EEE',
-    monthYear: 'MMMM yyyy',
   },
 };
 
@@ -78,7 +66,7 @@ function getNumberFormat(language: AppLanguage, options: Intl.NumberFormatOption
 }
 
 /** Converts a `DateLike` to a `Date`. `YYYY-MM-DD` strings are interpreted as local midnight. */
-export function toDateValue(value: DateLike): Date {
+function toDateValue(value: DateLike): Date {
   if (value instanceof Date) return value;
   if (typeof value === 'number') return new Date(value);
   return parseISO(value);
@@ -201,22 +189,6 @@ export interface CasingOptions {
   casing?: TextCasing;
 }
 
-/**
- * `Today`, `Tomorrow`, `Yesterday`, the weekday name within the coming week, otherwise a short
- * date (`Oct 5` / `5 באוק׳`).
- */
-export function formatDayLabel(value: DateLike, language: AppLanguage, now: Date = new Date(), options: CasingOptions = {}): string {
-  const date = toDateValue(value);
-  if (!isValid(date)) return '';
-  const days = differenceInCalendarDays(date, now);
-  const casing = options.casing ?? 'sentence';
-  if (days === 0) return relativeWord(language, 'today', casing);
-  if (days === 1) return relativeWord(language, 'tomorrow', casing);
-  if (days === -1) return relativeWord(language, 'yesterday', casing);
-  if (days > 1 && days < 7) return formatDate(date, language, 'weekday');
-  return formatDate(date, language, 'dayMonth');
-}
-
 export interface FormatDateTimeOptions extends CasingOptions {
   /** Date layout when the date is not replaced by a relative day. Defaults to `short`. */
   preset?: DatePreset;
@@ -229,9 +201,14 @@ export interface FormatDateTimeOptions extends CasingOptions {
 export function formatDateLabel(value: DateLike, language: AppLanguage, options: FormatDateTimeOptions = {}): string {
   const date = toDateValue(value);
   if (!isValid(date)) return '';
-  const { preset = 'short', relativeDay = true, now = new Date(), casing } = options;
-  const days = differenceInCalendarDays(date, now);
-  return relativeDay && Math.abs(days) <= 1 ? formatDayLabel(date, language, now, { casing }) : formatDate(date, language, preset);
+  const { preset = 'short', relativeDay = true, now = new Date(), casing = 'sentence' } = options;
+  if (relativeDay) {
+    const days = differenceInCalendarDays(date, now);
+    if (days === 0) return relativeWord(language, 'today', casing);
+    if (days === 1) return relativeWord(language, 'tomorrow', casing);
+    if (days === -1) return relativeWord(language, 'yesterday', casing);
+  }
+  return formatDate(date, language, preset);
 }
 
 /**
@@ -261,23 +238,4 @@ export function formatRelative(value: DateLike, language: AppLanguage, now: Date
     locale: DATE_FNS_LOCALES[language],
     roundingMethod: 'floor',
   });
-}
-
-/**
- * Human duration. `long`: `30 minutes`, `2 hours`, `1h 30m`; `short`: `30m`, `2h`, `1h 30m`.
- *
- * Note: takes the language (not a `t` function) so it stays pure and usable from any namespace.
- */
-export function formatDuration(minutes: number, language: AppLanguage, style: 'long' | 'short' = 'long'): string {
-  const total = Math.max(0, Math.round(minutes));
-  const hours = Math.floor(total / 60);
-  const rest = total % 60;
-  const translate = t(language);
-  if (hours === 0) {
-    return style === 'long' ? translate('units.minutes', { count: rest }) : translate('units.minutesShort', { minutes: rest });
-  }
-  if (rest === 0) {
-    return style === 'long' ? translate('units.hours', { count: hours }) : translate('units.hoursShort', { hours });
-  }
-  return translate('units.durationShort', { hours, minutes: rest });
 }

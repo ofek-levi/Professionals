@@ -14,7 +14,7 @@ import { Platform, StyleSheet, View } from 'react-native';
 import { applyDocumentDirection, isRTLLanguage, type LayoutDirection } from '@/i18n/direction';
 import type { AppLanguage } from '@/types/domain';
 
-export function getLayoutDirection(language: AppLanguage): LayoutDirection {
+function getLayoutDirection(language: AppLanguage): LayoutDirection {
   return isRTLLanguage(language) ? 'rtl' : 'ltr';
 }
 

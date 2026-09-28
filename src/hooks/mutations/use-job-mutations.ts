@@ -38,7 +38,7 @@ export function useCompleteJob() {
   return useJobTransition(api.jobs.completeJob);
 }
 
-export interface CreateReviewVariables {
+interface CreateReviewVariables {
   jobId: string;
   payload: CreateReviewPayload;
 }

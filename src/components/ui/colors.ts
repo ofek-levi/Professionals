@@ -13,7 +13,7 @@ export type ColorProp = ColorName | (string & {});
 
 const TONE_SET: ReadonlySet<string> = new Set(STATUS_TONES);
 
-export function isStatusTone(value: string): value is StatusTone {
+function isStatusTone(value: string): value is StatusTone {
   return TONE_SET.has(value);
 }
 

@@ -41,9 +41,8 @@ describe('Button', () => {
     expect(onPress).not.toHaveBeenCalled();
   });
 
-  it('IconButton requires a label and announces its badge count', async () => {
-    await renderWithProviders(<IconButton icon="bell-outline" accessibilityLabel="Notifications" badgeCount={3} onPress={jest.fn()} />);
-    expect(screen.getByRole('button', { name: 'Notifications, 3 unread' })).toBeOnTheScreen();
-    expect(screen.getByText('3')).toBeOnTheScreen();
+  it('IconButton is announced with its label', async () => {
+    await renderWithProviders(<IconButton icon="plus" accessibilityLabel="New request" onPress={jest.fn()} />);
+    expect(screen.getByRole('button', { name: 'New request' })).toBeOnTheScreen();
   });
 });

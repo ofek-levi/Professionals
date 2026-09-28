@@ -1,6 +1,6 @@
 /** Read helpers over the mock database (no side effects). */
 import { isOfferActive } from '@/features/offers/offer-status-machine';
-import type { CustomerProfile, Message, Offer, OwnProfessionalProfile, Review, ServiceRequest } from '@/types/domain';
+import type { Message, Offer, OwnProfessionalProfile, Review, ServiceRequest } from '@/types/domain';
 
 import type { MockDatabase, StoredConversation, StoredJob, StoredUser } from './db';
 
@@ -15,8 +15,6 @@ export const requireConversation = (db: MockDatabase, id: string): StoredConvers
 export const requireProfessional = (db: MockDatabase, id: string): OwnProfessionalProfile =>
   db.professionals.require(id, 'Professional');
 export const requireStoredUser = (db: MockDatabase, id: string): StoredUser => db.users.require(id, 'User');
-export const requireCustomerProfile = (db: MockDatabase, userId: string): CustomerProfile =>
-  db.customerProfiles.require(userId, 'Customer profile');
 
 export function findProfessionalByUserId(db: MockDatabase, userId: string): OwnProfessionalProfile | undefined {
   return db.professionals.find((profile) => profile.userId === userId);
@@ -25,10 +23,6 @@ export function findProfessionalByUserId(db: MockDatabase, userId: string): OwnP
 /** Offers on a request, oldest first. */
 export function offersForRequest(db: MockDatabase, requestId: string): Offer[] {
   return db.offers.filter((offer) => offer.requestId === requestId).sort(byCreatedAt);
-}
-
-export function offersByProfessional(db: MockDatabase, professionalId: string): Offer[] {
-  return db.offers.filter((offer) => offer.professionalId === professionalId).sort(byCreatedAt);
 }
 
 /** The professional's pending/accepted offer on a request, if any. */
@@ -54,10 +48,6 @@ export function activeOfferRequestIds(db: MockDatabase, professionalId: string):
       .filter((offer) => offer.professionalId === professionalId && isOfferActive(offer.status))
       .map((offer) => offer.requestId),
   );
-}
-
-export function jobForRequest(db: MockDatabase, requestId: string): StoredJob | undefined {
-  return db.jobs.find((job) => job.requestId === requestId);
 }
 
 export function reviewForJob(db: MockDatabase, jobId: string): Review | undefined {

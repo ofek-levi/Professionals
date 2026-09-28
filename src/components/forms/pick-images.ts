@@ -1,6 +1,6 @@
 /**
  * Thin wrapper around `expo-image-picker` returning typed outcomes instead of throwing, so the
- * PhotoPicker can show friendly messages for every case.
+ * photo fields can show friendly messages for every case.
  */
 import * as ImagePicker from 'expo-image-picker';
 import { Linking, Platform } from 'react-native';

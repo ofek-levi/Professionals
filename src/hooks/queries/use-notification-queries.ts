@@ -12,7 +12,7 @@ import {
   useQueryScope,
 } from './query-scope';
 
-export type NotificationsQueryParams = Omit<NotificationsParams, 'cursor'>;
+type NotificationsQueryParams = Omit<NotificationsParams, 'cursor'>;
 
 const selectCount = (data: UnreadCountResponse) => data.count;
 

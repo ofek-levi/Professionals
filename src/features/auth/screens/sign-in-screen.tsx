@@ -13,7 +13,6 @@ import {
   AppText,
   EmptyState,
   Icon,
-  InlineAlert,
   QueryState,
   Screen,
   SegmentedControl,
@@ -24,7 +23,7 @@ import {
   type IconName,
   type SegmentedOption,
 } from '@/components/ui';
-import { useDemoAccounts } from '@/hooks/queries/use-auth-queries';
+import { useDemoAccounts } from '@/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import { USER_ROLES, type DemoAccount, type UserRole } from '@/types/domain';
 
@@ -36,12 +35,6 @@ const ROLE_ICONS: Record<UserRole, IconName> = {
   customer: 'account-outline',
   professional: 'hammer-wrench',
 };
-
-const HIGHLIGHTS: readonly { key: 'verified' | 'offers' | 'chat'; icon: IconName }[] = [
-  { key: 'verified', icon: 'shield-check-outline' },
-  { key: 'offers', icon: 'tag-multiple-outline' },
-  { key: 'chat', icon: 'message-text-outline' },
-];
 
 const SKELETON_COUNT = 3;
 
@@ -57,12 +50,10 @@ export default function SignInScreen() {
   const [role, setRole] = useState<UserRole>('customer');
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
 
-  const accounts = accountsQuery.data ?? [];
   const roleOptions: SegmentedOption<UserRole>[] = USER_ROLES.map((value) => ({
     value,
     label: t(`common:roles.${value}`),
     icon: ROLE_ICONS[value],
-    count: accounts.filter((account) => account.role === value).length || undefined,
   }));
   const byRole = (data: DemoAccount[]) => data.filter((account) => account.role === role);
 
@@ -96,20 +87,14 @@ export default function SignInScreen() {
         end={{ x: theme.isRTL ? 0 : 1, y: 1 }}
         style={[styles.hero, { paddingTop: insets.top + theme.spacing.md }]}
       >
-        <View style={[styles.decorCircle, styles.decorLarge, { backgroundColor: glass }]} />
-        <View style={[styles.decorCircle, styles.decorSmall, { backgroundColor: glass }]} />
-
         <View style={styles.heroInner}>
           <View style={styles.topBar}>
-            <View style={[styles.brandMark, { backgroundColor: glass }]}>
-              <Icon name="hammer-wrench" size={20} color={onColor} />
-            </View>
             <LanguageSwitch appearance="onColor" />
           </View>
 
           <View style={styles.heroText}>
             <View style={[styles.logo, { backgroundColor: glass }]}>
-              <Icon name="account-hard-hat" size={34} color={onColor} />
+              <Icon name="account-hard-hat" size={32} color={onColor} />
             </View>
             <AppText variant="display" color="onPrimary" accessibilityRole="header">
               {t('common:appName')}
@@ -117,17 +102,6 @@ export default function SignInScreen() {
             <AppText variant="subheading" color={withAlpha(onColor, 0.88)}>
               {t('common:tagline')}
             </AppText>
-          </View>
-
-          <View style={styles.highlights}>
-            {HIGHLIGHTS.map((item) => (
-              <View key={item.key} style={[styles.highlight, { backgroundColor: glass }]}>
-                <Icon name={item.icon} size={16} color={onColor} />
-                <AppText variant="captionStrong" color="onPrimary" numberOfLines={1}>
-                  {t(`auth:signIn.highlights.${item.key}`)}
-                </AppText>
-              </View>
-            ))}
           </View>
         </View>
       </LinearGradient>
@@ -180,7 +154,9 @@ export default function SignInScreen() {
             </QueryState>
           </View>
 
-          <InlineAlert tone="info" icon="flask-outline" title={t('auth:signIn.demoNoteTitle')} message={t('auth:signIn.demoNote')} />
+          <AppText variant="caption" color="muted" align="center">
+            {t('auth:signIn.demoNote')}
+          </AppText>
         </View>
       </View>
     </Screen>
@@ -193,7 +169,7 @@ const useStyles = makeStyles((t) => ({
   },
   hero: {
     overflow: 'hidden',
-    paddingBottom: t.spacing.huge + t.spacing.xl,
+    paddingBottom: t.spacing.huge + t.spacing.md,
     paddingHorizontal: t.spacing.screen,
   },
   heroInner: {
@@ -202,33 +178,9 @@ const useStyles = makeStyles((t) => ({
     alignSelf: 'center',
     gap: t.spacing.xxl,
   },
-  decorCircle: {
-    position: 'absolute',
-    borderRadius: t.radii.pill,
-  },
-  decorLarge: {
-    width: 260,
-    height: 260,
-    top: -90,
-    end: -80,
-  },
-  decorSmall: {
-    width: 140,
-    height: 140,
-    bottom: -40,
-    start: -50,
-  },
   topBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  brandMark: {
-    width: 40,
-    height: 40,
-    borderRadius: t.radii.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
   },
   heroText: {
     gap: t.spacing.sm,
@@ -240,19 +192,6 @@ const useStyles = makeStyles((t) => ({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: t.spacing.sm,
-  },
-  highlights: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: t.spacing.sm,
-  },
-  highlight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.xs + 2,
-    paddingVertical: t.spacing.xs + 2,
-    paddingHorizontal: t.spacing.md,
-    borderRadius: t.radii.pill,
   },
   sheet: {
     marginTop: -t.spacing.xxxl,
@@ -266,7 +205,7 @@ const useStyles = makeStyles((t) => ({
     width: '100%',
     maxWidth: t.layout.maxContentWidth,
     alignSelf: 'center',
-    gap: t.spacing.xl,
+    gap: t.spacing.xxl,
   },
   intro: {
     gap: t.spacing.xs,

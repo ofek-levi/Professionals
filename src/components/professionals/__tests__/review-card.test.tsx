@@ -43,3 +43,21 @@ describe('ReviewCard comment alignment', () => {
     expect(commentAlign()).toBe('right');
   });
 });
+
+describe('ReviewCard meta', () => {
+  beforeAll(async () => {
+    await initI18n('en');
+  });
+
+  it('puts the date before the category so a long category is what gets cut', async () => {
+    await renderWithProviders(<ReviewCard review={review('Great job')} showCategory />);
+    expect(screen.getByText('Noa L.')).toBeOnTheScreen();
+    expect(screen.getByText('Sep 20 · Plumbing')).toBeOnTheScreen();
+  });
+
+  it('leaves out the author for the compact variant', async () => {
+    await renderWithProviders(<ReviewCard review={review('Great job')} hideAuthor />);
+    expect(screen.queryByText('Noa L.')).not.toBeOnTheScreen();
+    expect(screen.getByText('Great job')).toBeOnTheScreen();
+  });
+});

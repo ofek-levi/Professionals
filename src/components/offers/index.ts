@@ -1,1 +1,1 @@
-export { OfferStatusBadge, type OfferStatusBadgeProps } from './offer-status-badge';
+export { OfferStatusBadge } from './offer-status-badge';

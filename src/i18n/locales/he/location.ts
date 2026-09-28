@@ -7,7 +7,6 @@ export const location: LocaleNamespace<typeof enLocation> = {
     placeholder: 'חיפוש רחוב, מספר ועיר',
     searching: 'מחפש…',
     noResults: 'לא נמצאו כתובות מתאימות. נסו להוסיף את שם העיר.',
-    minLength: 'יש להקליד לפחות 2 תווים',
     suggestions: 'הצעות לכתובת',
   },
   currentLocation: {
@@ -59,8 +58,4 @@ export const location: LocaleNamespace<typeof enLocation> = {
     detailsHelper: 'יוצג רק לבעל המקצוע שתבחרו.',
   },
   resolving: 'מאתר את הכתובת…',
-  selectedAddress: 'הכתובת שנבחרה',
-  pinnedLocation: 'מיקום מסומן',
-  approximate: 'מיקום משוער',
-  approximateHint: 'הכתובת המדויקת תשותף לאחר שהצעה תתקבל.',
 };

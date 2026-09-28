@@ -1,26 +1,15 @@
 /**
- * `/conversations/:conversationId` – job chat for both parties: job context banner, inverted
- * message list with day separators and grouped bubbles, optimistic sending with retry for failed
- * messages, read receipts and a keyboard-safe composer. Opening the chat (and every new incoming
- * message while it is open) marks the conversation as read.
+ * `/conversations/:conversationId` – job chat for both parties: a one-line job context strip,
+ * inverted message list with day separators and grouped bubbles, optimistic sending with retry
+ * for failed messages, read receipts and a keyboard-safe composer. Opening the chat (and every new
+ * incoming message while it is open) marks the conversation as read.
  */
 import { Stack, useRouter } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import {
-  AppText,
-  Avatar,
-  EmptyState,
-  ErrorState,
-  IconButton,
-  InlineAlert,
-  Screen,
-  Skeleton,
-  useConfirm,
-  useNow,
-} from '@/components/ui';
+import { AppText, Avatar, EmptyState, ErrorState, Screen, Skeleton, useConfirm, useNow } from '@/components/ui';
 import { useSession } from '@/features/auth';
 import { canSendMessage } from '@/features/messaging/message-rules';
 import {
@@ -132,9 +121,7 @@ function ChatView({ conversation }: { conversation: Conversation }) {
     <View style={styles.intro}>
       <Avatar name={counterpartName} uri={counterpart?.avatarUrl} size="lg" decorative />
       <AppText variant="subheading" align="center">
-        {rows.length === 0
-          ? t('messaging:chat.beginningTitle', { name: isolateText(counterpartName) })
-          : t('messaging:chat.startTitle', { name: isolateText(counterpartName) })}
+        {t('messaging:chat.beginningTitle', { name: isolateText(counterpartName) })}
       </AppText>
       <AppText variant="caption" color="secondary" align="center" style={styles.introText}>
         {t('messaging:chat.beginningDescription')}
@@ -166,11 +153,7 @@ function ChatView({ conversation }: { conversation: Conversation }) {
           if (messagesQuery.hasNextPage && !messagesQuery.isFetchingNextPage) void messagesQuery.fetchNextPage();
         }}
         ListFooterComponent={
-          messagesQuery.isFetchingNextPage ? (
-            <ActivityIndicator color={theme.colors.primary} style={styles.olderSpinner} />
-          ) : messagesQuery.hasNextPage ? null : (
-            intro
-          )
+          messagesQuery.isFetchingNextPage ? <ActivityIndicator color={theme.colors.primary} style={styles.olderSpinner} /> : null
         }
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
@@ -183,7 +166,9 @@ function ChatView({ conversation }: { conversation: Conversation }) {
   const footer = (
     <View style={styles.footer}>
       {isOpen ? null : (
-        <InlineAlert tone="neutral" icon="lock-outline" title={t('messaging:chat.closedTitle')} message={t('messaging:chat.closedMessage')} />
+        <AppText variant="caption" color="muted" align="center">
+          {t('messaging:chat.closedMessage')}
+        </AppText>
       )}
       <ChatComposer value={draft} onChangeText={setDraft} onSend={sender.send} disabled={!isOpen} />
     </View>
@@ -205,14 +190,7 @@ function ChatView({ conversation }: { conversation: Conversation }) {
       maxContentWidth={false}
       testID="chat-screen"
     >
-      <Stack.Screen
-        options={{
-          title: counterpartName,
-          headerRight: () => (
-            <IconButton icon="briefcase-outline" accessibilityLabel={t('messaging:chat.viewJob')} onPress={openJob} testID="chat-header-job" />
-          ),
-        }}
-      />
+      <Stack.Screen options={{ title: counterpartName }} />
       <View style={styles.messagesArea}>{body}</View>
     </Screen>
   );
@@ -249,9 +227,9 @@ const useStyles = makeStyles((t) => ({
     alignSelf: 'center',
   },
   listContent: {
-    paddingHorizontal: t.spacing.lg,
+    paddingHorizontal: t.spacing.screen,
     paddingTop: t.spacing.lg,
-    paddingBottom: t.spacing.sm,
+    paddingBottom: t.spacing.md,
   },
   footer: {
     gap: t.spacing.sm,

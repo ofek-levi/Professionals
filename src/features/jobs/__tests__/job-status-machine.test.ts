@@ -1,12 +1,6 @@
 import { JOB_STATUSES, type JobStatus } from '@/constants/job-statuses';
 
-import {
-  assertJobTransition,
-  canTransitionJob,
-  getJobActions,
-  JOB_TRANSITIONS,
-  requestStatusForJobStatus,
-} from '../job-status-machine';
+import { assertJobTransition, getJobActions, requestStatusForJobStatus } from '../job-status-machine';
 
 const EXPECTED: Record<JobStatus, JobStatus[]> = {
   awaiting_confirmation: ['scheduled', 'cancelled'],
@@ -19,12 +13,12 @@ const EXPECTED: Record<JobStatus, JobStatus[]> = {
 describe('job status machine', () => {
   it('matches the documented transitions', () => {
     for (const from of JOB_STATUSES) {
-      expect([...JOB_TRANSITIONS[from]].sort()).toEqual([...EXPECTED[from]].sort());
-      for (const to of JOB_STATUSES) expect(canTransitionJob(from, to)).toBe(EXPECTED[from].includes(to));
+      for (const to of JOB_STATUSES) {
+        const assertion = expect(() => assertJobTransition(from, to));
+        if (EXPECTED[from].includes(to)) assertion.not.toThrow();
+        else assertion.toThrow(expect.objectContaining({ code: 'INVALID_STATE_TRANSITION', status: 409 }));
+      }
     }
-    expect(() => assertJobTransition('in_progress', 'cancelled')).toThrow(
-      expect.objectContaining({ code: 'INVALID_STATE_TRANSITION', status: 409 }),
-    );
   });
 
   it('mirrors job statuses onto request statuses', () => {
@@ -42,11 +36,9 @@ describe('job status machine', () => {
       canComplete: false,
       canReview: false,
       canMessage: true,
-      canCancel: false,
     });
     expect(getJobActions({ status: 'awaiting_confirmation' }, 'customer', { hasReview: false })).toMatchObject({
       canConfirm: false,
-      canCancel: true,
     });
     expect(getJobActions({ status: 'scheduled' }, 'professional', { hasReview: false })).toMatchObject({
       canStart: true,
@@ -54,7 +46,6 @@ describe('job status machine', () => {
     });
     expect(getJobActions({ status: 'in_progress' }, 'customer', { hasReview: false })).toMatchObject({
       canComplete: true,
-      canCancel: false,
       canStart: false,
     });
     expect(getJobActions({ status: 'completed' }, 'customer', { hasReview: false }).canReview).toBe(true);

@@ -1,169 +1,139 @@
 /**
- * Professional tab "Home": greeting and availability, performance, what needs attention, new jobs
- * nearby, upcoming appointments, pending offers, recent notifications and shortcuts.
+ * Professional tab "Home": greeting and business name, how many open jobs are nearby (→ Explore), two small counters
+ * (→ Work tab) and at most two "Up next" jobs.
  */
 import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { JobCard, JobCardSkeleton } from '@/components/jobs';
-import { RequestCard, RequestCardSkeleton } from '@/components/requests';
-import { Button, Card, EmptyState, ErrorState, Screen, SectionHeader, useNow } from '@/components/ui';
-import { getExpiryCountdown } from '@/features/offers/components/offer-display';
-import {
-  useJobs,
-  useOwnProfessionalProfile,
-  useProfessionalDashboard,
-  useRefetchOnFocus,
-  useUnreadNotificationsCount,
-} from '@/hooks';
+import { JobCard } from '@/components/jobs';
+import { AppText, Button, Card, ErrorState, Screen, SectionHeader, Skeleton, StatTile } from '@/components/ui';
+import { useOwnProfessionalProfile, useProfessionalDashboard, useRefetchOnFocus } from '@/hooks';
+import { useFormatters } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
+import { isolateText } from '@/utils/bidi';
 
-import { AttentionSection } from '../components/home/attention-section';
-import { HomeHeader } from '../components/home/home-header';
-import { PendingOffersSection } from '../components/home/pending-offers-section';
-import { PerformanceCard, PerformanceCardSkeleton } from '../components/home/performance-card';
-import { QuickActions } from '../components/home/quick-actions';
-import { RecentNotifications } from '../components/home/recent-notifications';
-import { jobsAwaitingConfirmation } from '../home-model';
-
-const NEW_JOBS_ON_HOME = 3;
-const UPCOMING_ON_HOME = 3;
+import { upNextJobs } from '../home-model';
 
 export default function ProfessionalHomeScreen() {
   const styles = useStyles();
   const router = useRouter();
   const { t } = useTranslation(['professional', 'common']);
-  const now = useNow(60_000);
+  const format = useFormatters();
   const dashboardQuery = useProfessionalDashboard();
   const profileQuery = useOwnProfessionalProfile();
-  const activeJobsQuery = useJobs('active');
-  const unread = useUnreadNotificationsCount().data ?? 0;
   useRefetchOnFocus(dashboardQuery.refetch);
-  useRefetchOnFocus(activeJobsQuery.refetch);
 
   const dashboard = dashboardQuery.data;
   const profile = profileQuery.data;
-  const awaitingJobs = jobsAwaitingConfirmation(activeJobsQuery.data ?? []);
-  const awaitingIds = new Set(awaitingJobs.map((job) => job.id));
-  const expiringOffers = (dashboard?.pendingOffers ?? []).filter((offer) => {
-    const countdown = getExpiryCountdown(offer.expiresAt, now);
-    return countdown.state === 'active' && countdown.level !== 'normal';
-  });
-  const upcoming = (dashboard?.upcomingAppointments ?? []).filter((job) => !awaitingIds.has(job.id)).slice(0, UPCOMING_ON_HOME);
+  const firstName = profile?.fullName.split(/\s+/)[0] ?? '';
+  const upNext = upNextJobs(dashboard?.upcomingAppointments ?? []);
 
-  const refreshing = dashboardQuery.isRefetching || profileQuery.isRefetching || activeJobsQuery.isRefetching;
   const refresh = () => {
     void dashboardQuery.refetch();
     void profileQuery.refetch();
-    void activeJobsQuery.refetch();
   };
 
   return (
-    <Screen refreshing={refreshing} onRefresh={refresh} gap="xxl" testID="pro-home-screen">
-      <HomeHeader
-        profile={profile}
-        unreadCount={unread}
-        now={now}
-        onOpenNotifications={() => router.push(routes.professional.notifications)}
-        onEditArea={() => router.push(routes.editProfile)}
-      />
+    <Screen
+      refreshing={dashboardQuery.isRefetching || profileQuery.isRefetching}
+      onRefresh={refresh}
+      contentContainerStyle={styles.content}
+      testID="pro-home-screen"
+    >
+      {/* Same greeting as the customer's Home ("Hi, Noa"), with the business name as the one extra line. */}
+      <View style={styles.greeting}>
+        {profile ? (
+          <>
+            <AppText variant="largeTitle" accessibilityRole="header" numberOfLines={1}>
+              {t('professional:home.hello', { name: isolateText(firstName) })}
+            </AppText>
+            <AppText variant="body" color="secondary" numberOfLines={1}>
+              {profile.displayName}
+            </AppText>
+          </>
+        ) : (
+          <>
+            <Skeleton width="45%" height={30} style={styles.greetingSkeleton} />
+            <Skeleton width="55%" height={14} />
+          </>
+        )}
+      </View>
 
       {dashboard === undefined ? (
         dashboardQuery.isError ? (
           <ErrorState error={dashboardQuery.error} onRetry={() => void dashboardQuery.refetch()} retrying={dashboardQuery.isRefetching} />
         ) : (
           <View style={styles.section}>
-            <PerformanceCardSkeleton />
-            <RequestCardSkeleton />
-            <JobCardSkeleton />
+            <Skeleton height={164} radius={16} />
+            <View style={styles.tiles}>
+              <Skeleton height={76} radius={16} style={styles.flex} />
+              <Skeleton height={76} radius={16} style={styles.flex} />
+            </View>
           </View>
         )
       ) : (
         <>
-          <PerformanceCard
-            dashboard={dashboard}
-            stats={profile?.stats}
-            onOpenExplore={() => router.push(routes.professional.explore)}
-            onOpenOffers={() => router.push(routes.professional.offers)}
-            onOpenJobs={() => router.push(routes.professional.jobs)}
-          />
-
-          <AttentionSection awaitingJobs={awaitingJobs} expiringOffers={expiringOffers} />
-
-          <View testID="pro-home-new-jobs">
-            <SectionHeader
-              title={t('professional:home.newJobs.title')}
-              icon="map-marker-radius-outline"
-              subtitle={t('professional:home.newJobs.subtitle', { count: dashboard.nearbyOpenRequestsCount })}
-              actionLabel={t('professional:home.seeAll')}
-              onAction={() => router.push(routes.professional.explore)}
-            />
-            {dashboard.newRequests.length === 0 ? (
-              <Card variant="outlined" padding="none">
-                <EmptyState
-                  compact
-                  icon="map-search-outline"
-                  title={t('professional:home.newJobs.emptyTitle')}
-                  description={t('professional:home.newJobs.emptyDescription')}
-                  actionLabel={t('professional:home.newJobs.expandArea')}
-                  onAction={() => router.push(routes.editProfile)}
-                />
-              </Card>
-            ) : (
-              <View style={styles.list}>
-                {dashboard.newRequests.slice(0, NEW_JOBS_ON_HOME).map((request) => (
-                  <RequestCard
-                    key={request.id}
-                    variant="professional"
-                    request={request}
-                    onPress={() => router.push(routes.request(request.id))}
-                  />
-                ))}
+          <View style={styles.section}>
+            <Card padding="xl" style={styles.hero} testID="pro-home-open-jobs">
+              <View style={styles.heroTexts}>
+                <AppText variant="title" numberOfLines={2}>
+                  {dashboard.nearbyOpenRequestsCount > 0
+                    ? t('professional:home.openJobs', { count: dashboard.nearbyOpenRequestsCount })
+                    : t('professional:home.noOpenJobs')}
+                </AppText>
+                {profile ? (
+                  <AppText variant="caption" color="secondary" numberOfLines={1}>
+                    {t('professional:home.serviceArea', {
+                      area: profile.serviceArea.label,
+                      distance: format.distance(profile.serviceArea.radiusKm),
+                    })}
+                  </AppText>
+                ) : null}
               </View>
-            )}
-            <Button
-              label={t('professional:home.newJobs.openMap')}
-              variant="secondary"
-              leftIcon="map-outline"
-              onPress={() => router.push(routes.professional.explore)}
-              fullWidth
-              style={styles.cta}
-              testID="pro-home-open-map"
-            />
+              <Button
+                label={t('professional:home.findJobs')}
+                onPress={() => router.navigate(routes.professional.explore)}
+                fullWidth
+                testID="pro-home-find-jobs"
+              />
+            </Card>
+
+            <View style={styles.tiles}>
+              <StatTile
+                label={t('professional:home.pendingOffers')}
+                value={format.number(dashboard.pendingOffersCount)}
+                onPress={() => router.navigate(routes.professional.work('offers'))}
+                testID="pro-home-stat-offers"
+              />
+              <StatTile
+                label={t('professional:home.activeJobs')}
+                value={format.number(dashboard.activeJobsCount)}
+                onPress={() => router.navigate(routes.professional.work('jobs'))}
+                testID="pro-home-stat-jobs"
+              />
+            </View>
           </View>
 
-          <View testID="pro-home-upcoming">
-            <SectionHeader
-              title={t('professional:home.upcoming.title')}
-              icon="calendar-clock"
-              actionLabel={t('professional:home.seeAll')}
-              onAction={() => router.push(routes.professional.jobs)}
-            />
-            {upcoming.length === 0 ? (
-              <Card variant="outlined" padding="none">
-                <EmptyState
-                  compact
-                  icon="calendar-blank-outline"
-                  title={t('professional:home.upcoming.emptyTitle')}
-                  description={t('professional:home.upcoming.emptyDescription')}
-                />
-              </Card>
+          <View style={styles.section} testID="pro-home-up-next">
+            <SectionHeader title={t('professional:home.upNext')} style={styles.sectionHeader} />
+            {upNext.length === 0 ? (
+              <AppText variant="body" color="muted">
+                {t('professional:home.upNextEmpty')}
+              </AppText>
             ) : (
-              <View style={styles.list}>
-                {upcoming.map((job) => (
-                  <JobCard key={job.id} job={job} viewerRole="professional" onPress={() => router.push(routes.job(job.id))} />
-                ))}
-              </View>
+              upNext.map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  viewerRole="professional"
+                  onPress={() => router.push(routes.job(job.id))}
+                  testID={`pro-home-job-${job.id}`}
+                />
+              ))
             )}
           </View>
-
-          <PendingOffersSection offers={dashboard.pendingOffers} totalCount={dashboard.pendingOffersCount} />
-
-          <RecentNotifications notifications={dashboard.recentNotifications} />
-
-          <QuickActions />
         </>
       )}
     </Screen>
@@ -171,13 +141,34 @@ export default function ProfessionalHomeScreen() {
 }
 
 const useStyles = makeStyles((t) => ({
-  section: {
-    gap: t.spacing.lg,
+  content: {
+    gap: t.layout.sectionGap,
   },
-  list: {
+  greeting: {
+    gap: t.spacing.xxs,
+    paddingTop: t.spacing.sm,
+    minHeight: t.typography.largeTitle.lineHeight + t.typography.body.lineHeight + t.spacing.sm,
+  },
+  greetingSkeleton: {
+    marginTop: t.spacing.xs,
+  },
+  sectionHeader: {
+    marginBottom: 0,
+  },
+  section: {
     gap: t.spacing.md,
   },
-  cta: {
-    marginTop: t.spacing.md,
+  hero: {
+    gap: t.spacing.xl,
+  },
+  heroTexts: {
+    gap: t.spacing.xs,
+  },
+  tiles: {
+    flexDirection: 'row',
+    gap: t.spacing.md,
+  },
+  flex: {
+    flex: 1,
   },
 }));

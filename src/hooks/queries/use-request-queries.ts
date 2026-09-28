@@ -14,8 +14,8 @@ import {
 } from './query-scope';
 
 /** Filters for list hooks; the cursor is managed by the infinite query. */
-export type CustomerRequestsQueryParams = Omit<CustomerRequestsParams, 'cursor'>;
-export type NearbyRequestsQueryParams = Omit<NearbyRequestsParams, 'cursor'>;
+type CustomerRequestsQueryParams = Omit<CustomerRequestsParams, 'cursor'>;
+type NearbyRequestsQueryParams = Omit<NearbyRequestsParams, 'cursor'>;
 
 /** Max markers fetched for the explore map: one page of the largest size the API accepts. */
 export const NEARBY_MAP_LIMIT = APP_CONFIG.maxPageSize;

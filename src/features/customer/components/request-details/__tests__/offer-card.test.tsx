@@ -5,7 +5,6 @@ import { initI18n } from '@/i18n';
 import type { OfferWithProfessional } from '@/types/domain';
 
 import { OfferCard } from '../offer-card';
-import { OffersCompareTable } from '../offers-compare-table';
 
 // Components read the catalog through React Query; keep the bundled catalog (never resolve).
 jest.mock('@/services/api', () => ({
@@ -13,8 +12,6 @@ jest.mock('@/services/api', () => ({
 }));
 
 const NOW = new Date(2026, 8, 27, 10, 0);
-const OPEN_REQUEST = { status: 'offers_received', acceptedOfferId: null } as const;
-const DECIDED_REQUEST = { status: 'professional_selected', acceptedOfferId: 'c' } as const;
 const inHours = (hours: number) => new Date(NOW.getTime() + hours * 3_600_000).toISOString();
 
 function offer(id: string, overrides: Partial<OfferWithProfessional> = {}): OfferWithProfessional {
@@ -57,15 +54,14 @@ describe('OfferCard', () => {
     await initI18n('en');
   });
 
-  it('shows price, timing, credentials, highlights and accepts on press', async () => {
+  it('shows who, the price, the proposed time and the message, and accepts on press', async () => {
     const onAccept = jest.fn();
     const onOpenProfessional = jest.fn();
     await renderWithProviders(
       <OfferCard
         offer={offer('a')}
-        highlights={['lowestPrice', 'topRated']}
         now={NOW}
-        request={OPEN_REQUEST}
+        canAccept
         accepting={false}
         disabled={false}
         onAccept={onAccept}
@@ -73,15 +69,14 @@ describe('OfferCard', () => {
       />,
     );
 
+    expect(screen.getByText('Pro A')).toBeOnTheScreen();
     expect(screen.getByText('₪450')).toBeOnTheScreen();
     expect(screen.getByText('Tomorrow at 12:00')).toBeOnTheScreen();
-    expect(screen.getByText('About 1h 30m')).toBeOnTheScreen();
-    expect(screen.getByText('Lowest price')).toBeOnTheScreen();
-    expect(screen.getByText('Top rated')).toBeOnTheScreen();
-    expect(screen.getByText('8 yrs experience')).toBeOnTheScreen();
-    expect(screen.getByText('41 jobs completed')).toBeOnTheScreen();
-    expect(screen.getByText('3.2 km away')).toBeOnTheScreen();
-    expect(screen.getByText('Expires in 20 hours')).toBeOnTheScreen();
+    expect(screen.getByText('I can come tomorrow morning with all the parts.')).toBeOnTheScreen();
+    // No highlight badges, expiry countdowns or extra facts.
+    expect(screen.queryByText(/Expires/)).not.toBeOnTheScreen();
+    expect(screen.queryByText('Lowest price')).not.toBeOnTheScreen();
+    expect(screen.queryByText('41 jobs completed')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByTestId('offer-accept-a'));
     expect(onAccept).toHaveBeenCalledTimes(1);
@@ -89,72 +84,19 @@ describe('OfferCard', () => {
     expect(onOpenProfessional).toHaveBeenCalledTimes(1);
   });
 
-  it('explains non-pending offers from the customer’s point of view and hides Accept', async () => {
+  it('hides Accept when the offer can no longer be accepted and skips an empty message', async () => {
     await renderWithProviders(
       <OfferCard
-        offer={offer('b', { status: 'rejected', statusReason: 'another_offer_accepted' })}
-        highlights={['earliest']}
+        offer={offer('b', { message: '  ' })}
         now={NOW}
-        request={DECIDED_REQUEST}
+        canAccept={false}
         accepting={false}
         disabled={false}
         onAccept={jest.fn()}
         onOpenProfessional={jest.fn()}
       />,
     );
-
-    expect(screen.getByText('Not selected')).toBeOnTheScreen();
-    expect(screen.getByText('You chose another pro')).toBeOnTheScreen();
     expect(screen.queryByTestId('offer-accept-b')).not.toBeOnTheScreen();
-    // Highlights only apply to offers still awaiting a decision.
-    expect(screen.queryByText('Earliest')).not.toBeOnTheScreen();
-  });
-
-  it('marks the accepted offer as the customer’s choice', async () => {
-    await renderWithProviders(
-      <OfferCard
-        offer={offer('c', { status: 'accepted', statusReason: 'accepted_by_customer' })}
-        highlights={[]}
-        now={NOW}
-        request={DECIDED_REQUEST}
-        accepting={false}
-        disabled={false}
-        onAccept={jest.fn()}
-        onOpenProfessional={jest.fn()}
-      />,
-    );
-    expect(screen.getByText('You hired this pro')).toBeOnTheScreen();
-    expect(screen.getByText('You accepted this offer')).toBeOnTheScreen();
-  });
-});
-
-describe('OffersCompareTable', () => {
-  beforeAll(async () => {
-    await initI18n('en');
-  });
-
-  it('lists offers side by side and accepts from a column', async () => {
-    const onAccept = jest.fn();
-    const cheap = offer('a', { price: 300 });
-    const early = offer('b', { price: 520, proposedStartAt: inHours(3) });
-    await renderWithProviders(
-      <OffersCompareTable
-        offers={[cheap, early]}
-        now={NOW}
-        request={OPEN_REQUEST}
-        acceptingOfferId={null}
-        onAccept={onAccept}
-        onOpenProfessional={jest.fn()}
-      />,
-    );
-
-    expect(screen.getByText('Pro A')).toBeOnTheScreen();
-    expect(screen.getByText('Pro B')).toBeOnTheScreen();
-    expect(screen.getByText('₪300')).toBeOnTheScreen();
-    expect(screen.getByText('₪520')).toBeOnTheScreen();
-    expect(screen.getByText('Best value in each row')).toBeOnTheScreen();
-
-    await fireEvent.press(screen.getByTestId('compare-accept-b'));
-    expect(onAccept).toHaveBeenCalledWith(early);
+    expect(screen.getByText('View profile')).toBeOnTheScreen();
   });
 });

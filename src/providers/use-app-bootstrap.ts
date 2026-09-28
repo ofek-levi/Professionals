@@ -7,6 +7,7 @@ import { Rubik_400Regular } from '@expo-google-fonts/rubik/400Regular';
 import { Rubik_500Medium } from '@expo-google-fonts/rubik/500Medium';
 import { Rubik_600SemiBold } from '@expo-google-fonts/rubik/600SemiBold';
 import { Rubik_700Bold } from '@expo-google-fonts/rubik/700Bold';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFonts } from 'expo-font';
 import { useEffect, useState } from 'react';
 
@@ -21,6 +22,8 @@ const FONTS = {
   [fontFamilies.medium]: Rubik_500Medium,
   [fontFamilies.semibold]: Rubik_600SemiBold,
   [fontFamilies.bold]: Rubik_700Bold,
+  // Tab bar icon font, loaded up front so the tab icons never pop in.
+  ...Ionicons.font,
 };
 
 type BootState = 'loading' | 'ready' | 'reloading';

@@ -108,7 +108,7 @@ describe('offer form schema', () => {
   });
 
   it('applies urgency windows when the request is known', () => {
-    const emergencySchema = createOfferFormSchema(NOW, { request: { urgency: 'emergency', preferredSchedule: null } });
+    const emergencySchema = createOfferFormSchema(NOW, { request: { urgency: 'emergency' } });
     const inTwoDays = splitDateTime(new Date(2026, 8, 29, 10, 0));
     expect(errorsOf(emergencySchema, values(inTwoDays))).toEqual({ date: ['validation:offer.emergencyWindow'] });
     expect(errorsOf(emergencySchema, values())).toEqual({});

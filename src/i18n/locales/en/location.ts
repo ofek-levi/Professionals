@@ -5,7 +5,6 @@ export const location = {
     placeholder: 'Search for a street, number and city',
     searching: 'Searching…',
     noResults: 'No matching addresses. Try adding the city.',
-    minLength: 'Type at least 2 characters',
     suggestions: 'Address suggestions',
   },
   currentLocation: {
@@ -57,8 +56,4 @@ export const location = {
     detailsHelper: 'Shared only with the professional you choose.',
   },
   resolving: 'Looking up the address…',
-  selectedAddress: 'Selected address',
-  pinnedLocation: 'Pinned location',
-  approximate: 'Approximate location',
-  approximateHint: 'The exact address is shared after an offer is accepted.',
 } as const;

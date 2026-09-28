@@ -7,7 +7,7 @@ import type { ApiErrorBody } from '@/types/api';
 
 import type { MockServer } from './server/types';
 
-export interface MockTransportOptions {
+interface MockTransportOptions {
   minLatencyMs: number;
   maxLatencyMs: number;
   /** Probability (0–1) that a request fails with a simulated network error. */

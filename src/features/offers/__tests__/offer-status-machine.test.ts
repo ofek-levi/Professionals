@@ -4,7 +4,6 @@ import { computeRequestOfferStats } from '../offer-counters';
 import {
   assertOfferTransition,
   canCustomerAcceptOffer,
-  canTransitionOffer,
   computeOfferExpiry,
   getOfferAcceptBlocker,
   getProfessionalOfferActions,
@@ -20,8 +19,9 @@ describe('offer status machine', () => {
   it('only allows leaving pending (all other states are terminal)', () => {
     for (const from of OFFER_STATUSES) {
       for (const to of OFFER_STATUSES) {
-        const allowed = from === 'pending' && to !== 'pending';
-        expect(canTransitionOffer(from, to)).toBe(allowed);
+        const assertion = expect(() => assertOfferTransition(from, to));
+        if (from === 'pending' && to !== 'pending') assertion.not.toThrow();
+        else assertion.toThrow(expect.objectContaining({ code: 'INVALID_STATE_TRANSITION' }));
       }
     }
     expect(() => assertOfferTransition('accepted', 'rejected')).toThrow(

@@ -7,17 +7,17 @@
  * backend using the request's stored `ServiceLocation`, so swapping this module for another
  * provider has no business impact.
  *
- * Permission is never requested implicitly: call `requestLocationPermission()` / `locateDevice()`
- * only in response to an explicit user action (e.g. "Use my current location").
+ * Permission is never requested implicitly: call `locateDevice()` only in response to an explicit
+ * user action (e.g. "Use my current location").
  */
 import * as Location from 'expo-location';
 import { Linking, Platform } from 'react-native';
 
 import type { GeoCoordinates } from '@/types/domain';
 
-export type LocationPermissionStatus = 'granted' | 'denied' | 'undetermined';
+type LocationPermissionStatus = 'granted' | 'denied' | 'undetermined';
 
-export interface LocationPermissionState {
+interface LocationPermissionState {
   status: LocationPermissionStatus;
   /** `false` when the OS will not show the prompt again (user must use system settings). */
   canAskAgain: boolean;
@@ -35,7 +35,7 @@ export type LocationFailureReason =
   /** Anything else (no hardware, insecure web origin, provider error…). */
   | 'unavailable';
 
-export type CurrentCoordinatesResult =
+type CurrentCoordinatesResult =
   | {
       ok: true;
       coordinates: GeoCoordinates;
@@ -46,7 +46,7 @@ export type CurrentCoordinatesResult =
     }
   | { ok: false; reason: LocationFailureReason };
 
-export interface GetCoordinatesOptions {
+interface GetCoordinatesOptions {
   /** Give up after this long (default 12s). */
   timeoutMs?: number;
   /** `balanced` (default) is faster and plenty for address pre-filling. */
@@ -69,7 +69,7 @@ function toPermissionState(response: Location.LocationPermissionResponse): Locat
 }
 
 /** Current foreground permission, without prompting. */
-export async function getLocationPermissionStatus(): Promise<LocationPermissionState> {
+async function getLocationPermissionStatus(): Promise<LocationPermissionState> {
   try {
     return toPermissionState(await Location.getForegroundPermissionsAsync());
   } catch {
@@ -78,7 +78,7 @@ export async function getLocationPermissionStatus(): Promise<LocationPermissionS
 }
 
 /** Shows the OS prompt when possible and returns the resulting permission. */
-export async function requestLocationPermission(): Promise<LocationPermissionState> {
+async function requestLocationPermission(): Promise<LocationPermissionState> {
   try {
     return toPermissionState(await Location.requestForegroundPermissionsAsync());
   } catch {
@@ -133,7 +133,7 @@ async function lastKnownPosition(maxAgeMs: number): Promise<Location.LocationObj
  * Reads the device position. Requires permission to already be granted – it never prompts.
  * Never throws: failures are returned as `{ ok: false, reason }`.
  */
-export async function getCurrentCoordinates(options: GetCoordinatesOptions = {}): Promise<CurrentCoordinatesResult> {
+async function getCurrentCoordinates(options: GetCoordinatesOptions = {}): Promise<CurrentCoordinatesResult> {
   const {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     accuracy = 'balanced',

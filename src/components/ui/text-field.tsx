@@ -8,6 +8,9 @@ import { AppText } from './app-text';
 import { Field } from './field';
 import { Icon, type IconSource } from './icon';
 
+/** Share of `maxLength` from which the counter appears. */
+const COUNTER_THRESHOLD = 0.8;
+
 export interface TextFieldProps extends Omit<TextInputProps, 'style' | 'editable'> {
   label?: string;
   required?: boolean;
@@ -15,7 +18,10 @@ export interface TextFieldProps extends Omit<TextInputProps, 'style' | 'editable
   /** Already translated error message. */
   error?: string | null;
   helperText?: string;
-  /** Shows `length/maxLength` (requires `maxLength` and a controlled `value`). */
+  /**
+   * Shows `length/maxLength` once the text gets close to the limit (80%+), so short answers stay
+   * uncluttered. Requires `maxLength` and a controlled `value`.
+   */
   showCounter?: boolean;
   leftIcon?: IconSource;
   /** Static text before the input (currency symbol, country code…). */
@@ -71,7 +77,8 @@ export function TextField({
   const [focused, setFocused] = useState(false);
   const [revealed, setRevealed] = useState(false);
 
-  const counter = showCounter && maxLength ? `${value?.length ?? 0}/${maxLength}` : undefined;
+  const length = value?.length ?? 0;
+  const counter = showCounter && maxLength && length >= maxLength * COUNTER_THRESHOLD ? `${length}/${maxLength}` : undefined;
   const lineHeight = theme.typography.body.lineHeight;
   const showClear = clearable && !disabled && Boolean(value);
 
@@ -178,7 +185,7 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: t.spacing.sm,
-    minHeight: 52,
+    minHeight: 50,
     paddingHorizontal: t.spacing.md + 2,
     borderRadius: t.radii.md,
     borderWidth: 1.5,
@@ -190,6 +197,7 @@ const useStyles = makeStyles((t) => ({
   },
   focused: {
     borderColor: t.colors.primary,
+    backgroundColor: t.colors.background,
   },
   error: {
     borderColor: t.colors.danger,

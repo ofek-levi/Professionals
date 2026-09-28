@@ -1,12 +1,12 @@
 /**
  * Error raised by business rules (state machines, matching, validation) and by the mock backend.
  * It carries the API error `code` and HTTP `status`, so the mock server can serialize it directly
- * into an `ApiErrorBody` (it is the backend's "MockHttpError").
+ * into an `ApiErrorBody` (it is the backend's HTTP error type).
  */
 import type { ApiErrorBody, ApiErrorCode } from '@/types/api';
 
 /** Default HTTP status for every API error code. */
-export const ERROR_STATUS_BY_CODE: Record<ApiErrorCode, number> = {
+const ERROR_STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   NETWORK_ERROR: 0,
   TIMEOUT: 408,
   UNAUTHORIZED: 401,
@@ -25,15 +25,15 @@ export const ERROR_STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   UNKNOWN: 500,
 };
 
-export type FieldErrors = Record<string, string[]>;
+type FieldErrors = Record<string, string[]>;
 
-export type ConflictCode = Extract<
+type ConflictCode = Extract<
   ApiErrorCode,
   'CONFLICT' | 'DUPLICATE_OFFER' | 'OFFER_EXPIRED' | 'REQUEST_NOT_ACCEPTING_OFFERS'
 >;
-export type ValidationCode = Extract<ApiErrorCode, 'VALIDATION_ERROR' | 'UNSUPPORTED_CATEGORY' | 'OUTSIDE_SERVICE_AREA'>;
+type ValidationCode = Extract<ApiErrorCode, 'VALIDATION_ERROR' | 'UNSUPPORTED_CATEGORY' | 'OUTSIDE_SERVICE_AREA'>;
 
-export interface DomainErrorOptions {
+interface DomainErrorOptions {
   status?: number;
   fieldErrors?: FieldErrors;
 }

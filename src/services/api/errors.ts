@@ -51,7 +51,7 @@ export function parseErrorBody(status: number, data: unknown): ApiErrorBody {
   return { code: codeFromStatus(status), message: `Request failed with status ${status}` };
 }
 
-export function codeFromStatus(status: number): ApiErrorCode {
+function codeFromStatus(status: number): ApiErrorCode {
   if (status === 0) return 'NETWORK_ERROR';
   if (status === 401) return 'UNAUTHORIZED';
   if (status === 403) return 'FORBIDDEN';

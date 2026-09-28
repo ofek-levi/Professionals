@@ -1,7 +1,7 @@
 /** Aggregates over a request's offers (denormalized onto requests and customer views). */
 import type { ISODateTimeString, Offer } from '@/types/domain';
 
-export interface RequestOfferStats {
+interface RequestOfferStats {
   /** Offers that were not withdrawn (`ServiceRequest.offerCount`). */
   offerCount: number;
   /** Offers awaiting the customer's decision (`ServiceRequest.pendingOfferCount`). */

@@ -3,20 +3,9 @@ import type { LocaleNamespace } from '../../types';
 
 export const reviews: LocaleNamespace<typeof enreviews> = {
   create: {
-    jobDate: 'עבודה מ-{{date}}',
     ratingTitle: 'איך תדרגו את {{name}}?',
-    ratingSubtitle: 'דירוג כן עוזר ללקוחות אחרים.',
-    commentLabel: 'ספרו לאחרים על החוויה שלכם',
-    commentPlaceholder: 'האם בעל המקצוע הגיע בזמן? איך היו איכות העבודה והתקשורת?',
-    commentHelper: 'הביקורת פומבית ומוצג בה השם הפרטי שלכם והאות הראשונה של שם המשפחה.',
-    highlightsTitle: 'הדגשים מהירים',
-    highlights: {
-      punctual: 'הגעה בזמן',
-      quality: 'עבודה איכותית',
-      tidy: 'ניקיון בסיום העבודה',
-      communication: 'תקשורת ברורה',
-      price: 'מחיר הוגן',
-    },
+    commentLabel: 'תגובה',
+    commentPlaceholder: 'מה היה טוב? מה אפשר לשפר?',
     submit: 'שליחת הביקורת',
     ratingRequiredHint: 'בחרו דירוג כדי להמשיך',
     errorTitle: 'לא הצלחנו לשלוח את הביקורת',
@@ -42,11 +31,7 @@ export const reviews: LocaleNamespace<typeof enreviews> = {
   },
   list: {
     title: 'ביקורות על {{name}}',
-    count_one: 'ביקורת אחת',
-    count_two: 'שתי ביקורות',
-    count_other: '{{count}} ביקורות',
     emptyTitle: 'עדיין אין ביקורות',
     emptyDescription: 'ביקורות יופיעו כאן אחרי שלקוחות יסיימו עבודות עם בעל המקצוע.',
-    viewProfile: 'לפרופיל',
   },
 };

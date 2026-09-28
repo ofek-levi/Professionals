@@ -1,6 +1,6 @@
 /**
  * Service request validation: the REST payload (`POST /requests`, `PATCH /requests/:id`) and the
- * customer's request wizard form.
+ * customer's request form.
  */
 import { z } from 'zod';
 
@@ -47,7 +47,7 @@ const timeWindowSchema = z.enum(PREFERRED_TIME_WINDOWS, { error: vm('request.tim
  * Preferred date rule shared by the form and the server: a valid date key, not before today and
  * at most `APP_CONFIG.maxScheduleDaysAhead` days ahead. Returns an i18n key or `null`.
  */
-export function validatePreferredDate(dateKey: string, now: DateInput): ValidationMessageKey | null {
+function validatePreferredDate(dateKey: string, now: DateInput): ValidationMessageKey | null {
   if (!isValidDateKey(dateKey)) return vm('request.preferredDateInvalid');
   const days = daysBetweenDateKeys(toDateKey(now), dateKey);
   if (days < 0) return vm('request.preferredDateInPast');
@@ -65,7 +65,7 @@ export function validatePreferredDateForUrgency(dateKey: string, urgency: Urgenc
   return isPreferredDateWithinUrgency(urgency, dateKey, now) ? null : vm('request.preferredDateBeyondUrgency');
 }
 
-export const preferredScheduleSchema = z.object({
+const preferredScheduleSchema = z.object({
   date: dateKeySchema(vm('request.preferredDateInvalid')),
   timeWindow: timeWindowSchema,
 });
@@ -86,7 +86,8 @@ const requestPayloadShape = {
 
 /**
  * `POST /requests` payload. Structural rules only; time-relative rules (preferred date not in the
- * past) are checked with `validatePreferredDate` against the server clock.
+ * past, within the urgency window) are checked with `validatePreferredDateForUrgency` against the
+ * server clock.
  */
 export const createServiceRequestSchema = z.object({
   ...requestPayloadShape,
@@ -99,7 +100,7 @@ export const createServiceRequestSchema = z.object({
 /** `PATCH /requests/:id` (drafts only) – every field optional, no defaults. */
 export const updateDraftRequestSchema = z.object(requestPayloadShape).partial();
 
-// ────────────────────────────── Request wizard form ──────────────────────────────
+// ────────────────────────────── Request form ──────────────────────────────
 
 export const requestFormLocationSchema = z.object({
   coordinates: coordinatesSchema,
@@ -125,7 +126,7 @@ export const requestFormPhotoSchema = z.object({
 });
 
 /**
- * Builds the wizard schema. `getNow` is evaluated at validation time so a long-open form still
+ * Builds the form schema. `getNow` is evaluated at validation time so a long-open form still
  * rejects dates that became past.
  */
 export function createRequestFormSchema(getNow: () => Date = () => new Date()) {
@@ -172,7 +173,7 @@ export type RequestFormValues = z.input<typeof requestFormSchema>;
 export type RequestFormLocation = z.input<typeof requestFormLocationSchema>;
 export type RequestFormPhoto = z.input<typeof requestFormPhotoSchema>;
 
-/** Initial wizard values (optionally with a preselected category or default location). */
+/** Initial form values (optionally with a preselected category or default location). */
 export function createEmptyRequestFormValues(
   options: { categoryId?: CategoryId | null; location?: RequestFormLocation | null } = {},
 ): RequestFormValues {
@@ -188,7 +189,7 @@ export function createEmptyRequestFormValues(
   };
 }
 
-/** Prefills the wizard from an existing (draft) request. */
+/** Prefills the form from an existing (draft) request. */
 export function requestToFormValues(request: ServiceRequest): RequestFormValues {
   return {
     categoryId: request.categoryId,
@@ -250,7 +251,7 @@ function toRequestPayloadFields(values: RequestFormValues, photoIds: readonly st
   };
 }
 
-/** Converts validated wizard values into the `POST /requests` payload. */
+/** Converts validated form values into the `POST /requests` payload. */
 export function toCreateRequestPayload(
   values: RequestFormValues,
   photoIds: readonly string[],
@@ -259,7 +260,7 @@ export function toCreateRequestPayload(
   return { ...toRequestPayloadFields(values, photoIds), publish };
 }
 
-/** Converts validated wizard values into the `PATCH /requests/:id` payload (draft editing). */
+/** Converts validated form values into the `PATCH /requests/:id` payload (draft editing). */
 export function toUpdateDraftRequestPayload(values: RequestFormValues, photoIds: readonly string[]): UpdateDraftRequestPayload {
   return toRequestPayloadFields(values, photoIds);
 }

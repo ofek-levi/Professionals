@@ -1,14 +1,12 @@
 /**
- * Business rules for the proposed appointment time of an offer.
- *
- * Errors block submission (the mock backend rejects them with 422 on `proposedStartAt`);
- * warnings are advisory and only shown in the offer form.
+ * Business rules for the proposed appointment time of an offer. Violations block submission (the
+ * offer form reports them on its date/time fields; the mock backend rejects them with 422 on
+ * `proposedStartAt`).
  */
 import { APP_CONFIG } from '@/constants/app-config';
-import { isWithinWorkingHours } from '@/features/profiles/availability';
 import { vm, type ValidationMessageKey } from '@/lib/validation/messages';
-import type { ServiceRequest, WeeklyAvailability } from '@/types/domain';
-import { isWithinTimeWindow, parseDateKey, toDate, toDateKey, type DateInput } from '@/utils/dates';
+import type { ServiceRequest } from '@/types/domain';
+import { parseDateKey, toDate, type DateInput } from '@/utils/dates';
 
 export const OFFER_TIME_RULES = {
   /** A proposed start must be at least this far in the future. */
@@ -20,36 +18,23 @@ export const OFFER_TIME_RULES = {
   urgentMaxHours: 72,
 } as const;
 
-export type OfferRuleCode =
-  | 'start_invalid'
-  | 'start_too_soon'
-  | 'start_too_far'
-  | 'emergency_window'
-  | 'urgent_window'
-  | 'different_from_preferred_date'
-  | 'outside_preferred_time_window'
-  | 'outside_working_hours';
+export type OfferRuleCode = 'start_invalid' | 'start_too_soon' | 'start_too_far' | 'emergency_window' | 'urgent_window';
 
-export interface OfferRuleIssue {
+interface OfferRuleIssue {
   code: OfferRuleCode;
-  severity: 'error' | 'warning';
   /** i18n key in the `validation` namespace. */
   message: ValidationMessageKey;
 }
 
-export interface OfferRuleResult {
+interface OfferRuleResult {
   isValid: boolean;
   errors: OfferRuleIssue[];
-  warnings: OfferRuleIssue[];
 }
 
-export interface OfferRuleInput {
+interface OfferRuleInput {
   proposedStartAt: DateInput;
-  request: Pick<ServiceRequest, 'urgency' | 'preferredSchedule'>;
+  request: Pick<ServiceRequest, 'urgency'>;
   now: DateInput;
-  /** The professional's working hours; enables the "outside working hours" warning. */
-  availability?: WeeklyAvailability | null;
-  estimatedDurationMinutes?: number | null;
 }
 
 const MINUTE_MS = 60 * 1000;
@@ -68,7 +53,7 @@ export function latestAllowedOfferStart(urgency: ServiceRequest['urgency'], now:
 /**
  * Whether professionals can still propose a start on the preferred date (`YYYY-MM-DD`) of a request
  * with this urgency: the day must begin before the latest allowed start (an emergency must be
- * handled within 24 h, an urgent job within 72 h). Shared by the request wizard and the server.
+ * handled within 24 h, an urgent job within 72 h). Shared by the request form and the server.
  */
 export function isPreferredDateWithinUrgency(urgency: ServiceRequest['urgency'], dateKey: string, now: DateInput): boolean {
   const day = parseDateKey(dateKey);
@@ -80,17 +65,15 @@ export function earliestAllowedOfferStart(now: DateInput): Date {
   return new Date(toDate(now).getTime() + OFFER_TIME_RULES.minLeadMinutes * MINUTE_MS);
 }
 
-/** Validates a proposed appointment start against the request and the professional's schedule. */
+/** Validates a proposed appointment start against the request's urgency and the global limits. */
 export function validateOfferAgainstRequest(input: OfferRuleInput): OfferRuleResult {
   const errors: OfferRuleIssue[] = [];
-  const warnings: OfferRuleIssue[] = [];
-  const error = (code: OfferRuleCode, message: ValidationMessageKey) => errors.push({ code, severity: 'error', message });
-  const warn = (code: OfferRuleCode, message: ValidationMessageKey) => warnings.push({ code, severity: 'warning', message });
+  const error = (code: OfferRuleCode, message: ValidationMessageKey) => errors.push({ code, message });
 
   const start = toDate(input.proposedStartAt);
   if (Number.isNaN(start.getTime())) {
     error('start_invalid', vm('offer.startInvalid'));
-    return { isValid: false, errors, warnings };
+    return { isValid: false, errors };
   }
   const nowMs = toDate(input.now).getTime();
   const startMs = start.getTime();
@@ -105,17 +88,5 @@ export function validateOfferAgainstRequest(input: OfferRuleInput): OfferRuleRes
     error('urgent_window', vm('offer.urgentWindow'));
   }
 
-  const preferred = input.request.preferredSchedule;
-  if (preferred) {
-    if (toDateKey(start) !== preferred.date) {
-      warn('different_from_preferred_date', vm('offer.differentFromPreferredDate'));
-    } else if (!isWithinTimeWindow(start, preferred.timeWindow)) {
-      warn('outside_preferred_time_window', vm('offer.outsidePreferredTimeWindow'));
-    }
-  }
-  if (input.availability && !isWithinWorkingHours(input.availability, start, input.estimatedDurationMinutes ?? 0)) {
-    warn('outside_working_hours', vm('offer.outsideWorkingHours'));
-  }
-
-  return { isValid: errors.length === 0, errors, warnings };
+  return { isValid: errors.length === 0, errors };
 }

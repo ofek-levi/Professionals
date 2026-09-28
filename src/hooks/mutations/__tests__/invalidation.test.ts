@@ -45,7 +45,6 @@ function allKeys(userId: string) {
     proReviews: queryKeys.professionals.reviews(userId, 'pro_1', { limit: 20 }),
     proReviewsPreview: queryKeys.professionals.reviews(userId, 'pro_1', { limit: 3 }),
     otherProProfile: queryKeys.professionals.profile(userId, 'pro_2'),
-    search: queryKeys.professionals.search(userId, { categoryId: 'plumbing' }),
   } satisfies Record<string, QueryKey>;
 }
 
@@ -148,10 +147,10 @@ describe('invalidation helpers', () => {
     expect(invalidated()).toContain('messages');
   });
 
-  it('invalidateProfessional targets one professional (and searches)', async () => {
+  it('invalidateProfessional targets one professional', async () => {
     const { qc, invalidated } = setup();
     await invalidateProfessional(qc, ME, 'pro_1');
-    expect(invalidated()).toEqual(sorted(['proProfile', 'proReviews', 'proReviewsPreview', 'search']));
+    expect(invalidated()).toEqual(sorted(['proProfile', 'proReviews', 'proReviewsPreview']));
   });
 
   it('invalidateOwnProfile refreshes identity, profiles, matching requests and dashboards', async () => {
@@ -166,7 +165,6 @@ describe('invalidation helpers', () => {
         'proReviews',
         'proReviewsPreview',
         'otherProProfile',
-        'search',
         'nearbyList',
         'nearbyMap',
         'dashboardCustomer',

@@ -1,6 +1,6 @@
 /**
- * `/jobs/:jobId/review` – the customer rates a completed job (1–5 stars, optional comment with
- * quick highlights). Handles "already reviewed" (also a CONFLICT from the server), jobs that are
+ * `/jobs/:jobId/review` – the customer rates a completed job (1–5 stars and an optional comment).
+ * Handles "already reviewed" (also a CONFLICT from the server), jobs that are
  * not completed yet and shows a thank-you state; the job and the professional's profile refresh
  * automatically through the mutation's invalidation.
  */
@@ -16,9 +16,8 @@ import { FormTextField, useTranslatedError } from '@/components/forms';
 import { ReviewCard } from '@/components/professionals';
 import {
   AppText,
+  Avatar,
   Button,
-  Card,
-  Chip,
   EmptyState,
   ErrorState,
   InlineAlert,
@@ -33,6 +32,7 @@ import { APP_CONFIG } from '@/constants/app-config';
 import { useSession } from '@/features/auth';
 import { isRating } from '@/features/reviews/rating';
 import { useCreateReview, useJob, useRouteParam } from '@/hooks';
+import { useCategoryName, useFormatters } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import {
   createReviewSchema,
@@ -46,8 +46,6 @@ import { makeStyles } from '@/theme';
 import type { JobDetails, Review } from '@/types/domain';
 import { isolateText } from '@/utils/bidi';
 
-import { ReviewJobHeader, ReviewJobHeaderSkeleton } from '../components/review-job-header';
-import { hasHighlight, REVIEW_HIGHLIGHTS, toggleHighlight } from '../components/review-form-model';
 import { ReviewResultState } from '../components/review-result-state';
 
 export default function CreateReviewScreen() {
@@ -72,12 +70,13 @@ export default function CreateReviewScreen() {
           <ErrorState error={query.error} onRetry={() => void query.refetch()} retrying={query.isRefetching} />
         ) : (
           <>
-            <ReviewJobHeaderSkeleton />
-            <Card padding="lg" style={styles.centered}>
-              <Skeleton width="60%" height={18} />
-              <Skeleton width="80%" height={40} radius={12} />
-            </Card>
-            <Skeleton height={140} radius={16} />
+            <View style={styles.centered}>
+              <Skeleton circle height={72} />
+              <Skeleton width="60%" height={22} />
+              <Skeleton width="40%" height={13} />
+              <Skeleton width="70%" height={40} radius={12} />
+            </View>
+            <Skeleton height={120} radius={16} />
           </>
         )}
       </Screen>
@@ -124,7 +123,7 @@ function ReviewFlow({ job, onRefetchJob }: { job: JobDetails; onRefetchJob: () =
           primaryLabel={t('reviews:success.backToJob')}
           onPrimary={backToJob}
         >
-          {job.review ? <ReviewCard review={job.review} variant="elevated" /> : null}
+          {job.review ? <ReviewCard review={job.review} hideAuthor /> : null}
         </ReviewResultState>
       </Screen>
     );
@@ -174,13 +173,13 @@ function ReviewForm({
   const errorText = useErrorText();
   const translateError = useTranslatedError();
   const createReview = useCreateReview();
-  const { control, handleSubmit, setError, setValue, formState } = useForm<ReviewFormValues>({
+  const { control, handleSubmit, setError, formState } = useForm<ReviewFormValues>({
     resolver: zodResolver(reviewFormSchema),
     defaultValues: EMPTY_REVIEW_FORM_VALUES,
   });
-  const values = useWatch({ control });
-  const rating = values.rating ?? 0;
-  const comment = values.comment ?? '';
+  const format = useFormatters();
+  const categoryName = useCategoryName(job.categoryId) || t('common:category.unknown');
+  const rating = useWatch({ control, name: 'rating' }) ?? 0;
   const pending = createReview.isPending;
   const name = job.professional.displayName;
 
@@ -224,7 +223,7 @@ function ReviewForm({
   return (
     <Screen
       edges={['left', 'right', 'bottom']}
-      gap="lg"
+      gap="xxl"
       footer={
         <View style={styles.footer}>
           {rating === 0 ? (
@@ -234,8 +233,6 @@ function ReviewForm({
           ) : null}
           <Button
             label={t('reviews:create.submit')}
-            leftIcon="send"
-            flipIconsInRTL
             size="lg"
             fullWidth
             loading={pending}
@@ -247,15 +244,14 @@ function ReviewForm({
       }
       testID="review-form"
     >
-      <ReviewJobHeader job={job} />
-
-      <Card padding="xl" style={styles.ratingCard}>
+      <View style={styles.centered}>
+        <Avatar name={name} uri={job.professional.avatarUrl} size={72} verified={job.professional.isVerified} decorative />
         <View style={styles.centeredTexts}>
-          <AppText variant="heading" align="center">
+          <AppText variant="title" align="center" accessibilityRole="header">
             {t('reviews:create.ratingTitle', { name: isolateText(name) })}
           </AppText>
-          <AppText variant="caption" color="secondary" align="center">
-            {t('reviews:create.ratingSubtitle')}
+          <AppText variant="caption" color="muted" align="center">
+            {`${categoryName} · ${format.date(job.completedAt ?? job.scheduledStartAt, 'medium')}`}
           </AppText>
         </View>
         <Controller
@@ -278,52 +274,20 @@ function ReviewForm({
             </View>
           )}
         />
-      </Card>
-
-      <View style={styles.commentSection}>
-        <FormTextField
-          control={control}
-          name="comment"
-          label={t('reviews:create.commentLabel')}
-          optional
-          placeholder={t('reviews:create.commentPlaceholder')}
-          multiline
-          minRows={5}
-          maxLength={APP_CONFIG.reviewCommentMaxLength}
-          showCounter
-          helperText={t('reviews:create.commentHelper')}
-          disabled={pending}
-          testID="review-comment"
-        />
-        <View style={styles.highlights}>
-          <AppText variant="captionStrong" color="secondary">
-            {t('reviews:create.highlightsTitle')}
-          </AppText>
-          <View style={styles.chips}>
-            {REVIEW_HIGHLIGHTS.map((key) => {
-              const phrase = t(`reviews:create.highlights.${key}`);
-              const selected = hasHighlight(comment, phrase);
-              return (
-                <Chip
-                  key={key}
-                  label={phrase}
-                  size="sm"
-                  icon={selected ? 'check' : 'plus'}
-                  selected={selected}
-                  disabled={pending}
-                  onPress={() =>
-                    setValue('comment', toggleHighlight(comment, phrase, APP_CONFIG.reviewCommentMaxLength), {
-                      shouldDirty: true,
-                      shouldValidate: formState.isSubmitted,
-                    })
-                  }
-                  testID={`review-highlight-${key}`}
-                />
-              );
-            })}
-          </View>
-        </View>
       </View>
+
+      <FormTextField
+        control={control}
+        name="comment"
+        label={t('reviews:create.commentLabel')}
+        optional
+        placeholder={t('reviews:create.commentPlaceholder')}
+        multiline
+        minRows={4}
+        maxLength={APP_CONFIG.reviewCommentMaxLength}
+        disabled={pending}
+        testID="review-comment"
+      />
 
       {createReview.isError && toApiError(createReview.error).code === 'NETWORK_ERROR' ? (
         <InlineAlert tone="warning" message={errorText(createReview.error).description} />
@@ -335,26 +299,12 @@ function ReviewForm({
 const useStyles = makeStyles((t) => ({
   centered: {
     alignItems: 'center',
-    gap: t.spacing.md,
-  },
-  ratingCard: {
-    alignItems: 'center',
     gap: t.spacing.lg,
+    paddingTop: t.spacing.lg,
   },
   centeredTexts: {
     alignItems: 'center',
     gap: t.spacing.xs,
-  },
-  commentSection: {
-    gap: t.spacing.md,
-  },
-  highlights: {
-    gap: t.spacing.sm,
-  },
-  chips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: t.spacing.sm,
   },
   footer: {
     gap: t.spacing.sm,

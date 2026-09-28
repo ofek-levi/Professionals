@@ -147,7 +147,7 @@ export const PROFESSIONAL_CATEGORIES: readonly ProfessionalCategory[] = define([
   {
     id: 'hvac',
     groupId: 'home_repairs',
-    name: { en: 'Air Conditioning & HVAC', he: 'מיזוג אוויר' },
+    name: { en: 'Air Conditioning', he: 'מיזוג אוויר' },
     description: {
       en: 'AC installation, cleaning, gas refills and repairs.',
       he: 'התקנת מזגנים, ניקוי, מילוי גז ותיקונים.',
@@ -858,7 +858,7 @@ export const PROFESSIONAL_CATEGORIES: readonly ProfessionalCategory[] = define([
   },
 ]);
 
-export const CATEGORY_CATALOG_VERSION = '2026.09.1';
+const CATEGORY_CATALOG_VERSION = '2026.09.1';
 
 export const DEFAULT_CATEGORY_CATALOG: CategoryCatalog = {
   groups: [...CATEGORY_GROUPS],
@@ -880,8 +880,4 @@ export function getCategoryById(id: CategoryId): ProfessionalCategory;
 export function getCategoryById(id: string): ProfessionalCategory | undefined;
 export function getCategoryById(id: string): ProfessionalCategory | undefined {
   return isSupportedCategoryId(id) ? CATEGORY_BY_ID.get(id) : undefined;
-}
-
-export function getCategoriesByGroup(groupId: CategoryGroupId): ProfessionalCategory[] {
-  return PROFESSIONAL_CATEGORIES.filter((category) => category.groupId === groupId);
 }

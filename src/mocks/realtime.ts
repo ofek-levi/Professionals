@@ -7,7 +7,7 @@ import type { RealtimeClient, RealtimeEvent, RealtimeListener } from '@/services
 import { parseAccessToken } from './server/auth';
 import type { MockServer } from './server/types';
 
-export interface MockRealtimeOptions {
+interface MockRealtimeOptions {
   /** Simulated delivery delay in ms (default 50). */
   deliveryDelayMs?: number;
 }

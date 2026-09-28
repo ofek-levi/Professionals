@@ -19,7 +19,7 @@ export interface ViewerPhoto {
   height?: number | null;
 }
 
-export interface PhotoViewerProps {
+interface PhotoViewerProps {
   visible: boolean;
   photos: readonly ViewerPhoto[];
   initialIndex?: number;

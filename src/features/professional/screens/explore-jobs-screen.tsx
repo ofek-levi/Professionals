@@ -1,27 +1,23 @@
 /**
  * Professional tab "Explore": open requests in the service area on a map or as a list, sharing one
- * filter state (services, distance, urgency, preferred date, competition, already offered).
+ * filter state (services, distance, urgency).
  */
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { RequestCardSkeleton } from '@/components/requests';
-import { ErrorState, Screen, ScreenHeader, SegmentedControl, Skeleton, useNow, type SegmentedOption } from '@/components/ui';
+import { ErrorState, Screen, ScreenHeader, SegmentedControl, Skeleton, type SegmentedOption } from '@/components/ui';
 import { useOwnProfessionalProfile } from '@/hooks';
-import { useFormatters } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
-import type { NearbyRequestSort } from '@/types/api';
 
 import { ExploreFiltersSheet } from '../components/explore/explore-filters-sheet';
 import { ExploreListView } from '../components/explore/explore-list-view';
 import { ExploreMapView } from '../components/explore/explore-map-view';
-import { ExploreSortSheet } from '../components/explore/explore-sort-sheet';
 import { FiltersButton } from '../components/explore/filters-button';
 import {
   countActiveFilters,
   DEFAULT_EXPLORE_FILTERS,
-  DEFAULT_EXPLORE_SORT,
   filtersToParams,
   sanitizeFilters,
   type ExploreFilters,
@@ -31,8 +27,6 @@ import {
 export default function ExploreJobsScreen() {
   const styles = useStyles();
   const { t } = useTranslation(['explore', 'common']);
-  const format = useFormatters();
-  const now = useNow(60_000);
   const profileQuery = useOwnProfessionalProfile();
   const profile = profileQuery.data;
 
@@ -40,11 +34,9 @@ export default function ExploreJobsScreen() {
   const [appliedFilters, setAppliedFilters] = useState<ExploreFilters>(DEFAULT_EXPLORE_FILTERS);
   const [draft, setDraft] = useState<ExploreFilters>(DEFAULT_EXPLORE_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [sort, setSort] = useState<NearbyRequestSort>(DEFAULT_EXPLORE_SORT);
-  const [sortOpen, setSortOpen] = useState(false);
 
   const filters = sanitizeFilters(appliedFilters, profile?.categoryIds, profile?.serviceArea.radiusKm);
-  const params = filtersToParams(filters, now);
+  const params = filtersToParams(filters);
   const activeCount = countActiveFilters(filters);
 
   const openFilters = () => {
@@ -61,21 +53,13 @@ export default function ExploreJobsScreen() {
   };
 
   const modeOptions: SegmentedOption<ExploreViewMode>[] = [
-    { value: 'map', label: t('explore:modes.map'), icon: 'map-outline' },
-    { value: 'list', label: t('explore:modes.list'), icon: 'format-list-bulleted' },
+    { value: 'map', label: t('explore:modes.map') },
+    { value: 'list', label: t('explore:modes.list') },
   ];
 
   const header = (
     <View style={styles.header}>
-      <ScreenHeader
-        title={t('explore:title')}
-        subtitle={
-          profile
-            ? t('explore:subtitle', { area: profile.serviceArea.label, distance: format.distance(profile.serviceArea.radiusKm) })
-            : undefined
-        }
-        style={styles.screenHeader}
-      />
+      <ScreenHeader title={t('explore:title')} style={styles.screenHeader} />
       <View style={styles.controls}>
         <SegmentedControl options={modeOptions} value={mode} onChange={setMode} style={styles.segmented} testID="explore-mode" />
         <FiltersButton activeCount={activeCount} onPress={openFilters} />
@@ -113,8 +97,6 @@ export default function ExploreJobsScreen() {
     body = (
       <ExploreListView
         params={params}
-        sort={sort}
-        onOpenSort={() => setSortOpen(true)}
         hasFilters={activeCount > 0}
         onAdjustFilters={openFilters}
         onClearFilters={clearFilters}
@@ -135,10 +117,8 @@ export default function ExploreJobsScreen() {
           onApply={applyFilters}
           ownCategoryIds={profile.categoryIds}
           serviceRadiusKm={profile.serviceArea.radiusKm}
-          now={now}
         />
       ) : null}
-      <ExploreSortSheet visible={sortOpen} onClose={() => setSortOpen(false)} value={sort} onChange={setSort} />
     </Screen>
   );
 }
@@ -147,13 +127,12 @@ const useStyles = makeStyles((t) => ({
   header: {
     paddingHorizontal: t.spacing.screen,
     paddingBottom: t.spacing.md,
-    gap: t.spacing.xs,
     width: '100%',
     maxWidth: t.layout.maxContentWidth,
     alignSelf: 'center',
   },
   screenHeader: {
-    paddingBottom: t.spacing.md,
+    paddingBottom: t.spacing.lg,
   },
   controls: {
     flexDirection: 'row',

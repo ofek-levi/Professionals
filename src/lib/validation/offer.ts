@@ -14,7 +14,7 @@ import { currencySchema, isoDateTimeSchema, nullableText, optionalText, parseAmo
 import { vm } from './messages';
 
 /** Estimated duration bounds in minutes (15 minutes – 7 days). */
-export const OFFER_DURATION_BOUNDS = { min: 15, max: 7 * 24 * 60 } as const;
+const OFFER_DURATION_BOUNDS = { min: 15, max: 7 * 24 * 60 } as const;
 
 const durationSchema = z
   .number({ error: vm('offer.durationInvalid') })
@@ -36,9 +36,9 @@ export const updateOfferSchema = createOfferSchema.partial();
 
 // ────────────────────────────── Offer form ──────────────────────────────
 
-export interface OfferFormContext {
+interface OfferFormContext {
   /** The request being quoted – enables urgency window rules (emergency ≤ 24h, urgent ≤ 72h). */
-  request?: Pick<ServiceRequest, 'urgency' | 'preferredSchedule'> | null;
+  request?: Pick<ServiceRequest, 'urgency'> | null;
 }
 
 /** Which form field shows each blocking time rule. */
@@ -52,8 +52,8 @@ const RULE_FIELD: Partial<Record<OfferRuleCode, 'date' | 'time'>> = {
 
 /**
  * Offer form schema. `now` may be a function so the "at least 30 minutes from now" rule is
- * evaluated at submit time. Blocking time rules are reported on `date`/`time`; advisory warnings
- * (preferred date, working hours) come from `validateOfferAgainstRequest(...).warnings`.
+ * evaluated at submit time. The time rules (`validateOfferAgainstRequest`) are reported on
+ * `date`/`time`.
  */
 export function createOfferFormSchema(now: Date | (() => Date), context: OfferFormContext = {}) {
   const getNow = typeof now === 'function' ? now : () => now;
@@ -88,7 +88,7 @@ export function createOfferFormSchema(now: Date | (() => Date), context: OfferFo
         if (!startAt) return;
         const result = validateOfferAgainstRequest({
           proposedStartAt: startAt,
-          request: context.request ?? { urgency: 'flexible', preferredSchedule: null },
+          request: context.request ?? { urgency: 'flexible' },
           now: getNow(),
         });
         for (const issue of result.errors) {

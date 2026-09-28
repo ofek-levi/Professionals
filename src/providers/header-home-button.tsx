@@ -10,7 +10,7 @@ import { IconButton } from '@/components/ui';
 import { useSession } from '@/features/auth/session-provider';
 import { routes } from '@/lib/routes';
 
-export function HeaderHomeButton() {
+function HeaderHomeButton() {
   const router = useRouter();
   const { role } = useSession();
   const { t } = useTranslation('common');

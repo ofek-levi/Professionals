@@ -6,7 +6,7 @@
  * (`alignForText(text, theme.isRTL)` → `<AppText align=…>`).
  */
 
-export type TextDirection = 'ltr' | 'rtl';
+type TextDirection = 'ltr' | 'rtl';
 
 /** Strong right-to-left characters (Hebrew, Arabic, Syriac, Thaana, NKo, presentation forms). */
 const RTL_CHAR = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
@@ -76,9 +76,4 @@ export function isolateText(text: string): string {
  */
 export function isolateLtr(text: string): string {
   return text ? `${LRI}${text}${PDI}` : text;
-}
-
-/** Removes directional isolate marks (e.g. before comparing or measuring text). */
-export function stripIsolates(text: string): string {
-  return text.replace(/[\u2066-\u2069]/g, '');
 }

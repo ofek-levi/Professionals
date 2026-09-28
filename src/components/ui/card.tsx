@@ -5,12 +5,10 @@ import { makeStyles, type Theme } from '@/theme';
 
 import { haptics } from './haptics';
 
-export type CardVariant = 'elevated' | 'outlined' | 'flat';
-export type CardPadding = keyof Theme['spacing'] | 'none';
+type CardPadding = keyof Theme['spacing'] | 'none';
 
-export interface CardProps {
+interface CardProps {
   children: ReactNode;
-  variant?: CardVariant;
   /**
    * Inner padding token. Defaults to `lg`. Padding set in `style` (e.g. `paddingHorizontal`) always
    * wins over the token, on every platform.
@@ -18,24 +16,24 @@ export interface CardProps {
   padding?: CardPadding;
   /** Makes the whole card pressable with pressed feedback. */
   onPress?: (event: GestureResponderEvent) => void;
-  onLongPress?: (event: GestureResponderEvent) => void;
   accessibilityLabel?: string;
   accessibilityHint?: string;
   accessibilityRole?: AccessibilityRole;
-  /** Highlighted border (e.g. selected state or "new" items). */
+  /** Primary border (e.g. the selected or accepted item). */
   highlighted?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-/** Surface container. Elevated cards use a soft shadow in light mode and a border in dark mode. */
+/**
+ * Content group: a softly filled, rounded surface with no border or shadow (cards never float).
+ * Pressable cards dim slightly when pressed.
+ */
 export function Card({
   children,
-  variant = 'elevated',
   padding = 'lg',
   onPress,
-  onLongPress,
   accessibilityLabel,
   accessibilityHint,
   accessibilityRole,
@@ -48,9 +46,9 @@ export function Card({
   const paddingStyles = usePaddingStyles();
   // The token padding is a compiled style (not an inline object): on web an inline `padding` would
   // beat compiled longhands such as `paddingHorizontal` from the caller's `style`.
-  const containerStyle = [styles.base, styles[variant], paddingStyles[padding], highlighted ? styles.highlighted : null];
+  const containerStyle = [styles.base, paddingStyles[padding], highlighted ? styles.highlighted : null];
 
-  if (!onPress && !onLongPress) {
+  if (!onPress) {
     return (
       <View style={[containerStyle, style]} testID={testID} accessibilityLabel={accessibilityLabel}>
         {children}
@@ -67,9 +65,8 @@ export function Card({
       disabled={disabled}
       onPress={(event) => {
         haptics.light();
-        onPress?.(event);
+        onPress(event);
       }}
-      onLongPress={onLongPress}
       testID={testID}
       style={({ pressed }) => [containerStyle, pressed ? styles.pressed : null, disabled ? styles.disabled : null, style]}
     >
@@ -102,22 +99,11 @@ const useStyles = makeStyles((t) => ({
     borderWidth: 1,
     borderColor: 'transparent',
   },
-  elevated: {
-    ...(t.scheme === 'dark' ? { borderColor: t.colors.border } : t.shadows.md),
-  },
-  outlined: {
-    borderColor: t.colors.border,
-  },
-  flat: {
-    backgroundColor: t.colors.surfaceMuted,
-  },
   highlighted: {
     borderColor: t.colors.primary,
-    borderWidth: 1.5,
   },
   pressed: {
     backgroundColor: t.colors.surfacePressed,
-    transform: [{ scale: 0.99 }],
   },
   disabled: {
     opacity: 0.5,

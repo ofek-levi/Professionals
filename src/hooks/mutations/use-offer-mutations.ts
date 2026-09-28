@@ -17,7 +17,7 @@ function mergeOfferDetail(qc: QueryClient, userId: string | null, offer: Offer):
   );
 }
 
-export interface CreateOfferVariables {
+interface CreateOfferVariables {
   requestId: string;
   payload: CreateOfferPayload;
 }
@@ -34,7 +34,7 @@ export function useCreateOffer() {
   });
 }
 
-export interface UpdateOfferVariables {
+interface UpdateOfferVariables {
   offerId: string;
   payload: UpdateOfferPayload;
 }

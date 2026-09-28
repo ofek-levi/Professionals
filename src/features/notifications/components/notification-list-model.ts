@@ -16,7 +16,7 @@ export interface NotificationDayGroup {
   notifications: AppNotification[];
 }
 
-export type NotificationDayKind = 'today' | 'yesterday' | 'older';
+type NotificationDayKind = 'today' | 'yesterday' | 'older';
 
 function toDayKey(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');

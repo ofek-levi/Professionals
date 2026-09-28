@@ -16,7 +16,7 @@ import {
 /** `GET /offers/:id` payload: the offer with the professional summary and the request. */
 export type OfferDetails = OfferWithProfessional & Pick<OfferWithRequest, 'request'>;
 
-export type ProfessionalOffersQueryParams = Omit<ProfessionalOffersParams, 'cursor'>;
+type ProfessionalOffersQueryParams = Omit<ProfessionalOffersParams, 'cursor'>;
 
 /**
  * `GET /requests/:id/offers` – offers on the customer's request, sorted server-side. Keeps the

@@ -1,9 +1,10 @@
 import { Redirect } from 'expo-router';
 import { Tabs } from 'expo-router/js-tabs';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useRequireRole } from '@/features/auth/role-guards';
-import { useUnreadNotificationsCount } from '@/hooks/queries';
+import { useInboxCounts } from '@/features/notifications/inbox-counts';
 import { buildTabScreenOptions, formatTabBadge, tabBarIcon } from '@/providers';
 import { useTheme } from '@/theme';
 
@@ -14,47 +15,57 @@ export default function ProfessionalTabsLayout() {
   return <ProfessionalTabs />;
 }
 
+/** Professional tabs: Home · Explore · Work · Inbox · Profile. */
 function ProfessionalTabs() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { t } = useTranslation('common');
-  const unread = useUnreadNotificationsCount().data ?? 0;
-  const notificationsLabel = t('tabs.notifications');
+  // Inbox badge: unread updates + unread chat messages.
+  const unread = useInboxCounts().total;
+  const inboxLabel = t('tabs.inbox');
 
   return (
-    <Tabs screenOptions={buildTabScreenOptions(theme)}>
+    <Tabs screenOptions={buildTabScreenOptions(theme, insets.bottom)}>
       <Tabs.Screen
         name="home"
-        options={{ title: t('tabs.home'), tabBarIcon: tabBarIcon({ idle: 'home-outline', focused: 'home' }) }}
+        options={{
+          title: t('tabs.home'),
+          tabBarIcon: tabBarIcon({ idle: 'home-outline', focused: 'home' }),
+          tabBarButtonTestID: 'tab-home',
+        }}
       />
       <Tabs.Screen
         name="explore"
-        options={{ title: t('tabs.explore'), tabBarIcon: tabBarIcon({ idle: 'map-search-outline', focused: 'map-search' }) }}
-      />
-      <Tabs.Screen
-        name="offers"
-        options={{ title: t('tabs.offers'), tabBarIcon: tabBarIcon({ idle: 'tag-outline', focused: 'tag' }) }}
-      />
-      <Tabs.Screen
-        name="jobs"
-        options={{ title: t('tabs.jobs'), tabBarIcon: tabBarIcon({ idle: 'briefcase-outline', focused: 'briefcase' }) }}
-      />
-      <Tabs.Screen
-        name="notifications"
         options={{
-          title: notificationsLabel,
-          // Six tabs leave no room for the full word under the icon.
-          tabBarLabel: t('tabs.notificationsShort'),
-          tabBarIcon: tabBarIcon({ idle: 'bell-outline', focused: 'bell' }),
+          title: t('tabs.explore'),
+          tabBarIcon: tabBarIcon({ idle: 'compass-outline', focused: 'compass' }),
+          tabBarButtonTestID: 'tab-explore',
+        }}
+      />
+      <Tabs.Screen
+        name="work"
+        options={{
+          title: t('tabs.work'),
+          tabBarIcon: tabBarIcon({ idle: 'briefcase-outline', focused: 'briefcase' }),
+          tabBarButtonTestID: 'tab-work',
+        }}
+      />
+      <Tabs.Screen
+        name="inbox"
+        options={{
+          title: inboxLabel,
+          tabBarIcon: tabBarIcon({ idle: 'chatbubble-ellipses-outline', focused: 'chatbubble-ellipses' }),
           tabBarBadge: formatTabBadge(unread),
-          tabBarAccessibilityLabel:
-            unread > 0 ? `${notificationsLabel}, ${t('a11y.unreadCount', { count: unread })}` : notificationsLabel,
+          tabBarAccessibilityLabel: unread > 0 ? `${inboxLabel}, ${t('a11y.unreadCount', { count: unread })}` : inboxLabel,
+          tabBarButtonTestID: 'tab-inbox',
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: t('tabs.profile'),
-          tabBarIcon: tabBarIcon({ idle: 'account-circle-outline', focused: 'account-circle' }),
+          tabBarIcon: tabBarIcon({ idle: 'person-circle-outline', focused: 'person-circle' }),
+          tabBarButtonTestID: 'tab-profile',
         }}
       />
     </Tabs>

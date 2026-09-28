@@ -27,7 +27,7 @@ export function useCreateRequest() {
   });
 }
 
-export interface UpdateDraftRequestVariables {
+interface UpdateDraftRequestVariables {
   requestId: string;
   payload: UpdateDraftRequestPayload;
 }
@@ -58,7 +58,7 @@ export function usePublishRequest() {
   });
 }
 
-export interface CancelRequestVariables {
+interface CancelRequestVariables {
   requestId: string;
   payload: CancelRequestPayload;
 }

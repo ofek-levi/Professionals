@@ -23,7 +23,7 @@ export function requiresReloadForLanguage(language: AppLanguage): boolean {
 }
 
 /** Persists the direction attempt and reloads the JS bundle so the new direction applies. */
-export async function reloadForLayoutDirection(language: AppLanguage): Promise<void> {
+async function reloadForLayoutDirection(language: AppLanguage): Promise<void> {
   try {
     await AsyncStorage.setItem(RELOAD_FLAG_KEY, language);
   } catch {
@@ -32,7 +32,7 @@ export async function reloadForLayoutDirection(language: AppLanguage): Promise<v
   await reloadAppAsync(`Layout direction changed for "${language}"`);
 }
 
-export type DirectionStartupResult = 'ready' | 'reloading';
+type DirectionStartupResult = 'ready' | 'reloading';
 
 /**
  * Startup step: applies the layout direction for `language`. When the running direction does not

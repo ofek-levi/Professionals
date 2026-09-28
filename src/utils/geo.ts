@@ -4,7 +4,7 @@
  */
 import type { GeoCoordinates } from '@/types/domain';
 
-export const EARTH_RADIUS_KM = 6371.0088;
+const EARTH_RADIUS_KM = 6371.0088;
 
 /** Map viewport in the shape `react-native-maps` expects. */
 export interface MapRegion {
@@ -55,10 +55,6 @@ export function haversineDistanceKm(from: GeoCoordinates, to: GeoCoordinates): n
 /** Rounds a distance to 0.1 km (the precision shown in the UI). */
 export function roundDistanceKm(distanceKm: number): number {
   return Math.round(distanceKm * 10) / 10;
-}
-
-export function isWithinRadiusKm(center: GeoCoordinates, point: GeoCoordinates, radiusKm: number): boolean {
-  return haversineDistanceKm(center, point) <= radiusKm;
 }
 
 /**

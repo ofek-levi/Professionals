@@ -14,28 +14,30 @@ import { useToast } from './toast-provider';
 
 // ─────────────────────────────── EmptyState ───────────────────────────────
 
-export interface EmptyStateProps {
-  icon: IconSource;
+interface EmptyStateProps {
+  /** Small muted glyph above the title (optional – a one-line empty state needs none). */
+  icon?: IconSource;
   title: string;
   description?: string;
+  /** Tint of the glyph (defaults to muted text). */
   tone?: StatusTone;
   actionLabel?: string;
   onAction?: () => void;
   actionIcon?: IconSource;
   secondaryActionLabel?: string;
   onSecondaryAction?: () => void;
-  /** Smaller illustration and spacing for use inside cards/sections. */
+  /** Tighter spacing for use inside cards/sections. */
   compact?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-/** Friendly empty/zero state: illustration icon in soft rings, title, description and a CTA. */
+/** Quiet empty/zero state: an optional muted glyph, a short title, one line of help and a CTA. */
 export function EmptyState({
   icon,
   title,
   description,
-  tone = 'brand',
+  tone,
   actionLabel,
   onAction,
   actionIcon,
@@ -47,23 +49,17 @@ export function EmptyState({
 }: EmptyStateProps) {
   const theme = useTheme();
   const styles = useStyles();
-  const colors = theme.colors.tones[tone];
-  const inner = compact ? 56 : 76;
-  const outer = compact ? 80 : 112;
+  const glyphColor = tone ? theme.colors.tones[tone].fg : theme.colors.textMuted;
 
   return (
     <View style={[styles.state, compact ? styles.stateCompact : null, style]} testID={testID}>
-      <View
-        style={[styles.ring, { width: outer, height: outer, borderRadius: outer / 2, borderColor: colors.bg }]}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-      >
-        <View style={[styles.circle, { width: inner, height: inner, borderRadius: inner / 2, backgroundColor: colors.bg }]}>
-          <Icon name={icon} size={compact ? 26 : 34} color={colors.fg} />
+      {icon ? (
+        <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+          <Icon name={icon} size={compact ? 28 : 36} color={glyphColor} />
         </View>
-      </View>
+      ) : null}
       <View style={styles.texts}>
-        <AppText variant={compact ? 'subheading' : 'heading'} align="center" accessibilityRole="header">
+        <AppText variant={compact ? 'bodyStrong' : 'subheading'} align="center" accessibilityRole="header">
           {title}
         </AppText>
         {description ? (
@@ -75,10 +71,10 @@ export function EmptyState({
       {(actionLabel && onAction) || (secondaryActionLabel && onSecondaryAction) ? (
         <View style={styles.actions}>
           {actionLabel && onAction ? (
-            <Button label={actionLabel} onPress={onAction} leftIcon={actionIcon} size={compact ? 'sm' : 'md'} />
+            <Button label={actionLabel} onPress={onAction} leftIcon={actionIcon} variant="secondary" size="sm" />
           ) : null}
           {secondaryActionLabel && onSecondaryAction ? (
-            <Button label={secondaryActionLabel} onPress={onSecondaryAction} variant="ghost" size={compact ? 'sm' : 'md'} />
+            <Button label={secondaryActionLabel} onPress={onSecondaryAction} variant="ghost" size="sm" />
           ) : null}
         </View>
       ) : null}
@@ -103,13 +99,12 @@ const ERROR_ICONS: Partial<Record<ApiErrorCode, IconName>> = {
 /** Codes where retrying the same request cannot help. */
 const NON_RETRYABLE: ReadonlySet<ApiErrorCode> = new Set(['NOT_FOUND', 'FORBIDDEN', 'UNAUTHORIZED']);
 
-export interface ErrorStateProps {
+interface ErrorStateProps {
   /** Anything thrown (normalized with `toApiError`). */
   error: unknown;
   onRetry?: () => void;
   retrying?: boolean;
-  /** Override the mapped title/description. */
-  title?: string;
+  /** Override the mapped description. */
   description?: string;
   compact?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -117,23 +112,20 @@ export interface ErrorStateProps {
 }
 
 /** Maps `ApiError.code` → `errors:codes.<CODE>` copy and a matching illustration. */
-export function ErrorState({ error, onRetry, retrying = false, title, description, compact = false, style, testID }: ErrorStateProps) {
+export function ErrorState({ error, onRetry, retrying = false, description, compact = false, style, testID }: ErrorStateProps) {
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation(['errors', 'common']);
   const code = toApiError(error).code;
   const tone = theme.colors.tones[code === 'NETWORK_ERROR' || code === 'TIMEOUT' ? 'warning' : 'danger'];
-  const size = compact ? 56 : 76;
   const canRetry = Boolean(onRetry) && !NON_RETRYABLE.has(code);
 
   return (
     <View style={[styles.state, compact ? styles.stateCompact : null, style]} testID={testID} accessibilityRole="alert">
-      <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, backgroundColor: tone.bg }]}>
-        <Icon name={ERROR_ICONS[code] ?? 'alert-circle-outline'} size={compact ? 26 : 34} color={tone.fg} />
-      </View>
+      <Icon name={ERROR_ICONS[code] ?? 'alert-circle-outline'} size={compact ? 28 : 36} color={tone.fg} />
       <View style={styles.texts}>
-        <AppText variant={compact ? 'subheading' : 'heading'} align="center" accessibilityRole="header">
-          {title ?? t(`errors:codes.${code}.title`)}
+        <AppText variant={compact ? 'bodyStrong' : 'subheading'} align="center" accessibilityRole="header">
+          {t(`errors:codes.${code}.title`)}
         </AppText>
         <AppText variant={compact ? 'caption' : 'body'} color="secondary" align="center">
           {description ?? t(`errors:codes.${code}.description`)}
@@ -142,9 +134,8 @@ export function ErrorState({ error, onRetry, retrying = false, title, descriptio
       {canRetry ? (
         <Button
           label={t('common:actions.tryAgain')}
-          leftIcon="refresh"
           variant="secondary"
-          size={compact ? 'sm' : 'md'}
+          size="sm"
           loading={retrying}
           onPress={onRetry}
           style={styles.retry}
@@ -179,27 +170,16 @@ export function useErrorToast(): (error: unknown, options?: { title?: string }) 
 
 // ─────────────────────────────── LoadingState ───────────────────────────────
 
-export interface LoadingStateProps {
-  label?: string;
-  /** Centers in the available space (default) – set `false` for inline use. */
-  fill?: boolean;
-  style?: StyleProp<ViewStyle>;
-}
-
-export function LoadingState({ label, fill = true, style }: LoadingStateProps) {
+/** Default loading placeholder of `QueryState` (screens pass a skeleton instead). */
+function LoadingState() {
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation('common');
   return (
-    <View
-      style={[styles.loading, fill ? styles.fill : null, style]}
-      accessible
-      accessibilityRole="progressbar"
-      accessibilityLabel={label ?? t('states.loading')}
-    >
+    <View style={[styles.loading, styles.fill]} accessible accessibilityRole="progressbar" accessibilityLabel={t('states.loading')}>
       <ActivityIndicator size="large" color={theme.colors.primary} />
       <AppText variant="caption" color="muted" align="center">
-        {label ?? t('states.loading')}
+        {t('states.loading')}
       </AppText>
     </View>
   );
@@ -208,7 +188,7 @@ export function LoadingState({ label, fill = true, style }: LoadingStateProps) {
 // ─────────────────────────────── QueryState ───────────────────────────────
 
 /** The subset of a React Query result that `QueryState` needs (works with infinite queries too). */
-export interface QueryLike<TData> {
+interface QueryLike<TData> {
   data: TData | undefined;
   error: unknown;
   isPending: boolean;
@@ -217,7 +197,7 @@ export interface QueryLike<TData> {
   refetch: () => unknown;
 }
 
-export interface QueryStateProps<TData> {
+interface QueryStateProps<TData> {
   query: QueryLike<TData>;
   /** Rendered with the loaded data. */
   children: (data: TData) => ReactNode;
@@ -261,33 +241,24 @@ const useStyles = makeStyles((t) => ({
   state: {
     alignItems: 'center',
     justifyContent: 'center',
-    gap: t.spacing.lg,
+    gap: t.spacing.md,
     paddingVertical: t.spacing.huge,
     paddingHorizontal: t.spacing.xxl,
   },
   stateCompact: {
-    gap: t.spacing.md,
+    gap: t.spacing.sm,
     paddingVertical: t.spacing.xxl,
     paddingHorizontal: t.spacing.lg,
   },
-  ring: {
-    borderWidth: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    opacity: 1,
-  },
-  circle: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   texts: {
-    gap: t.spacing.xs + 2,
-    maxWidth: 360,
+    gap: t.spacing.xs,
+    maxWidth: 340,
     alignItems: 'center',
   },
   // Buttons align to the start by default; the retry button sits under the centered message.
   retry: {
     alignSelf: 'center',
+    marginTop: t.spacing.xs,
   },
   actions: {
     alignItems: 'center',

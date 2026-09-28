@@ -6,14 +6,12 @@ import type { OfferStatus } from '@/constants/offer-statuses';
 export type { OfferStatus };
 
 /** Why an offer left the `pending` state. */
-export const OFFER_STATUS_REASONS = [
-  'accepted_by_customer',
-  'another_offer_accepted',
-  'request_cancelled',
-  'withdrawn_by_professional',
-  'expired',
-] as const;
-export type OfferStatusReason = (typeof OFFER_STATUS_REASONS)[number];
+export type OfferStatusReason =
+  | 'accepted_by_customer'
+  | 'another_offer_accepted'
+  | 'request_cancelled'
+  | 'withdrawn_by_professional'
+  | 'expired';
 
 export interface Offer {
   id: EntityId;

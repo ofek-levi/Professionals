@@ -9,19 +9,17 @@ import { Chip, type ChipSize } from '../ui/chip';
 import { Icon } from '../ui/icon';
 import { categoryGroupTone } from './category-icon';
 
-export interface CategoryChipProps {
+interface CategoryChipProps {
   categoryId: CategoryId | string;
   selected?: boolean;
   onPress?: () => void;
   onRemove?: () => void;
   size?: ChipSize;
-  /** Hide the category glyph. */
-  hideIcon?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
 /** Chip showing a category's icon and localized name (filters, profile categories, selections). */
-export function CategoryChip({ categoryId, selected = false, onPress, onRemove, size = 'md', hideIcon = false, style }: CategoryChipProps) {
+export function CategoryChip({ categoryId, selected = false, onPress, onRemove, size = 'md', style }: CategoryChipProps) {
   const theme = useTheme();
   const { t } = useTranslation('common');
   const category = useCategory(categoryId);
@@ -36,11 +34,7 @@ export function CategoryChip({ categoryId, selected = false, onPress, onRemove, 
       onRemove={onRemove}
       size={size}
       style={style}
-      leading={
-        hideIcon ? undefined : (
-          <Icon name={category?.icon ?? 'shape-outline'} size={size === 'sm' ? 14 : 16} color={selected ? theme.colors.primary : tone.fg} />
-        )
-      }
+      leading={<Icon name={category?.icon ?? 'shape-outline'} size={size === 'sm' ? 14 : 16} color={selected ? theme.colors.primary : tone.fg} />}
     />
   );
 }

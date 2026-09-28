@@ -6,21 +6,17 @@ import { OFFER_STATUS_META, type OfferStatus } from '@/constants/offer-statuses'
 import type { RequestStatus } from '@/constants/request-statuses';
 import { URGENCY_META, type UrgencyLevel } from '@/constants/urgency-levels';
 import { requestAcceptsOffers } from '@/features/requests/request-status-machine';
-import { assertTransition, canTransition, type TransitionTable } from '@/features/shared/state-machine';
+import { assertTransition, type TransitionTable } from '@/features/shared/state-machine';
 import type { ISODateTimeString, Offer, ServiceRequest } from '@/types/domain';
 import { toDate, type DateInput } from '@/utils/dates';
 
-export const OFFER_TRANSITIONS: TransitionTable<OfferStatus> = {
+const OFFER_TRANSITIONS: TransitionTable<OfferStatus> = {
   pending: ['accepted', 'rejected', 'withdrawn', 'expired'],
   accepted: [],
   rejected: [],
   withdrawn: [],
   expired: [],
 };
-
-export function canTransitionOffer(from: OfferStatus, to: OfferStatus): boolean {
-  return canTransition(OFFER_TRANSITIONS, from, to);
-}
 
 /** Throws `DomainError` `INVALID_STATE_TRANSITION` (409) for disallowed transitions. */
 export function assertOfferTransition(from: OfferStatus, to: OfferStatus): void {
@@ -52,7 +48,7 @@ export function computeOfferExpiry(
   return new Date(Math.min(validUntil, start)).toISOString();
 }
 
-export interface ProfessionalOfferActions {
+interface ProfessionalOfferActions {
   canEdit: boolean;
   canWithdraw: boolean;
 }
@@ -69,7 +65,7 @@ export function getProfessionalOfferActions(
 }
 
 /** Why the owning customer cannot accept an offer right now. */
-export type OfferAcceptBlocker = 'already_accepted' | 'offer_expired' | 'offer_not_pending' | 'request_closed';
+type OfferAcceptBlocker = 'already_accepted' | 'offer_expired' | 'offer_not_pending' | 'request_closed';
 
 /**
  * The accept rule shared by `POST /offers/:id/accept` and the customer's Accept buttons: the

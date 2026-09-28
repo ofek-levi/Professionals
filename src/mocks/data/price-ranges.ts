@@ -5,7 +5,7 @@
 import type { CategoryId } from '@/constants/professional-categories';
 import type { SeededRandom } from '@/features/shared/seeded-random';
 
-export interface CategoryPriceRange {
+interface CategoryPriceRange {
   min: number;
   max: number;
   /** Typical duration range in minutes. */
@@ -74,7 +74,7 @@ export const CATEGORY_PRICE_RANGES: Record<CategoryId, CategoryPriceRange> = {
 };
 
 /** Rounds a price the way professionals quote: tens below 1,000, fifties below 5,000, hundreds above. */
-export function roundQuotePrice(value: number): number {
+function roundQuotePrice(value: number): number {
   const step = value < 1000 ? 10 : value < 5000 ? 50 : 100;
   return Math.max(step, Math.round(value / step) * step);
 }

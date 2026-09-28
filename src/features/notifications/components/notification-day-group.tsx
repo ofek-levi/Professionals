@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { AppText, Card, Skeleton } from '@/components/ui';
+import { AppText, Skeleton } from '@/components/ui';
 import type { NotificationContent } from '@/features/notifications/notification-presenter';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
@@ -10,24 +10,24 @@ import type { AppNotification } from '@/types/domain';
 import { getNotificationDayKind, type NotificationDayGroup } from './notification-list-model';
 import { NotificationRow, NotificationRowSkeleton } from './notification-row';
 
-export interface NotificationDayGroupCardProps {
+interface NotificationDayGroupProps {
   group: NotificationDayGroup;
   now: Date;
   present: (notification: AppNotification) => NotificationContent;
   onPressNotification: (notification: AppNotification) => void;
 }
 
-/** "Today" / "Yesterday" / "Wednesday, Sep 23" header with the day's notifications in one card. */
-export function NotificationDayGroupCard({ group, now, present, onPressNotification }: NotificationDayGroupCardProps) {
+/** "Today" / "Yesterday" / "Wednesday, Sep 23" label followed by that day's notifications. */
+export function NotificationDayGroupList({ group, now, present, onPressNotification }: NotificationDayGroupProps) {
   const styles = useStyles();
   const label = useDayLabel(group, now);
   const timeStyle = getNotificationDayKind(group) === 'today' ? 'relative' : 'clock';
   return (
     <View style={styles.group}>
-      <AppText variant="captionStrong" color="muted" accessibilityRole="header" style={styles.label}>
+      <AppText variant="captionStrong" color="muted" accessibilityRole="header">
         {label}
       </AppText>
-      <Card padding="none" style={styles.card}>
+      <View>
         {group.notifications.map((notification, index) => (
           <NotificationRow
             key={notification.id}
@@ -39,7 +39,7 @@ export function NotificationDayGroupCard({ group, now, present, onPressNotificat
             onPress={onPressNotification}
           />
         ))}
-      </Card>
+      </View>
     </View>
   );
 }
@@ -60,31 +60,23 @@ function useDayLabel(group: NotificationDayGroup, now: Date): string {
   }
 }
 
-/** Loading placeholder: a day label and a card of skeleton rows. */
-export function NotificationGroupSkeleton({ rows = 4 }: { rows?: number }) {
+/** Loading placeholder: a day label and skeleton rows. */
+export function NotificationGroupSkeleton({ rows = 3 }: { rows?: number }) {
   const styles = useStyles();
   return (
     <View style={styles.group}>
-      <Skeleton width={90} height={12} style={styles.label} />
-      <Card padding="none" style={styles.card}>
+      <Skeleton width={80} height={12} />
+      <View>
         {Array.from({ length: rows }, (_, index) => (
           <NotificationRowSkeleton key={index} first={index === 0} />
         ))}
-      </Card>
+      </View>
     </View>
   );
 }
 
 const useStyles = makeStyles((t) => ({
   group: {
-    gap: t.spacing.sm,
-  },
-  label: {
-    paddingHorizontal: t.spacing.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  card: {
-    overflow: 'hidden',
+    gap: t.spacing.xxs,
   },
 }));

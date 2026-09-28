@@ -12,10 +12,9 @@ import { makeStyles, useTheme, type Theme } from '@/theme';
 import { withAlpha } from '../ui/colors';
 import { IconButton } from '../ui/icon-button';
 import { LocationPin, MarkerBubble } from './map-markers';
-import { contentCoordinates, regionKey, resolveInitialRegion } from './map-region';
+import { regionKey, resolveInitialRegion } from './map-region';
 import type { AppMapMarker, AppMapProps, MapRegion } from './types';
 
-const EDGE_PADDING = { top: 72, right: 56, bottom: 72, left: 56 };
 const ANIMATION_MS = 350;
 
 /** Google Maps dark style derived from theme tokens (Android; iOS uses `userInterfaceStyle`). */
@@ -65,12 +64,8 @@ export function AppMap({
   circles = [],
   onMarkerPress,
   onPress,
-  onRegionChangeComplete,
   draggablePin,
-  showsUserLocation = false,
-  fitToMarkers = false,
   showZoomControls = false,
-  interactive = true,
   accessibilityLabel,
   style,
   testID,
@@ -85,7 +80,7 @@ export function AppMap({
     animateToRegion: (target, durationMs = ANIMATION_MS) => mapRef.current?.animateToRegion(target, durationMs),
   }));
   const [initial] = useState(() =>
-    resolveInitialRegion({ region, initialRegion, fitToMarkers, markers, circles, pin: draggablePin }),
+    resolveInitialRegion({ region, initialRegion, markers, circles, pin: draggablePin }),
   );
   const [currentRegion, setCurrentRegion] = useState<MapRegion>(initial);
 
@@ -97,12 +92,6 @@ export function AppMap({
     lastFocusKey.current = focusKey;
     mapRef.current?.animateToRegion(region, ANIMATION_MS);
   }, [focusKey, region]);
-
-  const fitContent = () => {
-    if (!fitToMarkers) return;
-    const points = contentCoordinates(markers, circles, draggablePin);
-    if (points.length > 1) mapRef.current?.fitToCoordinates(points, { edgePadding: EDGE_PADDING, animated: false });
-  };
 
   const zoom = (factor: number) => {
     mapRef.current?.animateToRegion(
@@ -123,20 +112,13 @@ export function AppMap({
         style={StyleSheet.absoluteFill}
         initialRegion={initial}
         accessibilityLabel={accessibilityLabel ?? t('map.label')}
-        onMapReady={fitContent}
         onPress={(event) => onPress?.(event.nativeEvent.coordinate)}
-        onRegionChangeComplete={(next) => {
-          setCurrentRegion(next);
-          onRegionChangeComplete?.(next);
-        }}
-        showsUserLocation={showsUserLocation}
+        onRegionChangeComplete={setCurrentRegion}
         showsMyLocationButton={false}
         showsCompass={false}
         toolbarEnabled={false}
         rotateEnabled={false}
         pitchEnabled={false}
-        scrollEnabled={interactive}
-        zoomEnabled={interactive}
         userInterfaceStyle={theme.scheme}
         customMapStyle={Platform.OS === 'android' && theme.scheme === 'dark' ? darkMapStyle(theme) : undefined}
       >
@@ -174,7 +156,7 @@ export function AppMap({
           </Marker>
         ) : null}
       </MapView>
-      {showZoomControls && interactive ? (
+      {showZoomControls ? (
         <View style={styles.zoom}>
           <IconButton icon="plus" variant="surface" accessibilityLabel={t('map.zoomIn')} onPress={() => zoom(0.5)} />
           <IconButton icon="minus" variant="surface" accessibilityLabel={t('map.zoomOut')} onPress={() => zoom(2)} />

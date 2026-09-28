@@ -4,36 +4,22 @@
  * notification's structured `params` (category name, formatted price/date, names…).
  */
 export const notifications = {
-  title: 'Notifications',
-  subtitle: 'Offers, job updates and messages',
+  inbox: {
+    title: 'Inbox',
+    tabs: {
+      updates: 'Updates',
+      messages: 'Messages',
+    },
+    emptyUpdates: 'No updates yet',
+  },
   markAllRead: 'Mark all as read',
-  markAllReadDone: 'All notifications marked as read',
-  unreadSection: 'New',
-  earlierSection: 'Earlier',
-  unreadCount_one: '{{count}} unread notification',
-  unreadCount_other: '{{count}} unread notifications',
-  filters: {
-    all: 'All',
-    unread: 'Unread',
-  },
-  empty: {
-    title: 'You’re all caught up',
-    description: 'We’ll let you know when there are new offers, job updates or messages.',
-    unreadTitle: 'No unread notifications',
-    unreadDescription: 'Everything has been read. Nice!',
-    customerAction: 'Post a request',
-    professionalAction: 'Find jobs nearby',
-    showAll: 'Show all notifications',
-  },
+  markAllReadShort: 'Mark all read',
   groups: {
     weekdayDate: '{{weekday}}, {{date}}',
   },
-  markAllReadShort: 'Mark all read',
-  allRead: 'You’re all caught up',
   a11y: {
     unread: 'Unread',
     openHint: 'Opens the related details',
-    filters: 'Filter notifications',
   },
   fallbacks: {
     customer: 'A customer',
@@ -43,8 +29,8 @@ export const notifications = {
   types: {
     new_matching_request: {
       title: 'New {{category}} request nearby',
-      body: 'A new request {{distance}} from you matches your services. Be the first to send an offer.',
-      bodyNoDistance: 'A new request in your service area matches your services. Be the first to send an offer.',
+      body: '{{distance}} from you',
+      bodyNoDistance: 'In your service area',
     },
     offer_received: {
       title: 'New offer: {{price}}',

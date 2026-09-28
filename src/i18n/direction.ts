@@ -2,7 +2,7 @@ import { I18nManager, Platform } from 'react-native';
 
 import type { AppLanguage } from '@/types/domain';
 
-export const RTL_LANGUAGES: readonly AppLanguage[] = ['he'];
+const RTL_LANGUAGES: readonly AppLanguage[] = ['he'];
 
 export function isRTLLanguage(language: AppLanguage): boolean {
   return RTL_LANGUAGES.includes(language);

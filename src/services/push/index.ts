@@ -14,7 +14,7 @@ import type { PushPlatform, PushProvider } from './types';
 
 export const pushProvider = createSimulatedPushProvider();
 
-export function getPushPlatform(): PushPlatform {
+function getPushPlatform(): PushPlatform {
   if (Platform.OS === 'ios' || Platform.OS === 'android') return Platform.OS;
   return 'web';
 }

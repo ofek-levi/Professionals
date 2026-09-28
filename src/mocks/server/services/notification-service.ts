@@ -21,7 +21,7 @@ function preferencesOf(ctx: ServerContext, userId: string): NotificationPreferen
 }
 
 /** Whether the recipient opted in to this notification category. */
-export function wantsNotification(ctx: ServerContext, userId: string, type: AppNotification['type']): boolean {
+function wantsNotification(ctx: ServerContext, userId: string, type: AppNotification['type']): boolean {
   const preferences = preferencesOf(ctx, userId);
   if (!preferences) return false;
   return preferences[NOTIFICATION_TYPE_META[type].preference];

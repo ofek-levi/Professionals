@@ -17,7 +17,7 @@ export function isSupportedLanguage(value: unknown): value is AppLanguage {
   return typeof value === 'string' && (SUPPORTED_LANGUAGES as readonly string[]).includes(value);
 }
 
-export function getDeviceLanguage(): AppLanguage {
+function getDeviceLanguage(): AppLanguage {
   try {
     const code = getLocales()[0]?.languageCode;
     // `iw` is the legacy ISO code for Hebrew still reported by some Android devices.
@@ -28,7 +28,7 @@ export function getDeviceLanguage(): AppLanguage {
   }
 }
 
-export async function getStoredLanguage(): Promise<AppLanguage | null> {
+async function getStoredLanguage(): Promise<AppLanguage | null> {
   try {
     const stored = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
     return isSupportedLanguage(stored) ? stored : null;
@@ -67,10 +67,6 @@ export function initI18n(language?: AppLanguage): Promise<AppLanguage> {
     })();
   }
   return initPromise;
-}
-
-export function getCurrentLanguage(): AppLanguage {
-  return isSupportedLanguage(i18n.language) ? i18n.language : 'en';
 }
 
 export { i18n };

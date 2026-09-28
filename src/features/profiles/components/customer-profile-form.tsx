@@ -1,13 +1,13 @@
 /**
- * Edit the signed-in customer's profile: photo, name, phone and default service address.
- * Rendered by `/profile/edit` for customers.
+ * Edit the signed-in customer's profile: photo, name, phone and default service address (a row
+ * that opens the location picker in a sheet). Rendered by `/profile/edit` for customers.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
 
@@ -17,11 +17,12 @@ import {
   AppText,
   Avatar,
   Button,
+  Card,
   ErrorState,
-  IconButton,
+  Icon,
   Screen,
+  Sheet,
   SkeletonCard,
-  TextField,
   useConfirm,
   useErrorToast,
   useToast,
@@ -103,6 +104,7 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
   });
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatarUrl);
   const [saved, setSaved] = useState(false);
+  const [addressOpen, setAddressOpen] = useState(false);
   const avatarChanged = avatarUrl !== user.avatarUrl;
   const hasChanges = formState.isDirty || avatarChanged;
   const fullName = `${user.firstName} ${user.lastName}`.trim() || user.displayName;
@@ -181,11 +183,10 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
   return (
     <Screen
       edges={['left', 'right', 'bottom']}
-      gap="xl"
+      gap="xxl"
       footer={
         <Button
           label={t('common:actions.saveChanges')}
-          leftIcon="content-save-outline"
           size="lg"
           fullWidth
           loading={update.isPending}
@@ -197,24 +198,12 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
       testID="customer-profile-form"
     >
       <View style={styles.avatarBlock}>
-        <View>
-          <Avatar name={fullName} uri={avatarUrl} size="xl" />
-          <IconButton
-            icon="camera-outline"
-            variant="filled"
-            size="sm"
-            accessibilityLabel={t('profile:edit.changePhoto')}
-            onPress={() => void pickAvatar()}
-            loading={upload.isPending}
-            style={styles.cameraButton}
-          />
-        </View>
+        <Avatar name={fullName} uri={avatarUrl} size="xl" />
         <View style={styles.avatarActions}>
           <Button
             label={avatarUrl ? t('profile:edit.changePhoto') : t('profile:edit.addPhoto')}
-            variant="secondary"
+            variant="ghost"
             size="sm"
-            leftIcon="image-outline"
             loading={upload.isPending}
             onPress={() => void pickAvatar()}
             testID="profile-change-photo"
@@ -225,7 +214,7 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
         </View>
       </View>
 
-      <FormSection title={t('profile:edit.personal')} icon="account-outline">
+      <FormSection title={t('profile:edit.personal')} variant="plain">
         <View style={styles.nameRow}>
           <FormTextField
             control={control}
@@ -257,31 +246,68 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
           keyboardType="phone-pad"
           autoComplete="tel"
           textContentType="telephoneNumber"
-          leftIcon="phone-outline"
           testID="profile-phone"
-        />
-        <TextField
-          label={t('profile:edit.email')}
-          value={user.email}
-          disabled
-          leftIcon="email-outline"
-          helperText={t('profile:edit.emailHelper')}
         />
       </FormSection>
 
-      <FormSection
-        title={t('profile:edit.address')}
-        description={t('profile:edit.addressDescription')}
-        icon="home-map-marker"
-        optional
-      >
-        <Controller
-          control={control}
-          name="defaultLocation"
-          render={({ field: { value, onChange }, fieldState: { error } }) => {
-            const location: ServiceLocation | null = value ? { ...value, isApproximate: false } : null;
-            return (
-              <View style={styles.location}>
+      <Controller
+        control={control}
+        name="defaultLocation"
+        render={({ field: { value, onChange }, fieldState: { error } }) => {
+          const location: ServiceLocation | null = value ? { ...value, isApproximate: false } : null;
+          const errorText = translateError(nestedErrorMessage(error));
+          const area = location ? [location.neighborhood, location.city].filter(Boolean).join(', ') : '';
+          return (
+            <FormSection title={t('profile:edit.address')} optional variant="plain">
+              <Card padding="none" onPress={() => setAddressOpen(true)} style={styles.addressRow} testID="profile-address">
+                <View style={styles.flex}>
+                  <AppText variant="bodyStrong" color={location ? 'default' : 'primary'} numberOfLines={2}>
+                    {location ? location.addressLine || area : t('profile:edit.addAddress')}
+                  </AppText>
+                  {location && location.addressLine && area ? (
+                    <AppText variant="caption" color="secondary" numberOfLines={1}>
+                      {area}
+                    </AppText>
+                  ) : null}
+                </View>
+                {location ? (
+                  <AppText variant="captionStrong" color="primary">
+                    {t('common:actions.change')}
+                  </AppText>
+                ) : (
+                  <Icon name="chevron-right" size={20} color="muted" flipInRTL />
+                )}
+              </Card>
+              {errorText ? (
+                <AppText variant="caption" color="danger">
+                  {errorText}
+                </AppText>
+              ) : null}
+              <Sheet
+                visible={addressOpen}
+                onClose={() => setAddressOpen(false)}
+                title={t('profile:edit.address')}
+                footer={
+                  <View style={styles.sheetFooter}>
+                    <Button label={t('common:actions.done')} size="lg" fullWidth onPress={() => setAddressOpen(false)} />
+                    {value ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => {
+                          onChange(null);
+                          setAddressOpen(false);
+                        }}
+                        hitSlop={8}
+                        style={styles.removeAddress}
+                      >
+                        <AppText variant="bodyStrong" color="danger">
+                          {t('profile:edit.clearAddress')}
+                        </AppText>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                }
+              >
                 <LocationPicker
                   value={location}
                   onChange={(next) =>
@@ -294,27 +320,14 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
                     })
                   }
                   initialRegion={location ? regionForRadius(location.coordinates, 1) : undefined}
-                  error={translateError(nestedErrorMessage(error))}
+                  error={errorText}
                   testID="profile-location"
                 />
-                {value ? (
-                  <Button
-                    label={t('profile:edit.clearAddress')}
-                    variant="ghost"
-                    size="sm"
-                    leftIcon="map-marker-remove-outline"
-                    onPress={() => onChange(null)}
-                  />
-                ) : (
-                  <AppText variant="caption" color="muted">
-                    {t('profile:edit.noAddress')}
-                  </AppText>
-                )}
-              </View>
-            );
-          }}
-        />
-      </FormSection>
+              </Sheet>
+            </FormSection>
+          );
+        }}
+      />
     </Screen>
   );
 }
@@ -322,30 +335,36 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
 const useStyles = makeStyles((t) => ({
   flex: {
     flex: 1,
+    gap: t.spacing.xxs,
   },
   avatarBlock: {
     alignItems: 'center',
-    gap: t.spacing.md,
+    gap: t.spacing.sm,
     paddingTop: t.spacing.sm,
-  },
-  cameraButton: {
-    position: 'absolute',
-    bottom: 0,
-    end: 0,
-    borderWidth: 3,
-    borderColor: t.colors.background,
   },
   avatarActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: t.spacing.sm,
+    gap: t.spacing.xs,
   },
   nameRow: {
     flexDirection: 'row',
     gap: t.spacing.md,
   },
-  location: {
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: t.spacing.md,
+    paddingHorizontal: t.spacing.lg,
+    minHeight: 64,
+    paddingVertical: t.spacing.md,
+  },
+  sheetFooter: {
     gap: t.spacing.sm,
-    alignItems: 'stretch',
+    alignItems: 'center',
+  },
+  removeAddress: {
+    minHeight: 40,
+    justifyContent: 'center',
   },
 }));

@@ -6,12 +6,12 @@ import { z } from 'zod';
 import { APP_CONFIG } from '@/constants/app-config';
 import { CATEGORY_IDS } from '@/constants/professional-categories';
 import { SUPPORTED_CURRENCIES } from '@/types/domain';
-import { isValidDateKey, isValidDateTimeString, isValidTimeOfDay } from '@/utils/dates';
+import { isValidDateKey, isValidDateTimeString } from '@/utils/dates';
 import { isValidCoordinates } from '@/utils/geo';
 
 import { vm, type ValidationMessageKey } from './messages';
 
-export interface TextRuleOptions {
+interface TextRuleOptions {
   /** Minimum length after trimming (default 1). */
   min?: number;
   max: number;
@@ -72,9 +72,6 @@ export const serviceLocationInputSchema = z.object({
 export const dateKeySchema = (message: ValidationMessageKey = vm('invalid')) =>
   z.string({ error: message }).refine((value) => isValidDateKey(value), { message });
 
-export const timeOfDaySchema = (message: ValidationMessageKey = vm('invalid')) =>
-  z.string({ error: message }).refine((value) => isValidTimeOfDay(value), { message });
-
 export const isoDateTimeSchema = (message: ValidationMessageKey = vm('invalid')) =>
   z.string({ error: message }).refine((value) => isValidDateTimeString(value), { message });
 
@@ -85,7 +82,7 @@ export const categoryIdSchema = z.enum(CATEGORY_IDS, {
   error: (issue) => (issue.input === undefined || issue.input === null || issue.input === '' ? vm('category.required') : vm('category.unsupported')),
 });
 
-export function hasAtMostTwoDecimals(value: number): boolean {
+function hasAtMostTwoDecimals(value: number): boolean {
   return Math.abs(Math.round(value * 100) - value * 100) < 1e-6;
 }
 
@@ -124,12 +121,12 @@ const ISRAELI_PHONE = /^(?:\+972|0)(?:5\d|7\d|[2-4]|[89])\d{7}$/;
 const INTERNATIONAL_PHONE = /^\+[1-9]\d{7,14}$/;
 
 /** Israeli mobile/landline (05X…, 0X…, +972…) or an international number in E.164 form. */
-export function isValidPhone(value: string): boolean {
+function isValidPhone(value: string): boolean {
   const normalized = normalizePhone(value);
   return ISRAELI_PHONE.test(normalized) || INTERNATIONAL_PHONE.test(normalized);
 }
 
-export function isValidEmail(value: string): boolean {
+function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
 }
 

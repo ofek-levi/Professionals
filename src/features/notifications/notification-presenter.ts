@@ -34,7 +34,7 @@ export interface NotificationContent {
   tone: StatusTone;
 }
 
-export type NotificationsT = TFunction<'notifications'>;
+type NotificationsT = TFunction<'notifications'>;
 
 /** Currency used when a price arrives without one (should not happen with a valid backend). */
 const FALLBACK_CURRENCY = 'ILS';

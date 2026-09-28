@@ -13,10 +13,10 @@ import { demoTools } from '@/services/api';
 
 const STORAGE_KEY = '@professionals/settings/v1';
 
-export const COLOR_SCHEME_PREFERENCES = ['system', 'light', 'dark'] as const;
+const COLOR_SCHEME_PREFERENCES = ['system', 'light', 'dark'] as const;
 export type ColorSchemePreference = (typeof COLOR_SCHEME_PREFERENCES)[number];
 
-export interface AppSettings {
+interface AppSettings {
   colorScheme: ColorSchemePreference;
   simulationEnabled: boolean;
 }

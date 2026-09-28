@@ -5,5 +5,5 @@ export const resources = { en, he } as const;
 
 export const defaultNS = 'common';
 
-export type AppNamespace = keyof typeof en;
+type AppNamespace = keyof typeof en;
 export const NAMESPACES = Object.keys(en) as AppNamespace[];

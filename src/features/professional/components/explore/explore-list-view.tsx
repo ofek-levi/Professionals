@@ -1,62 +1,35 @@
 /**
- * List mode of the job explorer: infinite list of matching open requests with pull-to-refresh and a
- * sort selector.
+ * List mode of the job explorer: infinite list of matching open requests (newest first) with
+ * pull-to-refresh.
  */
 import { useRouter } from 'expo-router';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { RequestCard, RequestCardSkeleton } from '@/components/requests';
-import { AppText, EmptyState, ErrorState, Icon } from '@/components/ui';
+import { EmptyState, ErrorState } from '@/components/ui';
 import { useNearbyOpenRequests, useRefetchOnFocus } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
-import type { NearbyRequestSort } from '@/types/api';
 
 import type { NearbyFilterParams } from '../../explore-filters';
-import { SORT_ICONS } from './explore-sort-sheet';
 
-export interface ExploreListViewProps {
+interface ExploreListViewProps {
   params: NearbyFilterParams;
-  sort: NearbyRequestSort;
-  onOpenSort: () => void;
   hasFilters: boolean;
   onAdjustFilters: () => void;
   onClearFilters: () => void;
 }
 
-export function ExploreListView({ params, sort, onOpenSort, hasFilters, onAdjustFilters, onClearFilters }: ExploreListViewProps) {
+export function ExploreListView({ params, hasFilters, onAdjustFilters, onClearFilters }: ExploreListViewProps) {
   const styles = useStyles();
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation(['explore', 'common']);
-  const query = useNearbyOpenRequests({ ...params, sort });
+  const query = useNearbyOpenRequests(params);
   useRefetchOnFocus(query.refetch);
 
   const items = query.data?.items ?? [];
-  const total = query.data?.totalCount ?? 0;
-
-  const header = (
-    <View style={styles.listHeader}>
-      <AppText variant="captionStrong" color="secondary" numberOfLines={1} style={styles.flex} tabular>
-        {query.data ? t('explore:jobsFound', { count: total }) : ' '}
-      </AppText>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${t('explore:sort.label')}: ${t(`explore:sort.options.${sort}`)}`}
-        onPress={onOpenSort}
-        hitSlop={8}
-        style={({ pressed }) => [styles.sortButton, pressed ? styles.pressed : null]}
-        testID="explore-sort-button"
-      >
-        <Icon name={SORT_ICONS[sort]} size={16} color="primary" />
-        <AppText variant="captionStrong" color="primary" numberOfLines={1}>
-          {t(`explore:sort.options.${sort}`)}
-        </AppText>
-        <Icon name="chevron-down" size={16} color="primary" />
-      </Pressable>
-    </View>
-  );
 
   if (query.data === undefined) {
     return (
@@ -65,7 +38,6 @@ export function ExploreListView({ params, sort, onOpenSort, hasFilters, onAdjust
           <ErrorState error={query.error} onRetry={() => void query.refetch()} retrying={query.isRefetching} />
         ) : (
           <View style={styles.skeletons}>
-            {header}
             {[0, 1, 2].map((index) => (
               <RequestCardSkeleton key={index} />
             ))}
@@ -90,28 +62,16 @@ export function ExploreListView({ params, sort, onOpenSort, hasFilters, onAdjust
         />
       )}
       ItemSeparatorComponent={Separator}
-      ListHeaderComponent={header}
       ListEmptyComponent={
         <EmptyState
-          icon={hasFilters ? 'filter-remove-outline' : 'briefcase-search-outline'}
           title={hasFilters ? t('explore:empty.filteredTitle') : t('explore:empty.areaTitle')}
-          description={hasFilters ? t('explore:empty.filteredDescription') : t('explore:empty.areaDescription')}
-          actionLabel={hasFilters ? t('explore:empty.adjustFilters') : t('explore:empty.expandArea')}
-          actionIcon={hasFilters ? 'tune-variant' : 'map-marker-radius-outline'}
-          onAction={hasFilters ? onAdjustFilters : () => router.push(routes.editProfile)}
-          secondaryActionLabel={hasFilters ? t('explore:empty.clearFilters') : undefined}
-          onSecondaryAction={hasFilters ? onClearFilters : undefined}
+          actionLabel={hasFilters ? t('explore:empty.clearFilters') : t('explore:empty.expandArea')}
+          onAction={hasFilters ? onClearFilters : () => router.push(routes.editProfile)}
+          secondaryActionLabel={hasFilters ? t('explore:empty.adjustFilters') : undefined}
+          onSecondaryAction={hasFilters ? onAdjustFilters : undefined}
         />
       }
-      ListFooterComponent={
-        query.isFetchingNextPage ? (
-          <ActivityIndicator style={styles.footer} color={theme.colors.primary} />
-        ) : items.length > 0 && !query.hasNextPage ? (
-          <AppText variant="caption" color="muted" align="center" style={styles.footer}>
-            {t('explore:list.end')}
-          </AppText>
-        ) : null
-      }
+      ListFooterComponent={query.isFetchingNextPage ? <ActivityIndicator style={styles.footer} color={theme.colors.primary} /> : null}
       onEndReached={() => {
         if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
       }}
@@ -141,6 +101,7 @@ const useStyles = makeStyles((t) => ({
   },
   content: {
     paddingHorizontal: t.spacing.screen,
+    paddingTop: t.spacing.xs,
     paddingBottom: t.spacing.xxxl,
     flexGrow: 1,
     width: '100%',
@@ -149,26 +110,8 @@ const useStyles = makeStyles((t) => ({
   },
   skeletons: {
     paddingHorizontal: t.spacing.screen,
+    paddingTop: t.spacing.xs,
     gap: t.spacing.md,
-  },
-  listHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.md,
-    paddingTop: t.spacing.md,
-    paddingBottom: t.spacing.md,
-  },
-  sortButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.xs,
-    minHeight: 36,
-    paddingHorizontal: t.spacing.md,
-    borderRadius: t.radii.pill,
-    backgroundColor: t.colors.primarySoft,
-  },
-  pressed: {
-    opacity: 0.7,
   },
   separator: {
     height: t.spacing.md,

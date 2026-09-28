@@ -22,7 +22,7 @@ import { AppText } from './app-text';
 import { IconButton } from './icon-button';
 import { usePanGesture } from './pan-gesture';
 
-export interface SheetProps {
+interface SheetProps {
   visible: boolean;
   onClose: () => void;
   title?: string;
@@ -216,7 +216,7 @@ const useStyles = makeStyles((t) => ({
     width: '100%',
     maxWidth: 640,
     alignSelf: 'center',
-    backgroundColor: t.colors.surface,
+    backgroundColor: t.colors.surfaceElevated,
     borderTopStartRadius: t.radii.xxl,
     borderTopEndRadius: t.radii.xxl,
     overflow: 'hidden',
@@ -229,7 +229,7 @@ const useStyles = makeStyles((t) => ({
   },
   handle: {
     alignSelf: 'center',
-    width: 40,
+    width: 36,
     height: 5,
     borderRadius: t.radii.pill,
     backgroundColor: t.colors.borderStrong,
@@ -257,9 +257,9 @@ const useStyles = makeStyles((t) => ({
   footer: {
     paddingTop: t.spacing.md,
     paddingHorizontal: t.spacing.screen,
-    borderTopWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: t.colors.border,
-    backgroundColor: t.colors.surface,
+    backgroundColor: t.colors.surfaceElevated,
     gap: t.spacing.sm,
   },
 }));

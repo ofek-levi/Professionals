@@ -1,7 +1,7 @@
 /**
  * Map mode of the job explorer: the service-area circle, one marker per matching open request
- * (colored by urgency, with the category glyph), an animated preview of the selected request,
- * floating "N jobs in your area" / recenter controls and an empty overlay.
+ * (colored by urgency, with the category glyph), a compact preview of the selected request, a
+ * floating "N jobs in your area" chip, a recenter button and a one-line empty overlay.
  */
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -10,7 +10,7 @@ import Animated, { FadeInDown, FadeOutDown, useReducedMotion } from 'react-nativ
 import { useTranslation } from 'react-i18next';
 
 import { AppMap, type AppMapCircle, type AppMapHandle, type AppMapMarker } from '@/components/map';
-import { AppText, Button, ErrorState, Icon, IconButton } from '@/components/ui';
+import { AppText, Button, ErrorState, IconButton } from '@/components/ui';
 import { URGENCY_META } from '@/constants/urgency-levels';
 import { useCategoryLookup, useNearbyRequestsForMap, useRefetchOnFocus } from '@/hooks';
 import { useFormatters, useLocalizedText } from '@/i18n/hooks';
@@ -22,7 +22,7 @@ import { regionForRadius } from '@/utils/geo';
 import type { NearbyFilterParams } from '../../explore-filters';
 import { MapRequestPreview } from './map-request-preview';
 
-export interface ExploreMapViewProps {
+interface ExploreMapViewProps {
   serviceArea: ServiceArea;
   params: NearbyFilterParams;
   maxDistanceKm: number | null;
@@ -96,6 +96,7 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
         circles={circles}
         onMarkerPress={(id) => setSelectedId((current) => (current === id ? null : id))}
         onPress={() => setSelectedId(null)}
+        showPreviewBadge={!selected}
         accessibilityLabel={t('explore:map.label')}
         testID="explore-app-map"
       />
@@ -103,11 +104,7 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
       {/* Floating status chip */}
       <View style={styles.topOverlay}>
         <View style={styles.countChip} accessibilityRole="text" accessibilityLiveRegion="polite">
-          {query.isPending || query.isFetching ? (
-            <ActivityIndicator size="small" color={theme.colors.primary} />
-          ) : (
-            <Icon name="briefcase-search-outline" size={16} color="primary" />
-          )}
+          {query.isPending || query.isFetching ? <ActivityIndicator size="small" color={theme.colors.primary} /> : null}
           <AppText variant="captionStrong" numberOfLines={1} tabular>
             {query.isPending ? t('explore:loadingJobs') : t('explore:jobsInArea', { count: total })}
           </AppText>
@@ -125,31 +122,19 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
       {showEmpty ? (
         <View style={styles.centerOverlay}>
           <View style={styles.overlayCard} testID="explore-map-empty">
-            <View style={styles.emptyIcon}>
-              <Icon name={hasFilters ? 'filter-remove-outline' : 'map-search-outline'} size={28} color="primary" />
-            </View>
-            <AppText variant="subheading" align="center">
+            <AppText variant="bodyStrong" align="center">
               {hasFilters ? t('explore:empty.filteredTitle') : t('explore:empty.areaTitle')}
             </AppText>
-            <AppText variant="caption" color="secondary" align="center">
-              {hasFilters ? t('explore:empty.filteredDescription') : t('explore:empty.areaDescription')}
-            </AppText>
-            <View style={styles.emptyActions}>
-              {hasFilters ? (
-                <Button label={t('explore:empty.adjustFilters')} size="sm" leftIcon="tune-variant" onPress={onAdjustFilters} fullWidth />
-              ) : null}
-              <Button
-                label={t('explore:empty.expandArea')}
-                size="sm"
-                variant={hasFilters ? 'secondary' : 'primary'}
-                leftIcon="map-marker-radius-outline"
-                onPress={() => router.push(routes.editProfile)}
-                fullWidth
-              />
-              {hasFilters ? (
-                <Button label={t('explore:empty.clearFilters')} size="sm" variant="ghost" onPress={onClearFilters} fullWidth />
-              ) : null}
-            </View>
+            <Button
+              label={hasFilters ? t('explore:empty.clearFilters') : t('explore:empty.expandArea')}
+              size="sm"
+              variant="secondary"
+              onPress={hasFilters ? onClearFilters : () => router.push(routes.editProfile)}
+              style={styles.centered}
+            />
+            {hasFilters ? (
+              <Button label={t('explore:empty.adjustFilters')} size="sm" variant="ghost" onPress={onAdjustFilters} style={styles.centered} />
+            ) : null}
           </View>
         </View>
       ) : null}
@@ -170,11 +155,7 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
         </View>
         {selected ? (
           <Animated.View key={selected.id} entering={entering} exiting={exiting}>
-            <MapRequestPreview
-              request={selected}
-              onOpen={() => router.push(routes.request(selected.id))}
-              onClose={() => setSelectedId(null)}
-            />
+            <MapRequestPreview request={selected} onOpen={() => router.push(routes.request(selected.id))} />
           </Animated.View>
         ) : null}
       </View>
@@ -203,12 +184,10 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: t.spacing.sm,
-    minHeight: 40,
+    minHeight: 36,
     paddingHorizontal: t.spacing.md,
     borderRadius: t.radii.pill,
-    backgroundColor: t.colors.surface,
-    borderWidth: 1,
-    borderColor: t.colors.border,
+    backgroundColor: t.colors.surfaceElevated,
     flexShrink: 1,
     ...t.shadows.md,
   },
@@ -225,29 +204,16 @@ const useStyles = makeStyles((t) => ({
   },
   overlayCard: {
     width: '100%',
-    maxWidth: 360,
+    maxWidth: 320,
     alignItems: 'center',
-    gap: t.spacing.sm,
+    gap: t.spacing.md,
     padding: t.spacing.xl,
-    borderRadius: t.radii.xl,
-    backgroundColor: t.colors.surface,
-    borderWidth: 1,
-    borderColor: t.colors.border,
+    borderRadius: t.radii.lg,
+    backgroundColor: t.colors.surfaceElevated,
     ...t.shadows.lg,
   },
-  emptyIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: t.colors.primarySoft,
-    marginBottom: t.spacing.xs,
-  },
-  emptyActions: {
-    alignSelf: 'stretch',
-    gap: t.spacing.sm,
-    marginTop: t.spacing.sm,
+  centered: {
+    alignSelf: 'center',
   },
   bottomOverlay: {
     position: 'absolute',

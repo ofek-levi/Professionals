@@ -6,7 +6,7 @@ import type { CustomerProfile, OwnProfessionalProfile, UserRole } from '@/types/
 
 import type { MockDatabase, StoredUser } from './db';
 
-export const DEMO_TOKEN_PREFIX = 'demo-token:';
+const DEMO_TOKEN_PREFIX = 'demo-token:';
 
 export interface CustomerActor {
   role: 'customer';
@@ -37,7 +37,7 @@ export function parseAccessToken(token: string): string | null {
 }
 
 /** Bearer token from the `Authorization` header (case-insensitive), if any. */
-export function readBearerToken(headers: Record<string, string> | undefined): string | null {
+function readBearerToken(headers: Record<string, string> | undefined): string | null {
   if (!headers) return null;
   const entry = Object.entries(headers).find(([name]) => name.toLowerCase() === 'authorization');
   if (!entry) return null;

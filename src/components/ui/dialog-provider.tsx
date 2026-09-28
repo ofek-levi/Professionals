@@ -11,7 +11,7 @@ import { BUTTON_SIZE_TOKENS, Button } from './button';
 import { haptics } from './haptics';
 import { Icon, type IconSource } from './icon';
 
-export interface ConfirmOptions {
+interface ConfirmOptions {
   title: string;
   message?: string;
   /** Defaults to `common:actions.confirm`. */
@@ -25,7 +25,7 @@ export interface ConfirmOptions {
 }
 
 /** Opens a confirmation dialog and resolves `true` when confirmed, `false` otherwise. */
-export type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
+type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
 
 interface PendingDialog {
   id: number;
@@ -99,7 +99,8 @@ function ConfirmDialog({ options, onSettle }: { options: ConfirmOptions; onSettl
   const { width: windowWidth } = useWindowDimensions();
   const progress = useSharedValue(0);
   const tone = theme.colors.tones[options.tone ?? (options.destructive ? 'danger' : 'brand')];
-  const icon = options.icon ?? (options.destructive ? 'alert-outline' : 'help-circle-outline');
+  // Dialogs stay text-only unless the caller asks for a glyph.
+  const icon = options.icon;
   const cancelLabel = options.cancelLabel === undefined ? t('actions.cancel') : options.cancelLabel;
   const confirmLabel = options.confirmLabel ?? t('actions.confirm');
   const stacked = shouldStackDialogActions(cancelLabel ? [confirmLabel, cancelLabel] : [confirmLabel], windowWidth, theme);
@@ -124,9 +125,11 @@ function ConfirmDialog({ options, onSettle }: { options: ConfirmOptions; onSettl
           <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} accessibilityRole="button" accessibilityLabel={t('a11y.close')} />
         </Animated.View>
         <Animated.View style={[styles.card, cardStyle]} accessibilityViewIsModal accessibilityRole="alert">
-          <View style={[styles.iconCircle, { backgroundColor: tone.bg }]}>
-            <Icon name={icon} size={28} color={tone.fg} />
-          </View>
+          {icon ? (
+            <View style={[styles.iconCircle, { backgroundColor: tone.bg }]}>
+              <Icon name={icon} size={26} color={tone.fg} />
+            </View>
+          ) : null}
           <AppText variant="heading" align="center" accessibilityRole="header">
             {options.title}
           </AppText>
@@ -139,17 +142,20 @@ function ConfirmDialog({ options, onSettle }: { options: ConfirmOptions; onSettl
               confirm action on top. Labels may still wrap to two lines rather than clip. */}
           <View style={stacked ? styles.actionsStacked : styles.actions} testID="confirm-dialog-actions">
             {cancelLabel && !stacked ? (
-              <Button label={cancelLabel} variant="outline" onPress={dismiss} style={styles.action} labelLines={2} fullWidth />
+              <Button label={cancelLabel} variant="secondary" size="md" onPress={dismiss} style={styles.action} labelLines={2} fullWidth />
             ) : null}
             <Button
               label={confirmLabel}
               variant={options.destructive ? 'danger' : 'primary'}
+              size="md"
               onPress={() => onSettle(true)}
               style={stacked ? null : styles.action}
               labelLines={2}
               fullWidth
             />
-            {cancelLabel && stacked ? <Button label={cancelLabel} variant="outline" onPress={dismiss} labelLines={2} fullWidth /> : null}
+            {cancelLabel && stacked ? (
+              <Button label={cancelLabel} variant="secondary" size="md" onPress={dismiss} labelLines={2} fullWidth />
+            ) : null}
           </View>
         </Animated.View>
       </View>
@@ -171,16 +177,16 @@ const useStyles = makeStyles((t) => ({
     width: '100%',
     maxWidth: DIALOG_MAX_WIDTH,
     alignItems: 'center',
-    gap: t.spacing.md,
+    gap: t.spacing.sm,
     padding: t.spacing.xxl,
     borderRadius: t.radii.xl,
-    backgroundColor: t.colors.surface,
+    backgroundColor: t.colors.surfaceElevated,
     ...t.shadows.lg,
   },
   iconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: t.spacing.xs,
@@ -189,12 +195,12 @@ const useStyles = makeStyles((t) => ({
     flexDirection: 'row',
     alignSelf: 'stretch',
     gap: t.spacing.md,
-    marginTop: t.spacing.sm,
+    marginTop: t.spacing.md,
   },
   actionsStacked: {
     alignSelf: 'stretch',
     gap: t.spacing.sm,
-    marginTop: t.spacing.sm,
+    marginTop: t.spacing.md,
   },
   action: {
     flex: 1,

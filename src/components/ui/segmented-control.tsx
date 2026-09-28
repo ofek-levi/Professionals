@@ -14,7 +14,7 @@ export interface SegmentedOption<T extends string> {
   count?: number;
 }
 
-export interface SegmentedControlProps<T extends string> {
+interface SegmentedControlProps<T extends string> {
   options: readonly SegmentedOption<T>[];
   value: T;
   onChange: (value: T) => void;
@@ -24,9 +24,9 @@ export interface SegmentedControlProps<T extends string> {
 }
 
 /** Visual segment heights; the touch area is extended vertically to `theme.layout.minTouchSize`. */
-const SEGMENT_HEIGHT = { md: 40, sm: 32 } as const;
+const SEGMENT_HEIGHT = { md: 34, sm: 28 } as const;
 
-/** iOS-style segmented switch for 2–4 mutually exclusive views or filters. */
+/** Compact iOS-style segmented switch for 2–4 mutually exclusive views (e.g. Active | Past). */
 export function SegmentedControl<T extends string>({ options, value, onChange, size = 'md', style, testID }: SegmentedControlProps<T>) {
   const theme = useTheme();
   const styles = useStyles();
@@ -61,7 +61,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, s
             {option.icon ? <Icon name={option.icon} size={small ? 14 : 16} color={selected ? 'default' : 'muted'} /> : null}
             <AppText
               variant={small ? 'label' : 'captionStrong'}
-              color={selected ? 'default' : 'secondary'}
+              color={selected ? 'default' : 'muted'}
               numberOfLines={1}
               align="center"
               style={styles.label}
@@ -69,8 +69,8 @@ export function SegmentedControl<T extends string>({ options, value, onChange, s
               {option.label}
             </AppText>
             {typeof option.count === 'number' && option.count > 0 ? (
-              <View style={[styles.count, { backgroundColor: selected ? theme.colors.primary : theme.colors.borderStrong }]}>
-                <AppText variant="tiny" color={selected ? 'onPrimary' : 'default'} tabular>
+              <View style={[styles.count, { backgroundColor: theme.colors.primaryFill }]}>
+                <AppText variant="tiny" color="onPrimary" tabular>
                   {option.count}
                 </AppText>
               </View>
@@ -85,11 +85,9 @@ export function SegmentedControl<T extends string>({ options, value, onChange, s
 const useStyles = makeStyles((t) => ({
   track: {
     flexDirection: 'row',
-    padding: t.spacing.xxs + 1,
-    borderRadius: t.radii.md,
-    backgroundColor: t.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: t.colors.border,
+    padding: 3,
+    borderRadius: t.radii.md - 2,
+    backgroundColor: t.colors.surface,
     gap: t.spacing.xxs,
   },
   trackSmall: {
@@ -103,15 +101,15 @@ const useStyles = makeStyles((t) => ({
     gap: t.spacing.xs + 2,
     minHeight: SEGMENT_HEIGHT.md,
     paddingHorizontal: t.spacing.sm,
-    borderRadius: t.radii.sm + 2,
+    borderRadius: t.radii.sm,
   },
   segmentSmall: {
     minHeight: SEGMENT_HEIGHT.sm,
     borderRadius: t.radii.xs,
   },
   selected: {
-    backgroundColor: t.colors.surface,
-    ...(t.scheme === 'light' ? t.shadows.sm : { borderWidth: 1, borderColor: t.colors.borderStrong }),
+    backgroundColor: t.scheme === 'light' ? t.colors.background : t.colors.surfacePressed,
+    ...(t.scheme === 'light' ? t.shadows.sm : null),
   },
   pressed: {
     opacity: 0.7,

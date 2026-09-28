@@ -6,7 +6,7 @@ import { createClientMessageId } from '@/utils/id';
 import type { FailedMessage } from './chat-model';
 import { failedMessagesStore, useFailedMessages } from './failed-messages-store';
 
-export interface ChatSender {
+interface ChatSender {
   /** Validates + normalizes the text and sends it optimistically. Returns `false` when invalid. */
   send: (text: string) => boolean;
   /** Re-sends a failed message with the same `clientMessageId` (idempotent on the server). */

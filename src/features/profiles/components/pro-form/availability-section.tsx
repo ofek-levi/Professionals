@@ -1,6 +1,6 @@
 /**
  * Weekly working hours: one row per day with an on/off switch and start–end times (picked in a
- * sheet), plus "accepts emergency calls".
+ * sheet).
  */
 import { useState } from 'react';
 import { useController, useWatch, type Control } from 'react-hook-form';
@@ -8,7 +8,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { FormSection, TimeSlotPicker, useTranslatedError } from '@/components/forms';
-import { AppSwitch, AppText, Divider, InlineAlert, Sheet, SwitchRow } from '@/components/ui';
+import { AppSwitch, AppText, Card, Divider, InlineAlert, Sheet } from '@/components/ui';
 import type { ProfessionalProfileFormValues } from '@/lib/validation';
 import { makeStyles } from '@/theme';
 import { WEEKDAYS, type Weekday } from '@/types/domain';
@@ -22,7 +22,6 @@ export function AvailabilitySection({ control }: { control: Control<Professional
   const { t } = useTranslation(['professional', 'common']);
   const translateError = useTranslatedError();
   const days = useController({ control, name: 'availability.days' });
-  const emergency = useController({ control, name: 'availability.acceptsEmergencyCalls' });
   const values = useWatch({ control, name: 'availability.days' });
   const [editing, setEditing] = useState<Editing>(null);
 
@@ -34,8 +33,8 @@ export function AvailabilitySection({ control }: { control: Control<Professional
   const editingDay = editing ? values[editing.day] : null;
 
   return (
-    <FormSection title={t('professional:form.hours.title')} description={t('professional:form.hours.description')} icon="calendar-clock-outline">
-      <View style={styles.days}>
+    <FormSection title={t('professional:form.hours.title')} variant="plain">
+      <Card padding="none" style={styles.days}>
         {WEEKDAYS.map((day, index) => (
           <View key={day}>
             {index > 0 ? <Divider /> : null}
@@ -52,18 +51,8 @@ export function AvailabilitySection({ control }: { control: Control<Professional
             />
           </View>
         ))}
-      </View>
+      </Card>
       {daysError ? <InlineAlert tone="danger" message={translateError(daysError) ?? ''} /> : null}
-
-      <SwitchRow
-        icon="alarm-light-outline"
-        iconTone="danger"
-        title={t('professional:form.hours.emergency')}
-        description={t('professional:form.hours.emergencyDescription')}
-        value={emergency.field.value}
-        onValueChange={emergency.field.onChange}
-        testID="pro-form-emergency"
-      />
 
       <Sheet
         visible={editing !== null}
@@ -153,10 +142,7 @@ function TimeButton({ value, label, onPress }: { value: string; label: string; o
 
 const useStyles = makeStyles((t) => ({
   days: {
-    borderRadius: t.radii.md,
-    borderWidth: 1,
-    borderColor: t.colors.border,
-    paddingHorizontal: t.spacing.sm,
+    paddingHorizontal: t.spacing.md,
   },
   dayRow: {
     flexDirection: 'row',
@@ -178,10 +164,10 @@ const useStyles = makeStyles((t) => ({
   timeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    minHeight: 40,
+    minHeight: 36,
     paddingHorizontal: t.spacing.md,
     borderRadius: t.radii.sm,
-    backgroundColor: t.colors.surfaceMuted,
+    backgroundColor: t.colors.background,
   },
   pressed: {
     opacity: 0.7,

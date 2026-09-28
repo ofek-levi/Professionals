@@ -10,7 +10,7 @@ import { Icon, type IconSource } from './icon';
 
 export type ChipSize = 'sm' | 'md';
 
-export interface ChipProps {
+interface ChipProps {
   label: string;
   selected?: boolean;
   /** Toggle / select handler. Without it (and without `onRemove`) the chip is static. */
@@ -20,8 +20,6 @@ export interface ChipProps {
   icon?: IconSource;
   /** Custom leading element (e.g. a small category icon); overrides `icon`. */
   leading?: ReactNode;
-  /** Trailing counter (e.g. number of results for a filter). */
-  count?: number;
   size?: ChipSize;
   disabled?: boolean;
   accessibilityLabel?: string;
@@ -37,7 +35,6 @@ export function Chip({
   onRemove,
   icon,
   leading,
-  count,
   size = 'md',
   disabled = false,
   accessibilityLabel,
@@ -57,13 +54,6 @@ export function Chip({
       <AppText variant={small ? 'label' : 'captionStrong'} color={foreground} numberOfLines={1} style={styles.label}>
         {label}
       </AppText>
-      {typeof count === 'number' ? (
-        <View style={[styles.count, selected ? styles.countSelected : null]}>
-          <AppText variant="tiny" color={selected ? 'onPrimary' : 'secondary'} tabular>
-            {count}
-          </AppText>
-        </View>
-      ) : null}
     </>
   );
 
@@ -138,7 +128,7 @@ const useStyles = makeStyles((t) => ({
     paddingHorizontal: t.spacing.md - 2,
   },
   medium: {
-    minHeight: 38,
+    minHeight: 36,
     paddingHorizontal: t.spacing.md + 2,
   },
   selected: {
@@ -146,8 +136,8 @@ const useStyles = makeStyles((t) => ({
     borderColor: t.colors.primary,
   },
   unselected: {
-    backgroundColor: t.colors.surface,
-    borderColor: t.colors.border,
+    backgroundColor: t.colors.background,
+    borderColor: t.colors.borderStrong,
   },
   withRemove: {
     borderTopEndRadius: 0,
@@ -167,18 +157,6 @@ const useStyles = makeStyles((t) => ({
   },
   label: {
     flexShrink: 1,
-  },
-  count: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: t.radii.pill,
-    paddingHorizontal: t.spacing.xs + 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: t.colors.surfaceMuted,
-  },
-  countSelected: {
-    backgroundColor: t.colors.primary,
   },
   pressed: {
     opacity: 0.8,

@@ -20,7 +20,7 @@
  *     `{ notificationId, target }` (a `NotificationTarget`) into the payload's `data`.
  *  3. Call `Notifications.setNotificationHandler` so foreground pushes are not shown twice (the
  *     in-app banner already covers the foreground case).
- *  4. Return this provider from `getPushProvider()` in ./index.ts when `apiConfig.mode === 'http'`.
+ *  4. Use this provider as `pushProvider` in ./index.ts when `apiConfig.mode === 'http'`.
  */
 import type { PushProvider } from './types';
 

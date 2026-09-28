@@ -1,13 +1,13 @@
 /**
- * Ranking of offers on the customer's comparison screen and the "best value" highlights.
- * The mock backend sorts `GET /requests/:id/offers` with the same functions.
+ * Ranking of the offers on a request (the customer's sort control on the request screen).
+ * The mock backend sorts `GET /requests/:id/offers` with the same function.
  */
 import type { OfferSort } from '@/types/api';
 import type { EntityId, OfferStatus, OfferWithProfessional } from '@/types/domain';
 import { bayesianRating } from '@/features/reviews/rating';
 
 /** Weights of the "recommended" score (sum = 1). */
-export const RECOMMENDED_SCORE_WEIGHTS = {
+const RECOMMENDED_SCORE_WEIGHTS = {
   price: 0.35,
   earliestStart: 0.2,
   rating: 0.3,
@@ -43,7 +43,7 @@ function normalizer(values: number[], higherIsBetter: boolean): (value: number) 
  * a prior) and more reviewed professionals score higher. Price and start time are normalized
  * relative to the other offers; rating and review count on absolute scales.
  */
-export function computeRecommendationScores<T extends RankableOffer>(offers: readonly T[]): Map<EntityId, number> {
+function computeRecommendationScores<T extends RankableOffer>(offers: readonly T[]): Map<EntityId, number> {
   const scores = new Map<EntityId, number>();
   if (offers.length === 0) return scores;
   const priceScore = normalizer(offers.map((offer) => offer.price), false);
@@ -89,45 +89,4 @@ export function sortOffers<T extends RankableOffer>(offers: readonly T[], sort: 
   };
   const compare = comparators[sort];
   return [...offers].sort((a, b) => statusRank(a.status) - statusRank(b.status) || compare(a, b) || tieBreak(a, b));
-}
-
-export interface OfferHighlights {
-  lowestPriceOfferId: EntityId | null;
-  earliestOfferId: EntityId | null;
-  topRatedOfferId: EntityId | null;
-}
-
-/** Id of the single strictly-best item, or null when there is a tie for first place. */
-function uniqueBest<T>(items: readonly T[], value: (item: T) => number, id: (item: T) => EntityId): EntityId | null {
-  let best: T | null = null;
-  let tie = false;
-  for (const item of items) {
-    if (best === null || value(item) > value(best)) {
-      best = item;
-      tie = false;
-    } else if (value(item) === value(best)) {
-      tie = true;
-    }
-  }
-  return best !== null && !tie ? id(best) : null;
-}
-
-/**
- * Badges for the comparison screen, computed over pending offers only. Highlights need at least
- * two pending offers to compare and are omitted when several offers tie for first place.
- */
-export function getOfferHighlights<T extends RankableOffer>(offers: readonly T[]): OfferHighlights {
-  const pending = offers.filter((offer) => offer.status === 'pending');
-  if (pending.length < 2) return { lowestPriceOfferId: null, earliestOfferId: null, topRatedOfferId: null };
-  const reviewed = pending.filter((offer) => offer.professional.averageRating !== null && offer.professional.reviewCount > 0);
-  const getId = (offer: T) => offer.id;
-  return {
-    lowestPriceOfferId: uniqueBest(pending, (offer) => -offer.price, getId),
-    earliestOfferId: uniqueBest(pending, (offer) => -startTime(offer), getId),
-    topRatedOfferId: uniqueBest(
-      reviewed,
-      (offer) => Math.round(bayesianRating(offer.professional.averageRating, offer.professional.reviewCount) * 1000),
-      getId,
-    ),
-  };
 }

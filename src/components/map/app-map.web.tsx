@@ -33,7 +33,6 @@ import {
   pixelsPerKm,
   project,
   unproject,
-  viewportToRegion,
   type Point,
   type Viewport,
 } from './map-projection';
@@ -59,11 +58,9 @@ export function AppMap({
   circles = [],
   onMarkerPress,
   onPress,
-  onRegionChangeComplete,
   draggablePin,
-  fitToMarkers = false,
   showZoomControls = true,
-  interactive = true,
+  showPreviewBadge = true,
   accessibilityLabel,
   style,
   testID,
@@ -73,7 +70,7 @@ export function AppMap({
   const styles = useStyles();
   const { t } = useTranslation('location');
   const [initial] = useState(() =>
-    resolveInitialRegion({ region, initialRegion, fitToMarkers, markers, circles, pin: draggablePin }),
+    resolveInitialRegion({ region, initialRegion, markers, circles, pin: draggablePin }),
   );
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [camera, setCamera] = useState<Camera>({
@@ -121,7 +118,7 @@ export function AppMap({
     },
     onMove: (g) => {
       const start = gesture.current;
-      if (!interactive || !start || size.width === 0) return;
+      if (!start || size.width === 0) return;
       const lngDelta = longitudeDelta(viewport);
       setCamera((current) => ({
         ...current,
@@ -135,11 +132,7 @@ export function AppMap({
       const start = gesture.current;
       gesture.current = null;
       if (!start) return;
-      if (Math.abs(g.dx) < TAP_SLOP && Math.abs(g.dy) < TAP_SLOP) {
-        onPress?.(unproject(viewport, start.tap));
-      } else if (interactive) {
-        onRegionChangeComplete?.(viewportToRegion(viewport));
-      }
+      if (Math.abs(g.dx) < TAP_SLOP && Math.abs(g.dy) < TAP_SLOP) onPress?.(unproject(viewport, start.tap));
     },
     onTerminate: () => {
       gesture.current = null;
@@ -161,9 +154,7 @@ export function AppMap({
   });
 
   const zoom = (factor: number) => {
-    const next = { ...camera, latitudeDelta: clampLatitudeDelta(camera.latitudeDelta * factor) };
-    setCamera(next);
-    onRegionChangeComplete?.(viewportToRegion({ ...next, width: size.width, height: size.height }));
+    setCamera({ ...camera, latitudeDelta: clampLatitudeDelta(camera.latitudeDelta * factor) });
   };
 
   const ready = size.width > 0 && size.height > 0;
@@ -176,7 +167,7 @@ export function AppMap({
       accessibilityLabel={accessibilityLabel ?? t('map.label')}
     >
       {ready ? (
-        <View style={[StyleSheet.absoluteFill, styles.canvas]} {...(interactive || onPress ? canvasHandlers : null)}>
+        <View style={[StyleSheet.absoluteFill, styles.canvas]} {...canvasHandlers}>
           <View style={[StyleSheet.absoluteFill, styles.decor]}>
             <CityBackdrop viewport={viewport} />
             {circles.map((circle, index) => {
@@ -240,19 +231,21 @@ export function AppMap({
         </View>
       ) : null}
 
-      {showZoomControls && interactive && ready ? (
+      {showZoomControls && ready ? (
         <View style={styles.zoom}>
           <IconButton icon="plus" variant="surface" accessibilityLabel={t('map.zoomIn')} onPress={() => zoom(0.5)} />
           <IconButton icon="minus" variant="surface" accessibilityLabel={t('map.zoomOut')} onPress={() => zoom(2)} />
         </View>
       ) : null}
 
-      <View style={styles.previewBadge}>
-        <Icon name="map-outline" size={12} color="muted" />
-        <AppText variant="tiny" color="muted">
-          {t('map.preview')}
-        </AppText>
-      </View>
+      {showPreviewBadge ? (
+        <View style={styles.previewBadge}>
+          <Icon name="map-outline" size={12} color="muted" />
+          <AppText variant="tiny" color="muted">
+            {t('map.preview')}
+          </AppText>
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -2,7 +2,7 @@ import { Platform, Switch } from 'react-native';
 
 import { useTheme } from '@/theme';
 
-export interface AppSwitchProps {
+interface AppSwitchProps {
   value: boolean;
   onValueChange: (value: boolean) => void;
   disabled?: boolean;

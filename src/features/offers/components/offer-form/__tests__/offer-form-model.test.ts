@@ -3,17 +3,19 @@ import { createDefaultAvailability } from '@/features/profiles/availability';
 import { combineDateAndTime } from '@/utils/dates';
 
 import {
-  appendTemplate,
-  clampIntoSlotRange,
+  groupTimesByPeriod,
   mapOfferServerFieldErrors,
+  offerDayPeriod,
   offerDateDays,
-  offerTimeRange,
+  offerDateOptions,
+  offerSlotRange,
+  offerTimeSlots,
   suggestOfferStart,
   toOfferSubmitProblem,
   urgencyWindowHours,
 } from '../offer-form-model';
 
-// 2026-09-27 is a Sunday (a working day in the default availability).
+// 2026-09-27 is a Sunday (a working day in the default availability); 2026-10-03 a Saturday (day off).
 const local = (day: number, hour: number, minute = 0, month = 8) => new Date(2026, month, day, hour, minute);
 const availability = createDefaultAvailability();
 
@@ -28,24 +30,44 @@ function expectValid(
 }
 
 describe('offer form model', () => {
-  it('limits the date picker to the urgency window', () => {
+  it('limits the date chips to a week and the urgency window', () => {
     const now = local(27, 10);
     expect(offerDateDays('emergency', now)).toBe(2);
     expect(offerDateDays('urgent', now)).toBe(4);
-    expect(offerDateDays('normal', now)).toBe(14);
-    expect(offerDateDays('flexible', now, 7)).toBe(7);
+    expect(offerDateDays('normal', now)).toBe(7);
+    expect(offerDateDays('flexible', now, 3)).toBe(3);
   });
 
-  it('extends the time grid for emergencies', () => {
-    expect(offerTimeRange('emergency')).toEqual({ start: '06:00', end: '23:30' });
-    expect(offerTimeRange('normal')).toEqual({ start: '07:00', end: '21:00' });
+  it('offers slots within the working hours, or 07:00–20:00 on a day off', () => {
+    expect(offerSlotRange(availability, local(27, 12))).toEqual({ start: '08:00', end: '18:00' });
+    expect(offerSlotRange(availability, local(3, 12, 0, 9))).toEqual({ start: '07:00', end: '20:00' });
+    expect(offerSlotRange(null, local(27, 12))).toEqual({ start: '07:00', end: '20:00' });
+
+    const saturday = offerTimeSlots({ date: '2026-10-03', urgency: 'normal', availability, now: local(27, 10) });
+    expect(saturday[0]).toEqual({ time: '07:00', disabled: false });
+    expect(saturday.at(-1)).toEqual({ time: '19:30', disabled: false });
+    expect(saturday).toHaveLength(26);
   });
 
-  it('clamps instants into the slot grid', () => {
-    const range = offerTimeRange('normal');
-    expect(clampIntoSlotRange(local(27, 10, 10), range)).toEqual(local(27, 10, 30));
-    expect(clampIntoSlotRange(local(27, 5, 0), range)).toEqual(local(27, 7, 0));
-    expect(clampIntoSlotRange(local(27, 20, 45), range)).toEqual(local(28, 7, 0));
+  it('disables slots inside the lead time and beyond the urgency window', () => {
+    const now = local(27, 10);
+    const today = offerTimeSlots({ date: '2026-09-27', urgency: 'normal', availability, now });
+    expect(today.filter((slot) => slot.disabled).map((slot) => slot.time)).toEqual(['08:00', '08:30', '09:00', '09:30', '10:00']);
+    expect(today.find((slot) => slot.time === '10:30')?.disabled).toBe(false);
+
+    // An emergency must start within 24 hours: tomorrow until 10:00.
+    const tomorrow = offerTimeSlots({ date: '2026-09-28', urgency: 'emergency', availability, now });
+    expect(tomorrow.find((slot) => slot.time === '10:00')?.disabled).toBe(false);
+    expect(tomorrow.find((slot) => slot.time === '10:30')?.disabled).toBe(true);
+    expect(offerTimeSlots({ date: 'nope', urgency: 'normal', availability, now })).toEqual([]);
+  });
+
+  it('disables days without a free slot', () => {
+    const evening = local(27, 19, 30);
+    const options = offerDateOptions({ urgency: 'urgent', availability, now: evening });
+    expect(options.map((option) => option.date)).toEqual(['2026-09-27', '2026-09-28', '2026-09-29', '2026-09-30']);
+    expect(options[0].disabled).toBe(true);
+    expect(options.slice(1).every((option) => !option.disabled)).toBe(true);
   });
 
   it('prefers the customer preferred date and window', () => {
@@ -88,15 +110,8 @@ describe('offer form model', () => {
     const now = local(27, 23, 10);
     const request = { urgency: 'emergency' as const, preferredSchedule: null };
     const suggestion = suggestOfferStart({ request, availability: null, now });
-    expect(suggestion).toEqual({ date: '2026-09-28', time: '06:00' });
+    expect(suggestion).toEqual({ date: '2026-09-28', time: '07:00' });
     expectValid(suggestion, request, now);
-  });
-
-  it('appends templates as new paragraphs within the limit', () => {
-    expect(appendTemplate('', 'Hello!', 500)).toBe('Hello!');
-    expect(appendTemplate('Hi there  ', 'I can come today.', 500)).toBe('Hi there\n\nI can come today.');
-    expect(appendTemplate('Hi\n\nI can come today.', 'I can come today.', 500)).toBe('Hi\n\nI can come today.');
-    expect(appendTemplate('abc', 'defghij', 8)).toBe('abc\n\ndef');
   });
 
   it('maps server field errors onto form fields', () => {
@@ -122,5 +137,21 @@ describe('offer form model', () => {
     expect(urgencyWindowHours('emergency')).toBe(24);
     expect(urgencyWindowHours('urgent')).toBe(72);
     expect(urgencyWindowHours('flexible')).toBeNull();
+  });
+
+  it('splits the time slots into morning, afternoon and evening', () => {
+    expect(offerDayPeriod('07:30')).toBe('morning');
+    expect(offerDayPeriod('11:30')).toBe('morning');
+    expect(offerDayPeriod('12:00')).toBe('afternoon');
+    expect(offerDayPeriod('16:30')).toBe('afternoon');
+    expect(offerDayPeriod('17:00')).toBe('evening');
+    expect(groupTimesByPeriod(['08:00', '11:30', '12:00', '17:30'])).toEqual([
+      { period: 'morning', times: ['08:00', '11:30'] },
+      { period: 'afternoon', times: ['12:00'] },
+      { period: 'evening', times: ['17:30'] },
+    ]);
+    // Empty periods are left out.
+    expect(groupTimesByPeriod(['13:00', '13:30']).map((group) => group.period)).toEqual(['afternoon']);
+    expect(groupTimesByPeriod([])).toEqual([]);
   });
 });

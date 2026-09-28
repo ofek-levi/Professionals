@@ -1,7 +1,7 @@
 import { skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 import { api } from '@/services/api';
-import type { Paginated, SearchProfessionalsParams } from '@/types/api';
+import type { Paginated } from '@/types/api';
 import type { RatingBreakdown, Review } from '@/types/domain';
 
 import { queryKeys } from './query-keys';
@@ -16,9 +16,9 @@ import {
 } from './query-scope';
 
 /** One page of `GET /professionals/:id/reviews`. */
-export type ReviewsPage = Paginated<Review> & { breakdown: RatingBreakdown };
+type ReviewsPage = Paginated<Review> & { breakdown: RatingBreakdown };
 
-export interface ReviewsList extends PaginatedList<Review> {
+interface ReviewsList extends PaginatedList<Review> {
   /** Rating distribution (from the first page). */
   breakdown: RatingBreakdown | null;
 }
@@ -51,16 +51,6 @@ export function useProfessionalReviews(professionalId: string | null | undefined
     getNextPageParam,
     select: selectReviewsList,
     enabled: enabled && Boolean(professionalId),
-  });
-}
-
-/** `GET /professionals` – browse/search professionals (single page). */
-export function useSearchProfessionals(params: Omit<SearchProfessionalsParams, 'cursor'> = {}) {
-  const { userId, enabled } = useQueryScope();
-  return useQuery({
-    queryKey: queryKeys.professionals.search(userId, params),
-    queryFn: ({ signal }) => api.professionals.searchProfessionals(params, signal),
-    enabled,
   });
 }
 

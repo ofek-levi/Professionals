@@ -285,7 +285,7 @@ const REPLIES: Record<UserRole, Record<ReplyIntent, Record<AppLanguage, string>>
   },
 };
 
-export function detectReplyIntent(text: string): ReplyIntent {
+function detectReplyIntent(text: string): ReplyIntent {
   for (const [intent, pattern] of INTENT_PATTERNS) if (pattern.test(text)) return intent;
   return 'default';
 }

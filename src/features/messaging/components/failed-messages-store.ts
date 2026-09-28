@@ -9,7 +9,7 @@ import type { FailedMessage } from './chat-model';
 
 type Listener = () => void;
 
-export interface FailedMessagesStore {
+interface FailedMessagesStore {
   get: (conversationId: string) => readonly FailedMessage[];
   /** Adds (or replaces, by `clientMessageId`) a failed message. */
   add: (conversationId: string, message: FailedMessage) => void;

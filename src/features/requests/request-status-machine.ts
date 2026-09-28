@@ -10,7 +10,7 @@ import {
 import { assertTransition, canTransition, type TransitionTable } from '@/features/shared/state-machine';
 import type { ServiceRequest } from '@/types/domain';
 
-export const REQUEST_TRANSITIONS: TransitionTable<RequestStatus> = {
+const REQUEST_TRANSITIONS: TransitionTable<RequestStatus> = {
   draft: ['open', 'cancelled'],
   open: ['offers_received', 'cancelled'],
   offers_received: ['open', 'professional_selected', 'cancelled'],
@@ -21,12 +21,7 @@ export const REQUEST_TRANSITIONS: TransitionTable<RequestStatus> = {
   cancelled: [],
 };
 
-/** Statuses from which the customer may cancel the request. */
-export const CANCELLABLE_REQUEST_STATUSES: readonly RequestStatus[] = (
-  Object.keys(REQUEST_TRANSITIONS) as RequestStatus[]
-).filter((status) => REQUEST_TRANSITIONS[status].includes('cancelled'));
-
-export function canTransitionRequest(from: RequestStatus, to: RequestStatus): boolean {
+function canTransitionRequest(from: RequestStatus, to: RequestStatus): boolean {
   return canTransition(REQUEST_TRANSITIONS, from, to);
 }
 
@@ -35,7 +30,7 @@ export function assertRequestTransition(from: RequestStatus, to: RequestStatus):
   assertTransition(REQUEST_TRANSITIONS, 'request', from, to);
 }
 
-export function isRequestCancellable(status: RequestStatus): boolean {
+function isRequestCancellable(status: RequestStatus): boolean {
   return canTransitionRequest(status, 'cancelled');
 }
 
@@ -44,13 +39,10 @@ export function requestAcceptsOffers(status: RequestStatus): boolean {
   return REQUEST_STATUS_META[status].acceptsOffers;
 }
 
-export interface CustomerRequestActions {
+interface CustomerRequestActions {
   canCancel: boolean;
   canEditDraft: boolean;
-  canPublish: boolean;
   canDeleteDraft: boolean;
-  /** There are offers waiting for the customer's decision. */
-  canReviewOffers: boolean;
 }
 
 type RequestActionInput = Pick<ServiceRequest, 'status' | 'pendingOfferCount'>;
@@ -61,9 +53,7 @@ export function getCustomerRequestActions(request: RequestActionInput): Customer
   return {
     canCancel: isRequestCancellable(request.status),
     canEditDraft: isDraft,
-    canPublish: isDraft,
     canDeleteDraft: isDraft,
-    canReviewOffers: requestAcceptsOffers(request.status) && request.pendingOfferCount > 0,
   };
 }
 

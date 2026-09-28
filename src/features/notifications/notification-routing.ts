@@ -13,7 +13,8 @@ export function notificationTargetToHref(target: NotificationTarget): Href | nul
     case 'request':
       return routes.request(target.requestId);
     case 'offer':
-      return routes.offer(target.offerId);
+      // The request screen is the single place to see and act on offers (both roles).
+      return routes.request(target.requestId);
     case 'job':
       return routes.job(target.jobId);
     case 'conversation':

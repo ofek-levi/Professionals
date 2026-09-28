@@ -1,7 +1,7 @@
 /**
  * Every React Query key used in the app is created here, so cache reads, writes and
- * invalidations always agree. Keys are hierarchical: invalidating `queryKeys.requests.all`
- * invalidates every request related query.
+ * invalidations always agree. Keys are hierarchical: invalidating `queryKeys.jobs.all`
+ * invalidates every job related query.
  *
  * All keys are scoped by the signed-in user id (first element) so switching demo accounts can
  * never show another user's cached data.
@@ -13,15 +13,11 @@ import type {
   NotificationsParams,
   ProfessionalOffersParams,
   RequestOffersParams,
-  SearchProfessionalsParams,
 } from '@/types/api';
 
 type Scope = string | null;
 
 export const queryKeys = {
-  /** Root key for everything belonging to one signed-in user. */
-  user: (userId: Scope) => ['u', userId] as const,
-
   auth: {
     demoAccounts: () => ['public', 'demo-accounts'] as const,
     me: (userId: Scope) => ['u', userId, 'me'] as const,
@@ -38,7 +34,6 @@ export const queryKeys = {
   },
 
   requests: {
-    all: (userId: Scope) => ['u', userId, 'requests'] as const,
     customerLists: (userId: Scope) => ['u', userId, 'requests', 'customer-list'] as const,
     customerList: (userId: Scope, params: CustomerRequestsParams) =>
       ['u', userId, 'requests', 'customer-list', params] as const,
@@ -51,7 +46,6 @@ export const queryKeys = {
   },
 
   offers: {
-    all: (userId: Scope) => ['u', userId, 'offers'] as const,
     forRequest: (userId: Scope, requestId: string, params: RequestOffersParams = {}) =>
       ['u', userId, 'offers', 'request', requestId, params] as const,
     forRequestAll: (userId: Scope, requestId: string) => ['u', userId, 'offers', 'request', requestId] as const,
@@ -77,9 +71,6 @@ export const queryKeys = {
     /** Pages differ by size, so the page size is part of the key (profile preview vs. full list). */
     reviews: (userId: Scope, professionalId: string, params: { limit: number }) =>
       ['u', userId, 'professionals', 'reviews', professionalId, params] as const,
-    /** Prefix of every professional search. */
-    searches: (userId: Scope) => ['u', userId, 'professionals', 'search'] as const,
-    search: (userId: Scope, params: SearchProfessionalsParams) => ['u', userId, 'professionals', 'search', params] as const,
     own: (userId: Scope) => ['u', userId, 'professionals', 'own'] as const,
   },
 
@@ -96,7 +87,6 @@ export const queryKeys = {
   },
 
   conversations: {
-    all: (userId: Scope) => ['u', userId, 'conversations'] as const,
     list: (userId: Scope) => ['u', userId, 'conversations', 'list'] as const,
     /** Prefix of every conversation detail (not their messages). */
     details: (userId: Scope) => ['u', userId, 'conversations', 'detail'] as const,

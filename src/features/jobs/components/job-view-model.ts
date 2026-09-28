@@ -1,14 +1,12 @@
 /**
- * Pure view models of the job tracking screen: the status timeline and which actions are
- * presented as the primary footer CTA vs. secondary buttons. Permissions themselves come from
+ * Pure view models of the job tracking screen: the progress steps and which actions are presented
+ * as the primary footer CTA vs. quiet secondary actions. Permissions themselves come from
  * `getJobActions` (the same rules the backend enforces).
  */
-import { differenceInCalendarDays, differenceInMinutes } from 'date-fns';
-
 import type { JobActions } from '@/features/jobs/job-status-machine';
 import type { Job, UserRole } from '@/types/domain';
 
-// ─────────────────────────────── Timeline ───────────────────────────────
+// ─────────────────────────────── Progress ───────────────────────────────
 
 export type JobTimelineStepKey = 'accepted' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
 
@@ -73,12 +71,12 @@ export function getJobTimeline(job: TimelineJob): JobTimelineStep[] {
 
 // ─────────────────────────────── Actions ───────────────────────────────
 
-export type JobActionKey = 'confirm' | 'start' | 'complete' | 'review' | 'cancel';
+export type JobActionKey = 'confirm' | 'start' | 'complete' | 'review';
 
-export interface JobActionPlan {
-  /** Main CTA in the sticky footer (next to "Message"). */
+interface JobActionPlan {
+  /** Main CTA in the sticky footer (next to the chat shortcut). */
   primary: JobActionKey | null;
-  /** Less prominent actions shown in the "Next step" card. */
+  /** Less prominent actions, shown as quiet text buttons. */
   secondary: JobActionKey[];
   /** Show the "Message" button (chat is open). */
   message: boolean;
@@ -88,7 +86,9 @@ export interface JobActionPlan {
  * Chooses how the allowed actions are presented:
  * - professional: confirm → start → complete, with "complete" as secondary while "start" is the CTA;
  * - customer: review once completed; "complete" is the CTA only while the work is in progress
- *   (before that it is secondary, next to cancelling through the request).
+ *   (before that it is secondary).
+ * Cancelling a booking has one entry point, the request screen ("Cancel request"), so it is not a
+ * job action here.
  */
 export function planJobActions(job: Pick<Job, 'status'>, role: UserRole, actions: JobActions): JobActionPlan {
   const secondary: JobActionKey[] = [];
@@ -103,34 +103,7 @@ export function planJobActions(job: Pick<Job, 'status'>, role: UserRole, actions
     if (actions.canReview) primary = 'review';
     else if (actions.canComplete && job.status === 'in_progress') primary = 'complete';
     if (actions.canComplete && primary !== 'complete') secondary.push('complete');
-    if (actions.canCancel) secondary.push('cancel');
   }
 
   return { primary, secondary, message: actions.canMessage };
-}
-
-// ─────────────────────────────── Appointment countdown ───────────────────────────────
-
-/**
- * How to describe the time until the appointment:
- * - `soon`: later today (or within 12 hours) → relative time ("in 3 hours");
- * - `tomorrow`: the next calendar day;
- * - `days`: in `days` calendar days;
- * - `overdue`: the start time has passed (the job was not started yet).
- */
-export type AppointmentCountdown =
-  | { kind: 'soon' }
-  | { kind: 'tomorrow' }
-  | { kind: 'days'; days: number }
-  | { kind: 'overdue' };
-
-const SOON_MINUTES = 12 * 60;
-
-export function getAppointmentCountdown(start: Date, now: Date): AppointmentCountdown {
-  const minutes = differenceInMinutes(start, now);
-  if (minutes < 0) return { kind: 'overdue' };
-  const days = differenceInCalendarDays(start, now);
-  if (days === 0 || minutes < SOON_MINUTES) return { kind: 'soon' };
-  if (days === 1) return { kind: 'tomorrow' };
-  return { kind: 'days', days };
 }

@@ -8,39 +8,17 @@ import type { Job, JobSummary, UserRole } from '@/types/domain';
 
 import { CategoryIcon } from '../categories/category-icon';
 import { AppText } from '../ui/app-text';
-import { Avatar } from '../ui/avatar';
-import { Badge, type BadgeSize } from '../ui/badge';
+import { Badge } from '../ui/badge';
 import { Card } from '../ui/card';
-import { Icon } from '../ui/icon';
-import { Divider } from '../ui/layout';
 import { Skeleton } from '../ui/skeleton';
-import { PriceText } from '../ui/value-text';
 
-export interface JobStatusBadgeProps {
-  status: JobStatus;
-  size?: BadgeSize;
-  withIcon?: boolean;
-  style?: StyleProp<ViewStyle>;
-}
-
-/** Job execution status (`common:jobStatus.<status>`). */
-export function JobStatusBadge({ status, size = 'md', withIcon = true, style }: JobStatusBadgeProps) {
+/** Job execution status as a small text pill (`common:jobStatus.<status>`). */
+function JobStatusBadge({ status }: { status: JobStatus }) {
   const { t } = useTranslation('common');
-  const meta = JOB_STATUS_META[status];
-  return (
-    <Badge
-      label={t(`jobStatus.${status}`)}
-      tone={meta.tone}
-      icon={withIcon ? meta.icon : undefined}
-      dot={!withIcon}
-      size={size}
-      style={style}
-      testID={`job-status-${status}`}
-    />
-  );
+  return <Badge label={t(`jobStatus.${status}`)} tone={JOB_STATUS_META[status].tone} size="sm" testID={`job-status-${status}`} />;
 }
 
-export interface JobWhen {
+interface JobWhen {
   /** The job is done: `text` is its completion time instead of the (possibly later) appointment. */
   completed: boolean;
   text: string;
@@ -59,29 +37,30 @@ export function useJobWhen(job: Pick<Job, 'status' | 'scheduledStartAt' | 'compl
   return { completed: false, text: format.dateTime(job.scheduledStartAt) };
 }
 
-export interface JobCardProps {
+interface JobCardProps {
   job: JobSummary;
   /** Who is looking: the card shows the *other* party. */
   viewerRole: UserRole;
+  /** Adds the agreed price after the date (off by default – cards show 3–4 facts). */
+  showPrice?: boolean;
+  /** Hides the status pill when the surrounding section already names the status ("Completed"). */
+  showStatus?: boolean;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-/** Job summary: category, description, counterpart, appointment, status and agreed price. */
-export function JobCard({ job, viewerRole, onPress, style, testID }: JobCardProps) {
+/** Compact job summary: category, counterpart, appointment (or completion) time and a status pill. */
+export function JobCard({ job, viewerRole, showPrice = false, showStatus = true, onPress, style, testID }: JobCardProps) {
   const styles = useStyles();
   const { t } = useTranslation('common');
   const format = useFormatters();
   const categoryName = useCategoryName(job.categoryId) || t('category.unknown');
-  const counterpart =
-    viewerRole === 'customer'
-      ? { name: job.professional.displayName, avatarUrl: job.professional.avatarUrl, verified: job.professional.isVerified, role: t('roles.professional') }
-      : { name: job.customer.displayName, avatarUrl: job.customer.avatarUrl, verified: false, role: t('roles.customer') };
+  const counterpart = viewerRole === 'customer' ? job.professional.displayName : job.customer.displayName;
   const { completed, text: when } = useJobWhen(job);
-  // The status badge already says "Completed", so the date line only shows when it happened.
+  // The status pill already says "Completed", so the date line only shows when it happened.
   const whenLabel = completed && job.completedAt ? format.dateTime(job.completedAt) : when;
-  const duration = !completed && job.estimatedDurationMinutes ? format.duration(job.estimatedDurationMinutes, 'short') : null;
+  const dateLine = showPrice ? `${whenLabel} · ${format.currency(job.agreedPrice, job.currency)}` : whenLabel;
 
   return (
     <Card
@@ -89,49 +68,24 @@ export function JobCard({ job, viewerRole, onPress, style, testID }: JobCardProp
       padding="none"
       style={style}
       testID={testID}
-      accessibilityLabel={[categoryName, t(`jobStatus.${job.status}`), counterpart.name, when].join(', ')}
+      accessibilityLabel={[categoryName, t(`jobStatus.${job.status}`), counterpart, when].join(', ')}
     >
-      <View style={styles.body}>
-        <View style={styles.header}>
-          <CategoryIcon categoryId={job.categoryId} size="md" />
-          <View style={styles.flex}>
-            {/* The badge follows the title and wraps under it when both do not fit on one line. */}
-            <View style={styles.titleRow}>
-              <AppText variant="subheading" numberOfLines={1} style={styles.flexShrink}>
-                {categoryName}
-              </AppText>
-              <JobStatusBadge status={job.status} size="sm" style={styles.statusBadge} />
-            </View>
-            <AppText variant="caption" color="secondary" numberOfLines={2} userContent>
-              {job.description}
+      <View style={styles.row}>
+        <CategoryIcon categoryId={job.categoryId} size="sm" />
+        <View style={styles.texts}>
+          <View style={styles.titleRow}>
+            <AppText variant="bodyStrong" numberOfLines={1} style={styles.flex}>
+              {categoryName}
             </AppText>
+            {showStatus ? <JobStatusBadge status={job.status} /> : null}
           </View>
-        </View>
-
-        <View style={[styles.when, completed ? styles.whenDone : null]}>
-          <Icon name={completed ? 'calendar-check' : 'calendar-clock'} size={18} color={completed ? 'success' : 'primary'} />
-          <AppText variant="captionStrong" numberOfLines={1} style={styles.flexShrink}>
-            {whenLabel}
+          <AppText variant="caption" color="secondary" numberOfLines={1}>
+            {counterpart}
           </AppText>
-          {duration ? (
-            <AppText variant="caption" color="muted" numberOfLines={1}>
-              {`· ${duration}`}
-            </AppText>
-          ) : null}
-        </View>
-      </View>
-      <Divider />
-      <View style={styles.footer}>
-        <Avatar name={counterpart.name} uri={counterpart.avatarUrl} size="sm" verified={counterpart.verified} decorative />
-        <View style={styles.flex}>
-          <AppText variant="captionStrong" numberOfLines={1}>
-            {counterpart.name}
-          </AppText>
-          <AppText variant="tiny" color="muted" numberOfLines={1}>
-            {counterpart.role}
+          <AppText variant="caption" color="muted" numberOfLines={1} tabular style={styles.when}>
+            {dateLine}
           </AppText>
         </View>
-        <PriceText amount={job.agreedPrice} currency={job.currency} variant="subheading" />
       </View>
     </Card>
   );
@@ -141,80 +95,45 @@ export function JobCardSkeleton({ style }: { style?: StyleProp<ViewStyle> }) {
   const styles = useStyles();
   return (
     <Card padding="none" style={style}>
-      <View style={styles.body}>
-        <View style={styles.header}>
-          <Skeleton width={44} height={44} radius={12} />
-          <View style={[styles.flex, styles.skeletonGap]}>
-            <Skeleton width="55%" height={14} />
-            <Skeleton width="85%" height={11} />
+      <View style={styles.row}>
+        <Skeleton width={36} height={36} radius={10} />
+        <View style={[styles.texts, styles.skeletonGap]}>
+          <View style={styles.titleRow}>
+            <Skeleton width="45%" height={14} />
+            <View style={styles.flex} />
+            <Skeleton width={72} height={18} radius={999} />
           </View>
-          <Skeleton width={80} height={22} radius={999} />
+          <Skeleton width="40%" height={11} />
+          <Skeleton width="55%" height={11} />
         </View>
-        <Skeleton width="50%" height={30} radius={10} />
-      </View>
-      <Divider />
-      <View style={styles.footer}>
-        <Skeleton circle height={36} />
-        <View style={[styles.flex, styles.skeletonGap]}>
-          <Skeleton width="40%" height={12} />
-          <Skeleton width="25%" height={10} />
-        </View>
-        <Skeleton width={64} height={18} />
       </View>
     </Card>
   );
 }
 
 const useStyles = makeStyles((t) => ({
-  body: {
-    padding: t.spacing.lg,
-    gap: t.spacing.md,
-  },
-  header: {
+  row: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: t.spacing.md,
+    padding: t.spacing.lg,
   },
-  flex: {
+  texts: {
     flex: 1,
     gap: t.spacing.xxs,
   },
-  flexShrink: {
-    flexShrink: 1,
-  },
   titleRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'center',
-    columnGap: t.spacing.sm,
-    rowGap: t.spacing.xs,
+    gap: t.spacing.sm,
   },
-  statusBadge: {
-    alignSelf: 'center',
-    flexShrink: 0,
+  flex: {
+    flex: 1,
+  },
+  when: {
+    marginTop: t.spacing.xxs,
   },
   skeletonGap: {
     gap: t.spacing.sm,
-  },
-  when: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: t.spacing.sm,
-    paddingHorizontal: t.spacing.md,
-    paddingVertical: t.spacing.sm,
-    borderRadius: t.radii.md,
-    backgroundColor: t.colors.primarySoft,
-    maxWidth: '100%',
-  },
-  whenDone: {
-    backgroundColor: t.colors.tones.success.bg,
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.md,
-    paddingHorizontal: t.spacing.lg,
-    paddingVertical: t.spacing.md,
   },
 }));

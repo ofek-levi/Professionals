@@ -9,7 +9,7 @@ import { AppText } from '../ui/app-text';
 import { Icon } from '../ui/icon';
 import { RatingStars } from '../ui/rating';
 
-export interface RatingSummaryProps {
+interface RatingSummaryProps {
   breakdown: RatingBreakdown;
   style?: StyleProp<ViewStyle>;
 }

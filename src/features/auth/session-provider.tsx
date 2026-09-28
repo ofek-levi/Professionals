@@ -17,7 +17,7 @@ import type { AuthSession } from '@/types/api';
 
 import { startSessionLifecycle } from './session-lifecycle';
 
-export type Session = SessionState;
+type Session = SessionState;
 
 /** The current session: `{ status, userId, role, accessToken }`. Re-renders on change. */
 export function useSession(): Session {
@@ -41,7 +41,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export interface AuthActions {
+interface AuthActions {
   /** Signs in with a demo account (no password). Resolves with the new session. */
   signInWithDemoAccount: (userId: string) => Promise<AuthSession>;
   /** Signs out (best-effort server logout, then local sign out). "Switch account" is a sign-out. */

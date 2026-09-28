@@ -3,14 +3,6 @@
  * (rendered by `<ErrorState />` and `useErrorText()`).
  */
 export const errors = {
-  generic: {
-    title: 'Something went wrong',
-    description: 'Please try again in a moment.',
-  },
-  offline: {
-    title: 'You’re offline',
-    description: 'Check your internet connection. We’ll reconnect automatically.',
-  },
   codes: {
     NETWORK_ERROR: {
       title: 'No connection',

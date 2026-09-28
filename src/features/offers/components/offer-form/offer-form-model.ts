@@ -1,20 +1,18 @@
 /**
- * View-model helpers of the offer form: which dates/times can be picked for a request, a sensible
- * preselected appointment, message templates and the mapping of server errors onto form fields.
+ * View-model helpers of the offer form: which dates and times can be picked for a request, a
+ * sensible preselected appointment and the mapping of server errors onto form fields.
  * Pure (no React), deterministic given `now`.
  */
 import { earliestAllowedOfferStart, latestAllowedOfferStart, OFFER_TIME_RULES } from '@/features/offers/offer-rules';
-import { findNextWorkingSlot, getWorkingHoursForDate } from '@/features/profiles/availability';
+import { getWorkingHoursForDate } from '@/features/profiles/availability';
 import type { OfferFormValues } from '@/lib/validation';
 import type { ApiErrorCode } from '@/types/api';
-import type { ServiceRequest, TimeOfDayString, UrgencyLevel, WeeklyAvailability } from '@/types/domain';
+import type { ISODateString, ServiceRequest, TimeOfDayString, UrgencyLevel, WeeklyAvailability } from '@/types/domain';
 import {
   addDays,
   daysBetweenDateKeys,
-  minutesOfDay,
+  minutesToTime,
   parseDateKey,
-  roundUpToMinutes,
-  splitDateTime,
   startOfLocalDay,
   timeToMinutes,
   TIME_WINDOW_RANGES,
@@ -24,21 +22,24 @@ import {
 } from '@/utils/dates';
 
 /** Time-slot granularity of the offer form. */
-export const OFFER_SLOT_MINUTES = 30;
-/** How many days the date picker offers at most. */
-export const OFFER_DATE_PICKER_DAYS = 14;
+const OFFER_SLOT_MINUTES = 30;
+/** How many days the date chips offer at most. */
+const OFFER_DATE_PICKER_DAYS = 7;
 /** Lead time used when *suggesting* a start (the hard rule is `OFFER_TIME_RULES.minLeadMinutes`). */
-export const SUGGESTION_LEAD_MINUTES = 60;
+const SUGGESTION_LEAD_MINUTES = 60;
 
-export interface SlotRange {
+interface SlotRange {
   start: TimeOfDayString;
   /** Slots start strictly before this time. */
   end: TimeOfDayString;
 }
 
-/** Emergencies get early-morning and late-evening slots; everything else a regular day. */
-export function offerTimeRange(urgency: UrgencyLevel): SlotRange {
-  return urgency === 'emergency' ? { start: '06:00', end: '23:30' } : { start: '07:00', end: '21:00' };
+/** Slots offered on days without working hours (day off, or no profile yet). */
+const DEFAULT_OFFER_HOURS: SlotRange = { start: '07:00', end: '20:00' };
+
+/** The professional's working hours on that day, or 07:00–20:00. */
+export function offerSlotRange(availability: WeeklyAvailability | null | undefined, day: DateInput): SlotRange {
+  return (availability ? getWorkingHoursForDate(availability, day) : null) ?? DEFAULT_OFFER_HOURS;
 }
 
 /** Number of selectable days starting today, limited by the urgency window (emergency 24h, urgent 72h). */
@@ -48,93 +49,131 @@ export function offerDateDays(urgency: UrgencyLevel, now: DateInput, maxDays = O
   return Math.max(1, Math.min(maxDays, span));
 }
 
-/** Whether `date` + `time` is inside the slot grid of the picker. */
-function isInsideSlotRange(date: Date, range: SlotRange): boolean {
-  const minutes = minutesOfDay(date);
-  return minutes >= timeToMinutes(range.start) && minutes < timeToMinutes(range.end) && minutes % OFFER_SLOT_MINUTES === 0;
+interface OfferTimeSlot {
+  time: TimeOfDayString;
+  /** Too soon (inside the minimum lead time) or beyond the urgency window. */
+  disabled: boolean;
 }
 
-/** Moves an instant into the slot grid: aligned to the slot size, same day if possible, else the next morning. */
-export function clampIntoSlotRange(value: DateInput, range: SlotRange): Date {
-  const aligned = roundUpToMinutes(value, OFFER_SLOT_MINUTES);
-  const minutes = minutesOfDay(aligned);
-  const first = timeToMinutes(range.start);
-  const lastStart = timeToMinutes(range.end) - OFFER_SLOT_MINUTES;
-  const day = startOfLocalDay(aligned);
-  if (minutes < first) return new Date(day.getTime() + first * 60_000);
-  if (minutes > lastStart) {
-    const next = addDays(day, 1);
-    return new Date(next.getTime() + first * 60_000);
+interface OfferSlotInput {
+  urgency: UrgencyLevel;
+  availability?: WeeklyAvailability | null;
+  now: DateInput;
+}
+
+function slotStart(day: Date, minutes: number): Date {
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), Math.floor(minutes / 60), minutes % 60);
+}
+
+/** The 30-minute slots of a day (`YYYY-MM-DD`) inside its slot range, with the ones the offer rules reject disabled. */
+export function offerTimeSlots({ date, urgency, availability, now }: OfferSlotInput & { date: ISODateString }): OfferTimeSlot[] {
+  const day = parseDateKey(date);
+  if (!day) return [];
+  const range = offerSlotRange(availability, day);
+  const earliest = earliestAllowedOfferStart(now).getTime();
+  const latest = latestAllowedOfferStart(urgency, now).getTime();
+  const first = Math.ceil(timeToMinutes(range.start) / OFFER_SLOT_MINUTES) * OFFER_SLOT_MINUTES;
+  const slots: OfferTimeSlot[] = [];
+  for (let minutes = first; minutes < timeToMinutes(range.end); minutes += OFFER_SLOT_MINUTES) {
+    const at = slotStart(day, minutes).getTime();
+    slots.push({ time: minutesToTime(minutes), disabled: at < earliest || at > latest });
   }
-  return aligned;
+  return slots;
 }
 
-export interface SuggestOfferStartInput {
+export interface OfferDateOption {
+  date: ISODateString;
+  /** No slot of that day can be picked. */
+  disabled: boolean;
+}
+
+/** Today and the next days (at most 7, never past the urgency window); days without a free slot are disabled. */
+export function offerDateOptions({ urgency, availability, now, maxDays = OFFER_DATE_PICKER_DAYS }: OfferSlotInput & { maxDays?: number }): OfferDateOption[] {
+  const today = startOfLocalDay(now);
+  return Array.from({ length: offerDateDays(urgency, now, maxDays) }, (_, index) => {
+    const date = toDateKey(addDays(today, index));
+    return { date, disabled: offerTimeSlots({ date, urgency, availability, now }).every((slot) => slot.disabled) };
+  });
+}
+
+interface SuggestOfferStartInput {
   request: Pick<ServiceRequest, 'urgency' | 'preferredSchedule'>;
   availability?: WeeklyAvailability | null;
   now: DateInput;
 }
 
 /**
- * A sensible preselected appointment:
- * 1. the customer's preferred date and window (when it is still reachable), else
- * 2. the professional's next working slot from a target day that depends on the urgency
- *    (emergency: now, urgent: tomorrow, normal: in 2 days, flexible: in 3 days), else
- * 3. the earliest allowed slot.
- * Always inside the urgency window and the picker's slot grid; `null` when nothing fits.
+ * A sensible preselected appointment on the form's grid (an enabled date chip and time slot), an
+ * hour or more from now when possible:
+ * 1. the customer's preferred date and window, else
+ * 2. the first free slot from a target day that depends on the urgency (emergency: today, urgent:
+ *    tomorrow, normal: in 2 days, flexible: in 3 days), then the days before it, else
+ * 3. the first free slot at all.
+ * `null` when nothing fits.
  */
 export function suggestOfferStart({ request, availability, now }: SuggestOfferStartInput): { date: string; time: string } | null {
-  const nowDate = toDate(now);
-  const range = offerTimeRange(request.urgency);
-  const earliestRule = earliestAllowedOfferStart(nowDate).getTime();
-  const earliest = clampIntoSlotRange(new Date(nowDate.getTime() + SUGGESTION_LEAD_MINUTES * 60_000), range);
-  const latest = latestAllowedOfferStart(request.urgency, nowDate).getTime();
-  const fits = (candidate: Date | null): candidate is Date =>
-    candidate !== null &&
-    candidate.getTime() >= earliestRule &&
-    candidate.getTime() >= earliest.getTime() - 1 &&
-    candidate.getTime() <= latest &&
-    isInsideSlotRange(candidate, range);
+  const input: OfferSlotInput = { urgency: request.urgency, availability, now };
+  const options = offerDateOptions(input).filter((option) => !option.disabled);
+  const leadLimit = toDate(now).getTime() + SUGGESTION_LEAD_MINUTES * 60_000;
+
+  const freeSlots = (date: ISODateString) => offerTimeSlots({ ...input, date }).filter((slot) => !slot.disabled);
+  const firstSuggested = (date: ISODateString, window?: SlotRange): string | null => {
+    const day = parseDateKey(date);
+    if (!day) return null;
+    const slot = freeSlots(date).find((candidate) => {
+      const minutes = timeToMinutes(candidate.time);
+      const insideWindow = !window || (minutes >= timeToMinutes(window.start) && minutes < timeToMinutes(window.end));
+      return insideWindow && slotStart(day, minutes).getTime() >= leadLimit;
+    });
+    return slot?.time ?? null;
+  };
 
   // 1. Preferred date + window.
   const preferred = request.preferredSchedule;
-  const preferredDay = preferred ? parseDateKey(preferred.date) : null;
-  if (preferred && preferredDay) {
-    const hours = availability ? getWorkingHoursForDate(availability, preferredDay) : null;
-    const windowStart =
-      preferred.timeWindow === 'any' ? (hours?.start ?? '09:00') : TIME_WINDOW_RANGES[preferred.timeWindow].start;
-    const windowEnd = preferred.timeWindow === 'any' ? (hours?.end ?? range.end) : TIME_WINDOW_RANGES[preferred.timeWindow].end;
-    let candidate = new Date(preferredDay.getTime() + timeToMinutes(windowStart) * 60_000);
-    if (candidate.getTime() < earliest.getTime()) candidate = earliest;
-    const sameDay = toDateKey(candidate) === preferred.date;
-    const insideWindow = minutesOfDay(candidate) < timeToMinutes(windowEnd);
-    if (sameDay && insideWindow && fits(candidate)) return splitDateTime(candidate);
+  if (preferred && options.some((option) => option.date === preferred.date)) {
+    const time = firstSuggested(preferred.date, preferred.timeWindow === 'any' ? undefined : TIME_WINDOW_RANGES[preferred.timeWindow]);
+    if (time) return { date: preferred.date, time };
   }
 
-  // 2. Next working slot from the urgency's target day.
+  // 2. From the urgency's target day on, then the days before it.
   const offsetDays = { emergency: 0, urgent: 1, normal: 2, flexible: 3 }[request.urgency];
-  const targetDay = offsetDays === 0 ? earliest : startOfLocalDay(addDays(nowDate, offsetDays));
-  const from = targetDay.getTime() < earliest.getTime() ? earliest : targetDay;
-  if (availability) {
-    const slot = findNextWorkingSlot(availability, from, { slotMinutes: OFFER_SLOT_MINUTES, durationMinutes: 60, maxDays: 14 });
-    if (fits(slot)) return splitDateTime(slot);
+  const targetKey = toDateKey(addDays(startOfLocalDay(now), offsetDays));
+  const ordered = [...options.filter((option) => option.date >= targetKey), ...options.filter((option) => option.date < targetKey)];
+  for (const option of ordered) {
+    const time = firstSuggested(option.date);
+    if (time) return { date: option.date, time };
   }
-  const fallback = offsetDays === 0 ? earliest : clampIntoSlotRange(new Date(from.getTime() + 9 * 60 * 60_000), range);
-  if (fits(fallback)) return splitDateTime(fallback);
 
-  // 3. Earliest allowed slot.
-  return fits(earliest) ? splitDateTime(earliest) : null;
+  // 3. Any free slot (inside the suggestion lead time).
+  for (const option of options) {
+    const [slot] = freeSlots(option.date);
+    if (slot) return { date: option.date, time: slot.time };
+  }
+  return null;
 }
 
-/** Appends a quick-template text to the message (new paragraph), never exceeding `maxLength`. */
-export function appendTemplate(current: string, text: string, maxLength: number): string {
-  const base = current.trimEnd();
-  if (base.includes(text.trim())) return current;
-  const next = base.length > 0 ? `${base}\n\n${text.trim()}` : text.trim();
-  return next.slice(0, maxLength);
+// ─────────────────────────────── Day periods ───────────────────────────────
+
+/** The time step shows one part of the day at a time (a handful of slots instead of a wall). */
+const OFFER_DAY_PERIODS = ['morning', 'afternoon', 'evening'] as const;
+export type OfferDayPeriod = (typeof OFFER_DAY_PERIODS)[number];
+
+/** Morning before 12:00, afternoon until 17:00, evening after (the customers' preferred windows). */
+export function offerDayPeriod(time: TimeOfDayString): OfferDayPeriod {
+  const minutes = timeToMinutes(time);
+  if (minutes < timeToMinutes(TIME_WINDOW_RANGES.afternoon.start)) return 'morning';
+  if (minutes < timeToMinutes(TIME_WINDOW_RANGES.evening.start)) return 'afternoon';
+  return 'evening';
 }
 
-export type OfferFormField = keyof OfferFormValues;
+/** The periods that have at least one of `times`, each with its times (input order kept). */
+export function groupTimesByPeriod(times: readonly TimeOfDayString[]): { period: OfferDayPeriod; times: TimeOfDayString[] }[] {
+  return OFFER_DAY_PERIODS.map((period) => ({ period, times: times.filter((time) => offerDayPeriod(time) === period) })).filter(
+    (group) => group.times.length > 0,
+  );
+}
+
+type OfferFormField = keyof OfferFormValues;
 
 /** Server `fieldErrors` paths → offer form fields (first message wins). */
 export function mapOfferServerFieldErrors(fieldErrors: Record<string, string[]> | undefined): Partial<Record<OfferFormField, string>> {
@@ -144,7 +183,6 @@ export function mapOfferServerFieldErrors(fieldErrors: Record<string, string[]> 
     price: 'price',
     currency: 'price',
     proposedStartAt: 'time',
-    estimatedDurationMinutes: 'estimatedDurationMinutes',
     message: 'message',
   };
   for (const [path, messages] of Object.entries(fieldErrors)) {
@@ -154,8 +192,8 @@ export function mapOfferServerFieldErrors(fieldErrors: Record<string, string[]> 
   return result;
 }
 
-/** Business conflicts that are shown as a friendly banner (instead of a field error). */
-export const OFFER_SUBMIT_PROBLEMS = [
+/** Business conflicts that are shown as a banner (instead of a field error). */
+const OFFER_SUBMIT_PROBLEMS = [
   'DUPLICATE_OFFER',
   'REQUEST_NOT_ACCEPTING_OFFERS',
   'OUTSIDE_SERVICE_AREA',
@@ -168,7 +206,7 @@ export function toOfferSubmitProblem(code: ApiErrorCode): OfferSubmitProblem | n
   return (OFFER_SUBMIT_PROBLEMS as readonly ApiErrorCode[]).includes(code) ? (code as OfferSubmitProblem) : null;
 }
 
-/** Hours of the urgency window shown in the guidance text (`null` = only the global limit). */
+/** Hours of the urgency window shown in the form's hint (`null` = no urgency limit). */
 export function urgencyWindowHours(urgency: UrgencyLevel): number | null {
   if (urgency === 'emergency') return OFFER_TIME_RULES.emergencyMaxHours;
   if (urgency === 'urgent') return OFFER_TIME_RULES.urgentMaxHours;

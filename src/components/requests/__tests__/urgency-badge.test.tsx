@@ -3,7 +3,7 @@ import { screen } from '@testing-library/react-native';
 import { i18n, initI18n } from '@/i18n';
 
 import { renderWithProviders } from '../../__test-utils__/render';
-import { RequestStatusBadge, UrgencyBadge } from '../status-badges';
+import { UrgencyBadge } from '../status-badges';
 import { OfferStatusBadge } from '../../offers/offer-status-badge';
 
 describe('status badges', () => {
@@ -28,14 +28,8 @@ describe('status badges', () => {
     expect(screen.getByText('חירום')).toBeOnTheScreen();
   });
 
-  it('renders request and offer statuses', async () => {
-    await renderWithProviders(
-      <>
-        <RequestStatusBadge status="offers_received" />
-        <OfferStatusBadge status="rejected" />
-      </>,
-    );
-    expect(screen.getByText('Offers received')).toBeOnTheScreen();
+  it('renders offer statuses', async () => {
+    await renderWithProviders(<OfferStatusBadge status="rejected" />);
     expect(screen.getByText('Not selected')).toBeOnTheScreen();
   });
 });

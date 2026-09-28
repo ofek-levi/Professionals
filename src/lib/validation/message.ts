@@ -7,7 +7,7 @@ import { normalizeMessageText } from '@/features/messaging/message-rules';
 import { vm } from './messages';
 
 /** Message text: normalized (see `normalizeMessageText`), non-empty and within the length limit. */
-export const messageTextSchema = z
+const messageTextSchema = z
   .string({ error: vm('message.empty') })
   .transform((value) => normalizeMessageText(value))
   .pipe(z.string().min(1, vm('message.empty')).max(APP_CONFIG.messageMaxLength, vm('message.tooLong')));

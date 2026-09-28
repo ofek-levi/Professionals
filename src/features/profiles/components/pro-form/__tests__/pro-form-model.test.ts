@@ -6,14 +6,30 @@ import {
   isLanguageOption,
   mapProfileServerFieldErrors,
   RADIUS_PRESETS_KM,
+  radiusOptions,
+  touchesMoreDetails,
 } from '../pro-form-model';
 
 describe('professional profile form model', () => {
   it('keeps radius presets within the configured bounds', () => {
-    expect(RADIUS_PRESETS_KM).toEqual([5, 10, 15, 25, 40, 60, 80]);
+    expect(RADIUS_PRESETS_KM).toEqual([5, 10, 20, 40, 80]);
     expect(clampRadiusKm(1)).toBe(3);
     expect(clampRadiusKm(12.4)).toBe(12);
     expect(clampRadiusKm(500)).toBe(80);
+  });
+
+  it('adds the current radius to the chips when it is not a preset', () => {
+    expect(radiusOptions(20)).toEqual([5, 10, 20, 40, 80]);
+    expect(radiusOptions(25)).toEqual([5, 10, 20, 25, 40, 80]);
+    expect(radiusOptions(500)).toEqual([5, 10, 20, 40, 80]);
+    expect(radiusOptions(null)).toEqual([5, 10, 20, 40, 80]);
+  });
+
+  it('knows which fields live in "More details"', () => {
+    expect(touchesMoreDetails(['bio', 'licenseNumber'])).toBe(true);
+    expect(touchesMoreDetails(['availability.acceptsEmergencyCalls'])).toBe(true);
+    expect(touchesMoreDetails(['phone', 'serviceArea.label'])).toBe(false);
+    expect(touchesMoreDetails([])).toBe(false);
   });
 
   it('starts end options half an hour after the start', () => {

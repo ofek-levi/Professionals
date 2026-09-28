@@ -25,7 +25,7 @@ import type {
 } from '@/types/domain';
 
 export const MOCK_DB_SCHEMA_VERSION = 3;
-export const MOCK_DB_STORAGE_KEY = '@professionals/mock-db/v1';
+const MOCK_DB_STORAGE_KEY = '@professionals/mock-db/v1';
 
 // ────────────────────────────── Stored row types ──────────────────────────────
 
@@ -52,7 +52,7 @@ export interface StoredConversation {
   updatedAt: ISODateTimeString;
 }
 
-export interface StoredUpload {
+interface StoredUpload {
   id: EntityId;
   ownerId: EntityId;
   url: string;
@@ -63,7 +63,7 @@ export interface StoredUpload {
   createdAt: ISODateTimeString;
 }
 
-export interface StoredDevice {
+interface StoredDevice {
   id: EntityId;
   userId: EntityId;
   pushToken: string;
@@ -86,7 +86,7 @@ export interface DatabaseTables {
   devices: StoredDevice[];
 }
 
-export type TableName = keyof DatabaseTables;
+type TableName = keyof DatabaseTables;
 
 export interface DatabaseSnapshot {
   version: number;
@@ -122,7 +122,7 @@ export function cloneJson<T>(value: T): T {
 
 type Patch<T> = Partial<T> | ((row: T) => T);
 
-export class Table<T extends object> {
+class Table<T extends object> {
   private rows = new Map<string, T>();
 
   constructor(
@@ -379,7 +379,7 @@ export function createAsyncStorageDatabaseStorage(key = MOCK_DB_STORAGE_KEY): Da
   };
 }
 
-export interface DebouncedSaver {
+interface DebouncedSaver {
   schedule(): void;
   flush(): Promise<void>;
   cancel(): void;

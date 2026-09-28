@@ -10,10 +10,8 @@
  */
 import {
   addDays as addDaysFns,
-  addHours as addHoursFns,
   addMinutes as addMinutesFns,
   differenceInCalendarDays,
-  differenceInMinutes,
   isSameDay as isSameDayFns,
   startOfDay,
 } from 'date-fns';
@@ -22,9 +20,9 @@ import type { ISODateString, ISODateTimeString, PreferredTimeWindow, TimeOfDaySt
 
 export type DateInput = Date | ISODateTimeString;
 
-export const DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
-export const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
-export const MINUTES_PER_DAY = 24 * 60;
+const DATE_KEY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const TIME_OF_DAY_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const MINUTES_PER_DAY = 24 * 60;
 
 /** Hour ranges of the preferred time windows (must match the `common:timeWindow.*` labels). */
 export const TIME_WINDOW_RANGES: Record<Exclude<PreferredTimeWindow, 'any'>, { start: TimeOfDayString; end: TimeOfDayString }> = {
@@ -37,10 +35,6 @@ const pad = (value: number) => String(value).padStart(2, '0');
 
 export function toDate(value: DateInput): Date {
   return value instanceof Date ? value : new Date(value);
-}
-
-export function isValidDate(value: Date): boolean {
-  return !Number.isNaN(value.getTime());
 }
 
 /** True for a parseable ISO date-time string. */
@@ -88,7 +82,7 @@ export function minutesToTime(minutes: number): TimeOfDayString {
 }
 
 /** Local wall-clock time of an instant, `HH:mm`. */
-export function toTimeOfDay(value: DateInput): TimeOfDayString {
+function toTimeOfDay(value: DateInput): TimeOfDayString {
   const date = toDate(value);
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
@@ -125,10 +119,6 @@ export function addDays(value: DateInput, amount: number): Date {
   return addDaysFns(toDate(value), amount);
 }
 
-export function addHours(value: DateInput, amount: number): Date {
-  return addHoursFns(toDate(value), amount);
-}
-
 export function addMinutes(value: DateInput, amount: number): Date {
   return addMinutesFns(toDate(value), amount);
 }
@@ -140,11 +130,6 @@ export function startOfLocalDay(value: DateInput): Date {
 
 export function isSameDay(a: DateInput, b: DateInput): boolean {
   return isSameDayFns(toDate(a), toDate(b));
-}
-
-/** Whole minutes from `from` to `to` (negative when `to` is earlier). */
-export function minutesBetween(from: DateInput, to: DateInput): number {
-  return differenceInMinutes(toDate(to), toDate(from));
 }
 
 /** Calendar days from date key `from` to date key `to` (e.g. today → tomorrow = 1). */
@@ -164,21 +149,4 @@ export function roundUpToMinutes(value: DateInput, stepMinutes: number): Date {
   const rounded = Math.ceil(minutes / stepMinutes) * stepMinutes;
   date.setMinutes(rounded);
   return date;
-}
-
-/** The preferred time window a local instant falls into, or `'any'` outside all windows. */
-export function timeWindowForDate(value: DateInput): PreferredTimeWindow {
-  const minutes = minutesOfDay(value);
-  for (const [window, range] of Object.entries(TIME_WINDOW_RANGES) as [Exclude<PreferredTimeWindow, 'any'>, { start: string; end: string }][]) {
-    if (minutes >= timeToMinutes(range.start) && minutes < timeToMinutes(range.end)) return window;
-  }
-  return 'any';
-}
-
-/** Whether a local instant falls inside the given preferred window (`'any'` always matches). */
-export function isWithinTimeWindow(value: DateInput, window: PreferredTimeWindow): boolean {
-  if (window === 'any') return true;
-  const range = TIME_WINDOW_RANGES[window];
-  const minutes = minutesOfDay(value);
-  return minutes >= timeToMinutes(range.start) && minutes < timeToMinutes(range.end);
 }

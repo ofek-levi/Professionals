@@ -3,17 +3,14 @@ import { useController, type Control, type FieldPath, type FieldValues } from 'r
 import { TextField, type TextFieldProps } from '../ui/text-field';
 import { useTranslatedError } from './use-translated-error';
 
-export interface FormTextFieldProps<TFieldValues extends FieldValues, TName extends FieldPath<TFieldValues>>
+interface FormTextFieldProps<TFieldValues extends FieldValues, TName extends FieldPath<TFieldValues>>
   extends Omit<TextFieldProps, 'value' | 'onChangeText' | 'error' | 'ref'> {
   control: Control<TFieldValues>;
   name: TName;
-  /** Converts the typed text into the stored value (e.g. `Number`); defaults to the raw string. */
-  parse?: (text: string) => unknown;
-  /** Converts the stored value into text; defaults to `String(value)` (`''` for null/undefined). */
-  format?: (value: unknown) => string;
 }
 
-function defaultFormat(value: unknown): string {
+/** The stored value as text (`''` for null/undefined). */
+function toText(value: unknown): string {
   if (value === null || value === undefined) return '';
   return typeof value === 'string' ? value : String(value);
 }
@@ -25,8 +22,6 @@ function defaultFormat(value: unknown): string {
 export function FormTextField<TFieldValues extends FieldValues, TName extends FieldPath<TFieldValues>>({
   control,
   name,
-  parse,
-  format = defaultFormat,
   onBlur,
   ...textFieldProps
 }: FormTextFieldProps<TFieldValues, TName>) {
@@ -40,8 +35,8 @@ export function FormTextField<TFieldValues extends FieldValues, TName extends Fi
     <TextField
       {...textFieldProps}
       ref={ref}
-      value={format(value)}
-      onChangeText={(text) => onChange(parse ? parse(text) : text)}
+      value={toText(value)}
+      onChangeText={onChange}
       onBlur={(event) => {
         markTouched();
         onBlur?.(event);

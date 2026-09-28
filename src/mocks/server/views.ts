@@ -79,7 +79,7 @@ export function toPublicProfessionalProfile(profile: OwnProfessionalProfile): Pr
   return publicProfile;
 }
 
-export function toCustomerSummary(ctx: ServerContext, customerId: string): CustomerSummary {
+function toCustomerSummary(ctx: ServerContext, customerId: string): CustomerSummary {
   const user = requireStoredUser(ctx.db, customerId);
   const profile = ctx.db.customerProfiles.get(customerId);
   return {
@@ -111,7 +111,7 @@ function toMyOfferSummary(offer: Offer | undefined): MyOfferSummary | null {
 }
 
 /** Whether the professional was hired for the request (their offer was accepted). */
-export function isSelectedProfessional(request: ServiceRequest, professionalId: string, ctx: ServerContext): boolean {
+function isSelectedProfessional(request: ServiceRequest, professionalId: string, ctx: ServerContext): boolean {
   if (!request.acceptedOfferId) return false;
   return ctx.db.offers.get(request.acceptedOfferId)?.professionalId === professionalId;
 }

@@ -5,7 +5,7 @@ import { createTheme, type Theme } from './tokens';
 
 const ThemeContext = createContext<Theme>(createTheme('light', false));
 
-export interface AppThemeProviderProps {
+interface AppThemeProviderProps {
   scheme: 'light' | 'dark';
   isRTL: boolean;
   children: ReactNode;

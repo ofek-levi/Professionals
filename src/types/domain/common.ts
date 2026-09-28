@@ -24,8 +24,3 @@ export type LocalizedText = Record<AppLanguage, string>;
 
 export const SUPPORTED_CURRENCIES = ['ILS', 'USD', 'EUR'] as const;
 export type CurrencyCode = (typeof SUPPORTED_CURRENCIES)[number];
-
-export interface Timestamps {
-  createdAt: ISODateTimeString;
-  updatedAt: ISODateTimeString;
-}

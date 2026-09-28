@@ -1,22 +1,20 @@
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { APP_CONFIG } from '@/constants/app-config';
+import type { StatusTone } from '@/constants/tones';
+import { isTimeCriticalUrgency } from '@/constants/urgency-levels';
 import { useCategoryName, useFormatters } from '@/i18n/hooks';
-import { makeStyles } from '@/theme';
-import type { CustomerRequestView, ProfessionalRequestView, ServiceLocation } from '@/types/domain';
+import { makeStyles, useTheme } from '@/theme';
+import type { CustomerRequestView, ProfessionalRequestView } from '@/types/domain';
 
 import { CategoryIcon } from '../categories/category-icon';
-import { OfferStatusBadge } from '../offers/offer-status-badge';
 import { AppText } from '../ui/app-text';
 import { Badge } from '../ui/badge';
 import { Card } from '../ui/card';
-import { Icon } from '../ui/icon';
-import { Divider } from '../ui/layout';
 import { Skeleton } from '../ui/skeleton';
-import { DistanceText, PriceText, TimeAgo } from '../ui/value-text';
-import { PreferredScheduleText } from './preferred-schedule-text';
-import { RequestStatusBadge, UrgencyBadge } from './status-badges';
+import { useNow } from '../ui/value-text';
+import { getRequestStatusLine } from './request-status-line';
+import { UrgencyBadge } from './status-badges';
 
 interface RequestCardBaseProps {
   onPress?: () => void;
@@ -24,130 +22,131 @@ interface RequestCardBaseProps {
   testID?: string;
 }
 
-export interface CustomerRequestCardProps extends RequestCardBaseProps {
+interface CustomerRequestCardProps extends RequestCardBaseProps {
   variant: 'customer';
   request: CustomerRequestView;
-  /** Highlight unseen offers (computed by the caller, e.g. `latestOfferAt` > last visit). */
+  /** Unseen offers (computed by the caller, e.g. `latestOfferAt` > last visit): a small dot. */
   hasNewOffers?: boolean;
+  /** The booked appointment, when known: the status line reads "Booked · Tue 10:00". */
+  appointmentAt?: string | null;
+  /** Replaces the computed status line (e.g. "Rate CoolAir HVAC"). */
+  statusLine?: { label: string; tone?: StatusTone };
 }
 
-export interface ProfessionalRequestCardProps extends RequestCardBaseProps {
+interface ProfessionalRequestCardProps extends RequestCardBaseProps {
   variant: 'professional';
   request: ProfessionalRequestView;
 }
 
-export type RequestCardProps = CustomerRequestCardProps | ProfessionalRequestCardProps;
+type RequestCardProps = CustomerRequestCardProps | ProfessionalRequestCardProps;
 
-/** "Neighborhood, City" (either part may be missing). */
-export function formatAreaLabel(location: Pick<ServiceLocation, 'neighborhood' | 'city'>): string {
-  return [location.neighborhood, location.city].filter(Boolean).join(', ');
-}
-
-/** Request summary for lists. `customer` = owner view, `professional` = job explorer view. */
-export function RequestCard(props: RequestCardProps) {
-  const { request, onPress, style, testID } = props;
-  const styles = useStyles();
+/** The customer card's status line: text and tone. */
+function useCustomerStatusLine(props: CustomerRequestCardProps): { label: string; tone: StatusTone } {
   const { t } = useTranslation('common');
   const format = useFormatters();
-  const categoryName = useCategoryName(request.categoryId) || t('category.unknown');
-  const area = formatAreaLabel(request.location);
-  const highlighted = props.variant === 'customer' && Boolean(props.hasNewOffers);
-  // Owners see every offer they received; professionals see the live competition.
-  const offerCount = props.variant === 'customer' ? request.offerCount : request.pendingOfferCount;
-  const offersLabel = offerCount > 0 ? t('counts.offers', { count: offerCount }) : t('request.noOffersYet');
+  const line = getRequestStatusLine(props.request);
+  if (props.statusLine) return { label: props.statusLine.label, tone: props.statusLine.tone ?? line.tone };
+  switch (line.kind) {
+    case 'offersToReview':
+      return { label: t('request.statusLine.offersToReview', { count: line.count }), tone: line.tone };
+    case 'booked':
+      return {
+        label: props.appointmentAt
+          ? t('request.statusLine.bookedAt', { when: format.dateTime(props.appointmentAt) })
+          : t('request.statusLine.booked'),
+        tone: line.tone,
+      };
+    default:
+      return { label: t(`request.statusLine.${line.kind}`), tone: line.tone };
+  }
+}
 
-  const a11yLabel = [
-    categoryName,
-    t(`urgency.${request.urgency}.label`),
-    props.variant === 'customer' ? t(`requestStatus.${request.status}`) : format.distance(props.request.distanceKm, { away: true }),
-    area,
-    offersLabel,
-  ]
-    .filter(Boolean)
-    .join(', ');
+/**
+ * Compact request summary for lists.
+ * - `customer`: category icon + name, a one-line description and one status line in its tone
+ *   ("3 offers to review", "Waiting for offers", "Booked · Tue 10:00"…).
+ * - `professional`: category, a one-line description, then "distance · posted" with small pills at
+ *   its end: the urgency (emergency/urgent only) and "Offered" once the professional sent an offer.
+ */
+export function RequestCard(props: RequestCardProps) {
+  return props.variant === 'customer' ? <CustomerRequestCard {...props} /> : <ProfessionalRequestCard {...props} />;
+}
+
+function CustomerRequestCard(props: CustomerRequestCardProps) {
+  const { request, onPress, hasNewOffers = false, style, testID } = props;
+  const theme = useTheme();
+  const styles = useStyles();
+  const { t } = useTranslation('common');
+  const categoryName = useCategoryName(request.categoryId) || t('category.unknown');
+  const status = useCustomerStatusLine(props);
 
   return (
     <Card
       onPress={onPress}
-      highlighted={highlighted}
       style={style}
       testID={testID}
-      accessibilityLabel={a11yLabel}
+      accessibilityLabel={[categoryName, status.label, hasNewOffers ? t('request.newOffers') : null].filter(Boolean).join(', ')}
       padding="none"
     >
-      <View style={styles.body}>
-        <View style={styles.header}>
-          <CategoryIcon categoryId={request.categoryId} size="md" />
-          <View style={styles.headerTexts}>
-            <AppText variant="subheading" numberOfLines={1}>
+      <View style={styles.row}>
+        <CategoryIcon categoryId={request.categoryId} size="sm" />
+        <View style={styles.texts}>
+          <View style={styles.titleRow}>
+            <AppText variant="bodyStrong" numberOfLines={1} style={styles.flex}>
               {categoryName}
             </AppText>
-            <TimeAgo date={request.publishedAt ?? request.createdAt} />
+            {hasNewOffers ? <View style={[styles.newDot, { backgroundColor: theme.colors.primary }]} testID="request-card-new" /> : null}
           </View>
-          {props.variant === 'customer' ? (
-            <RequestStatusBadge status={request.status} size="sm" />
-          ) : (
-            <UrgencyBadge level={request.urgency} size="sm" />
-          )}
-        </View>
-
-        <AppText variant="body" color="secondary" numberOfLines={2} userContent>
-          {request.description}
-        </AppText>
-
-        <View style={styles.meta}>
-          {props.variant === 'professional' ? <DistanceText km={props.request.distanceKm} away /> : null}
-          {area ? (
-            <View style={styles.metaItem}>
-              <Icon name={request.location.isApproximate ? 'map-marker-radius-outline' : 'map-marker-outline'} size={16} color="secondary" />
-              <AppText variant="caption" color="secondary" numberOfLines={1} style={styles.shrink}>
-                {area}
-              </AppText>
-            </View>
-          ) : null}
-          {props.variant === 'customer' ? <UrgencyBadge level={request.urgency} size="sm" /> : null}
-          {props.variant === 'professional' && request.preferredSchedule ? (
-            <PreferredScheduleText schedule={request.preferredSchedule} />
-          ) : null}
+          <AppText variant="caption" color="secondary" numberOfLines={1} userContent>
+            {request.description}
+          </AppText>
+          <AppText variant="captionStrong" color={theme.colors.tones[status.tone].fg} numberOfLines={1} style={styles.status}>
+            {status.label}
+          </AppText>
         </View>
       </View>
+    </Card>
+  );
+}
 
-      <Divider />
+function ProfessionalRequestCard({ request, onPress, style, testID }: ProfessionalRequestCardProps) {
+  const styles = useStyles();
+  const { t } = useTranslation('common');
+  const format = useFormatters();
+  const now = useNow(60_000);
+  const categoryName = useCategoryName(request.categoryId) || t('category.unknown');
+  const offerLabel = request.myOffer
+    ? request.myOffer.status === 'pending'
+      ? t('request.offered')
+      : t(`offerStatus.${request.myOffer.status}`)
+    : null;
+  const meta = [format.distance(request.distanceKm), format.relative(request.publishedAt ?? request.createdAt, now)].join(' · ');
 
-      <View style={styles.footer}>
-        <View style={styles.metaItem}>
-          <Icon name="tag-multiple-outline" size={16} color={offerCount > 0 ? 'primary' : 'muted'} />
-          <AppText variant="captionStrong" color={offerCount > 0 ? 'primary' : 'muted'}>
-            {offersLabel}
+  return (
+    <Card
+      onPress={onPress}
+      style={style}
+      testID={testID}
+      accessibilityLabel={[categoryName, t(`urgency.${request.urgency}.label`), meta, offerLabel].filter(Boolean).join(', ')}
+      padding="none"
+    >
+      <View style={styles.row}>
+        <CategoryIcon categoryId={request.categoryId} size="sm" />
+        <View style={styles.texts}>
+          <AppText variant="bodyStrong" numberOfLines={2}>
+            {categoryName}
           </AppText>
-          {request.photos.length > 0 ? (
-            <View style={[styles.metaItem, styles.photos]}>
-              <Icon name="image-multiple-outline" size={15} color="muted" />
-              <AppText variant="caption" color="muted" tabular>
-                {request.photos.length}
-              </AppText>
-            </View>
-          ) : null}
-        </View>
-
-        {props.variant === 'customer' ? (
-          <View style={styles.footerEnd}>
-            {props.request.lowestOfferPrice !== null && request.offerCount > 0 ? (
-              <AppText variant="captionStrong" color="default" tabular>
-                {t('request.lowestOffer', { price: format.currency(props.request.lowestOfferPrice, APP_CONFIG.defaultCurrency) })}
-              </AppText>
-            ) : null}
-            {highlighted ? <Badge label={t('request.newOffers')} tone="brand" variant="solid" size="sm" dot /> : null}
-          </View>
-        ) : props.request.myOffer ? (
-          <View style={styles.footerEnd}>
-            <AppText variant="caption" color="muted">
-              {t('request.yourOffer')}
+          <AppText variant="caption" color="secondary" numberOfLines={1} userContent>
+            {request.description}
+          </AppText>
+          <View style={[styles.titleRow, styles.status]}>
+            <AppText variant="caption" color="muted" numberOfLines={1} style={styles.flex}>
+              {meta}
             </AppText>
-            <PriceText amount={props.request.myOffer.price} currency={props.request.myOffer.currency} variant="captionStrong" />
-            <OfferStatusBadge status={props.request.myOffer.status} size="sm" withIcon={false} />
+            {isTimeCriticalUrgency(request.urgency) ? <UrgencyBadge level={request.urgency} size="sm" /> : null}
+            {offerLabel ? <Badge label={offerLabel} tone="brand" size="sm" testID="request-card-offered" /> : null}
           </View>
-        ) : null}
+        </View>
       </View>
     </Card>
   );
@@ -158,81 +157,46 @@ export function RequestCardSkeleton({ style }: { style?: StyleProp<ViewStyle> })
   const styles = useStyles();
   return (
     <Card padding="none" style={style}>
-      <View style={styles.body}>
-        <View style={styles.header}>
-          <Skeleton width={44} height={44} radius={12} />
-          <View style={[styles.headerTexts, styles.skeletonTexts]}>
-            <Skeleton width="60%" height={14} />
-            <Skeleton width="30%" height={11} />
-          </View>
-          <Skeleton width={76} height={22} radius={999} />
+      <View style={styles.row}>
+        <Skeleton width={36} height={36} radius={10} />
+        <View style={[styles.texts, styles.skeletonTexts]}>
+          <Skeleton width="45%" height={14} />
+          <Skeleton width="85%" height={11} />
+          <Skeleton width="35%" height={11} />
         </View>
-        <View style={styles.skeletonTexts}>
-          <Skeleton width="100%" height={12} />
-          <Skeleton width="75%" height={12} />
-        </View>
-        <View style={styles.meta}>
-          <Skeleton width={110} height={16} />
-          <Skeleton width={70} height={20} radius={999} />
-        </View>
-      </View>
-      <Divider />
-      <View style={styles.footer}>
-        <Skeleton width={80} height={14} />
-        <Skeleton width={64} height={14} />
       </View>
     </Card>
   );
 }
 
 const useStyles = makeStyles((t) => ({
-  body: {
-    padding: t.spacing.lg,
-    gap: t.spacing.md,
-  },
-  header: {
+  row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: t.spacing.md,
+    padding: t.spacing.lg,
   },
-  headerTexts: {
+  texts: {
     flex: 1,
     gap: t.spacing.xxs,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: t.spacing.sm,
+  },
+  flex: {
+    flex: 1,
+  },
+  status: {
+    marginTop: t.spacing.xs,
+  },
+  newDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
   skeletonTexts: {
     gap: t.spacing.sm,
-  },
-  meta: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    columnGap: t.spacing.md,
-    rowGap: t.spacing.sm,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.xs,
-    flexShrink: 1,
-  },
-  shrink: {
-    flexShrink: 1,
-  },
-  photos: {
-    marginStart: t.spacing.sm,
-  },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: t.spacing.md,
-    paddingHorizontal: t.spacing.lg,
-    paddingVertical: t.spacing.md,
-  },
-  footerEnd: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.sm,
-    flexShrink: 1,
   },
 }));

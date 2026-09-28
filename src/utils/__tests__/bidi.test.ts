@@ -1,5 +1,4 @@
-import { alignForText, alignForTextDirection, getTextDirection, isolateLtr, isolateText, stripIsolates } from '../bidi';
-import { isolateText as isolateTextFromFormat } from '../format';
+import { alignForText, alignForTextDirection, getTextDirection, isolateLtr, isolateText } from '../bidi';
 
 describe('getTextDirection', () => {
   it('detects the direction from the first strong character', () => {
@@ -39,11 +38,6 @@ describe('isolateText', () => {
   it('wraps text in first-strong isolates and leaves empty text alone', () => {
     expect(isolateText('Hi')).toBe('\u2068Hi\u2069');
     expect(isolateText('')).toBe('');
-    expect(stripIsolates(`הודעה חדשה מאת ${isolateText('BrightSpark Electric')}`)).toBe('הודעה חדשה מאת BrightSpark Electric');
-  });
-
-  it('is also available next to the other formatters', () => {
-    expect(isolateTextFromFormat).toBe(isolateText);
   });
 });
 
@@ -51,7 +45,6 @@ describe('isolateLtr', () => {
   it('wraps a range in a left-to-right isolate that direction detection skips', () => {
     const range = isolateLtr('08:00–17:00');
     expect(range).toBe('\u206608:00–17:00\u2069');
-    expect(stripIsolates(range)).toBe('08:00–17:00');
     expect(getTextDirection(`זמינים היום · ${range}`)).toBe('rtl');
     expect(isolateLtr('')).toBe('');
   });

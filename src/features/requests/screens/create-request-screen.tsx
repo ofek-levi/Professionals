@@ -1,16 +1,17 @@
 /**
- * `/requests/new?categoryId=&draftId=` – the customer's request wizard:
- * Service → Details → Location → Urgency & timing → Review, then publish or save as a draft.
- * Continuing a draft (`draftId`) prefills the wizard and saves through the draft endpoints.
+ * `/requests/new?categoryId=&draftId=` – posting a request on ONE screen: service, a description,
+ * urgency (Normal preselected), the address (the customer's default one) and optional photos,
+ * then a sticky "Post request". A draft (`draftId`) is prefilled and can be posted or deleted.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Stack, useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useForm } from 'react-hook-form';
-import { ActivityIndicator, ScrollView, View } from 'react-native';
+import { Controller, useForm, useWatch, type FieldErrors } from 'react-hook-form';
+import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
+import { FormTextField, useTranslatedError } from '@/components/forms';
 import {
   AppText,
   Button,
@@ -19,23 +20,25 @@ import {
   Screen,
   Skeleton,
   SkeletonCard,
-  Stepper,
   useConfirm,
-  useErrorText,
+  useErrorToast,
   useToast,
 } from '@/components/ui';
+import { APP_CONFIG } from '@/constants/app-config';
 import { isSupportedCategoryId } from '@/constants/professional-categories';
 import type { RequestStatus } from '@/constants/request-statuses';
 import { useSession } from '@/features/auth/session-provider';
 import {
   useCreateRequest,
   useCustomerProfile,
+  useDeleteDraftRequest,
   usePublishRequest,
   useRequest,
   useRouteParam,
   useUpdateDraftRequest,
   useUploadImage,
 } from '@/hooks';
+import { useCategory } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import {
   createEmptyRequestFormValues,
@@ -49,26 +52,27 @@ import {
 } from '@/lib/validation';
 import { toApiError } from '@/services/api/errors';
 import { makeStyles, useTheme } from '@/theme';
-import type { CustomerRequestView } from '@/types/domain';
+import type { CategoryId, CustomerRequestView } from '@/types/domain';
 import { regionForRadius, type MapRegion } from '@/utils/geo';
 
-import { DetailsStep } from '../components/create/details-step';
+import { AddressField } from '../components/create/address-field';
+import { FormBlock } from '../components/create/form-block';
 import type { RequestFormOutput } from '../components/create/form-types';
-import { LocationStep } from '../components/create/location-step';
-import { ReviewStep } from '../components/create/review-step';
-import { ScheduleStep } from '../components/create/schedule-step';
-import { ServiceStep } from '../components/create/service-step';
+import { PhotosField } from '../components/create/photos-field';
 import {
   apiFieldToFormField,
-  firstStepWithError,
-  getInitialStepIndex,
+  descriptionPlaceholderKey,
+  firstErrorMessage,
+  firstFormField,
+  keepPreferredDate,
   photosToUpload,
-  REQUEST_WIZARD_STEPS,
-  REVIEW_STEP_INDEX,
-  STEP_FIELDS,
+  postedRequestHref,
   toUploadPayload,
+  withDefaultUrgency,
   type RequestFormField,
-} from '../components/create/wizard-model';
+} from '../components/create/request-form-model';
+import { ServiceField } from '../components/create/service-field';
+import { UrgencyOptions } from '../components/create/urgency-options';
 
 /** Map zoom around the customer's default address. */
 const DEFAULT_ADDRESS_RADIUS_KM = 2;
@@ -86,9 +90,8 @@ export default function CreateRequestScreen() {
   const draft = draftData?.viewerRole === 'customer' ? draftData.request : undefined;
   const profileReady = profileQuery.data !== undefined || profileQuery.isError;
 
-  // The "already published" guard looks at the draft as first loaded: publishing from the wizard
-  // re-seeds the cached request as `open`, and reacting to that would replace the wizard before it
-  // navigates to the published request.
+  // The "already posted" guard looks at the draft as first loaded: posting re-seeds the cached
+  // request as `open`, and reacting to that would replace the form before it navigates away.
   const [loadedStatus, setLoadedStatus] = useState<{ id: string; status: RequestStatus } | null>(null);
   if (draft && loadedStatus?.id !== draft.id) setLoadedStatus({ id: draft.id, status: draft.status });
   const initialStatus = draft ? (loadedStatus?.id === draft.id ? loadedStatus.status : draft.status) : null;
@@ -96,46 +99,44 @@ export default function CreateRequestScreen() {
   if (role !== 'customer') {
     // Only customers post requests (e.g. a professional opening a deep link).
     return (
-      <WizardShell>
+      <FormShell>
         <EmptyState
-          icon="account-lock-outline"
           title={t('requests:customersOnly.title')}
           description={t('requests:customersOnly.description')}
           actionLabel={role ? t('requests:customersOnly.action') : undefined}
           onAction={role ? () => router.replace(routes.homeFor(role)) : undefined}
         />
-      </WizardShell>
+      </FormShell>
     );
   }
 
   if (draftId) {
     if (draftQuery.isError) {
       return (
-        <WizardShell>
+        <FormShell>
           <ErrorState error={draftQuery.error} onRetry={() => void draftQuery.refetch()} retrying={draftQuery.isRefetching} />
-        </WizardShell>
+        </FormShell>
       );
     }
     if (draft && initialStatus !== 'draft') {
       return (
-        <WizardShell>
+        <FormShell>
           <EmptyState
-            icon="send-check-outline"
             title={t('requests:alreadyPublished.title')}
             description={t('requests:alreadyPublished.description')}
             actionLabel={t('requests:alreadyPublished.action')}
             onAction={() => router.dismissTo(routes.request(draft.id))}
           />
-        </WizardShell>
+        </FormShell>
       );
     }
   }
 
   if ((draftId && !draft) || !profileReady) {
     return (
-      <WizardShell>
-        <WizardSkeleton />
-      </WizardShell>
+      <FormShell>
+        <FormSkeleton />
+      </FormShell>
     );
   }
 
@@ -150,120 +151,113 @@ export default function CreateRequestScreen() {
       }
     : null;
   const categoryId = categoryParam && isSupportedCategoryId(categoryParam) ? categoryParam : null;
-  const defaultValues = draft ? requestToFormValues(draft) : createEmptyRequestFormValues({ categoryId, location });
+  const defaultValues = withDefaultUrgency(draft ? requestToFormValues(draft) : createEmptyRequestFormValues({ categoryId, location }));
   const initialRegion = defaultLocation ? regionForRadius(defaultLocation.coordinates, DEFAULT_ADDRESS_RADIUS_KM) : undefined;
 
-  return (
-    <RequestWizard
-      key={draft?.id ?? 'new'}
-      draft={draft ?? null}
-      defaultValues={defaultValues}
-      initialStep={getInitialStepIndex({ isDraft: Boolean(draft), hasCategory: Boolean(categoryId) })}
-      initialRegion={initialRegion}
-    />
-  );
+  return <RequestForm key={draft?.id ?? 'new'} draft={draft ?? null} defaultValues={defaultValues} initialRegion={initialRegion} />;
 }
 
-function WizardShell({ children }: { children: ReactNode }) {
+function FormShell({ children }: { children: ReactNode }) {
   return <Screen edges={['left', 'right', 'bottom']}>{children}</Screen>;
 }
 
-function WizardSkeleton() {
+function FormSkeleton() {
   const styles = useStyles();
   return (
     <View style={styles.skeleton}>
-      <Skeleton height={4} />
-      <Skeleton width="70%" height={24} />
-      <Skeleton width="90%" height={14} />
-      <SkeletonCard lines={3} />
-      <SkeletonCard lines={3} />
+      <Skeleton width="30%" height={18} />
+      <SkeletonCard lines={1} />
+      <Skeleton width="45%" height={18} />
+      <Skeleton height={120} radius={14} />
+      <Skeleton width="35%" height={18} />
+      <Skeleton height={58} radius={12} />
     </View>
   );
 }
 
-interface RequestWizardProps {
+interface RequestFormProps {
   draft: CustomerRequestView | null;
   defaultValues: RequestFormValues;
-  initialStep: number;
   initialRegion?: MapRegion;
 }
 
-type SubmitAction = 'publish' | 'draft';
+/** Where the form goes once it is done (the leave guard is lifted first). */
+type Completion = { kind: 'posted'; requestId: string } | { kind: 'deleted' };
 
-function RequestWizard({ draft, defaultValues, initialStep, initialRegion }: RequestWizardProps) {
+function RequestForm({ draft, defaultValues, initialRegion }: RequestFormProps) {
   const theme = useTheme();
   const styles = useStyles();
   const router = useRouter();
   const navigation = useNavigation();
-  const { t } = useTranslation(['requests', 'common']);
+  const { t } = useTranslation(['requests', 'customer', 'common']);
   const confirm = useConfirm();
   const toast = useToast();
-  const errorText = useErrorText();
+  const showError = useErrorToast();
+  const translateError = useTranslatedError();
   const scrollRef = useRef<ScrollView>(null);
+  const positions = useRef<Partial<Record<RequestFormField, number>>>({});
   const upload = useUploadImage();
   const createRequest = useCreateRequest();
   const updateDraft = useUpdateDraftRequest();
   const publishRequest = usePublishRequest();
+  const deleteDraft = useDeleteDraftRequest();
 
   const form = useForm<RequestFormValues, unknown, RequestFormOutput>({
     resolver: zodResolver(requestFormSchema),
     defaultValues,
-    mode: 'onTouched',
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
   });
-  const { control, trigger, handleSubmit, getValues, setValue, setError } = form;
-  const { isDirty } = form.formState;
+  const { control, handleSubmit, getValues, setValue, setError } = form;
+  const { isDirty, errors } = form.formState;
+  const categoryId = useWatch({ control, name: 'categoryId' });
+  const category = useCategory(categoryId);
 
-  const [step, setStep] = useState(initialStep);
-  const [pendingAction, setPendingAction] = useState<SubmitAction | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [completedRequestId, setCompletedRequestId] = useState<string | null>(null);
-  const stepKey = REQUEST_WIZARD_STEPS[step];
-  const isReview = step === REVIEW_STEP_INDEX;
-  const busy = pendingAction !== null;
+  const [busy, setBusy] = useState<'post' | 'delete' | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [completion, setCompletion] = useState<Completion | null>(null);
 
-  // Leaving with unsaved changes asks first (header back, gestures, hardware back).
-  usePreventRemove((isDirty || busy) && !completedRequestId, ({ data }) => {
+  // Leaving with unsaved input asks first (header back, gestures, hardware back).
+  usePreventRemove((isDirty || busy !== null) && !completion, ({ data }) => {
     void confirm({
       title: t('common:confirm.discardTitle'),
       message: draft ? t('requests:leave.draftMessage') : t('requests:leave.message'),
       confirmLabel: t('common:actions.discard'),
       cancelLabel: t('requests:leave.keepEditing'),
       destructive: true,
-      icon: 'file-document-remove-outline',
     }).then((discard) => {
       if (discard) navigation.dispatch(data.action);
     });
   });
 
-  // Navigate only after the guard above was lifted by the completed state. A draft returns to its
-  // request page when that is on the stack (never a second copy of it); a new request replaces the
-  // wizard.
+  // Navigate only after the guard above was lifted. A posted draft returns to its request page
+  // when that is on the stack (never a second copy of it); a new request replaces the form.
   const editingDraft = draft !== null;
   useEffect(() => {
-    if (!completedRequestId) return;
-    const href = routes.request(completedRequestId);
-    if (editingDraft) router.dismissTo(href);
-    else router.replace(href);
-  }, [completedRequestId, editingDraft, router]);
+    if (!completion) return;
+    if (completion.kind === 'deleted') {
+      router.dismissAll();
+      router.navigate(routes.customer.requests);
+    } else if (editingDraft) {
+      router.dismissTo(routes.request(completion.requestId));
+    } else {
+      router.replace(postedRequestHref(completion.requestId));
+    }
+  }, [completion, editingDraft, router]);
 
-  const goTo = (index: number) => {
-    setStep(Math.min(Math.max(index, 0), REVIEW_STEP_INDEX));
-    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  const rememberPosition = (field: RequestFormField) => (y: number) => {
+    positions.current[field] = y;
   };
 
-  const goNext = async () => {
-    const fields = STEP_FIELDS[stepKey];
-    // Mark the step's fields as touched so errors clear as soon as they are fixed ('onTouched' mode).
-    for (const field of fields) setValue(field, getValues(field), { shouldTouch: true });
-    const valid = await trigger([...fields], { shouldFocus: true });
-    if (valid) goTo(step + 1);
+  const scrollToField = (field: RequestFormField) => {
+    const y = positions.current[field];
+    if (y !== undefined) scrollRef.current?.scrollTo({ y: Math.max(0, y - theme.spacing.lg), animated: true });
   };
 
-  const goBack = () => {
-    if (step > 0) goTo(step - 1);
-    else if (router.canGoBack()) router.back();
-    else router.replace(routes.customer.home); // opened directly (deep link, web refresh)
+  const showInvalid = (fields: readonly string[]) => {
+    const first = firstFormField(fields);
+    if (first) scrollToField(first);
+    else toast.show({ title: t('requests:submit.fixFields'), tone: 'warning' });
   };
 
   const applyServerErrors = (error: unknown) => {
@@ -280,144 +274,184 @@ function RequestWizard({ draft, defaultValues, initialStep, initialRegion }: Req
       setError('categoryId', { type: 'server', message: vm('category.unsupported') });
       fields.push('categoryId');
     }
-    const text = errorText(error);
-    if (fields.length > 0) {
-      goTo(firstStepWithError(fields));
-      setSubmitError(null);
-      toast.show({ title: t('requests:submit.fixFields'), message: text.description, tone: 'warning' });
-    } else {
-      setSubmitError(text.description);
-      toast.show({ title: text.title, message: text.description, tone: 'danger' });
-    }
+    if (fields.length > 0) showInvalid(fields);
+    else showError(error);
   };
 
-  const save = async (values: RequestFormOutput, action: SubmitAction) => {
-    setPendingAction(action);
-    setSubmitError(null);
+  const post = async (values: RequestFormOutput) => {
+    setBusy('post');
     try {
-      // 1. Upload new photos (already uploaded ones keep their id, also across retries).
+      // 1. Upload new photos (uploaded ones keep their id, also across retries).
       let photos = getValues('photos');
       const pending = photosToUpload(photos);
-      if (pending.length > 0) setUploadProgress({ done: 0, total: pending.length });
-      for (const [index, photo] of pending.entries()) {
+      if (pending.length > 0) setUploading(true);
+      for (const photo of pending) {
         const uploaded = await upload.mutateAsync(toUploadPayload(photo));
         photos = photos.map((item) => (item.uri === photo.uri ? { ...item, uploadId: uploaded.id } : item));
         setValue('photos', photos);
-        setUploadProgress({ done: index + 1, total: pending.length });
       }
-      setUploadProgress(null);
+      setUploading(false);
       const photoIds = photos.flatMap((photo) => (photo.uploadId ? [photo.uploadId] : []));
       const formValues: RequestFormValues = { ...values, photos };
 
-      // 2. Create, or update (and publish) the draft.
-      const publish = action === 'publish';
-      let saved;
+      // 2. Post: create a published request, or save the draft and publish it.
+      let saved: CustomerRequestView;
       if (draft) {
-        saved = await updateDraft.mutateAsync({ requestId: draft.id, payload: toUpdateDraftRequestPayload(formValues, photoIds) });
-        if (publish) saved = await publishRequest.mutateAsync(draft.id);
+        await updateDraft.mutateAsync({ requestId: draft.id, payload: toUpdateDraftRequestPayload(formValues, photoIds) });
+        saved = await publishRequest.mutateAsync(draft.id);
       } else {
-        saved = await createRequest.mutateAsync(toCreateRequestPayload(formValues, photoIds, publish));
+        saved = await createRequest.mutateAsync(toCreateRequestPayload(formValues, photoIds, true));
       }
-
-      toast.show(
-        publish
-          ? { title: t('requests:submit.published'), message: t('requests:submit.publishedMessage'), tone: 'success', icon: 'send-check-outline' }
-          : { title: t('requests:submit.draftSaved'), message: t('requests:submit.draftSavedMessage'), tone: 'neutral', icon: 'content-save-outline' },
-      );
-      setCompletedRequestId(saved.id);
+      toast.show({ title: t('requests:submit.posted'), tone: 'success' });
+      setCompletion({ kind: 'posted', requestId: saved.id });
     } catch (error) {
       applyServerErrors(error);
     } finally {
-      setPendingAction(null);
-      setUploadProgress(null);
+      setBusy(null);
+      setUploading(false);
     }
   };
 
-  const submit = (action: SubmitAction) =>
-    handleSubmit(
-      (values) => save(values, action),
-      (errors) => {
-        const fields = Object.keys(errors) as RequestFormField[];
-        goTo(firstStepWithError(fields));
-        toast.show({ title: t('requests:submit.fixFields'), tone: 'warning' });
-      },
-    )();
+  const submit = () => {
+    // A draft's preferred date (not editable here) must not block posting once it no longer fits.
+    const preferredDate = getValues('preferredDate');
+    const kept = keepPreferredDate(preferredDate, getValues('urgency'), new Date());
+    if (kept !== preferredDate) setValue('preferredDate', kept);
+    void handleSubmit(post, (invalid: FieldErrors<RequestFormValues>) => showInvalid(Object.keys(invalid)))();
+  };
 
-  const stepTitles = REQUEST_WIZARD_STEPS.map((key) => t(`requests:steps.${key}`));
-  const title = draft ? t('requests:titleEditDraft') : t('common:screens.newRequest');
+  const removeDraft = async () => {
+    if (!draft) return;
+    const confirmed = await confirm({
+      title: t('customer:details.draft.deleteConfirmTitle'),
+      message: t('customer:details.draft.deleteConfirmMessage'),
+      confirmLabel: t('common:actions.delete'),
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setBusy('delete');
+    try {
+      await deleteDraft.mutateAsync(draft.id);
+      toast.show({ title: t('customer:details.draft.deleted'), tone: 'neutral' });
+      setCompletion({ kind: 'deleted' });
+    } catch (error) {
+      showError(error);
+    } finally {
+      setBusy(null);
+    }
+  };
 
-  const footer = isReview ? (
+  const title = draft ? t('requests:titleDraft') : t('common:screens.newRequest');
+
+  const footer = (
     <View style={styles.footer}>
-      {uploadProgress ? (
-        <View style={styles.progress} accessibilityLiveRegion="polite">
-          <ActivityIndicator size="small" color={theme.colors.primary} />
-          <AppText variant="captionStrong" color="primary">
-            {t('requests:submit.uploading', {
-              current: Math.min(uploadProgress.done + 1, uploadProgress.total),
-              total: uploadProgress.total,
-            })}
-          </AppText>
-        </View>
+      {uploading ? (
+        <AppText variant="caption" color="secondary" align="center" accessibilityLiveRegion="polite">
+          {t('requests:submit.uploading')}
+        </AppText>
       ) : null}
       <Button
-        label={t('requests:submit.publish')}
-        leftIcon="send-outline"
-        flipIconsInRTL
-        size="lg"
+        label={t('requests:submit.post')}
         fullWidth
-        loading={pendingAction === 'publish'}
-        disabled={busy}
-        onPress={() => void submit('publish')}
-        testID="wizard-publish"
-      />
-      <Button
-        label={t('requests:submit.saveDraft')}
-        leftIcon="content-save-outline"
-        variant="secondary"
-        fullWidth
-        loading={pendingAction === 'draft'}
-        disabled={busy}
-        onPress={() => void submit('draft')}
-        testID="wizard-save-draft"
-      />
-    </View>
-  ) : (
-    <View style={styles.footerRow}>
-      <Button
-        label={step === 0 ? t('common:actions.cancel') : t('common:actions.back')}
-        variant="outline"
-        leftIcon={step === 0 ? undefined : 'arrow-left'}
-        flipIconsInRTL
-        onPress={goBack}
-        style={styles.backButton}
-        testID="wizard-back"
-      />
-      <Button
-        label={step === REVIEW_STEP_INDEX - 1 ? t('requests:review.cta') : t('common:actions.next')}
-        rightIcon="arrow-right"
-        flipIconsInRTL
-        onPress={() => void goNext()}
-        style={styles.nextButton}
-        testID="wizard-next"
+        loading={busy === 'post'}
+        disabled={busy !== null}
+        onPress={submit}
+        testID="request-form-post"
       />
     </View>
   );
 
   return (
-    <Screen
-      edges={['left', 'right', 'bottom']}
-      scrollRef={scrollRef}
-      header={<Stepper steps={stepTitles} current={step} style={styles.stepper} />}
-      footer={footer}
-      testID="create-request-wizard"
-    >
+    <Screen edges={['left', 'right', 'bottom']} scrollRef={scrollRef} footer={footer} testID="create-request-form">
       <Stack.Screen options={{ title }} />
       <View style={styles.body}>
-        {stepKey === 'service' ? <ServiceStep control={control} onPicked={() => void goNext()} /> : null}
-        {stepKey === 'details' ? <DetailsStep control={control} onChangeService={() => goTo(0)} /> : null}
-        {stepKey === 'location' ? <LocationStep control={control} initialRegion={initialRegion} /> : null}
-        {stepKey === 'schedule' ? <ScheduleStep control={control} /> : null}
-        {stepKey === 'review' ? <ReviewStep control={control} onEdit={goTo} submitError={submitError} /> : null}
+        <Controller
+          control={control}
+          name="categoryId"
+          render={({ field: { value, onChange }, fieldState: { error } }) => (
+            <FormBlock
+              title={t('requests:form.service')}
+              error={translateError(error?.message)}
+              onLayout={(event) => rememberPosition('categoryId')(event.nativeEvent.layout.y)}
+            >
+              <ServiceField value={value && isSupportedCategoryId(value) ? value : null} onChange={(id: CategoryId) => onChange(id)} />
+            </FormBlock>
+          )}
+        />
+
+        <FormBlock
+          title={t('requests:form.description')}
+          onLayout={(event) => rememberPosition('description')(event.nativeEvent.layout.y)}
+        >
+          <FormTextField
+            control={control}
+            name="description"
+            placeholder={t(`requests:form.placeholders.${descriptionPlaceholderKey(category?.groupId)}`)}
+            accessibilityLabel={t('requests:form.description')}
+            multiline
+            minRows={4}
+            maxLength={APP_CONFIG.descriptionMaxLength}
+            testID="request-form-description"
+          />
+        </FormBlock>
+
+        <Controller
+          control={control}
+          name="urgency"
+          render={({ field: { value, onChange }, fieldState: { error } }) => (
+            <FormBlock
+              title={t('requests:form.urgency')}
+              error={translateError(error?.message)}
+              onLayout={(event) => rememberPosition('urgency')(event.nativeEvent.layout.y)}
+            >
+              <UrgencyOptions value={value} onChange={onChange} />
+            </FormBlock>
+          )}
+        />
+
+        <Controller
+          control={control}
+          name="location"
+          render={({ field: { value, onChange } }) => {
+            const locationError = translateError(firstErrorMessage(errors.location));
+            return (
+              <FormBlock
+                title={t('requests:form.where')}
+                error={locationError}
+                onLayout={(event) => rememberPosition('location')(event.nativeEvent.layout.y)}
+              >
+                <AddressField value={value} onChange={onChange} error={locationError} initialRegion={initialRegion} />
+              </FormBlock>
+            );
+          }}
+        />
+
+        <Controller
+          control={control}
+          name="photos"
+          render={({ field: { value, onChange } }) => (
+            <FormBlock
+              title={t('requests:form.photos')}
+              optional
+              error={translateError(firstErrorMessage(errors.photos))}
+              onLayout={(event) => rememberPosition('photos')(event.nativeEvent.layout.y)}
+            >
+              <PhotosField value={value} onChange={onChange} />
+            </FormBlock>
+          )}
+        />
+
+        {draft ? (
+          <Button
+            label={t('customer:details.draft.delete')}
+            variant="dangerGhost"
+            loading={busy === 'delete'}
+            disabled={busy !== null}
+            onPress={() => void removeDraft()}
+            style={styles.deleteDraft}
+            testID="request-form-delete-draft"
+          />
+        ) : null}
       </View>
     </Screen>
   );
@@ -426,31 +460,16 @@ function RequestWizard({ draft, defaultValues, initialStep, initialRegion }: Req
 const useStyles = makeStyles((t) => ({
   skeleton: {
     gap: t.spacing.lg,
-  },
-  stepper: {
-    paddingTop: t.spacing.md,
-    paddingBottom: t.spacing.sm,
+    paddingTop: t.spacing.lg,
   },
   body: {
-    paddingTop: t.spacing.sm,
+    gap: t.layout.sectionGap,
+    paddingTop: t.spacing.lg,
   },
   footer: {
     gap: t.spacing.sm,
   },
-  footerRow: {
-    flexDirection: 'row',
-    gap: t.spacing.sm,
-  },
-  backButton: {
-    flex: 1,
-  },
-  nextButton: {
-    flex: 2,
-  },
-  progress: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: t.spacing.sm,
+  deleteDraft: {
+    alignSelf: 'center',
   },
 }));

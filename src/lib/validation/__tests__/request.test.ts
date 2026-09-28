@@ -10,7 +10,6 @@ import {
   toCreateRequestPayload,
   toUpdateDraftRequestPayload,
   updateDraftRequestSchema,
-  validatePreferredDate,
   validatePreferredDateForUrgency,
   type RequestFormValues,
 } from '../request';
@@ -89,13 +88,13 @@ describe('request payload schema', () => {
   });
 
   it('validates preferred dates relative to now', () => {
-    expect(validatePreferredDate(toDateKey(NOW), NOW)).toBeNull();
-    expect(validatePreferredDate(toDateKey(addDays(NOW, -1)), NOW)).toBe('validation:request.preferredDateInPast');
-    expect(validatePreferredDate(toDateKey(addDays(NOW, APP_CONFIG.maxScheduleDaysAhead)), NOW)).toBeNull();
-    expect(validatePreferredDate(toDateKey(addDays(NOW, APP_CONFIG.maxScheduleDaysAhead + 1)), NOW)).toBe(
-      'validation:request.preferredDateTooFar',
-    );
-    expect(validatePreferredDate('2026-13-01', NOW)).toBe('validation:request.preferredDateInvalid');
+    // A flexible request has no urgency window: only the date rules apply.
+    const validate = (dateKey: string) => validatePreferredDateForUrgency(dateKey, 'flexible', NOW);
+    expect(validate(toDateKey(NOW))).toBeNull();
+    expect(validate(toDateKey(addDays(NOW, -1)))).toBe('validation:request.preferredDateInPast');
+    expect(validate(toDateKey(addDays(NOW, APP_CONFIG.maxScheduleDaysAhead)))).toBeNull();
+    expect(validate(toDateKey(addDays(NOW, APP_CONFIG.maxScheduleDaysAhead + 1)))).toBe('validation:request.preferredDateTooFar');
+    expect(validate('2026-13-01')).toBe('validation:request.preferredDateInvalid');
   });
 });
 

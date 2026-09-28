@@ -2,7 +2,6 @@ import {
   DEFAULT_MAP_REGION,
   haversineDistanceKm,
   isValidCoordinates,
-  isWithinRadiusKm,
   offsetCoordinates,
   regionForCoordinates,
   regionForRadius,
@@ -21,11 +20,9 @@ describe('geo utils', () => {
     expect(haversineDistanceKm(TEL_AVIV, JERUSALEM)).toBeCloseTo(haversineDistanceKm(JERUSALEM, TEL_AVIV), 10);
   });
 
-  it('rounds distances to 0.1 km and checks radii', () => {
+  it('rounds distances to 0.1 km', () => {
     expect(roundDistanceKm(3.14159)).toBe(3.1);
     expect(roundDistanceKm(0.05)).toBe(0.1);
-    expect(isWithinRadiusKm(TEL_AVIV, JERUSALEM, 60)).toBe(true);
-    expect(isWithinRadiusKm(TEL_AVIV, JERUSALEM, 40)).toBe(false);
   });
 
   it('offsets coordinates by distance and bearing', () => {

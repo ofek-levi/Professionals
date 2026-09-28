@@ -2,22 +2,20 @@
  * `/professionals/:professionalId/reviews` – rating summary (average + distribution) and the
  * infinite list of the professional's reviews, newest first.
  */
-import { Stack, useRouter } from 'expo-router';
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, View } from 'react-native';
+import { Stack } from 'expo-router';
+import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RatingSummary, ReviewCard } from '@/components/professionals';
-import { AppText, Avatar, Card, EmptyState, ErrorState, Icon, Screen, Skeleton, SkeletonCard } from '@/components/ui';
+import { Card, EmptyState, ErrorState, Screen, Skeleton, SkeletonCard } from '@/components/ui';
 import { useProfessionalProfile, useProfessionalReviews, useRefetchOnFocus, useRouteParam } from '@/hooks';
-import { routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
 import { isolateText } from '@/utils/bidi';
 
 export default function ProfessionalReviewsScreen() {
   const theme = useTheme();
   const styles = useStyles();
-  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { t } = useTranslation(['reviews', 'common']);
   const professionalId = useRouteParam('professionalId');
@@ -61,36 +59,9 @@ export default function ProfessionalReviewsScreen() {
   const breakdown = data.breakdown ?? { averageRating: null, reviewCount: data.totalCount, distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
 
   const header = (
-    <View style={styles.header}>
-      <Card padding="lg" style={styles.summaryCard}>
-        {professional ? (
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={`${professional.displayName}, ${t('reviews:list.viewProfile')}`}
-            onPress={() => router.push(routes.professionalProfile(professional.id))}
-            style={({ pressed }) => [styles.proRow, pressed ? styles.pressed : null]}
-            testID="reviews-pro-link"
-          >
-            <Avatar name={professional.displayName} uri={professional.avatarUrl} size="md" verified={professional.isVerified} decorative />
-            <View style={styles.flex}>
-              <AppText variant="subheading" numberOfLines={1}>
-                {professional.displayName}
-              </AppText>
-              <AppText variant="caption" color="primary">
-                {t('reviews:list.viewProfile')}
-              </AppText>
-            </View>
-            <Icon name="chevron-right" size={20} color="muted" flipInRTL />
-          </Pressable>
-        ) : null}
-        <RatingSummary breakdown={breakdown} />
-      </Card>
-      {data.items.length > 0 ? (
-        <AppText variant="heading" accessibilityRole="header" style={styles.listTitle}>
-          {t('reviews:list.count', { count: data.totalCount })}
-        </AppText>
-      ) : null}
-    </View>
+    <Card padding="lg" style={styles.header}>
+      <RatingSummary breakdown={breakdown} />
+    </Card>
   );
 
   return (
@@ -99,7 +70,7 @@ export default function ProfessionalReviewsScreen() {
       <FlatList
         data={data.items}
         keyExtractor={(review) => review.id}
-        renderItem={({ item }) => <ReviewCard review={item} showCategory variant="elevated" />}
+        renderItem={({ item }) => <ReviewCard review={item} showCategory />}
         ItemSeparatorComponent={Separator}
         ListHeaderComponent={header}
         ListEmptyComponent={
@@ -151,29 +122,7 @@ const useStyles = makeStyles((t) => ({
     paddingTop: t.spacing.md,
   },
   header: {
-    gap: t.spacing.lg,
-    marginBottom: t.spacing.md,
-  },
-  summaryCard: {
-    gap: t.spacing.lg,
-  },
-  proRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.md,
-    paddingBottom: t.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: t.colors.border,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  flex: {
-    flex: 1,
-    gap: t.spacing.xxs,
-  },
-  listTitle: {
-    marginTop: t.spacing.xs,
+    marginBottom: t.spacing.xl,
   },
   separator: {
     height: t.spacing.md,

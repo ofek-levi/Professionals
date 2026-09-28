@@ -17,5 +17,3 @@ export const cancelRequestSchema = z.object({
     .optional()
     .transform((value) => (value ? value : null)),
 });
-
-export type CancelRequestFormValues = z.input<typeof cancelRequestSchema>;

@@ -137,7 +137,7 @@ export class RouteResponse {
 
 export const created = (data: unknown) => new RouteResponse(201, data);
 
-export interface RouteDefinition<A extends RouteAuth> {
+interface RouteDefinition<A extends RouteAuth> {
   method: HttpMethod;
   /** Path pattern such as `/requests/:requestId/offers`. */
   path: string;
@@ -180,7 +180,7 @@ export function route<A extends RouteAuth>(definition: RouteDefinition<A>): Comp
   };
 }
 
-export interface RouteMatch {
+interface RouteMatch {
   route: CompiledRoute;
   params: Record<string, string>;
 }

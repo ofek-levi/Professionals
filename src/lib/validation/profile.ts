@@ -52,7 +52,7 @@ export const PROFILE_LIMITS = {
 
 // ────────────────────────────── Building blocks ──────────────────────────────
 
-export const dayAvailabilitySchema = z
+const dayAvailabilitySchema = z
   .object({ enabled: z.boolean(), start: z.string(), end: z.string() })
   .superRefine((day, ctx) => {
     if (!day.enabled) return;
@@ -70,7 +70,7 @@ const daysShape = Object.fromEntries(WEEKDAYS.map((day) => [day, dayAvailability
   typeof dayAvailabilitySchema
 >;
 
-export const weeklyAvailabilitySchema = z
+const weeklyAvailabilitySchema = z
   .object({ days: z.object(daysShape), acceptsEmergencyCalls: z.boolean() })
   .superRefine((availability, ctx) => {
     if (!hasAnyWorkingDay(availability)) {
@@ -78,7 +78,7 @@ export const weeklyAvailabilitySchema = z
     }
   });
 
-export const serviceAreaSchema = z.object({
+const serviceAreaSchema = z.object({
   center: coordinatesSchema,
   radiusKm: z
     .number({ error: vm('invalid') })
@@ -87,7 +87,7 @@ export const serviceAreaSchema = z.object({
   label: requiredText({ max: 80, required: vm('profile.serviceAreaRequired'), tooLong: vm('invalid') }),
 });
 
-export const notificationPreferencesSchema = z.object({
+const notificationPreferencesSchema = z.object({
   pushEnabled: z.boolean(),
   emailEnabled: z.boolean(),
   jobUpdates: z.boolean(),

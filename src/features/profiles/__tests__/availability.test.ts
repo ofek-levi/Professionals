@@ -1,10 +1,11 @@
+import type { DayAvailability } from '@/types/domain';
+
 import {
   createDefaultAvailability,
   findNextWorkingSlot,
-  isValidDayAvailability,
-  isValidWeeklyAvailability,
+  getWorkingHoursForDate,
+  hasAnyWorkingDay,
   isWithinWorkingHours,
-  weekdayOf,
 } from '../availability';
 
 // 2026-09-27 is a Sunday.
@@ -17,25 +18,26 @@ describe('availability', () => {
     expect(availability.days.sun).toEqual({ enabled: true, start: '08:00', end: '18:00' });
     expect(availability.days.fri).toEqual({ enabled: true, start: '08:00', end: '13:00' });
     expect(availability.days.sat.enabled).toBe(false);
-    expect(isValidWeeklyAvailability(availability)).toBe(true);
+    expect(hasAnyWorkingDay(availability)).toBe(true);
     // The factory returns fresh objects.
     expect(createDefaultAvailability()).not.toBe(availability);
   });
 
-  it('validates days', () => {
-    expect(isValidDayAvailability({ enabled: true, start: '09:00', end: '17:00' })).toBe(true);
-    expect(isValidDayAvailability({ enabled: true, start: '17:00', end: '09:00' })).toBe(false);
-    expect(isValidDayAvailability({ enabled: true, start: '9', end: '17:00' })).toBe(false);
-    expect(isValidDayAvailability({ enabled: false, start: '17:00', end: '09:00' })).toBe(true);
+  it('only uses valid working days', () => {
+    const sundayHours = (sun: DayAvailability) =>
+      getWorkingHoursForDate({ ...availability, days: { ...availability.days, sun } }, local(27, 10));
+    expect(sundayHours({ enabled: true, start: '09:00', end: '17:00' })).toEqual({ start: '09:00', end: '17:00' });
+    expect(sundayHours({ enabled: true, start: '17:00', end: '09:00' })).toBeNull();
+    expect(sundayHours({ enabled: true, start: '9', end: '17:00' })).toBeNull();
+    expect(sundayHours({ enabled: false, start: '09:00', end: '17:00' })).toBeNull();
     const noDays = createDefaultAvailability();
     Object.values(noDays.days).forEach((day) => {
       day.enabled = false;
     });
-    expect(isValidWeeklyAvailability(noDays)).toBe(false);
+    expect(hasAnyWorkingDay(noDays)).toBe(false);
   });
 
   it('checks working hours', () => {
-    expect(weekdayOf(local(27, 10))).toBe('sun');
     expect(isWithinWorkingHours(availability, local(27, 10))).toBe(true);
     expect(isWithinWorkingHours(availability, local(27, 7, 59))).toBe(false);
     expect(isWithinWorkingHours(availability, local(27, 18))).toBe(false);

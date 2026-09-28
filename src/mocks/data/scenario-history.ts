@@ -58,7 +58,7 @@ export function seedHistory(b: SeedBuilder): void {
         urgency === 'urgent' ? random.int(2, 20) * 60 : urgency === 'flexible' ? random.int(2, 6) * 24 * 60 : random.int(1, 3) * 24 * 60;
       // Inside working hours when possible, but never outside the urgency window of the offer.
       const withinRules = (start: string, offeredAt: string) =>
-        validateOfferAgainstRequest({ proposedStartAt: start, request: { urgency, preferredSchedule: null }, now: offeredAt }).isValid;
+        validateOfferAgainstRequest({ proposedStartAt: start, request: { urgency }, now: offeredAt }).isValid;
       const preferredStart = b.workingSlot(seed.id, t.plus(acceptedAt, leadMinutes), Math.min(durationMinutes, 8 * 60));
       const startAt = withinRules(preferredStart, offerAt) ? preferredStart : t.plus(acceptedAt, 60);
       const price = randomQuote(categoryId, random);

@@ -1,19 +1,23 @@
 /**
- * Edit the signed-in professional's profile: photo, identity, services, experience, service area,
- * weekly hours, contact, business details and starting price. Rendered by `/profile/edit`.
+ * Edit the signed-in professional's profile. The essentials are visible (photo, name, business
+ * name, headline, bio, services, service area, weekly hours, phone and email); the optional rest
+ * (website, business details, starting price, experience, languages, emergency calls) sits in one
+ * collapsed "More details" section. Rendered by `/profile/edit`.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { useEffect, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, useForm, type FieldErrors } from 'react-hook-form';
+import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
 
 import { FormSection, FormTextField, PriceInput, useTranslatedError } from '@/components/forms';
-import { Button, ErrorState, Screen, SkeletonCard, SwitchRow, useConfirm, useErrorToast, useToast } from '@/components/ui';
+import { AppText, Button, ErrorState, Icon, Screen, SkeletonCard, SwitchRow, useConfirm, useErrorToast, useToast } from '@/components/ui';
 import { APP_CONFIG } from '@/constants/app-config';
 import { useOwnProfessionalProfile, useUpdateProfessionalProfile } from '@/hooks';
+import { useAppLanguage } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import {
   parseAmountInput,
@@ -24,17 +28,25 @@ import {
   type ProfessionalProfileFormValues,
 } from '@/lib/validation';
 import { toApiError } from '@/services/api/errors';
+import { makeStyles } from '@/theme';
 import type { OwnProfessionalProfile } from '@/types/domain';
 
 import { AvailabilitySection } from './pro-form/availability-section';
 import { AvatarField } from './pro-form/avatar-field';
 import { LanguagesField } from './pro-form/languages-field';
 import { NumberStepper } from './pro-form/number-stepper';
-import { mapProfileServerFieldErrors } from './pro-form/pro-form-model';
+import { mapProfileServerFieldErrors, touchesMoreDetails } from './pro-form/pro-form-model';
 import { ServiceAreaSection } from './pro-form/service-area-section';
 import { ServicesField } from './pro-form/services-field';
 
 type ProfessionalProfileFormOutput = z.output<typeof professionalProfileFormSchema>;
+
+/** Top-level error paths, plus `availability.*` children (the emergency switch lives in "More details"). */
+function errorPaths(errors: FieldErrors<ProfessionalProfileFormValues>): string[] {
+  const paths: string[] = Object.keys(errors);
+  if (errors.availability) paths.push(...Object.keys(errors.availability).map((key) => `availability.${key}`));
+  return paths;
+}
 
 export function ProfessionalProfileForm() {
   const { t } = useTranslation(['professional', 'common']);
@@ -63,6 +75,7 @@ export function ProfessionalProfileForm() {
 }
 
 function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalProfile }) {
+  const styles = useStyles();
   const router = useRouter();
   const navigation = useNavigation();
   const { t } = useTranslation(['professional', 'common']);
@@ -71,7 +84,13 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
   const toast = useToast();
   const showError = useErrorToast();
   const update = useUpdateProfessionalProfile();
-  const [defaults] = useState(() => professionalProfileToFormValues(profile));
+  const language = useAppLanguage();
+  // "More details" holds only optional fields: a profile without languages starts with the UI
+  // language, so the one required field in there is never an empty, hidden error.
+  const [defaults] = useState(() => {
+    const values = professionalProfileToFormValues(profile);
+    return values.languages.length > 0 ? values : { ...values, languages: [language] };
+  });
   const { control, handleSubmit, setError, formState } = useForm<ProfessionalProfileFormValues, unknown, ProfessionalProfileFormOutput>({
     resolver: zodResolver(professionalProfileFormSchema),
     defaultValues: defaults,
@@ -79,6 +98,7 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
   });
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl);
   const [saved, setSaved] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const avatarChanged = avatarUrl !== profile.avatarUrl;
   const hasChanges = formState.isDirty || avatarChanged;
 
@@ -108,27 +128,30 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
           ...toUpdateProfessionalProfilePayload(values as ProfessionalProfileFormValues),
           ...(avatarChanged ? { avatarUrl } : {}),
         });
-        toast.show({ title: t('professional:form.saved'), message: t('professional:form.savedMessage'), tone: 'success', icon: 'check-circle-outline' });
+        toast.show({ title: t('professional:form.saved'), tone: 'success' });
         setSaved(true);
       } catch (error) {
         const fieldErrors = mapProfileServerFieldErrors(toApiError(error).fieldErrors);
         const entries = Object.entries(fieldErrors);
         entries.forEach(([field, message]) => setError(field as keyof ProfessionalProfileFormValues, { type: 'server', message }));
+        if (touchesMoreDetails(Object.keys(fieldErrors))) setMoreOpen(true);
         showError(error, entries.length > 0 ? { title: t('professional:form.fixFields') } : undefined);
       }
     },
-    () => toast.show({ title: t('professional:form.fixFields'), message: t('professional:form.fixFieldsMessage'), tone: 'warning' }),
+    (errors) => {
+      // A hidden optional field is invalid: open "More details" so it can be fixed.
+      if (touchesMoreDetails(errorPaths(errors))) setMoreOpen(true);
+      toast.show({ title: t('professional:form.fixFields'), tone: 'warning' });
+    },
   );
 
   return (
     <Screen
       edges={['left', 'right', 'bottom']}
-      gap="xl"
+      gap="xxl"
       footer={
         <Button
           label={t('common:actions.saveChanges')}
-          leftIcon="content-save-outline"
-          size="lg"
           fullWidth
           loading={update.isPending}
           disabled={!hasChanges && !update.isPending}
@@ -140,13 +163,12 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
     >
       <AvatarField name={profile.displayName} value={avatarUrl} verified={profile.isVerified} onChange={setAvatarUrl} />
 
-      <FormSection title={t('professional:form.identity.title')} description={t('professional:form.identity.description')} icon="account-outline">
+      <FormSection title={t('professional:form.identity.title')} variant="plain">
         <FormTextField control={control} name="fullName" label={t('professional:form.identity.fullName')} required autoComplete="name" maxLength={PROFILE_LIMITS.nameMax} testID="pro-form-full-name" />
         <FormTextField
           control={control}
           name="displayName"
           label={t('professional:form.identity.displayName')}
-          helperText={t('professional:form.identity.displayNameHelper')}
           required
           maxLength={PROFILE_LIMITS.displayNameMax}
           testID="pro-form-display-name"
@@ -158,7 +180,6 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
           placeholder={t('professional:form.identity.headlinePlaceholder')}
           required
           maxLength={PROFILE_LIMITS.headlineMax}
-          showCounter
           testID="pro-form-headline"
         />
         <FormTextField
@@ -169,14 +190,14 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
           helperText={t('professional:form.identity.bioHelper', { min: PROFILE_LIMITS.bioMin })}
           required
           multiline
-          minRows={5}
+          minRows={4}
           maxLength={PROFILE_LIMITS.bioMax}
           showCounter
           testID="pro-form-bio"
         />
       </FormSection>
 
-      <FormSection title={t('professional:form.services.title')} description={t('professional:form.services.description')} icon="toolbox-outline">
+      <FormSection title={t('professional:form.services.title')} variant="plain">
         <Controller
           control={control}
           name="categoryIds"
@@ -191,30 +212,14 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
             />
           )}
         />
-        <Controller
-          control={control}
-          name="yearsOfExperience"
-          render={({ field, fieldState }) => (
-            <NumberStepper
-              label={t('professional:form.services.years')}
-              value={field.value}
-              onChange={field.onChange}
-              min={0}
-              max={PROFILE_LIMITS.maxYearsOfExperience}
-              formatValue={(value) => t('common:units.years', { count: value })}
-              error={translateError(fieldState.error?.message)}
-              testID="pro-form-years"
-            />
-          )}
-        />
       </FormSection>
 
       <ServiceAreaSection control={control} />
 
       <AvailabilitySection control={control} />
 
-      <FormSection title={t('professional:form.contact.title')} description={t('professional:form.contact.description')} icon="card-account-phone-outline">
-        <FormTextField control={control} name="phone" label={t('professional:form.contact.phone')} required keyboardType="phone-pad" autoComplete="tel" leftIcon="phone-outline" testID="pro-form-phone" />
+      <FormSection title={t('professional:form.contact.title')} variant="plain">
+        <FormTextField control={control} name="phone" label={t('professional:form.contact.phone')} required keyboardType="phone-pad" autoComplete="tel" testID="pro-form-phone" />
         <FormTextField
           control={control}
           name="email"
@@ -223,84 +228,142 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"
-          leftIcon="email-outline"
           testID="pro-form-email"
         />
-        <FormTextField
-          control={control}
-          name="website"
-          label={t('professional:form.contact.website')}
-          optional
-          keyboardType="url"
-          autoCapitalize="none"
-          placeholder="example.co.il"
-          leftIcon="web"
-          testID="pro-form-website"
-        />
       </FormSection>
 
-      <FormSection title={t('professional:form.business.title')} description={t('professional:form.business.description')} icon="domain">
-        <FormTextField control={control} name="businessName" label={t('professional:form.business.businessName')} optional maxLength={PROFILE_LIMITS.businessNameMax} testID="pro-form-business-name" />
-        <FormTextField
-          control={control}
-          name="licenseNumber"
-          label={t('professional:form.business.license')}
-          helperText={t('professional:form.business.licenseHelper')}
-          optional
-          autoCapitalize="characters"
-          maxLength={PROFILE_LIMITS.licenseNumberMax}
-          testID="pro-form-license"
-        />
-        <Controller
-          control={control}
-          name="isInsured"
-          render={({ field }) => (
-            <SwitchRow
-              icon="shield-check-outline"
-              iconTone="accent"
-              title={t('professional:form.business.insured')}
-              description={t('professional:form.business.insuredDescription')}
-              value={field.value}
-              onValueChange={field.onChange}
-              testID="pro-form-insured"
-            />
-          )}
-        />
-        <Controller
-          control={control}
-          name="languages"
-          render={({ field, fieldState }) => (
-            <LanguagesField
-              value={field.value}
-              onChange={(languages) => {
-                field.onChange(languages);
-                field.onBlur();
-              }}
-              error={translateError(fieldState.error?.message)}
-            />
-          )}
-        />
-      </FormSection>
+      <View style={styles.more}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: moreOpen }}
+          onPress={() => setMoreOpen((open) => !open)}
+          style={({ pressed }) => [styles.moreHeader, pressed ? styles.pressed : null]}
+          testID="pro-form-more"
+        >
+          <AppText variant="heading" style={styles.flex}>
+            {t('professional:form.more.title')}
+          </AppText>
+          <AppText variant="caption" color="muted">
+            {t('common:optional')}
+          </AppText>
+          <Icon name={moreOpen ? 'chevron-up' : 'chevron-down'} size={22} color="muted" />
+        </Pressable>
 
-      <FormSection title={t('professional:form.pricing.title')} description={t('professional:form.pricing.description')} icon="cash" optional>
-        <Controller
-          control={control}
-          name="startingPrice"
-          render={({ field, fieldState }) => (
-            <PriceInput
-              ref={field.ref}
-              label={t('professional:form.pricing.startingPrice')}
-              value={parseAmountInput(field.value)}
-              onChange={(amount) => field.onChange(amount === null ? '' : String(amount))}
-              onBlur={field.onBlur}
-              currency={APP_CONFIG.defaultCurrency}
-              helperText={t('professional:form.pricing.helper')}
-              error={translateError(fieldState.error?.message)}
-              testID="pro-form-starting-price"
+        {moreOpen ? (
+          <View style={styles.moreBody} testID="pro-form-more-body">
+            <FormTextField
+              control={control}
+              name="website"
+              label={t('professional:form.contact.website')}
+              keyboardType="url"
+              autoCapitalize="none"
+              placeholder="example.co.il"
+              testID="pro-form-website"
             />
-          )}
-        />
-      </FormSection>
+            <FormTextField control={control} name="businessName" label={t('professional:form.business.businessName')} maxLength={PROFILE_LIMITS.businessNameMax} testID="pro-form-business-name" />
+            <FormTextField
+              control={control}
+              name="licenseNumber"
+              label={t('professional:form.business.license')}
+              autoCapitalize="characters"
+              maxLength={PROFILE_LIMITS.licenseNumberMax}
+              testID="pro-form-license"
+            />
+            <Controller
+              control={control}
+              name="startingPrice"
+              render={({ field, fieldState }) => (
+                <PriceInput
+                  ref={field.ref}
+                  label={t('professional:form.more.startingPrice')}
+                  value={parseAmountInput(field.value)}
+                  onChange={(amount) => field.onChange(amount === null ? '' : String(amount))}
+                  onBlur={field.onBlur}
+                  currency={APP_CONFIG.defaultCurrency}
+                  error={translateError(fieldState.error?.message)}
+                  testID="pro-form-starting-price"
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="yearsOfExperience"
+              render={({ field, fieldState }) => (
+                <NumberStepper
+                  label={t('professional:form.more.years')}
+                  value={field.value}
+                  onChange={field.onChange}
+                  min={0}
+                  max={PROFILE_LIMITS.maxYearsOfExperience}
+                  formatValue={(value) => t('common:units.years', { count: value })}
+                  error={translateError(fieldState.error?.message)}
+                  testID="pro-form-years"
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="languages"
+              render={({ field, fieldState }) => (
+                <LanguagesField
+                  value={field.value}
+                  onChange={(languages) => {
+                    field.onChange(languages);
+                    field.onBlur();
+                  }}
+                  error={translateError(fieldState.error?.message)}
+                />
+              )}
+            />
+            <View>
+              <Controller
+                control={control}
+                name="isInsured"
+                render={({ field }) => (
+                  <SwitchRow title={t('professional:form.more.insured')} value={field.value} onValueChange={field.onChange} testID="pro-form-insured" />
+                )}
+              />
+              <Controller
+                control={control}
+                name="availability.acceptsEmergencyCalls"
+                render={({ field }) => (
+                  <SwitchRow
+                    title={t('professional:form.more.emergency')}
+                    description={t('professional:form.more.emergencyDescription')}
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    testID="pro-form-emergency"
+                  />
+                )}
+              />
+            </View>
+          </View>
+        ) : null}
+      </View>
     </Screen>
   );
 }
+
+const useStyles = makeStyles((t) => ({
+  more: {
+    gap: t.spacing.lg,
+  },
+  moreHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: t.spacing.sm,
+    minHeight: 52,
+    paddingHorizontal: t.spacing.lg,
+    borderRadius: t.radii.lg,
+    backgroundColor: t.colors.surface,
+  },
+  pressed: {
+    backgroundColor: t.colors.surfacePressed,
+  },
+  flex: {
+    flex: 1,
+  },
+  moreBody: {
+    gap: t.spacing.lg,
+  },
+}));

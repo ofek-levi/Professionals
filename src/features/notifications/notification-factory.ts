@@ -47,7 +47,7 @@ export type NotificationInput =
       messageText: string;
     };
 
-export interface NotificationMeta {
+interface NotificationMeta {
   id: EntityId;
   /** Recipient. */
   userId: EntityId;
@@ -70,7 +70,7 @@ function counterpartParams(recipientRole: UserRole, counterpartName: string): No
   return recipientRole === 'customer' ? { professionalName: counterpartName } : { customerName: counterpartName };
 }
 
-export function buildNotificationContent(input: NotificationInput): { params: NotificationParams; target: NotificationTarget } {
+function buildNotificationContent(input: NotificationInput): { params: NotificationParams; target: NotificationTarget } {
   switch (input.type) {
     case 'new_matching_request':
       return {

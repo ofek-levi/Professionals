@@ -14,38 +14,20 @@ const SAFE_AREA_METRICS = {
   insets: { top: 47, left: 0, right: 0, bottom: 34 },
 };
 
-export function createTestQueryClient(): QueryClient {
-  return new QueryClient({
+/** Renders `ui` inside the app providers (light theme; `isRTL` mirrors the layout). */
+export function renderWithProviders(ui: ReactElement, { isRTL = false }: { isRTL?: boolean } = {}) {
+  const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } },
   });
-}
-
-export interface ProviderOptions {
-  scheme?: 'light' | 'dark';
-  isRTL?: boolean;
-  queryClient?: QueryClient;
-}
-
-export function TestProviders({ children, scheme = 'light', isRTL = false, queryClient }: ProviderOptions & { children: ReactNode }) {
-  const client = queryClient ?? createTestQueryClient();
-  return (
-    <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
-      <QueryClientProvider client={client}>
-        <AppThemeProvider scheme={scheme} isRTL={isRTL}>
-          {children}
-        </AppThemeProvider>
-      </QueryClientProvider>
-    </SafeAreaProvider>
-  );
-}
-
-export function renderWithProviders(ui: ReactElement, options: ProviderOptions = {}) {
-  const client = options.queryClient ?? createTestQueryClient();
   return render(ui, {
     wrapper: ({ children }: { children: ReactNode }) => (
-      <TestProviders {...options} queryClient={client}>
-        {children}
-      </TestProviders>
+      <SafeAreaProvider initialMetrics={SAFE_AREA_METRICS}>
+        <QueryClientProvider client={client}>
+          <AppThemeProvider scheme="light" isRTL={isRTL}>
+            {children}
+          </AppThemeProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
     ),
   });
 }

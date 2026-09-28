@@ -9,15 +9,13 @@ import { AppText } from './app-text';
 import { haptics } from './haptics';
 import { Icon, type IconName } from './icon';
 
-export interface RatingStarsProps {
+interface RatingStarsProps {
   /** 0–5 (rounded to the nearest half); `null` means no reviews yet. */
   value: number | null;
   size?: number;
-  /** Shows the numeric value after the stars (`4.8`). */
-  showValue?: boolean;
   /** Review count shown as `(128)`. */
   count?: number;
-  /** `compact`: a single star + value – for dense cards. */
+  /** `compact`: a single star + value – for dense cards; `stars`: five stars without the value. */
   variant?: 'stars' | 'compact';
   textVariant?: TypographyVariant;
   style?: StyleProp<ViewStyle>;
@@ -37,7 +35,6 @@ function starIcon(rounded: number, position: number): IconName {
 export function RatingStars({
   value,
   size = 16,
-  showValue = false,
   count,
   variant = 'stars',
   textVariant = 'captionStrong',
@@ -77,13 +74,13 @@ export function RatingStars({
           })}
         </View>
       )}
-      {showValue || variant === 'compact' ? (
+      {variant === 'compact' ? (
         <AppText variant={textVariant} color={hasValue ? 'default' : 'muted'} tabular>
           {valueText}
         </AppText>
       ) : null}
       {typeof count === 'number' && hasValue ? (
-        <AppText variant={textVariant === 'captionStrong' ? 'caption' : textVariant} color="muted" tabular>
+        <AppText variant={textVariant === 'captionStrong' ? 'caption' : textVariant} color="muted">
           {`(${format.number(count)})`}
         </AppText>
       ) : null}
@@ -91,20 +88,21 @@ export function RatingStars({
   );
 }
 
-export interface RatingInputProps {
+interface RatingInputProps {
   value: Rating | null;
   onChange: (value: Rating) => void;
   /** Star glyph size (touch targets are always ≥ 48pt). */
   size?: number;
-  /** Shows the verbal label ("Excellent") under the stars. Defaults to `true`. */
-  showLabel?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-/** Interactive 1–5 star input with large touch targets and radio semantics for screen readers. */
-export function RatingInput({ value, onChange, size = 40, showLabel = true, disabled = false, style, testID }: RatingInputProps) {
+/**
+ * Interactive 1–5 star input with large touch targets and radio semantics for screen readers, with
+ * the verbal label ("Excellent") under the stars.
+ */
+export function RatingInput({ value, onChange, size = 40, disabled = false, style, testID }: RatingInputProps) {
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation('common');
@@ -137,11 +135,9 @@ export function RatingInput({ value, onChange, size = 40, showLabel = true, disa
           );
         })}
       </View>
-      {showLabel ? (
-        <AppText variant="subheading" color={value ? 'default' : 'muted'} align="center" accessibilityLiveRegion="polite">
-          {value ? t(`rating.labels.${RATING_LABEL_KEYS[value]}`) : t('rating.tapToRate')}
-        </AppText>
-      ) : null}
+      <AppText variant="subheading" color={value ? 'default' : 'muted'} align="center" accessibilityLiveRegion="polite">
+        {value ? t(`rating.labels.${RATING_LABEL_KEYS[value]}`) : t('rating.tapToRate')}
+      </AppText>
     </View>
   );
 }

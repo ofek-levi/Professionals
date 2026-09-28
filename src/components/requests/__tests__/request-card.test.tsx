@@ -73,40 +73,53 @@ describe('RequestCard', () => {
     await initI18n('en');
   });
 
-  it('shows the customer view: category, status, urgency, location, offers and new-offer highlight', async () => {
+  it('shows the compact customer view: category, one-line description and one status line', async () => {
     const onPress = jest.fn();
     await renderWithProviders(<RequestCard variant="customer" request={customerRequest} hasNewOffers onPress={onPress} />);
 
     expect(screen.getByText('Plumbing')).toBeOnTheScreen();
     expect(screen.getByText(customerRequest.description)).toBeOnTheScreen();
-    expect(screen.getByText('Offers received')).toBeOnTheScreen();
-    expect(screen.getByText('Urgent')).toBeOnTheScreen();
-    expect(screen.getByText('Florentin, Tel Aviv-Yafo')).toBeOnTheScreen();
-    expect(screen.getByText('3 offers')).toBeOnTheScreen();
-    expect(screen.getByText('From ₪250')).toBeOnTheScreen();
-    expect(screen.getByText('New offers')).toBeOnTheScreen();
-    expect(screen.getByText('5 minutes ago')).toBeOnTheScreen();
+    expect(screen.getByText('3 offers to review')).toBeOnTheScreen();
+    expect(screen.getByTestId('request-card-new')).toBeOnTheScreen();
+    // No location, urgency, photo counts or prices on the list card.
+    expect(screen.queryByText('Florentin, Tel Aviv-Yafo')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Urgent')).not.toBeOnTheScreen();
+    expect(screen.queryByText('From ₪250')).not.toBeOnTheScreen();
 
     await fireEvent.press(screen.getByRole('button'));
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the professional view: distance and the professional’s own offer', async () => {
-    await renderWithProviders(<RequestCard variant="professional" request={professionalRequest} />);
-
-    expect(screen.getByText('Plumbing')).toBeOnTheScreen();
-    expect(screen.getByText('2.4 km away')).toBeOnTheScreen();
-    expect(screen.getByText('Your offer')).toBeOnTheScreen();
-    expect(screen.getByText('₪320')).toBeOnTheScreen();
-    expect(screen.getByText('Pending')).toBeOnTheScreen();
-    expect(screen.queryByText('Offers received')).not.toBeOnTheScreen();
-  });
-
-  it('says when there are no offers yet', async () => {
+  it('says what the request is waiting for', async () => {
     await renderWithProviders(
       <RequestCard variant="customer" request={{ ...customerRequest, offerCount: 0, pendingOfferCount: 0, status: 'open', lowestOfferPrice: null }} />,
     );
-    expect(screen.getByText('No offers yet')).toBeOnTheScreen();
-    expect(screen.getByText('Awaiting offers')).toBeOnTheScreen();
+    expect(screen.getByText('Waiting for offers')).toBeOnTheScreen();
+    expect(screen.queryByTestId('request-card-new')).not.toBeOnTheScreen();
+  });
+
+  it('shows the booked appointment and accepts a custom status line', async () => {
+    const booked = { ...customerRequest, status: 'scheduled' as const, pendingOfferCount: 0 };
+    const { rerender } = await renderWithProviders(<RequestCard variant="customer" request={booked} />);
+    expect(screen.getByText('Booked')).toBeOnTheScreen();
+
+    await rerender(<RequestCard variant="customer" request={booked} statusLine={{ label: 'Rate CoolAir HVAC', tone: 'warning' }} />);
+    expect(screen.getByText('Rate CoolAir HVAC')).toBeOnTheScreen();
+  });
+
+  it('shows the compact professional view: urgency, distance · posted and the Offered pill', async () => {
+    await renderWithProviders(<RequestCard variant="professional" request={professionalRequest} />);
+
+    expect(screen.getByText('Plumbing')).toBeOnTheScreen();
+    expect(screen.getByText('Urgent')).toBeOnTheScreen();
+    expect(screen.getByText('2.4 km · 5 minutes ago')).toBeOnTheScreen();
+    expect(screen.getByText('Offered')).toBeOnTheScreen();
+    expect(screen.queryByText('3 offers to review')).not.toBeOnTheScreen();
+  });
+
+  it('shows no pill before the professional sends an offer, and no urgency pill for normal requests', async () => {
+    await renderWithProviders(<RequestCard variant="professional" request={{ ...professionalRequest, urgency: 'normal', myOffer: null }} />);
+    expect(screen.queryByTestId('request-card-offered')).not.toBeOnTheScreen();
+    expect(screen.queryByText('Normal')).not.toBeOnTheScreen();
   });
 });

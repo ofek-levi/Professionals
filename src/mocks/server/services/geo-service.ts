@@ -12,11 +12,11 @@ const HEBREW_LETTERS = /[א-ת]/;
 const LATIN_LETTERS = /[a-z]/i;
 const STOP_WORDS = new Set(['st', 'street', 'rd', 'road', 'blvd', 'boulevard', 'ave', 'avenue', 'רחוב', 'רח', 'שד', 'שדרות', 'דרך']);
 
-export const DEFAULT_SEARCH_LIMIT = 8;
-export const MAX_SEARCH_LIMIT = 20;
+const DEFAULT_SEARCH_LIMIT = 8;
+const MAX_SEARCH_LIMIT = 20;
 
 /** Lowercases, strips niqqud, quotes and punctuation, collapses whitespace. */
-export function normalizeSearchText(text: string): string {
+function normalizeSearchText(text: string): string {
   return text
     .toLowerCase()
     .replace(/[֑-ׇ]/g, '')
@@ -26,7 +26,7 @@ export function normalizeSearchText(text: string): string {
 }
 
 /** Language of the query script, falling back to `fallback` (e.g. the Accept-Language). */
-export function detectQueryLanguage(query: string, fallback: AppLanguage): AppLanguage {
+function detectQueryLanguage(query: string, fallback: AppLanguage): AppLanguage {
   if (HEBREW_LETTERS.test(query)) return 'he';
   if (LATIN_LETTERS.test(query)) return 'en';
   return fallback;
@@ -45,7 +45,7 @@ function addressLine(place: GazetteerPlace, streetIndex: number, houseNumber: nu
   return houseNumber ? `${name} ${houseNumber}` : name;
 }
 
-export function toPlaceSuggestion(
+function toPlaceSuggestion(
   place: GazetteerPlace,
   streetIndex: number,
   houseNumber: number | null,

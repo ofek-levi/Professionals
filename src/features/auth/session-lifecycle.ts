@@ -11,7 +11,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import type { SessionState, sessionStore as SessionStoreInstance } from '@/services/auth/session-store';
 import type { RealtimeClient } from '@/services/realtime/types';
 
-export interface SessionLifecycleDeps {
+interface SessionLifecycleDeps {
   store: Pick<typeof SessionStoreInstance, 'getState' | 'subscribe'>;
   queryClient: Pick<QueryClient, 'clear'>;
   realtime: Pick<RealtimeClient, 'connect' | 'disconnect'>;

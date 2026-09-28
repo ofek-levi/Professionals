@@ -13,14 +13,14 @@ import { customerShortName, professionalUserId, requireProfessional, requireStor
 import { expireOffer } from './lifecycle-service';
 import { notify } from './notification-service';
 
-export function expireOverdueOffers(ctx: ServerContext): number {
+function expireOverdueOffers(ctx: ServerContext): number {
   const now = ctx.now().getTime();
   const overdue = ctx.db.offers.filter((offer) => offer.status === 'pending' && Date.parse(offer.expiresAt) <= now);
   overdue.forEach((offer) => expireOffer(ctx, offer.id));
   return overdue.length;
 }
 
-export function sendAppointmentReminders(ctx: ServerContext): number {
+function sendAppointmentReminders(ctx: ServerContext): number {
   const now = ctx.now().getTime();
   const leadMs = APP_CONFIG.appointmentReminderLeadMinutes * 60_000;
   const due = ctx.db.jobs.filter((job) => {

@@ -6,9 +6,9 @@ import { demoTools } from '@/services/api';
 import { settingsStore, useSettings } from './settings-store';
 
 /** Share of requests that fail while "unreliable network" is on. */
-export const SIMULATED_FAILURE_RATE = 0.2;
+const SIMULATED_FAILURE_RATE = 0.2;
 
-export interface DemoToolsState {
+interface DemoToolsState {
   /** Demo tools only exist with the in-app mock backend. */
   isAvailable: boolean;
   simulationEnabled: boolean;

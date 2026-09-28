@@ -5,13 +5,11 @@ import {
   isSameDay,
   isValidDateKey,
   isValidTimeOfDay,
-  isWithinTimeWindow,
   minutesToTime,
   parseDateKey,
   roundUpToMinutes,
   splitDateTime,
   timeToMinutes,
-  timeWindowForDate,
   toDateKey,
   tryCombineDateAndTime,
 } from '../dates';
@@ -61,14 +59,5 @@ describe('date utils', () => {
     const late = roundUpToMinutes(local(2026, 9, 27, 23, 55), 15);
     expect(toDateKey(late)).toBe('2026-09-28');
     expect(late.getHours()).toBe(0);
-  });
-
-  it('maps instants to preferred time windows', () => {
-    expect(timeWindowForDate(local(2026, 9, 27, 9, 0))).toBe('morning');
-    expect(timeWindowForDate(local(2026, 9, 27, 12, 0))).toBe('afternoon');
-    expect(timeWindowForDate(local(2026, 9, 27, 20, 59))).toBe('evening');
-    expect(timeWindowForDate(local(2026, 9, 27, 22, 0))).toBe('any');
-    expect(isWithinTimeWindow(local(2026, 9, 27, 7, 0), 'morning')).toBe(false);
-    expect(isWithinTimeWindow(local(2026, 9, 27, 7, 0), 'any')).toBe(true);
   });
 });

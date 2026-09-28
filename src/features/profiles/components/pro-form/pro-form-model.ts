@@ -1,6 +1,7 @@
 /**
- * View-model helpers of the professional profile form: radius presets, language options, time
- * options for working hours and the mapping of server `fieldErrors` onto form fields.
+ * View-model helpers of the professional profile form: radius options, language options, time
+ * options for working hours, which fields live in the collapsed "More details" section and the
+ * mapping of server `fieldErrors` onto form fields.
  */
 import { APP_CONFIG } from '@/constants/app-config';
 import type { ProfessionalProfileFormValues } from '@/lib/validation';
@@ -8,21 +9,25 @@ import type { TimeOfDayString } from '@/types/domain';
 import { minutesToTime, timeToMinutes } from '@/utils/dates';
 
 /** Service radius chips (km), within the configured bounds. */
-export const RADIUS_PRESETS_KM: readonly number[] = [5, 10, 15, 25, 40, 60, 80].filter(
+export const RADIUS_PRESETS_KM: readonly number[] = [5, 10, 20, 40, 80].filter(
   (km) => km >= APP_CONFIG.minServiceRadiusKm && km <= APP_CONFIG.maxServiceRadiusKm,
 );
-
-/** Fine adjustment step of the radius stepper. */
-export const RADIUS_STEP_KM = 1;
 
 export function clampRadiusKm(value: number): number {
   const rounded = Math.round(value);
   return Math.min(APP_CONFIG.maxServiceRadiusKm, Math.max(APP_CONFIG.minServiceRadiusKm, rounded));
 }
 
+/** Radius chips: the presets plus the current radius when it is not one of them (sorted). */
+export function radiusOptions(currentKm: number | null | undefined): number[] {
+  const options = new Set(RADIUS_PRESETS_KM);
+  if (typeof currentKm === 'number' && Number.isFinite(currentKm)) options.add(clampRadiusKm(currentKm));
+  return [...options].sort((a, b) => a - b);
+}
+
 /** Languages a professional can list (ISO 639-1); labels come from `professional:form.languageNames`. */
 export const LANGUAGE_OPTIONS = ['he', 'en', 'ar', 'ru', 'am', 'fr', 'es'] as const;
-export type LanguageOption = (typeof LANGUAGE_OPTIONS)[number];
+type LanguageOption = (typeof LANGUAGE_OPTIONS)[number];
 
 export function isLanguageOption(value: string): value is LanguageOption {
   return (LANGUAGE_OPTIONS as readonly string[]).includes(value);
@@ -55,6 +60,25 @@ export function adjustEndForStart(start: TimeOfDayString, end: TimeOfDayString, 
 }
 
 type ProfileFormField = keyof ProfessionalProfileFormValues;
+
+/** Optional fields shown in the collapsed "More details" section (expanded when one has an error). */
+const MORE_DETAILS_FIELDS = [
+  'website',
+  'businessName',
+  'licenseNumber',
+  'isInsured',
+  'languages',
+  'startingPrice',
+  'yearsOfExperience',
+  'availability.acceptsEmergencyCalls',
+] as const;
+
+/** Whether any of these form field paths (e.g. the keys of the form errors) is in "More details". */
+export function touchesMoreDetails(fields: Iterable<string>): boolean {
+  const more: readonly string[] = MORE_DETAILS_FIELDS;
+  for (const field of fields) if (more.includes(field)) return true;
+  return false;
+}
 
 /** Server path prefix → form field. Nested payload objects (`contact`, `business`) are flattened in the form. */
 const SERVER_PATHS: [prefix: string, field: ProfileFormField | `serviceArea.${string}` | `availability.${string}`][] = [

@@ -6,7 +6,7 @@ import { Stack, useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { EmptyState, ErrorState, Screen, Skeleton, SkeletonCard, useNow } from '@/components/ui';
+import { EmptyState, ErrorState, Screen, Skeleton, useNow } from '@/components/ui';
 import { getProfessionalOfferActions, isOfferActive } from '@/features/offers/offer-status-machine';
 import { isRequestOpenForOffers } from '@/features/requests/request-matching';
 import { useOffer, useOwnProfessionalProfile, useRequest, useRouteParam } from '@/hooks';
@@ -26,7 +26,11 @@ export default function SubmitOfferScreen() {
   const offerQuery = useOffer(offerId);
   const profileQuery = useOwnProfessionalProfile();
 
-  const title = offerId ? t('offers:form.editTitle') : t('common:screens.submitOffer');
+  const title = offerId ? t('offers:form.editTitle') : t('offers:form.title');
+  const backToRequest = () => {
+    if (router.canGoBack()) router.back();
+    else if (requestId) router.replace(routes.request(requestId));
+  };
   const header = <Stack.Screen options={{ title }} />;
   const request = requestQuery.data?.viewerRole === 'professional' ? requestQuery.data.request : undefined;
   const offer = offerId ? offerQuery.data : null;
@@ -49,17 +53,19 @@ export default function SubmitOfferScreen() {
 
   if (!request || offer === undefined || (profileQuery.isPending && !profileQuery.isError)) {
     return (
-      <Screen edges={['left', 'right', 'bottom']} gap="lg">
+      <Screen edges={['left', 'right', 'bottom']} contentContainerStyle={styles.skeleton}>
         {header}
-        <SkeletonCard />
-        <View style={styles.skeleton}>
-          <Skeleton width="40%" height={18} />
-          <Skeleton height={52} radius={12} />
+        <View style={styles.block}>
+          <Skeleton width="30%" height={16} />
+          <Skeleton height={64} radius={16} />
         </View>
-        <View style={styles.skeleton}>
-          <Skeleton width="50%" height={18} />
-          <Skeleton height={64} radius={12} />
-          <Skeleton height={120} radius={12} />
+        <View style={styles.block}>
+          <Skeleton width="25%" height={16} />
+          <Skeleton height={56} radius={12} />
+        </View>
+        <View style={styles.block}>
+          <Skeleton width="25%" height={16} />
+          <Skeleton height={136} radius={12} />
         </View>
       </Screen>
     );
@@ -71,13 +77,10 @@ export default function SubmitOfferScreen() {
       <Screen edges={['left', 'right', 'bottom']}>
         {header}
         <EmptyState
-          icon="lock-outline"
           title={t('offers:form.locked.title')}
           description={t('offers:form.locked.description')}
-          actionLabel={t('offers:actions.viewOffer')}
-          onAction={() => router.dismissTo(routes.offer(offer.id))}
-          secondaryActionLabel={t('offers:actions.viewRequest')}
-          onSecondaryAction={() => router.dismissTo(routes.request(request.id))}
+          actionLabel={t('offers:form.problem.backToRequest')}
+          onAction={backToRequest}
         />
       </Screen>
     );
@@ -90,15 +93,10 @@ export default function SubmitOfferScreen() {
         <Screen edges={['left', 'right', 'bottom']}>
           {header}
           <EmptyState
-            icon="tag-check-outline"
             title={t('offers:form.duplicate.title')}
             description={t('offers:form.duplicate.description')}
-            actionLabel={myOffer.status === 'pending' ? t('offers:form.duplicate.edit') : t('offers:actions.viewOffer')}
-            onAction={() =>
-              myOffer.status === 'pending'
-                ? router.replace(routes.submitOffer(request.id, myOffer.offerId))
-                : router.dismissTo(routes.offer(myOffer.offerId))
-            }
+            actionLabel={myOffer.status === 'pending' ? t('offers:form.duplicate.edit') : t('offers:form.problem.backToRequest')}
+            onAction={() => (myOffer.status === 'pending' ? router.replace(routes.submitOffer(request.id, myOffer.offerId)) : backToRequest())}
           />
         </Screen>
       );
@@ -108,8 +106,6 @@ export default function SubmitOfferScreen() {
         <Screen edges={['left', 'right', 'bottom']}>
           {header}
           <EmptyState
-            icon="lock-outline"
-            tone="warning"
             title={t('offers:form.closed.title')}
             description={t('offers:form.closed.description')}
             actionLabel={t('offers:form.closed.browse')}
@@ -130,9 +126,10 @@ export default function SubmitOfferScreen() {
 
 const useStyles = makeStyles((t) => ({
   skeleton: {
+    gap: t.spacing.xxl,
+    paddingTop: t.spacing.lg,
+  },
+  block: {
     gap: t.spacing.md,
-    padding: t.spacing.lg,
-    borderRadius: t.radii.lg,
-    backgroundColor: t.colors.surface,
   },
 }));

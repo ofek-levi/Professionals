@@ -7,7 +7,7 @@ import { makeStyles } from '@/theme';
 
 import type { ChatDayRow } from './chat-model';
 
-/** Centered day pill between messages: "Today", "Yesterday", "Wednesday", "Sep 12". */
+/** Centered day label between messages: "Today", "Yesterday", "Wednesday", "Sep 12". */
 export function ChatDaySeparator({ row, now }: { row: ChatDayRow; now: Date }) {
   const styles = useStyles();
   const { t } = useTranslation('common');
@@ -20,11 +20,9 @@ export function ChatDaySeparator({ row, now }: { row: ChatDayRow; now: Date }) {
 
   return (
     <View style={styles.container} accessibilityRole="header">
-      <View style={styles.pill}>
-        <AppText variant="label" color="secondary">
-          {label}
-        </AppText>
-      </View>
+      <AppText variant="label" color="muted">
+        {label}
+      </AppText>
     </View>
   );
 }
@@ -32,15 +30,7 @@ export function ChatDaySeparator({ row, now }: { row: ChatDayRow; now: Date }) {
 const useStyles = makeStyles((t) => ({
   container: {
     alignItems: 'center',
-    paddingTop: t.spacing.lg,
-    paddingBottom: t.spacing.xs,
-  },
-  pill: {
-    paddingHorizontal: t.spacing.md,
-    paddingVertical: t.spacing.xs,
-    borderRadius: t.radii.pill,
-    backgroundColor: t.colors.surfaceMuted,
-    borderWidth: 1,
-    borderColor: t.colors.border,
+    paddingTop: t.spacing.xl,
+    paddingBottom: t.spacing.xxs,
   },
 }));

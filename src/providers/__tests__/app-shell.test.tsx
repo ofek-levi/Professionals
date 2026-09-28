@@ -54,6 +54,24 @@ async function renderApp(initialUrl = '/') {
   return { getPathname: () => result.getPathname() };
 }
 
+function getRouter() {
+  const { router } = require('expo-router') as typeof import('expo-router');
+  return router;
+}
+
+async function navigate(href: string) {
+  await act(async () => {
+    getRouter().push(href as import('expo-router').Href);
+  });
+}
+
+/** These bottom tabs are visible (by `tabBarButtonTestID`), with their labels. */
+function expectTabs(tabs: Record<string, string>) {
+  for (const [name, label] of Object.entries(tabs)) {
+    expect(screen.getByTestId(`tab-${name}`)).toHaveTextContent(label, { exact: false });
+  }
+}
+
 describe('app shell', () => {
   it('signs in with a demo account, guards roles and signs out', async () => {
     const app = await renderApp('/');
@@ -69,16 +87,13 @@ describe('app shell', () => {
     await waitFor(() => expect(app.getPathname()).toBe('/customer/home'), { timeout: 10_000 });
     expect(sessionStore.getState()).toMatchObject({ status: 'signedIn', userId: customer.userId, role: 'customer' });
 
-    // Settings → sign out (confirmed) → back to the sign-in screen.
-    const { router } = require('expo-router') as typeof import('expo-router');
-    await act(async () => {
-      router.push('/settings');
-    });
-    expect(await screen.findByTestId('settings-screen')).toBeOnTheScreen();
-    await fireEvent.press(screen.getByRole('button', { name: 'Sign out' }));
-    expect(await screen.findByText('Sign out?')).toBeOnTheScreen();
-    const signOutButtons = screen.getAllByRole('button', { name: 'Sign out' });
-    await fireEvent.press(signOutButtons[signOutButtons.length - 1]);
+    // Customer tabs: Home · Requests · Inbox · Profile.
+    expectTabs({ home: 'Home', requests: 'Requests', inbox: 'Inbox', profile: 'Profile' });
+
+    // Profile tab → sign out (no confirmation) → back to the sign-in screen.
+    await navigate('/customer/profile');
+    const signOut = await screen.findAllByRole('button', { name: /^Sign out/ }, { timeout: 10_000 });
+    await fireEvent.press(signOut[0]);
     await waitFor(() => expect(app.getPathname()).toBe('/sign-in'), { timeout: 10_000 });
     expect(sessionStore.getState().status).toBe('signedOut');
   });
@@ -93,6 +108,9 @@ describe('app shell', () => {
 
     await waitFor(() => expect(app.getPathname()).toBe('/professional/home'), { timeout: 10_000 });
     expect(sessionStore.getState().role).toBe('professional');
+
+    // Professional tabs: Home · Explore · Work · Inbox · Profile.
+    expectTabs({ home: 'Home', explore: 'Explore', work: 'Work', inbox: 'Inbox', profile: 'Profile' });
   });
 
   it('redirects a customer away from professional screens', async () => {

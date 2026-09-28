@@ -1,7 +1,7 @@
 import { buildNotification, type NotificationInput } from '@/features/notifications/notification-factory';
 import type { AppNotification, ISODateTimeString } from '@/types/domain';
 
-export interface NotificationFactoryInput {
+interface NotificationFactoryInput {
   id: string;
   userId: string;
   createdAt: ISODateTimeString;

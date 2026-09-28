@@ -4,7 +4,8 @@ import { haversineDistanceKm } from '@/utils/geo';
 import {
   approximateLocation,
   filterNearbyRequests,
-  isRequestVisibleToProfessional,
+  isRequestMatchForProfessional,
+  isRequestOpenForOffers,
   isWithinServiceArea,
   professionalCoversCategory,
   sortNearbyRequests,
@@ -62,13 +63,14 @@ describe('request matching', () => {
     expect(isWithinServiceArea(pro.serviceArea, request({ km: 12 }).location.coordinates)).toBe(false);
   });
 
-  it('only shows open requests in the professional’s categories and area', () => {
-    expect(isRequestVisibleToProfessional(request(), pro)).toBe(true);
-    expect(isRequestVisibleToProfessional(request({ status: 'offers_received' }), pro)).toBe(true);
-    expect(isRequestVisibleToProfessional(request({ status: 'draft' }), pro)).toBe(false);
-    expect(isRequestVisibleToProfessional(request({ status: 'professional_selected' }), pro)).toBe(false);
-    expect(isRequestVisibleToProfessional(request({ categoryId: 'electrical' }), pro)).toBe(false);
-    expect(isRequestVisibleToProfessional(request({ km: 15 }), pro)).toBe(false);
+  it('only takes offers on open requests in the professional’s categories and area', () => {
+    expect(isRequestOpenForOffers(request())).toBe(true);
+    expect(isRequestOpenForOffers(request({ status: 'offers_received' }))).toBe(true);
+    expect(isRequestOpenForOffers(request({ status: 'draft' }))).toBe(false);
+    expect(isRequestOpenForOffers(request({ status: 'professional_selected' }))).toBe(false);
+    expect(isRequestMatchForProfessional(request(), pro)).toBe(true);
+    expect(isRequestMatchForProfessional(request({ categoryId: 'electrical' }), pro)).toBe(false);
+    expect(isRequestMatchForProfessional(request({ km: 15 }), pro)).toBe(false);
   });
 
   it('filters by category (intersected with the pro’s categories) and distance', () => {

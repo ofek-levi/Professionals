@@ -2,37 +2,22 @@ import type { notifications as ennotifications } from '../en/notifications';
 import type { LocaleNamespace } from '../../types';
 
 export const notifications: LocaleNamespace<typeof ennotifications> = {
-  title: 'התראות',
-  subtitle: 'הצעות, עדכוני עבודות והודעות',
+  inbox: {
+    title: 'הודעות',
+    tabs: {
+      updates: 'עדכונים',
+      messages: 'שיחות',
+    },
+    emptyUpdates: 'אין עדכונים עדיין',
+  },
   markAllRead: 'סימון הכול כנקרא',
-  markAllReadDone: 'כל ההתראות סומנו כנקראו',
-  unreadSection: 'חדשות',
-  earlierSection: 'קודמות',
-  unreadCount_one: 'התראה אחת שלא נקראה',
-  unreadCount_two: 'שתי התראות שלא נקראו',
-  unreadCount_other: '{{count}} התראות שלא נקראו',
-  filters: {
-    all: 'הכול',
-    unread: 'לא נקראו',
-  },
-  empty: {
-    title: 'אין עדכונים חדשים',
-    description: 'נעדכן אתכם כשיגיעו הצעות חדשות, עדכוני עבודות או הודעות.',
-    unreadTitle: 'אין התראות שלא נקראו',
-    unreadDescription: 'קראתם הכול. כל הכבוד!',
-    customerAction: 'פרסום בקשה חדשה',
-    professionalAction: 'חיפוש עבודות באזור',
-    showAll: 'הצגת כל ההתראות',
-  },
+  markAllReadShort: 'סימון הכול כנקרא',
   groups: {
     weekdayDate: '{{weekday}}, {{date}}',
   },
-  markAllReadShort: 'סימון הכול כנקרא',
-  allRead: 'אין עדכונים חדשים',
   a11y: {
     unread: 'לא נקראה',
     openHint: 'פתיחת הפרטים הקשורים',
-    filters: 'סינון התראות',
   },
   fallbacks: {
     customer: 'לקוח',
@@ -41,9 +26,9 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
   },
   types: {
     new_matching_request: {
-      title: 'קריאה חדשה באזור שלכם: {{category}}',
-      body: 'קריאה חדשה במרחק {{distance}} מכם מתאימה לשירותים שלכם. היו הראשונים לשלוח הצעה.',
-      bodyNoDistance: 'קריאה חדשה באזור השירות שלכם מתאימה לשירותים שלכם. היו הראשונים לשלוח הצעה.',
+      title: 'בקשה חדשה באזור שלכם: {{category}}',
+      body: 'במרחק {{distance}} מכם',
+      bodyNoDistance: 'באזור השירות שלכם',
     },
     offer_received: {
       title: 'הצעה חדשה: {{price}}',
@@ -63,15 +48,15 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
     },
     offer_not_selected: {
       title: 'ההצעה לא נבחרה',
-      body: 'נבחר בעל מקצוע אחר לקריאה בנושא {{category}}.',
+      body: 'נבחר בעל מקצוע אחר לבקשה בנושא {{category}}.',
     },
     offer_expired: {
       title: 'תוקף ההצעה פג',
-      body: 'תוקף ההצעה שלכם על סך {{price}} לקריאה בנושא {{category}} פג ללא מענה.',
+      body: 'תוקף ההצעה שלכם על סך {{price}} לבקשה בנושא {{category}} פג ללא מענה.',
     },
     request_cancelled: {
-      title: 'הקריאה בוטלה',
-      body: 'הקריאה בנושא {{category}} בוטלה על ידי {{customerName}}.',
+      title: 'הבקשה בוטלה',
+      body: 'הבקשה בנושא {{category}} בוטלה על ידי {{customerName}}.',
     },
     job_confirmed: {
       title: 'מועד הביקור אושר',

@@ -7,14 +7,12 @@ import type { CurrencyCode } from '@/types/domain';
 
 import { TextField, type TextFieldProps } from '../ui/text-field';
 
-export interface PriceInputProps
+interface PriceInputProps
   extends Omit<TextFieldProps, 'value' | 'onChange' | 'onChangeText' | 'keyboardType' | 'inputMode' | 'prefix' | 'ref'> {
   /** Whole currency units, or `null` when empty. */
   value: number | null;
   onChange: (value: number | null) => void;
   currency?: CurrencyCode;
-  /** Hard cap while typing (default `APP_CONFIG.maxOfferPrice`). */
-  maxValue?: number;
   ref?: Ref<TextInput>;
 }
 
@@ -31,7 +29,6 @@ export function PriceInput({
   value,
   onChange,
   currency = APP_CONFIG.defaultCurrency,
-  maxValue = APP_CONFIG.maxOfferPrice,
   ...textFieldProps
 }: PriceInputProps) {
   const format = useFormatters();
@@ -41,7 +38,7 @@ export function PriceInput({
       value={value === null ? '' : format.number(value)}
       onChangeText={(text) => {
         const parsed = parsePriceInput(text);
-        onChange(parsed === null ? null : Math.min(parsed, maxValue));
+        onChange(parsed === null ? null : Math.min(parsed, APP_CONFIG.maxOfferPrice));
       }}
       prefix={format.currencySymbol(currency)}
       keyboardType="number-pad"

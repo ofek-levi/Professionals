@@ -8,7 +8,7 @@ import { useSession } from '@/features/auth/session-provider';
 import type { Paginated } from '@/types/api';
 import type { UserRole } from '@/types/domain';
 
-export interface QueryScope {
+interface QueryScope {
   /** Signed-in user id (first element of every user-scoped query key). */
   userId: string | null;
   role: UserRole | null;

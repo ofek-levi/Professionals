@@ -15,7 +15,7 @@ import type { OwnProfessionalProfile, ServiceRequest } from '@/types/domain';
 import type { ServerContext } from '../context';
 import { activeOfferRequestIds } from '../queries';
 
-export interface ProfessionalMatch {
+interface ProfessionalMatch {
   professional: OwnProfessionalProfile;
   distanceKm: number;
 }

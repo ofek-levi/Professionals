@@ -4,12 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { AppText, Icon } from '@/components/ui';
 import { makeStyles } from '@/theme';
 
-export interface FiltersButtonProps {
+interface FiltersButtonProps {
   activeCount: number;
   onPress: () => void;
 }
 
-/** Pill button opening the filters sheet, with the number of active filter groups. */
+/** Compact button opening the filters sheet, with the number of active filter groups. */
 export function FiltersButton({ activeCount, onPress }: FiltersButtonProps) {
   const styles = useStyles();
   const { t } = useTranslation('explore');
@@ -23,13 +23,13 @@ export function FiltersButton({ activeCount, onPress }: FiltersButtonProps) {
       style={({ pressed }) => [styles.button, active ? styles.active : null, pressed ? styles.pressed : null]}
       testID="explore-filters-button"
     >
-      <Icon name="tune-variant" size={18} color={active ? 'onPrimary' : 'default'} />
-      <AppText variant="captionStrong" color={active ? 'onPrimary' : 'default'}>
+      <Icon name="tune-variant" size={16} color={active ? 'primary' : 'default'} />
+      <AppText variant="captionStrong" color={active ? 'primary' : 'default'}>
         {t('filtersButton')}
       </AppText>
       {active ? (
         <View style={styles.count}>
-          <AppText variant="tiny" color="primary" tabular>
+          <AppText variant="tiny" color="onPrimary" tabular>
             {activeCount}
           </AppText>
         </View>
@@ -39,31 +39,28 @@ export function FiltersButton({ activeCount, onPress }: FiltersButtonProps) {
 }
 
 const useStyles = makeStyles((t) => ({
+  // Same height and track color as the segmented control next to it.
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: t.spacing.xs + 2,
-    minHeight: 40,
+    height: 40,
     paddingHorizontal: t.spacing.md,
-    borderRadius: t.radii.pill,
+    borderRadius: t.radii.md - 2,
     backgroundColor: t.colors.surface,
-    borderWidth: 1,
-    borderColor: t.colors.borderStrong,
   },
   active: {
-    backgroundColor: t.colors.primary,
-    borderColor: t.colors.primary,
+    backgroundColor: t.colors.primarySoft,
   },
   pressed: {
-    opacity: 0.8,
-    transform: [{ scale: 0.97 }],
+    opacity: 0.7,
   },
   count: {
-    minWidth: 20,
-    height: 20,
+    minWidth: 18,
+    height: 18,
     paddingHorizontal: t.spacing.xs,
     borderRadius: t.radii.pill,
-    backgroundColor: t.colors.onPrimary,
+    backgroundColor: t.colors.primaryFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

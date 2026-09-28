@@ -1,4 +1,4 @@
-/** Selected services as removable chips, edited in the shared category picker sheet. */
+/** Selected services as read-only chips; one "Edit services" action opens the shared category picker sheet. */
 import { useState } from 'react';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +10,7 @@ import { PROFILE_LIMITS } from '@/lib/validation';
 import { makeStyles } from '@/theme';
 import type { CategoryId } from '@/types/domain';
 
-export interface ServicesFieldProps {
+interface ServicesFieldProps {
   value: readonly string[];
   onChange: (ids: CategoryId[]) => void;
   error?: string | null;
@@ -23,12 +23,7 @@ export function ServicesField({ value, onChange, error }: ServicesFieldProps) {
   const ids = value.filter((id): id is CategoryId => isSupportedCategoryId(id));
 
   return (
-    <Field
-      label={t('professional:form.services.label')}
-      required
-      helperText={t('professional:form.services.helper', { max: PROFILE_LIMITS.maxCategories })}
-      error={error}
-    >
+    <Field error={error}>
       <View style={styles.chips}>
         {ids.length === 0 ? (
           <AppText variant="caption" color="muted">
@@ -36,15 +31,14 @@ export function ServicesField({ value, onChange, error }: ServicesFieldProps) {
           </AppText>
         ) : (
           ids.map((id) => (
-            <CategoryChip key={id} categoryId={id} size="sm" selected onRemove={() => onChange(ids.filter((item) => item !== id))} />
+            <CategoryChip key={id} categoryId={id} size="sm" />
           ))
         )}
       </View>
       <Button
         label={ids.length === 0 ? t('professional:form.services.add') : t('professional:form.services.edit')}
-        variant="secondary"
+        variant="ghost"
         size="sm"
-        leftIcon={ids.length === 0 ? 'plus' : 'pencil-outline'}
         onPress={() => setOpen(true)}
         style={styles.button}
         testID="pro-form-services"
@@ -69,6 +63,7 @@ const useStyles = makeStyles((t) => ({
     gap: t.spacing.sm,
   },
   button: {
-    marginTop: t.spacing.sm,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 0,
   },
 }));

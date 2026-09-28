@@ -4,7 +4,6 @@ export const APP_CONFIG = {
   /** Service radius bounds for professionals, km. */
   minServiceRadiusKm: 3,
   maxServiceRadiusKm: 80,
-  defaultServiceRadiusKm: 15,
   /** Distance filter presets on the job explorer, km. */
   distanceFilterOptionsKm: [5, 10, 20, 40] as const,
   maxRequestPhotos: 6,

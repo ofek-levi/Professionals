@@ -52,9 +52,6 @@ export const demoTools = {
   setSimulationEnabled(enabled: boolean): void {
     if (apiConfig.mode === 'mock') getMockServer().setSimulationEnabled(enabled);
   },
-  isSimulationEnabled(): boolean {
-    return apiConfig.mode === 'mock' ? getMockServer().isSimulationEnabled() : false;
-  },
   setNetworkFailureRate(rate: number): void {
     mockControls?.setFailureRate(rate);
   },

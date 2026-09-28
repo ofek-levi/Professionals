@@ -5,6 +5,7 @@ import {
   Platform,
   RefreshControl,
   ScrollView,
+  StyleSheet,
   View,
   type ScrollViewProps,
   type StyleProp,
@@ -14,7 +15,7 @@ import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-ar
 
 import { makeStyles, useTheme, type Theme } from '@/theme';
 
-export interface ScreenProps {
+interface ScreenProps {
   children: ReactNode;
   /** Scrollable content (default) or a static, full-height container. */
   scroll?: boolean;
@@ -26,7 +27,6 @@ export interface ScreenProps {
   edges?: readonly Edge[];
   /** Horizontal `t.spacing.screen` padding. Defaults to `true`. */
   padded?: boolean;
-  background?: 'background' | 'surface';
   /** Vertical gap between direct children (spacing token). */
   gap?: keyof Theme['spacing'];
   /** Pull-to-refresh (scroll mode only). */
@@ -70,7 +70,6 @@ export function Screen({
   scroll = true,
   edges = DEFAULT_EDGES,
   padded = true,
-  background = 'background',
   gap,
   refreshing = false,
   onRefresh,
@@ -99,7 +98,6 @@ export function Screen({
     paddingHorizontal: padded ? theme.spacing.screen : 0,
     gap: gap ? theme.spacing[gap] : undefined,
   };
-  const backgroundColor = background === 'surface' ? theme.colors.surface : theme.colors.background;
 
   const body = scroll ? (
     <ScrollView
@@ -137,7 +135,7 @@ export function Screen({
   );
 
   return (
-    <SafeAreaView edges={containerEdges} style={[styles.flex, { backgroundColor }, style]} testID={testID}>
+    <SafeAreaView edges={containerEdges} style={[styles.flex, { backgroundColor: theme.colors.background }, style]} testID={testID}>
       <KeyboardAvoidingView
         style={styles.flex}
         enabled={keyboardAvoiding && Platform.OS !== 'web'}
@@ -164,11 +162,11 @@ const useStyles = makeStyles((t) => ({
     flexGrow: 1,
     paddingTop: t.spacing.md,
   },
+  // Sticky CTA area: screen background with a single hairline, no shadow.
   footer: {
     paddingTop: t.spacing.md,
-    backgroundColor: t.colors.surface,
-    borderTopWidth: 1,
+    backgroundColor: t.colors.background,
+    borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: t.colors.border,
-    ...(t.scheme === 'light' ? { boxShadow: `0px -4px 16px ${t.colors.shadow}` } : null),
   },
 }));

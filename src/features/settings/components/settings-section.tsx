@@ -1,47 +1,51 @@
-import type { ReactNode } from 'react';
-import { View } from 'react-native';
+import { Children, Fragment, isValidElement, type ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { AppText, Card, SectionHeader, type IconName } from '@/components/ui';
+import { AppText, Card } from '@/components/ui';
 import { makeStyles } from '@/theme';
 
-export interface SettingsSectionProps {
+interface SettingsSectionProps {
   title: string;
-  description?: string;
-  icon?: IconName;
   children: ReactNode;
+  /** Render the children on the soft group surface with hairlines between rows (default). */
+  grouped?: boolean;
   testID?: string;
 }
 
-/** Titled settings group rendered as a card. */
-export function SettingsSection({ title, description, icon, children, testID }: SettingsSectionProps) {
+/** Titled settings group: rows on one soft surface, separated by hairlines. */
+export function SettingsSection({ title, children, grouped = true, testID }: SettingsSectionProps) {
   const styles = useStyles();
+  const rows = Children.toArray(children).filter(isValidElement);
   return (
     <View style={styles.section} testID={testID}>
-      <SectionHeader title={title} icon={icon} style={styles.header} />
-      {description ? (
-        <AppText variant="caption" color="muted" style={styles.description}>
-          {description}
-        </AppText>
-      ) : null}
-      <Card variant="outlined" padding="none" style={styles.card}>
-        {children}
-      </Card>
+      <AppText variant="heading" accessibilityRole="header">
+        {title}
+      </AppText>
+      {grouped ? (
+        <Card padding="none" style={styles.card}>
+          {rows.map((row, index) => (
+            <Fragment key={row.key ?? index}>
+              {index > 0 ? <View style={styles.divider} /> : null}
+              {row}
+            </Fragment>
+          ))}
+        </Card>
+      ) : (
+        children
+      )}
     </View>
   );
 }
 
 const useStyles = makeStyles((t) => ({
   section: {
-    gap: t.spacing.xs,
-  },
-  header: {
-    marginBottom: 0,
-  },
-  description: {
-    marginBottom: t.spacing.xs,
+    gap: t.spacing.md,
   },
   card: {
     paddingHorizontal: t.spacing.lg,
-    paddingVertical: t.spacing.xs,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: t.colors.border,
   },
 }));

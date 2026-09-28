@@ -38,7 +38,7 @@ describe('resolveRoleAccess', () => {
     });
     expect(resolveRoleAccess({ status: 'signedIn', userId: 'u2', role: 'professional' }, 'customer')).toEqual({
       state: 'redirect',
-      href: routes.professional.home,
+      href: routes.homeFor('professional'),
     });
   });
 

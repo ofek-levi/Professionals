@@ -11,7 +11,7 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   reminders: true,
 };
 
-export type UserInput = Pick<StoredUser, 'id' | 'role' | 'firstName' | 'lastName' | 'createdAt'> & Partial<StoredUser>;
+type UserInput = Pick<StoredUser, 'id' | 'role' | 'firstName' | 'lastName' | 'createdAt'> & Partial<StoredUser>;
 
 /** Builds a user row. `displayName` defaults to the full name. */
 export function createUser(input: UserInput): StoredUser {
@@ -27,7 +27,7 @@ export function createUser(input: UserInput): StoredUser {
   };
 }
 
-export type CustomerProfileInput = Pick<CustomerProfile, 'userId' | 'updatedAt'> & {
+type CustomerProfileInput = Pick<CustomerProfile, 'userId' | 'updatedAt'> & {
   defaultLocation?: ServiceLocation | null;
 } & Partial<CustomerProfile>;
 

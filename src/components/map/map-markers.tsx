@@ -15,7 +15,7 @@ export const MARKER_SELECTED_SIZE = 44;
 export const PIN_HEAD_SIZE = 44;
 export const PIN_STEM_HEIGHT = 12;
 
-export interface MarkerBubbleProps {
+interface MarkerBubbleProps {
   tone?: StatusTone;
   icon?: IconSource;
   label?: string;

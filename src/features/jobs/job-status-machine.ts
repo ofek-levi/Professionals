@@ -7,7 +7,7 @@ import type { RequestStatus } from '@/constants/request-statuses';
 import { assertTransition, canTransition, type TransitionTable } from '@/features/shared/state-machine';
 import type { Job, UserRole } from '@/types/domain';
 
-export const JOB_TRANSITIONS: TransitionTable<JobStatus> = {
+const JOB_TRANSITIONS: TransitionTable<JobStatus> = {
   awaiting_confirmation: ['scheduled', 'cancelled'],
   scheduled: ['in_progress', 'completed', 'cancelled'],
   in_progress: ['completed'],
@@ -15,7 +15,7 @@ export const JOB_TRANSITIONS: TransitionTable<JobStatus> = {
   cancelled: [],
 };
 
-export function canTransitionJob(from: JobStatus, to: JobStatus): boolean {
+function canTransitionJob(from: JobStatus, to: JobStatus): boolean {
   return canTransition(JOB_TRANSITIONS, from, to);
 }
 
@@ -44,8 +44,6 @@ export interface JobActions {
   canReview: boolean;
   /** Chat stays available unless the job was cancelled. */
   canMessage: boolean;
-  /** Customer cancels (through the request) before the work started. */
-  canCancel: boolean;
 }
 
 export function getJobActions(
@@ -54,13 +52,11 @@ export function getJobActions(
   { hasReview }: { hasReview: boolean },
 ): JobActions {
   const isPro = role === 'professional';
-  const isCustomer = role === 'customer';
   return {
     canConfirm: isPro && job.status === 'awaiting_confirmation',
     canStart: isPro && job.status === 'scheduled',
     canComplete: canTransitionJob(job.status, 'completed'),
-    canReview: isCustomer && job.status === 'completed' && !hasReview,
+    canReview: role === 'customer' && job.status === 'completed' && !hasReview,
     canMessage: job.status !== 'cancelled',
-    canCancel: isCustomer && (job.status === 'awaiting_confirmation' || job.status === 'scheduled'),
   };
 }

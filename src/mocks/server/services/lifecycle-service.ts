@@ -86,7 +86,7 @@ function setRequestStatus(
  * Recomputes `offerCount` / `pendingOfferCount` and flips `open ⇄ offers_received` when the number
  * of pending offers crosses zero.
  */
-export function syncRequestOffers(ctx: ServerContext, requestId: string): ServiceRequest {
+function syncRequestOffers(ctx: ServerContext, requestId: string): ServiceRequest {
   const request = requireRequest(ctx.db, requestId);
   const stats = computeRequestOfferStats(offersForRequest(ctx.db, requestId));
   const status = requestStatusForPendingOffers(request.status, stats.pendingOfferCount);

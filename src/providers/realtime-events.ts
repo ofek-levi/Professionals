@@ -87,7 +87,7 @@ export function applyRealtimeEvent(qc: CacheClient, userId: string, event: Realt
   }
 }
 
-export interface BannerContext {
+interface BannerContext {
   /** The recipient's preferences, when loaded (`null` = unknown → show). */
   preferences: NotificationPreferences | null;
   /** Conversation currently open on screen (its messages are visible already). */

@@ -2,7 +2,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { CategoryChip } from '@/components/categories';
-import { AppText, Avatar, Badge, Card, Chip, Icon } from '@/components/ui';
+import { AppText, Avatar, Card, Chip, Icon } from '@/components/ui';
 import { useLocalizedText } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import type { DemoAccount } from '@/types/domain';
@@ -10,7 +10,7 @@ import type { DemoAccount } from '@/types/domain';
 /** Categories shown on a professional's card before collapsing into "+N". */
 const MAX_VISIBLE_CATEGORIES = 3;
 
-export interface DemoAccountCardProps {
+interface DemoAccountCardProps {
   account: DemoAccount;
   onPress: () => void;
   /** This account is signing in. */
@@ -46,34 +46,21 @@ export function DemoAccountCard({ account, onPress, loading = false, disabled = 
           <AppText variant="subheading" numberOfLines={1}>
             {account.displayName}
           </AppText>
-          <View style={styles.metaRow}>
-            <Badge
-              label={roleLabel}
-              tone={isProfessional ? 'accent' : 'brand'}
-              icon={isProfessional ? 'hammer-wrench' : 'account-outline'}
-              size="sm"
-            />
-            {account.city ? (
-              <View style={styles.city}>
-                <Icon name="map-marker-outline" size={14} color="muted" />
-                <AppText variant="caption" color="secondary" numberOfLines={1} style={styles.shrink}>
-                  {account.city}
-                </AppText>
-              </View>
-            ) : null}
-          </View>
+          {account.city ? (
+            <AppText variant="caption" color="secondary" numberOfLines={1}>
+              {account.city}
+            </AppText>
+          ) : null}
         </View>
         {loading ? (
           <ActivityIndicator color={theme.colors.primary} accessibilityLabel={t('auth:signIn.signingIn')} />
         ) : (
-          <View style={styles.chevron}>
-            <Icon name="chevron-right" size={20} color="primary" flipInRTL />
-          </View>
+          <Icon name="chevron-right" size={20} color="muted" flipInRTL />
         )}
       </View>
 
       {description ? (
-        <AppText variant="body" color="secondary" style={styles.description}>
+        <AppText variant="caption" color="secondary" numberOfLines={2} style={styles.description}>
           {description}
         </AppText>
       ) : null}
@@ -105,29 +92,6 @@ const useStyles = makeStyles((t) => ({
   identity: {
     flex: 1,
     gap: t.spacing.xs,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: t.spacing.sm,
-  },
-  city: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.xxs,
-    flexShrink: 1,
-  },
-  shrink: {
-    flexShrink: 1,
-  },
-  chevron: {
-    width: 32,
-    height: 32,
-    borderRadius: t.radii.pill,
-    backgroundColor: t.colors.primarySoft,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   description: {
     marginTop: t.spacing.md,

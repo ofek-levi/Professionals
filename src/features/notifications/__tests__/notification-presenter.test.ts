@@ -1,10 +1,13 @@
 import { NOTIFICATION_TYPE_META, NOTIFICATION_TYPES, type NotificationType } from '@/constants/notification-types';
 import { i18n, initI18n } from '@/i18n';
 import type { AppLanguage } from '@/types/domain';
-import { isolateText, stripIsolates } from '@/utils/bidi';
+import { isolateText } from '@/utils/bidi';
 
 import { buildNotification, type NotificationInput } from '../notification-factory';
 import { getNotificationContent, type NotificationLookups } from '../notification-presenter';
+
+/** The text without directional isolate marks. */
+const stripIsolates = (text: string) => text.replace(/[\u2066-\u2069]/g, '');
 
 const offer = { id: 'off_1', requestId: 'req_1', price: 450, currency: 'ILS' as const, proposedStartAt: '2026-09-30T07:00:00.000Z' };
 const job = {
@@ -127,6 +130,6 @@ describe('getNotificationContent', () => {
       lookups,
     );
     expect(content.title).toBe('New service request nearby');
-    expect(content.body).toContain('in your service area');
+    expect(content.body).toBe('In your service area');
   });
 });

@@ -3,10 +3,9 @@ import { initI18n } from '@/i18n';
 import {
   formatCurrency,
   formatDate,
+  formatDateLabel,
   formatDateTime,
-  formatDayLabel,
   formatDistanceKm,
-  formatDuration,
   formatRelative,
   formatTime,
   getCurrencySymbol,
@@ -47,26 +46,26 @@ describe('utils/format', () => {
   });
 
   it('uses relative day labels', () => {
-    expect(formatDayLabel(now, 'en', now)).toBe('Today');
-    expect(formatDayLabel(new Date(2026, 8, 28), 'en', now)).toBe('Tomorrow');
-    expect(formatDayLabel(new Date(2026, 8, 28), 'he', now)).toBe('מחר');
-    expect(formatDayLabel(new Date(2026, 8, 30), 'en', now)).toBe('Wednesday');
-    expect(formatDayLabel(new Date(2026, 9, 20), 'en', now)).toBe('Oct 20');
+    expect(formatDateLabel(now, 'en', { now })).toBe('Today');
+    expect(formatDateLabel(new Date(2026, 8, 28), 'en', { now })).toBe('Tomorrow');
+    expect(formatDateLabel(new Date(2026, 8, 28), 'he', { now })).toBe('מחר');
+    expect(formatDateLabel(new Date(2026, 8, 30), 'en', { now })).toBe('Wed, Sep 30');
+    expect(formatDateLabel(new Date(2026, 8, 28), 'en', { now, relativeDay: false, preset: 'dayMonth' })).toBe('Sep 28');
     expect(formatDateTime(new Date(2026, 8, 28, 9, 0), 'en', { now })).toBe('Tomorrow at 09:00');
     expect(formatDateTime(new Date(2026, 8, 28, 9, 0), 'he', { now })).toBe('מחר בשעה 09:00');
   });
 
   it('lower-cases relative words for use inside a sentence', () => {
     const tomorrowMorning = new Date(2026, 8, 28, 9, 0);
-    expect(formatDayLabel(now, 'en', now, { casing: 'inline' })).toBe('today');
-    expect(formatDayLabel(new Date(2026, 8, 26), 'en', now, { casing: 'inline' })).toBe('yesterday');
+    expect(formatDateLabel(now, 'en', { now, casing: 'inline' })).toBe('today');
+    expect(formatDateLabel(new Date(2026, 8, 26), 'en', { now, casing: 'inline' })).toBe('yesterday');
     expect(formatDateTime(tomorrowMorning, 'en', { now, casing: 'inline' })).toBe('tomorrow at 09:00');
     expect(formatDateTime(tomorrowMorning, 'en', { now, casing: 'sentence' })).toBe('Tomorrow at 09:00');
     expect(formatDateTime(tomorrowMorning, 'he', { now, casing: 'inline' })).toBe('מחר בשעה 09:00');
     expect(formatRelative(new Date(now.getTime() - 20_000), 'en', now, { casing: 'inline' })).toBe('just now');
     expect(formatRelative(new Date(now.getTime() - 20_000), 'he', now, { casing: 'inline' })).toBe('הרגע');
-    // Weekday names and dates keep their own casing.
-    expect(formatDayLabel(new Date(2026, 8, 30), 'en', now, { casing: 'inline' })).toBe('Wednesday');
+    // Dates keep their own casing.
+    expect(formatDateLabel(new Date(2026, 8, 30), 'en', { now, casing: 'inline' })).toBe('Wed, Sep 30');
     expect(formatRelative(new Date(now.getTime() - 5 * 60_000), 'en', now, { casing: 'inline' })).toBe('5 minutes ago');
   });
 
@@ -75,13 +74,5 @@ describe('utils/format', () => {
     expect(formatRelative(new Date(now.getTime() - 5 * 60_000), 'en', now)).toBe('5 minutes ago');
     expect(formatRelative(new Date(now.getTime() - 5 * 60_000), 'he', now)).toBe('לפני 5 דקות');
     expect(formatRelative(new Date(now.getTime() + 3 * 3_600_000), 'en', now)).toBe('in 3 hours');
-  });
-
-  it('formats durations with Hebrew dual forms', () => {
-    expect(formatDuration(30, 'en')).toBe('30 minutes');
-    expect(formatDuration(60, 'en')).toBe('1 hour');
-    expect(formatDuration(90, 'en')).toBe('1h 30m');
-    expect(formatDuration(120, 'he')).toBe('שעתיים');
-    expect(formatDuration(45, 'en', 'short')).toBe('45m');
   });
 });

@@ -5,19 +5,9 @@ import { buildTimeSlots } from '../time-slots';
 jest.mock('@/services/api', () => ({ api: {} }));
 
 describe('buildTimeSlots', () => {
-  const now = new Date(2026, 8, 27, 13, 10);
-
-  it('creates 30 minute slots in the range', () => {
-    const slots = buildTimeSlots({ start: '08:00', end: '10:00', stepMinutes: 30, now });
-    expect(slots.map((slot) => slot.time)).toEqual(['08:00', '08:30', '09:00', '09:30']);
-    expect(slots.every((slot) => !slot.disabled)).toBe(true);
-  });
-
-  it('disables past slots (plus lead time) for today only', () => {
-    const today = buildTimeSlots({ start: '13:00', end: '15:00', stepMinutes: 30, date: '2026-09-27', now, minLeadMinutes: 30 });
-    expect(today.filter((slot) => slot.disabled).map((slot) => slot.time)).toEqual(['13:00', '13:30']);
-    const tomorrow = buildTimeSlots({ start: '13:00', end: '15:00', stepMinutes: 30, date: '2026-09-28', now, minLeadMinutes: 30 });
-    expect(tomorrow.some((slot) => slot.disabled)).toBe(false);
+  it('creates slots in the range (end excluded)', () => {
+    expect(buildTimeSlots({ start: '08:00', end: '10:00', stepMinutes: 30 })).toEqual(['08:00', '08:30', '09:00', '09:30']);
+    expect(buildTimeSlots({ start: '22:00', end: '23:59', stepMinutes: 60 })).toEqual(['22:00', '23:00']);
   });
 });
 

@@ -63,12 +63,10 @@ function RootStack() {
           <Stack.Screen name="requests/new" options={{ title: t('screens.newRequest') }} />
           <Stack.Screen name="requests/[requestId]/index" options={{ title: t('screens.requestDetails') }} />
           <Stack.Screen name="requests/[requestId]/offer" options={{ title: t('screens.submitOffer') }} />
-          <Stack.Screen name="offers/[offerId]" options={{ title: t('screens.offerDetails') }} />
           <Stack.Screen name="professionals/[professionalId]/index" options={{ title: t('screens.professionalProfile') }} />
           <Stack.Screen name="professionals/[professionalId]/reviews" options={{ title: t('screens.professionalReviews') }} />
           <Stack.Screen name="jobs/[jobId]/index" options={{ title: t('screens.jobDetails') }} />
           <Stack.Screen name="jobs/[jobId]/review" options={{ title: t('screens.leaveReview') }} />
-          <Stack.Screen name="conversations/index" options={{ title: t('screens.conversations') }} />
           <Stack.Screen name="conversations/[conversationId]" options={{ title: t('screens.conversation') }} />
           <Stack.Screen name="profile/edit" options={{ title: t('screens.editProfile') }} />
           <Stack.Screen name="settings" options={{ title: t('screens.settings') }} />

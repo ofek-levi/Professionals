@@ -32,8 +32,4 @@ function MockChild({ children, ...rest }: MockProps) {
 
 export const Marker = MockChild;
 export const Circle = MockChild;
-export const Polyline = MockChild;
-export const Polygon = MockChild;
-export const Callout = MockChild;
 export const PROVIDER_DEFAULT = undefined;
-export const PROVIDER_GOOGLE = 'google';

@@ -2,12 +2,12 @@
 import type { z } from 'zod';
 
 /** Key used for issues that are not attached to a field (matches react-hook-form's `root`). */
-export const ROOT_FIELD_KEY = 'root';
+const ROOT_FIELD_KEY = 'root';
 
 type IssueLike = Pick<z.core.$ZodIssue, 'path' | 'message'>;
 
 /** Dotted path of an issue, e.g. `location.addressLine`, `photos.2.uri`. */
-export function issuePathToKey(path: readonly PropertyKey[]): string {
+function issuePathToKey(path: readonly PropertyKey[]): string {
   return path.length > 0 ? path.map((segment) => String(segment)).join('.') : ROOT_FIELD_KEY;
 }
 
@@ -21,9 +21,4 @@ export function zodIssuesToFieldErrors(error: z.ZodError | { issues: readonly Is
     result[key] = messages;
   }
   return result;
-}
-
-/** First message for a field path, if any. */
-export function firstFieldError(fieldErrors: Record<string, string[]> | undefined, path: string): string | undefined {
-  return fieldErrors?.[path]?.[0];
 }

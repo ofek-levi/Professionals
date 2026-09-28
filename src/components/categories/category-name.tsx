@@ -5,7 +5,7 @@ import type { CategoryId } from '@/types/domain';
 
 import { AppText, type AppTextProps } from '../ui/app-text';
 
-export interface CategoryNameProps extends Omit<AppTextProps, 'children'> {
+interface CategoryNameProps extends Omit<AppTextProps, 'children'> {
   categoryId: CategoryId | string | null | undefined;
 }
 

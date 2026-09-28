@@ -19,8 +19,8 @@ type MatchableRequest = Pick<ServiceRequest, 'status' | 'categoryId' | 'location
 export type WithDistance<T> = T & { distanceKm: number };
 
 /** Approximate locations are moved by a deterministic 250–450 m offset. */
-export const APPROXIMATE_LOCATION_MIN_OFFSET_M = 250;
-export const APPROXIMATE_LOCATION_MAX_OFFSET_M = 450;
+const APPROXIMATE_LOCATION_MIN_OFFSET_M = 250;
+const APPROXIMATE_LOCATION_MAX_OFFSET_M = 450;
 
 export function isRequestOpenForOffers(request: Pick<ServiceRequest, 'status'>): boolean {
   return requestAcceptsOffers(request.status);
@@ -46,27 +46,9 @@ export function isRequestMatchForProfessional(request: MatchableRequest, pro: Ma
   );
 }
 
-/** A request is delivered to a professional when it accepts offers and matches category + area. */
-export function isRequestVisibleToProfessional(request: MatchableRequest, pro: MatchableProfessional): boolean {
-  return isRequestOpenForOffers(request) && isRequestMatchForProfessional(request, pro);
-}
-
-export interface NearbyFilterContext {
+interface NearbyFilterContext {
   /** Requests on which the professional already has an active (pending/accepted) offer. */
   myActiveOfferRequestIds?: ReadonlySet<string>;
-}
-
-/** True when any narrowing filter (besides sorting/pagination) is set. */
-export function hasActiveNearbyFilters(params: NearbyRequestsParams): boolean {
-  return Boolean(
-    (params.categoryIds && params.categoryIds.length > 0) ||
-      params.maxDistanceKm !== undefined ||
-      (params.urgencies && params.urgencies.length > 0) ||
-      params.preferredDateFrom ||
-      params.preferredDateTo ||
-      (params.offerPresence && params.offerPresence !== 'any') ||
-      params.excludeWithMyOffer,
-  );
 }
 
 /**

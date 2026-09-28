@@ -6,8 +6,8 @@ import type { GeoCoordinates } from '@/types/domain';
 import type { MapRegion } from '@/utils/geo';
 
 const KM_PER_DEGREE_LATITUDE = 110.574;
-export const MIN_LATITUDE_DELTA = 0.002;
-export const MAX_LATITUDE_DELTA = 40;
+const MIN_LATITUDE_DELTA = 0.002;
+const MAX_LATITUDE_DELTA = 40;
 
 export interface Viewport {
   center: GeoCoordinates;
@@ -56,15 +56,6 @@ export function unproject(viewport: Viewport, point: Point): GeoCoordinates {
 /** Pixels per kilometer at the current zoom. */
 export function pixelsPerKm(viewport: Viewport): number {
   return viewport.height / (viewport.latitudeDelta * KM_PER_DEGREE_LATITUDE);
-}
-
-export function viewportToRegion(viewport: Viewport): MapRegion {
-  return {
-    latitude: viewport.center.latitude,
-    longitude: viewport.center.longitude,
-    latitudeDelta: viewport.latitudeDelta,
-    longitudeDelta: longitudeDelta(viewport),
-  };
 }
 
 const NICE_STEPS = [0.0005, 0.001, 0.002, 0.0025, 0.005, 0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10];

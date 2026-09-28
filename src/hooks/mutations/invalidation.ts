@@ -33,7 +33,7 @@ export function invalidateRequestGraph(qc: Invalidator, userId: UserScope, reque
   ]);
 }
 
-export interface OfferRef {
+interface OfferRef {
   offerId?: string | null;
   requestId?: string | null;
 }
@@ -55,7 +55,7 @@ export function invalidateOfferGraph(qc: Invalidator, userId: UserScope, { offer
   ]);
 }
 
-export interface JobRef {
+interface JobRef {
   jobId?: string | null;
   requestId?: string | null;
 }
@@ -100,7 +100,7 @@ export function invalidateConversation(
   ]);
 }
 
-/** A professional's public data (profile, reviews, search results). Without an id: all of them. */
+/** A professional's public data (profile, reviews). Without an id: all of them. */
 export function invalidateProfessional(qc: Invalidator, userId: UserScope, professionalId?: string | null): Promise<void> {
   return invalidateAll(
     qc,
@@ -108,7 +108,6 @@ export function invalidateProfessional(qc: Invalidator, userId: UserScope, profe
       ? [
           queryKeys.professionals.profile(userId, professionalId),
           queryKeys.professionals.reviewsOf(userId, professionalId),
-          queryKeys.professionals.searches(userId),
         ]
       : [queryKeys.professionals.all(userId)],
   );

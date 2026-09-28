@@ -25,7 +25,7 @@ import { buildNavigationTheme } from './navigation-theme';
 import { RealtimeProvider } from './realtime-provider';
 
 /** Resolves the effective scheme from the user preference and the device setting. */
-export function resolveColorScheme(preference: ColorSchemePreference, system: string | null | undefined): 'light' | 'dark' {
+function resolveColorScheme(preference: ColorSchemePreference, system: string | null | undefined): 'light' | 'dark' {
   if (preference !== 'system') return preference;
   return system === 'dark' ? 'dark' : 'light';
 }

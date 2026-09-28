@@ -10,9 +10,7 @@ import {
   formatDate,
   formatDateLabel,
   formatDateTime,
-  formatDayLabel,
   formatDistanceKm,
-  formatDuration,
   formatNumber,
   formatRelative,
   formatTime,
@@ -57,8 +55,7 @@ export function useCategoryName(id: CategoryId | string | null | undefined): str
 }
 
 /** `utils/format` functions bound to the active language. */
-export interface Formatters {
-  language: AppLanguage;
+interface Formatters {
   number: (value: number, maximumFractionDigits?: number) => string;
   currency: (amount: number, currency: CurrencyCode | string) => string;
   currencySymbol: (currency: CurrencyCode | string) => string;
@@ -70,14 +67,11 @@ export interface Formatters {
   dateTime: (value: DateLike, options?: FormatDateTimeOptions) => string;
   /** `options.casing: 'inline'` for use inside a sentence ("Started just now"). */
   relative: (value: DateLike, now?: Date, options?: CasingOptions) => string;
-  dayLabel: (value: DateLike, now?: Date, options?: CasingOptions) => string;
-  duration: (minutes: number, style?: 'long' | 'short') => string;
 }
 
 export function useFormatters(): Formatters {
   const language = useAppLanguage();
   return {
-    language,
     number: (value, digits) => formatNumber(value, language, digits),
     currency: (amount, currency) => formatCurrency(amount, currency, language),
     currencySymbol: (currency) => getCurrencySymbol(currency, language),
@@ -87,7 +81,5 @@ export function useFormatters(): Formatters {
     time: (value) => formatTime(value, language),
     dateTime: (value, options) => formatDateTime(value, language, options),
     relative: (value, now, options) => formatRelative(value, language, now, options),
-    dayLabel: (value, now, options) => formatDayLabel(value, language, now, options),
-    duration: (minutes, style) => formatDuration(minutes, language, style),
   };
 }

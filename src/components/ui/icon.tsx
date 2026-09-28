@@ -16,15 +16,15 @@ export type IconSource = IconName | (string & {});
 
 const FALLBACK_ICON: IconName = 'shape-outline';
 
-export function isIconName(name: string): name is IconName {
+function isIconName(name: string): name is IconName {
   return Object.prototype.hasOwnProperty.call(MaterialCommunityIcons.glyphMap, name);
 }
 
-export function resolveIconName(name: IconSource, fallback: IconName = FALLBACK_ICON): IconName {
+function resolveIconName(name: IconSource, fallback: IconName = FALLBACK_ICON): IconName {
   return isIconName(name) ? name : fallback;
 }
 
-export interface IconProps {
+interface IconProps {
   name: IconSource;
   /** Glyph size in points. Defaults to 20. */
   size?: number;

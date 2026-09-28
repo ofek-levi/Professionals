@@ -61,16 +61,15 @@ export interface AppMapProps {
   onMarkerPress?: (id: string) => void;
   /** Tap on an empty spot of the map. */
   onPress?: (coordinate: GeoCoordinates) => void;
-  onRegionChangeComplete?: (region: MapRegion) => void;
   /** A draggable location pin (location picker). */
   draggablePin?: AppMapDraggablePin;
-  showsUserLocation?: boolean;
-  /** Fit the initial viewport to all markers (+ circles and pin). */
-  fitToMarkers?: boolean;
   /** Zoom buttons (always shown on web; optional on native). */
   showZoomControls?: boolean;
-  /** Disable panning/zooming (static preview maps). */
-  interactive?: boolean;
+  /**
+   * Web only: the small "Preview map" note in the bottom corner (default `true`). Hide it while
+   * something covers the bottom of the map, e.g. a floating preview card.
+   */
+  showPreviewBadge?: boolean;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
   testID?: string;

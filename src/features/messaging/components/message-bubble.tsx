@@ -8,7 +8,7 @@ import { alignForText } from '@/utils/bidi';
 
 import type { ChatMessageRow, FailedMessage, MessageDeliveryState } from './chat-model';
 
-export interface MessageBubbleProps {
+interface MessageBubbleProps {
   row: ChatMessageRow;
   counterpartName: string;
   onRetry: (message: FailedMessage) => void;
@@ -110,13 +110,13 @@ export function MessageBubble({ row, counterpartName, onRetry, onDiscard }: Mess
   );
 }
 
-const BUBBLE_RADIUS = 18;
+const BUBBLE_RADIUS = 20;
 const JOINED_RADIUS = 6;
 
 const useStyles = makeStyles((t) => ({
   container: {
-    maxWidth: '82%',
-    marginTop: t.spacing.sm + 2,
+    maxWidth: '80%',
+    marginTop: t.spacing.md,
   },
   containerMine: {
     alignSelf: 'flex-end',
@@ -138,19 +138,17 @@ const useStyles = makeStyles((t) => ({
   },
   bubble: {
     paddingHorizontal: t.spacing.md + 2,
-    paddingTop: t.spacing.sm,
-    paddingBottom: t.spacing.xs + 2,
+    paddingTop: t.spacing.sm + 1,
+    paddingBottom: t.spacing.sm - 1,
     borderRadius: BUBBLE_RADIUS,
     gap: t.spacing.xxs,
   },
   mine: {
-    backgroundColor: t.colors.primary,
+    backgroundColor: t.colors.primaryFill,
     borderBottomEndRadius: JOINED_RADIUS,
   },
   theirs: {
     backgroundColor: t.colors.surface,
-    borderWidth: 1,
-    borderColor: t.colors.border,
     borderBottomStartRadius: JOINED_RADIUS,
   },
   mineJoinedTop: {

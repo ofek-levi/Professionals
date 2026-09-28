@@ -10,7 +10,7 @@ import { CANCEL_COMMENT_MAX_LENGTH, cancelRequestSchema } from '@/lib/validation
 import { makeStyles, useTheme } from '@/theme';
 import { REQUEST_CANCELLATION_REASONS, type CustomerRequestView } from '@/types/domain';
 
-export interface CancelRequestSheetProps {
+interface CancelRequestSheetProps {
   request: CustomerRequestView;
   visible: boolean;
   onClose: () => void;
@@ -44,14 +44,13 @@ export function CancelRequestSheet({ request, visible, onClose }: CancelRequestS
       confirmLabel: t('customer:cancel.confirmLabel'),
       cancelLabel: t('customer:cancel.keep'),
       destructive: true,
-      icon: 'close-circle-outline',
     });
     if (!confirmed) return;
     try {
       await cancelRequest.mutateAsync({ requestId: request.id, payload: values });
       onClose();
       reset();
-      toast.show({ title: t('customer:cancel.success'), tone: 'neutral', icon: 'close-circle-outline' });
+      toast.show({ title: t('customer:cancel.success'), tone: 'neutral' });
     } catch (error) {
       showError(error);
     }
@@ -99,7 +98,7 @@ export function CancelRequestSheet({ request, visible, onClose }: CancelRequestS
                     testID={`cancel-reason-${reason}`}
                     style={({ pressed }) => [
                       styles.reason,
-                      selected ? { borderColor: theme.colors.danger, backgroundColor: theme.colors.dangerSoft } : null,
+                      selected ? { backgroundColor: theme.colors.dangerSoft } : null,
                       pressed ? styles.pressed : null,
                     ]}
                   >
@@ -131,7 +130,6 @@ export function CancelRequestSheet({ request, visible, onClose }: CancelRequestS
           multiline
           minRows={3}
           maxLength={CANCEL_COMMENT_MAX_LENGTH}
-          showCounter
         />
       </View>
     </Sheet>
@@ -153,8 +151,6 @@ const useStyles = makeStyles((t) => ({
     minHeight: 50,
     paddingHorizontal: t.spacing.md,
     borderRadius: t.radii.md,
-    borderWidth: 1,
-    borderColor: t.colors.border,
     backgroundColor: t.colors.surface,
   },
   pressed: {

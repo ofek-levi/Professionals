@@ -1,7 +1,7 @@
 import { createDefaultAvailability } from '@/features/profiles/availability';
 import type { ProfessionalProfile } from '@/types/domain';
 
-import { isValidPhone, isValidWebsite } from '../common';
+import { isValidWebsite, phoneSchema } from '../common';
 import { zodIssuesToFieldErrors } from '../field-errors';
 import {
   customerProfileFormSchema,
@@ -45,9 +45,9 @@ const errorsOf = (values: ProfessionalProfileFormValues) => {
 describe('contact helpers', () => {
   it('accepts Israeli and international phone numbers', () => {
     for (const phone of ['050-712-3456', '0507123456', '+972-50-712-3456', '03-5123456', '+1 (415) 555-0100']) {
-      expect(isValidPhone(phone)).toBe(true);
+      expect(phoneSchema.safeParse(phone).success).toBe(true);
     }
-    for (const phone of ['12345', '050-12', 'abc', '+0123456789']) expect(isValidPhone(phone)).toBe(false);
+    for (const phone of ['12345', '050-12', 'abc', '+0123456789']) expect(phoneSchema.safeParse(phone).success).toBe(false);
   });
 
   it('accepts websites with or without scheme', () => {

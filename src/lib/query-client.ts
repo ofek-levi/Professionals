@@ -12,8 +12,8 @@ import { AppState, Platform, type AppStateStatus } from 'react-native';
 
 import { toApiError } from '@/services/api/errors';
 
-export const QUERY_STALE_TIME_MS = 30_000;
-export const QUERY_GC_TIME_MS = 10 * 60_000;
+const QUERY_STALE_TIME_MS = 30_000;
+const QUERY_GC_TIME_MS = 10 * 60_000;
 /** Maximum number of automatic retries for a failed query. */
 export const MAX_QUERY_RETRIES = 2;
 

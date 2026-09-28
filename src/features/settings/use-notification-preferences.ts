@@ -5,13 +5,12 @@ import type { NotificationPreferences, UserRole } from '@/types/domain';
 export type NotificationPreferenceKey = keyof NotificationPreferences;
 
 /** Toggles shown per role, in display order (`newRequests` only matters to professionals). */
-export const NOTIFICATION_PREFERENCE_KEYS: Record<UserRole, readonly NotificationPreferenceKey[]> = {
+const NOTIFICATION_PREFERENCE_KEYS: Record<UserRole, readonly NotificationPreferenceKey[]> = {
   customer: ['pushEnabled', 'jobUpdates', 'messages', 'reminders', 'emailEnabled'],
   professional: ['pushEnabled', 'newRequests', 'jobUpdates', 'messages', 'reminders', 'emailEnabled'],
 };
 
-export interface NotificationPreferencesState {
-  role: UserRole | null;
+interface NotificationPreferencesState {
   preferences: NotificationPreferences | null;
   keys: readonly NotificationPreferenceKey[];
   isLoading: boolean;
@@ -42,7 +41,6 @@ export function useNotificationPreferences(): NotificationPreferencesState {
   };
 
   return {
-    role,
     preferences,
     keys: role ? NOTIFICATION_PREFERENCE_KEYS[role] : [],
     isLoading: currentUser.isPending,
