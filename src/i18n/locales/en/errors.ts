@@ -16,6 +16,14 @@ export const errors = {
       title: 'Please sign in again',
       description: 'Your session has expired. Sign in to continue.',
     },
+    INVALID_CREDENTIALS: {
+      title: 'Wrong email or password',
+      description: 'Check your email and password and try again, or reset your password.',
+    },
+    INVALID_GOOGLE_TOKEN: {
+      title: 'Google sign-in didn’t work',
+      description: 'We couldn’t verify your Google account. Please try again.',
+    },
     FORBIDDEN: {
       title: 'No access',
       description: 'You don’t have permission to view or change this.',
@@ -31,6 +39,10 @@ export const errors = {
     CONFLICT: {
       title: 'Something changed',
       description: 'This was updated in the meantime. Refresh and try again.',
+    },
+    EMAIL_ALREADY_REGISTERED: {
+      title: 'This email is already registered',
+      description: 'Sign in with this email instead, or use a different one.',
     },
     INVALID_STATE_TRANSITION: {
       title: 'This action is no longer available',

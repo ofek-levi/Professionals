@@ -1,5 +1,5 @@
 import { createDefaultAvailability } from '@/features/profiles/availability';
-import type { ProfessionalProfile } from '@/types/domain';
+import type { OwnProfessionalProfile } from '@/types/domain';
 
 import { isValidWebsite, phoneSchema } from '../common';
 import { zodIssuesToFieldErrors } from '../field-errors';
@@ -15,7 +15,7 @@ import {
   type ProfessionalProfileFormValues,
 } from '../profile';
 
-const profile: ProfessionalProfile = {
+const profile: Omit<OwnProfessionalProfile, 'notificationPreferences'> = {
   id: 'pro_1',
   userId: 'pro_1',
   fullName: 'Avi Mizrahi',

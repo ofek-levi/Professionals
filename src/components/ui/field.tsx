@@ -22,16 +22,41 @@ interface FieldProps {
   style?: StyleProp<ViewStyle>;
   /** Links the label to the control for web accessibility. */
   nativeID?: string;
+  /**
+   * Trailing element on the label row, e.g. a "Forgot password?" link. Unlike content under the
+   * control, it doesn't move when an error appears (so a tap on it isn't lost to the shift).
+   */
+  labelAccessory?: ReactNode;
+  /**
+   * Where the error shows: under the control (default) or right under the label – for tall
+   * controls (a long list, a map) whose bottom edge is far from where the problem is fixed.
+   * The helper text and counter always stay under the control.
+   */
+  errorPosition?: 'bottom' | 'top';
 }
 
 /**
  * Label + control + helper/error layout shared by every form control (text fields, pickers,
  * chips…), so all fields look and space the same.
  */
-export function Field({ label, required, optional, helperText, error, counter, children, style, nativeID }: FieldProps) {
+export function Field({
+  label,
+  required,
+  optional,
+  helperText,
+  error,
+  counter,
+  children,
+  style,
+  nativeID,
+  labelAccessory,
+  errorPosition = 'bottom',
+}: FieldProps) {
   const styles = useStyles();
   const { t } = useTranslation('common');
-  const hasFooter = Boolean(error || helperText || counter);
+  const errorOnTop = errorPosition === 'top' && Boolean(error);
+  const footerError = errorOnTop ? null : error;
+  const hasFooter = Boolean(footerError || helperText || counter);
 
   return (
     <View style={[styles.container, style]}>
@@ -42,18 +67,15 @@ export function Field({ label, required, optional, helperText, error, counter, c
             {required ? <AppText variant="captionStrong" color="danger">{` *`}</AppText> : null}
             {optional && !required ? <AppText variant="caption" color="muted">{` · ${t('optional')}`}</AppText> : null}
           </AppText>
+          {labelAccessory}
         </View>
       ) : null}
+      {errorOnTop ? <FieldError message={error ?? ''} standalone /> : null}
       {children}
       {hasFooter ? (
         <View style={styles.footer}>
-          {error ? (
-            <View style={styles.message} accessibilityLiveRegion="polite" accessibilityRole="alert">
-              <Icon name="alert-circle" size={14} color="danger" />
-              <AppText variant="caption" color="danger" style={styles.messageText}>
-                {error}
-              </AppText>
-            </View>
+          {footerError ? (
+            <FieldError message={footerError} />
           ) : helperText ? (
             <AppText variant="caption" color="muted" style={styles.messageText}>
               {helperText}
@@ -68,6 +90,19 @@ export function Field({ label, required, optional, helperText, error, counter, c
           ) : null}
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/** The error line; `standalone` when it is not in the footer row (next to a counter). */
+function FieldError({ message, standalone = false }: { message: string; standalone?: boolean }) {
+  const styles = useStyles();
+  return (
+    <View style={standalone ? styles.messageStandalone : styles.message} accessibilityLiveRegion="polite" accessibilityRole="alert">
+      <Icon name="alert-circle" size={14} color="danger" />
+      <AppText variant="caption" color="danger" style={styles.messageText}>
+        {message}
+      </AppText>
     </View>
   );
 }
@@ -91,6 +126,12 @@ const useStyles = makeStyles((t) => ({
   },
   message: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: t.spacing.xs,
+  },
+  // Not in the footer row: sized by its content (no `flex`, which would zero its height in a column).
+  messageStandalone: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: t.spacing.xs,

@@ -1,6 +1,8 @@
 /**
  * Framework-agnostic store for the authenticated session (access token + identity).
- * Persisted with AsyncStorage the same way a real JWT/refresh token would be.
+ * Persisted with AsyncStorage (plain `localStorage` on web) – fine for the demo tokens. With a real
+ * backend keep the token in `expo-secure-store` on iOS/Android and in an httpOnly cookie (or in
+ * memory + a refresh cookie) on the web: docs/BACKEND_INTEGRATION.md §3 "Token storage".
  * React components read it through `useSession()` (features/auth).
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';

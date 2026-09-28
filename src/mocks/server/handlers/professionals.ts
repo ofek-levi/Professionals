@@ -50,7 +50,7 @@ export const professionalsRoutes = [
     method: 'GET',
     path: '/professionals/:professionalId',
     auth: 'user',
-    handler: ({ ctx, params }) => toPublicProfessionalProfile(requireProfessional(ctx.db, params.professionalId)),
+    handler: ({ ctx, params, actor }) => toPublicProfessionalProfile(ctx, requireProfessional(ctx.db, params.professionalId), actor),
   }),
   route({
     method: 'GET',

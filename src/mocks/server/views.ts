@@ -73,10 +73,31 @@ export function toProfessionalSummary(profile: ProfessionalProfile): Professiona
   };
 }
 
-/** Public profile: private notification settings are stripped. */
-export function toPublicProfessionalProfile(profile: OwnProfessionalProfile): ProfessionalProfile {
+/** Whether `viewer` may see the professional's contact details: they hired them (or it's them). */
+function canSeeProfessionalContact(ctx: ServerContext, profile: OwnProfessionalProfile, viewer: Actor): boolean {
+  if (viewer.role === 'professional') return viewer.professional.id === profile.id;
+  return ctx.db.jobs.find((job) => job.professionalId === profile.id && job.customerId === viewer.userId) !== undefined;
+}
+
+/**
+ * Public profile, as `viewer` sees it: private notification settings are stripped, the base
+ * address and the service-area center are approximate (a professional's base is often their home),
+ * and the contact details (phone and sign-in-style email) only reach customers who hired them.
+ */
+export function toPublicProfessionalProfile(ctx: ServerContext, profile: OwnProfessionalProfile, viewer: Actor): ProfessionalProfile {
   const { notificationPreferences: _notificationPreferences, ...publicProfile } = profile;
-  return publicProfile;
+  if (viewer.role === 'professional' && viewer.professional.id === profile.id) return publicProfile;
+  const { center, label } = profile.serviceArea;
+  const approximateCenter = approximateLocation(
+    { coordinates: center, addressLine: '', city: label, neighborhood: null, details: null, isApproximate: false },
+    profile.id,
+  ).coordinates;
+  return {
+    ...publicProfile,
+    serviceArea: { ...profile.serviceArea, center: approximateCenter },
+    baseLocation: profile.baseLocation ? approximateLocation(profile.baseLocation, profile.id) : null,
+    contact: canSeeProfessionalContact(ctx, profile, viewer) ? profile.contact : null,
+  };
 }
 
 function toCustomerSummary(ctx: ServerContext, customerId: string): CustomerSummary {

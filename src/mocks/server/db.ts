@@ -24,7 +24,8 @@ import type {
   UserRole,
 } from '@/types/domain';
 
-export const MOCK_DB_SCHEMA_VERSION = 3;
+/** Bump whenever stored rows change shape: persisted data of another version is re-seeded. */
+export const MOCK_DB_SCHEMA_VERSION = 5;
 const MOCK_DB_STORAGE_KEY = '@professionals/mock-db/v1';
 
 // ────────────────────────────── Stored row types ──────────────────────────────
@@ -63,6 +64,29 @@ interface StoredUpload {
   createdAt: ISODateTimeString;
 }
 
+/**
+ * Sign-in credentials of an account, keyed by the lower-cased email. Plaintext passwords are never
+ * stored – only a salted hash (see `server/passwords.ts`).
+ */
+export interface StoredCredential {
+  /** Lower-cased email (primary key). */
+  email: string;
+  userId: EntityId;
+  /** `sha256$<salt>$<hex digest>`; `null` for accounts that only sign in with Google. */
+  passwordHash: string | null;
+  /** Google account id (`sub`) linked to the account, if any. */
+  googleSubject: string | null;
+  /**
+   * Whether the owner of the email proved it: `true` for Google sign-ups (Google verified it) and
+   * seeded accounts; `false` for password sign-ups (the mock never sends a verification email).
+   * An unverified password never survives a Google sign-in with the same email (see
+   * `signInWithGoogle`).
+   */
+  emailVerified: boolean;
+  createdAt: ISODateTimeString;
+  updatedAt: ISODateTimeString;
+}
+
 interface StoredDevice {
   id: EntityId;
   userId: EntityId;
@@ -84,6 +108,7 @@ export interface DatabaseTables {
   messages: Message[];
   uploads: StoredUpload[];
   devices: StoredDevice[];
+  credentials: StoredCredential[];
 }
 
 type TableName = keyof DatabaseTables;
@@ -110,6 +135,7 @@ export function emptyTables(): DatabaseTables {
     messages: [],
     uploads: [],
     devices: [],
+    credentials: [],
   };
 }
 
@@ -233,6 +259,7 @@ export class MockDatabase {
   readonly messages: Table<Message>;
   readonly uploads: Table<StoredUpload>;
   readonly devices: Table<StoredDevice>;
+  readonly credentials: Table<StoredCredential>;
 
   /** Clock value the current data set was generated for. */
   seededAt: ISODateTimeString = new Date(0).toISOString();
@@ -253,6 +280,7 @@ export class MockDatabase {
     this.messages = new Table('messages', byId, changed);
     this.uploads = new Table('uploads', byId, changed);
     this.devices = new Table('devices', byId, changed);
+    this.credentials = new Table('credentials', (row) => row.email, changed);
   }
 
   /** Subscribe to any row change (used for debounced persistence). */
@@ -275,6 +303,7 @@ export class MockDatabase {
       messages: this.messages,
       uploads: this.uploads,
       devices: this.devices,
+      credentials: this.credentials,
     };
   }
 
@@ -304,6 +333,7 @@ export class MockDatabase {
       messages: all.messages.all(),
       uploads: all.uploads.all(),
       devices: all.devices.all(),
+      credentials: all.credentials.all(),
     });
   }
 

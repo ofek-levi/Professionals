@@ -53,15 +53,46 @@ The job map and location pickers use **react-native-maps**
 | `EXPO_PUBLIC_MOCK_FAILURE_RATE` | `0` | Probability (0–1) of simulated network failures |
 | `EXPO_PUBLIC_MOCK_PERSIST` | `true` | Persist the mock database across launches |
 | `GOOGLE_MAPS_ANDROID_API_KEY` | – | Google Maps key for Android native builds |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | – | Google OAuth client id for the web (unset → simulated Google sign-in) |
+| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | – | Google OAuth client id for iOS builds |
+| `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | – | Google OAuth client id for Android builds |
+
+### Google sign-in
+
+"Continue with Google" works in two modes (`src/services/auth/google-auth.ts`):
+
+- **Simulated (default, no setup):** when no client id is set for the current platform, the button
+  opens our own "Continue with Google (demo)" sheet with sample identities (a sample new user and
+  the emails of demo accounts) or "Use another account". It produces a mock id token
+  (`mock-google.<base64url JSON>`) that only the in-app mock backend accepts.
+- **Real Google:** create OAuth client ids in the Google Cloud console (APIs & Services →
+  Credentials → *OAuth client ID*) and set the variables above:
+  - **Web** client: add your web origin (e.g. `http://localhost:8081`) to *Authorized JavaScript
+    origins* and *Authorized redirect URIs*. The popup redirects back to the app, which completes it
+    (`completeGoogleAuthRedirect()` in the root layout).
+  - **iOS** client with the bundle id `com.professionals.marketplace`, **Android** client with the
+    package `com.professionals.marketplace` and your signing certificate's SHA-1.
+  - iOS/Android need a **development or production build** (`npx expo run:ios|android`,
+    `eas build`): Expo Go can't receive Google's native redirect, so it stays in simulated mode.
+    The app scheme is `professionals`; native Google redirects use `<applicationId>:/oauthredirect`.
+
+  The app sends Google's `id_token` to `POST /auth/google`; the backend must verify it (see
+  [docs/BACKEND_INTEGRATION.md](docs/BACKEND_INTEGRATION.md)). The mock backend decodes real Google
+  JWTs issued for the configured client ids without checking the signature, so real Google sign-in
+  can be tried against demo data.
 
 ---
 
 ## Demo accounts & walkthrough
 
-There is no registration or password. The sign-in screen lists demo accounts (switch
-**Customer / Professional**). You can switch accounts at any time from **Profile → Switch
-account**. All data lives in the mock backend and is shared between accounts, so actions
-by one role show up for the other.
+The first screen lists demo accounts (switch **Customer / Professional**) for one-tap sign-in,
+next to **Create account** and **Sign in**. Every demo account can also sign in with its email and
+the password **`Demo1234`** (e.g. `noa.levi@example.com`, `avi@aquafix.example.com`). New accounts
+(email + password or Google; customers in 2 steps, professionals in 4 with services and service
+area) are stored in the mock backend with salted password hashes. You can switch accounts at any
+time from **Profile → Switch account**. All data lives in the mock backend and is shared between
+accounts, so actions by one role show up for the other. With `EXPO_PUBLIC_API_MODE=http` the demo
+accounts are hidden (they only exist in the mock backend).
 
 | Account | Role | Good for testing |
 |---|---|---|
@@ -73,6 +104,34 @@ by one role show up for the other.
 | Dana Shapiro — Handy Dana | Professional | New 5★ review, handyman / assembly / TV mounting jobs |
 | Rami Haddad — Swift Moving | Professional | Compete for Daniel's move, junk removal & heavy lifting |
 | Lior Azulay — FixIT Home Tech | Professional | Finish Daniel's in-progress Wi-Fi job |
+
+### Create an account, sign in, Google
+
+- **Create account** (first screen) → **I need a service** or **I offer services** → first and last
+  name, email, phone, a password (8+ characters with a letter and a number, not a common one like
+  `Password1`, entered twice) and the terms (**Terms of Service** and **Privacy Policy** open right
+  there). Customers are done after these 2 steps. Professionals continue with their **services**
+  (1–10 from the catalog, optional business name) and **service area** (base address by search,
+  current location or the map, plus a 5 / 10 / 20 / 40 / 80 km radius). Their matching open
+  requests show up in **Explore** right away. Each step checks its fields before moving on (errors
+  appear under the fields); the header back arrow – and on the web the browser's back button –
+  returns to the previous step. An email that already has an account shows an error with **Sign in
+  with this email** right under it.
+- **Sign in** with that email and password, or with a demo account: the screen suggests
+  `noa.levi@example.com` / **`Demo1234`** and **Fill in** enters both (every demo account uses that
+  password). A wrong email or password shows the same message. **Forgot password?** asks for the
+  email and always confirms, without revealing whether the account exists (the mock backend sends
+  nothing, and says so).
+- **Continue with Google** (on Sign in and on the account step): without Google client ids it opens
+  our own **Continue with Google (demo)** sheet. *Maya Katz* (sample new user) has no account: the
+  sign-up flow says "Signing up with Google" from the first step and continues with her name and a
+  locked email and no password fields, asking only for what is missing (role, phone, terms and, for
+  a professional, services and area). *Noa Levi* and *Avi Mizrahi* are demo accounts and sign
+  straight in; **Use another account** takes any name and email (in this demo an email that already
+  has an account signs straight in). With client ids set, the same button opens Google's real
+  sign-in (see *Google sign-in*).
+- You land on your role's home with a welcome message. **Sign out** (Profile) returns to the first
+  screen, demo accounts included.
 
 ### End-to-end scenario (≈5 minutes)
 
@@ -110,6 +169,13 @@ Bottom tabs are the main navigation, one entry point per feature:
 - **Customer:** Home · Requests · Inbox · Profile
 - **Professional:** Home · Explore · Work · Inbox · Profile
 
+**Accounts**
+- **First screen:** **Create account** and **Sign in**, then the demo accounts (mock backend only).
+- **Create account:** one step per screen with a progress bar – role, account (or **Continue with
+  Google**), and for professionals services and service area – validated step by step.
+- **Sign in:** email + password or **Continue with Google**; **Forgot password?** requests a reset
+  link.
+
 **Customer**
 - **Home:** a greeting, a "What do you need help with?" card with **Request a service** and a row
   of popular services, and one **Active** section (up to 3 requests, the ones that need the
@@ -145,7 +211,9 @@ Bottom tabs are the main navigation, one entry point per feature:
   jobs with this month's total. Jobs follow confirm → start → complete.
 - **Profile editor:** the essentials (photo, names, headline, bio, services, service area and radius,
   weekly hours, contact) plus a collapsed "More details" section (website, license, insurance,
-  languages, starting price, experience, emergency calls).
+  languages, starting price, experience, emergency calls). The contact phone and email are shown
+  only to customers who hired the pro, the base address never (customers see the area); changing
+  the contact email doesn't change the sign-in email.
 
 **Both roles**
 - **Inbox:** **Updates | Messages** – notifications grouped by day with unread dots and "Mark all
@@ -184,14 +252,15 @@ src/
   components/     design system (ui/) + shared domain components (categories, requests, offers,
                   professionals, jobs, location, map, forms)
   hooks/          React Query queries/mutations, centralized query keys and invalidation
-  services/       api (client, transports, endpoints), auth session store, realtime, push, location
+  services/       api (client, transports, endpoints), auth (session store, Google sign-in), realtime,
+                  push, location
   types/          domain entities and API DTOs
   constants/      category catalog, urgency levels, status models, notification types, app config
   lib/            query client, routes, zod validation schemas
   mocks/          mock backend: seed data, factories, router, handlers, services, scheduler, simulator
   i18n/           i18next setup, RTL handling, typed en/he resources
   theme/          design tokens, theme provider, makeStyles
-  utils/          geo, dates, formatting, ids
+  utils/          geo, dates, formatting, ids, encoding, SHA-256
 ```
 
 Key decisions:
@@ -219,19 +288,22 @@ Key decisions:
 
 ## Testing
 
-`npm test` runs 78 Jest suites (455 tests). They cover the category catalog, request/offer/profile
-validation, status transitions, request filtering by category and service area, offer creation
+`npm test` runs 86 Jest suites (541 tests). They cover the category catalog, sign-in/sign-up,
+request/offer/profile validation, the auth endpoints (registration of both roles, credentials,
+Google sign-in, password reset), status transitions, request filtering by category and service area, offer creation
 and duplicate prevention, offer acceptance (including preventing two accepted offers),
 cancellation cascades, offer expiry and reminders, notification generation for every scenario,
 role separation and address privacy, seed data integrity, the React Query hooks against the mock
-backend, the navigation shell and role guards, realtime handling, and view models and components
-of the main screens.
+backend, the navigation shell and role guards, the account screens (sign-in errors, the sign-up
+steps for both roles, Google demo sign-in, password reset), realtime handling, and view models and
+components of the main screens.
 
 ---
 
 ## What a real backend must implement
 
-Authentication (instead of demo login), authoritative lifecycle rules and atomic offer
+Authentication (password hashing, tokens, Google id-token verification, reset emails; demo login
+is mock-only), authoritative lifecycle rules and atomic offer
 acceptance, geo-matching, notification fan-out with real push (APNs/FCM via `expo-notifications`),
 realtime events over WebSocket, image uploads (pre-signed URLs), geocoding, and scheduled jobs
 (offer expiry, reminders). Details are in [docs/BACKEND_INTEGRATION.md](docs/BACKEND_INTEGRATION.md).

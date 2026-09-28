@@ -16,11 +16,12 @@ import { haptics } from './haptics';
 import { Icon, type IconSource } from './icon';
 
 /**
- * `primary`: the one filled brand action of a screen. `secondary`: neutral soft fill. `ghost`: text
- * button in the brand color. `dangerGhost`: quiet destructive text button (cancel request, delete
- * draft). `danger`: filled, for destructive confirmations.
+ * `primary`: the one filled brand action of a screen. `secondary`: neutral soft fill. `outline`:
+ * neutral outline on the background (third-party sign-in such as "Continue with Google"). `ghost`:
+ * text button in the brand color. `dangerGhost`: quiet destructive text button (cancel request,
+ * delete draft). `danger`: filled, for destructive confirmations.
  */
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'dangerGhost' | 'danger';
+type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'dangerGhost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends Omit<PressableProps, 'children' | 'style' | 'disabled'> {
@@ -54,6 +55,8 @@ function variantColors(theme: Theme, variant: ButtonVariant): VariantColors {
       return { background: colors.primaryFill, pressedBackground: colors.primaryFillPressed, foreground: colors.onPrimary, border: colors.primaryFill };
     case 'secondary':
       return { background: colors.surface, pressedBackground: colors.surfacePressed, foreground: colors.text, border: colors.surface };
+    case 'outline':
+      return { background: colors.background, pressedBackground: colors.surface, foreground: colors.text, border: colors.borderStrong };
     case 'ghost':
       return { background: 'transparent', pressedBackground: colors.surface, foreground: colors.primary, border: 'transparent' };
     case 'dangerGhost':

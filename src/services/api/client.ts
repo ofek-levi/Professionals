@@ -5,13 +5,24 @@ export interface RequestOptions {
   query?: Record<string, QueryValue>;
   signal?: AbortSignal;
   headers?: Record<string, string>;
+  /**
+   * A 401 answer is an expected result of this request (e.g. wrong password on `POST /auth/login`)
+   * rather than an expired session, so `onUnauthorized` is not called. Set by the public sign-in
+   * endpoints only; every other endpoint (including future authenticated `/auth/*` ones) keeps the
+   * global sign-out.
+   */
+  skipUnauthorizedHandler?: boolean;
 }
 
 export interface ApiClientOptions {
   transport: Transport;
   /** Returns the current access token (or null when signed out). */
   getAccessToken?: () => string | null;
-  /** Called when the backend answers 401 (e.g. to sign the user out). */
+  /**
+   * Called when the backend answers 401 (e.g. to sign the user out). Not called for requests sent
+   * with `skipUnauthorizedHandler` (the public sign-in endpoints, where a 401 means "wrong
+   * credentials" for a caller that is not signed in).
+   */
   onUnauthorized?: () => void;
   /** Sent as `Accept-Language` so the backend can localize server generated text. */
   getLanguage?: () => string | undefined;
@@ -78,7 +89,7 @@ export class ApiClient {
     }
 
     const error = new ApiError(response.status, parseErrorBody(response.status, response.data));
-    if (error.status === 401) this.options.onUnauthorized?.();
+    if (error.status === 401 && !options?.skipUnauthorizedHandler) this.options.onUnauthorized?.();
     throw error;
   }
 }

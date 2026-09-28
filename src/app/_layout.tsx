@@ -6,8 +6,15 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useSession } from '@/features/auth/session-provider';
+import { installBrowserBackInterceptor } from '@/features/auth/use-browser-back';
 import { AppProviders, buildStackScreenOptions, renderHeaderHomeButton, useAppBootstrap } from '@/providers';
+import { completeGoogleAuthRedirect } from '@/services/auth/google-auth';
 import { useTheme } from '@/theme';
+
+// Web: a Google sign-in popup that redirected back here hands its result to the opener and closes.
+completeGoogleAuthRedirect();
+// Web: before the router's own history listener, so the sign-up steps can take the browser's back.
+installBrowserBackInterceptor();
 
 // Keep the native splash screen until fonts, i18n, layout direction and the session are ready.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -55,6 +62,9 @@ function RootStack() {
 
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" options={{ headerShown: false, title: t('screens.signIn') }} />
+          <Stack.Screen name="auth/login" options={{ title: t('screens.login') }} />
+          <Stack.Screen name="auth/sign-up" options={{ title: t('screens.signUp') }} />
+          <Stack.Screen name="auth/forgot-password" options={{ title: t('screens.forgotPassword') }} />
         </Stack.Protected>
 
         <Stack.Protected guard={signedIn}>

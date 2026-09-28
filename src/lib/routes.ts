@@ -3,7 +3,10 @@
  * deep links (notifications, push payloads) and screens agree on the URL structure.
  *
  * URL map (Expo Router, files under src/app):
- *   /sign-in                              demo account picker
+ *   /sign-in                              entry: create account / sign in + demo account picker
+ *   /auth/login                           email + password (or Google) sign-in
+ *   /auth/sign-up?role=customer|professional  create account (step flow; role optional)
+ *   /auth/forgot-password                 request a password reset link
  *   /customer/(home|requests|inbox|profile)                  customer tabs
  *   /customer/requests?tab=active|past    Requests tab segment
  *   /professional/(home|explore|work|inbox|profile)          professional tabs
@@ -52,11 +55,26 @@ export function parseInboxTab(value: unknown): InboxTab {
   return parseTab(INBOX_TABS, value, 'updates');
 }
 
+/** Search param preselecting the role on the sign-up screen. */
+export const ROLE_PARAM = 'role';
+
+/** The sign-up role for a `?role=` value (unknown/missing → `null`, i.e. ask). */
+export function parseSignUpRole(value: unknown): UserRole | null {
+  return value === 'customer' || value === 'professional' ? value : null;
+}
+
 const work = (tab?: WorkTab): Href => (tab ? `/professional/work?${TAB_PARAM}=${enc(tab)}` : '/professional/work') as Href;
 
 export const routes = {
   root: '/' as Href,
   signIn: '/sign-in' as Href,
+
+  auth: {
+    login: '/auth/login' as Href,
+    /** Create account, optionally with the role already chosen. */
+    signUp: (role?: UserRole | null): Href => (role ? `/auth/sign-up?${ROLE_PARAM}=${enc(role)}` : '/auth/sign-up') as Href,
+    forgotPassword: '/auth/forgot-password' as Href,
+  },
 
   customer: {
     home: '/customer/home' as Href,

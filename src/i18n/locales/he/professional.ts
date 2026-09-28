@@ -104,8 +104,10 @@ export const professional: LocaleNamespace<typeof enprofessional> = {
     },
     contact: {
       title: 'פרטי התקשרות',
+      helper: 'רק לקוחות שבחרו בכם רואים את הטלפון והאימייל.',
       phone: 'טלפון',
       email: 'אימייל',
+      emailHelper: 'שינוי הכתובת כאן לא משנה את האימייל שאיתו אתם מתחברים.',
       website: 'אתר אינטרנט',
     },
     business: {

@@ -15,14 +15,15 @@ export const catalogRoutes = [
   route({
     method: 'GET',
     path: '/geo/search',
-    auth: 'user',
+    // Public: professionals choose their base address while signing up.
+    auth: 'public',
     handler: ({ query, language }) =>
       searchPlaces(query.string('q') ?? '', { limit: query.integer('limit', { min: 1, max: 50 }), language }),
   }),
   route({
     method: 'GET',
     path: '/geo/reverse',
-    auth: 'user',
+    auth: 'public',
     handler: ({ query, language }) => {
       const coordinates = { latitude: query.number('lat') ?? NaN, longitude: query.number('lng') ?? NaN };
       if (!isValidCoordinates(coordinates)) {

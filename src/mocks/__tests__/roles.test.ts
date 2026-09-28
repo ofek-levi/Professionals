@@ -124,4 +124,25 @@ describe('authentication and role separation', () => {
     expect(own.notificationPreferences).toBeDefined();
     expect(await expectApiError(env.as(NOA).professionals.getProfessionalProfile('pro_missing'))).toMatchObject({ status: 404 });
   });
+
+  it('shows a professional’s contact details only to customers who hired them, and never the exact base', async () => {
+    const db = env.server.internals.db;
+    const own = await env.as(PRO_IDS.avi).professionals.getOwnProfessionalProfile();
+    const hiredBy = db.jobs.find((job) => job.professionalId === own.id)?.customerId;
+    const stranger = db.users.find((user) => user.role === 'customer' && !db.jobs.find((job) => job.professionalId === own.id && job.customerId === user.id));
+    expect(hiredBy).toBeDefined();
+    expect(stranger).toBeDefined();
+    if (!hiredBy || !stranger) return;
+
+    const publicView = await env.as(stranger.id).professionals.getProfessionalProfile(own.id);
+    expect(publicView.contact).toBeNull();
+    expect(publicView.baseLocation).toMatchObject({ isApproximate: true, addressLine: '', details: null });
+    expect(publicView.baseLocation?.coordinates).not.toEqual(own.baseLocation?.coordinates);
+    expect(publicView.serviceArea.center).not.toEqual(own.serviceArea.center);
+    expect(publicView.serviceArea.radiusKm).toBe(own.serviceArea.radiusKm);
+
+    await expect(env.as(hiredBy).professionals.getProfessionalProfile(own.id)).resolves.toMatchObject({ contact: own.contact });
+    // Other professionals don't get them either.
+    expect((await env.as(PRO_IDS.eli).professionals.getProfessionalProfile(own.id)).contact).toBeNull();
+  });
 });

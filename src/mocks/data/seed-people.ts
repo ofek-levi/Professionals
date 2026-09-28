@@ -2,7 +2,10 @@
 import { APP_CONFIG } from '@/constants/app-config';
 import type { ServiceLocation } from '@/types/domain';
 
+import { sha256Hex } from '@/utils/sha256';
+
 import { createCustomerProfile, createProfessional, createUser } from '../factories';
+import { DEMO_ACCOUNT_PASSWORD, hashPassword } from '../server/passwords';
 import { streetCoordinates } from '../server/services/geo-service';
 import { getPlace } from './places';
 import { PROFESSIONALS, type ProfessionalSeed } from './professionals';
@@ -99,5 +102,28 @@ export function seedPeople(b: SeedBuilder): void {
         updatedAt: memberSince,
       }),
     );
+  }
+
+  seedCredentials(b);
+}
+
+/**
+ * Every seeded account can sign in with its email and `DEMO_ACCOUNT_PASSWORD`. Salts are derived
+ * from the user id so the seed stays deterministic.
+ */
+function seedCredentials(b: SeedBuilder): void {
+  for (const user of b.db.users.all()) {
+    const email = user.email.trim().toLowerCase();
+    if (!email || b.db.credentials.has(email)) continue;
+    b.db.credentials.insert({
+      email,
+      userId: user.id,
+      passwordHash: hashPassword(DEMO_ACCOUNT_PASSWORD, sha256Hex(`seed:${user.id}`).slice(0, 16)),
+      googleSubject: null,
+      // Seeded accounts count as verified (a real backend verifies by email).
+      emailVerified: true,
+      createdAt: user.createdAt,
+      updatedAt: user.createdAt,
+    });
   }
 }

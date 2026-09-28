@@ -1,5 +1,5 @@
 export { FormSection } from './form-section';
-export { FormTextField } from './form-text-field';
+export { FormTextField, type FormTextFieldProps } from './form-text-field';
 export {
   isCameraSupported,
   openAppSettings,

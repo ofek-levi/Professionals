@@ -229,6 +229,9 @@ export const common: LocaleNamespace<typeof enCommon> = {
   },
   screens: {
     signIn: 'התחברות',
+    login: 'התחברות',
+    signUp: 'יצירת חשבון',
+    forgotPassword: 'איפוס סיסמה',
     home: 'בית',
     newRequest: 'בקשה חדשה',
     requestDetails: 'פרטי הבקשה',

@@ -8,6 +8,7 @@ import { createAccessToken, type Actor } from '../auth';
 import type { ServerContext } from '../context';
 import { requireProfessional } from '../queries';
 import { route } from '../router';
+import { login, register, requestPasswordReset, signInWithGoogle } from '../services/account-service';
 import { parseBody } from '../validate';
 import { professionalCity, toUser } from '../views';
 import { SUCCESS } from './shared';
@@ -70,6 +71,15 @@ export const authRoutes = [
       if (!user?.isDemo) throw DomainError.notFound('Demo account', userId);
       return { accessToken: createAccessToken(user.id), user: toUser(user) };
     },
+  }),
+  route({ method: 'POST', path: '/auth/login', auth: 'public', handler: ({ ctx, body }) => login(ctx, body) }),
+  route({ method: 'POST', path: '/auth/register', auth: 'public', handler: ({ ctx, body }) => register(ctx, body) }),
+  route({ method: 'POST', path: '/auth/google', auth: 'public', handler: ({ ctx, body }) => signInWithGoogle(ctx, body) }),
+  route({
+    method: 'POST',
+    path: '/auth/password-reset',
+    auth: 'public',
+    handler: ({ ctx, body }) => requestPasswordReset(ctx, body),
   }),
   // Logging out always succeeds, even with an expired token.
   route({ method: 'POST', path: '/auth/logout', auth: 'public', handler: () => SUCCESS }),

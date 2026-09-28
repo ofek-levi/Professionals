@@ -56,10 +56,16 @@ export interface ProfessionalProfile {
   bio: string;
   categoryIds: CategoryId[];
   yearsOfExperience: number;
+  /** Public views center it on an approximate point near the base (never the exact address). */
   serviceArea: ServiceArea;
+  /** Public views carry an approximate location (`isApproximate: true`, no address line). */
   baseLocation: ServiceLocation | null;
   availability: WeeklyAvailability;
-  contact: ProfessionalContact;
+  /**
+   * Phone and email. In public views only customers who hired the professional (have a job with
+   * them) receive it; everyone else gets `null`.
+   */
+  contact: ProfessionalContact | null;
   business: ProfessionalBusinessInfo;
   stats: ProfessionalStats;
   /** Typical price hint shown on the profile (starting price). */
@@ -69,8 +75,9 @@ export interface ProfessionalProfile {
   updatedAt: ISODateTimeString;
 }
 
-/** The professional's own editable profile, including private settings. */
+/** The professional's own editable profile, including private settings and exact details. */
 export interface OwnProfessionalProfile extends ProfessionalProfile {
+  contact: ProfessionalContact;
   notificationPreferences: NotificationPreferences;
 }
 

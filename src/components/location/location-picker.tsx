@@ -23,6 +23,8 @@ interface LocationPickerProps {
   initialRegion?: MapRegion;
   /** Already translated error for the whole location. */
   error?: string | null;
+  /** Adds the required marker to the label. */
+  required?: boolean;
   /** Show the apartment/floor/entrance field (default `true`). */
   showDetailsField?: boolean;
   mapHeight?: number;
@@ -64,6 +66,7 @@ export function LocationPicker({
   onChange,
   initialRegion,
   error,
+  required,
   showDetailsField = true,
   mapHeight = 220,
   style,
@@ -157,7 +160,9 @@ export function LocationPicker({
   const failure = locateError ? FAILURE_KEYS[locateError] : null;
 
   return (
-    <Field label={t('location:search.label')} error={error} style={style}>
+    // Nothing chosen yet: the error sits right under the label, by the search field that fixes it
+    // (the map below is tall). Once there is an address, it concerns the fields at the bottom.
+    <Field label={t('location:search.label')} required={required} error={error} errorPosition={value ? 'bottom' : 'top'} style={style}>
       <View style={styles.container} testID={testID}>
         <TextField
           value={query}

@@ -6,7 +6,7 @@ category catalog (`useCategoryLookup`) and geocoding inside `LocationPicker`.
 
 ```ts
 import { Button, Screen, useToast } from '@/components/ui';
-import { CategoryPickerSheet } from '@/components/categories';
+import { CategoryPicker, CategoryPickerSheet } from '@/components/categories';
 import { RequestCard, UrgencyBadge } from '@/components/requests';
 import { OfferStatusBadge } from '@/components/offers';
 import { ReviewCard } from '@/components/professionals';
@@ -44,7 +44,8 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
   text-only.
 - **One primary action per screen**: a full-width `Button` (52pt, radius 14 – full-width buttons
   default to `size="lg"`), usually in the sticky `Screen` `footer`. Everything else is
-  `secondary`, `ghost` (text) or `dangerGhost` (quiet destructive text).
+  `secondary`, `outline` (only for "Continue with Google"), `ghost` (text) or `dangerGhost` (quiet
+  destructive text).
 - **Show less.** Domain cards show 3–4 facts and clamp descriptions to one line. Small pills sit at
   the end of a card's meta line, never next to the title (titles keep the full width), and only
   when they say something (urgency pills for emergency/urgent only).
@@ -59,7 +60,7 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 |---|---|
 | `AppText` | `<AppText variant="heading" color="secondary" numberOfLines={2}>{t('…')}</AppText>` (colors: `default`, `secondary`, `muted`, `inverse`, `onPrimary`, `primary`, any status tone, or a theme color). User-written text: `<AppText userContent>{request.description}</AppText>` aligns it by its own language |
 | `Icon` | `<Icon name="chevron-right" flipInRTL color="muted" size={20} />` (unknown names from data fall back safely) |
-| `Button` | `<Button label={t('common:actions.saveChanges')} onPress={save} loading={isPending} fullWidth />` variants `primary` (brand fill) · `secondary` (neutral fill) · `ghost` (brand text) · `dangerGhost` (red text) · `danger` (filled, destructive confirmations), sizes `sm` 36 · `md` 46 · `lg` 52 (default when `fullWidth`), optional `leftIcon` |
+| `Button` | `<Button label={t('common:actions.saveChanges')} onPress={save} loading={isPending} fullWidth />` variants `primary` (brand fill) · `secondary` (neutral fill) · `outline` (neutral outline on the background – third-party sign-in such as "Continue with Google") · `ghost` (brand text) · `dangerGhost` (red text) · `danger` (filled, destructive confirmations), sizes `sm` 36 · `md` 46 · `lg` 52 (default when `fullWidth`), optional `leftIcon` |
 | `IconButton` | `<IconButton icon="plus" accessibilityLabel={t('…')} onPress={…} variant="surface" />` variants `plain` (default) · `surface` (soft fill) · `soft`/`filled` (tone) |
 | `Card` | `<Card onPress={open} padding="lg" highlighted>{…}</Card>` – soft `surface` fill, no border or shadow (cards never float). Padding in `style` (e.g. `<Card padding="none" style={{ paddingHorizontal: 16 }}>`) always wins over the token |
 | `Badge` | `<Badge label={t('common:verified')} tone="brand" size="sm" />` – small text-only pill on a soft tone background |
@@ -70,7 +71,7 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 | `ScreenHeader` | `<ScreenHeader title={t('…')} actions={<IconButton icon="plus" … />} />` – large 28pt title and one optional trailing action |
 | `SectionHeader` | `<SectionHeader title={t('…')} actionLabel={t('common:actions.seeAll')} onAction={…} />` – 17 semibold, no icon; the text action only when it does not duplicate a tab |
 | `TextField` | `<TextField label={t('…')} required value={v} onChangeText={setV} error={err} helperText={…} maxLength={500} showCounter multiline leftIcon="magnify" clearable />` (`showCounter` appears only from 80% of `maxLength`) |
-| `Field` | `<Field label={t('…')} error={err}>{customControl}</Field>` (label/helper/error layout) |
+| `Field` | `<Field label={t('…')} error={err}>{customControl}</Field>` (label/helper/error layout; `labelAccessory` puts e.g. a "Forgot password?" link on the label row, where errors appearing below can't move it – also on `TextField`; `errorPosition="top"` shows the error right under the label for tall controls such as a long list) |
 | `SegmentedControl` | `<SegmentedControl options={[{ value: 'active', label: t('…') }, { value: 'past', label: t('…'), count: 2 }]} value={tab} onChange={setTab} />` – compact (34pt) switch for 2–4 views; `count` shows a small unread bubble |
 | `SwitchRow` | `<SwitchRow title={t('…')} description={t('…')} value={on} onValueChange={setOn} />` (text-only) |
 | `AppSwitch` | `<AppSwitch value={on} onValueChange={setOn} accessibilityLabel={t('…')} />` (the only switch: themed on every platform, mirrored in RTL on web; never use RN `Switch` directly) |
@@ -100,6 +101,7 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 | `CategoryChip` | `<CategoryChip categoryId={id} selected onPress={…} onRemove={…} size="sm" />` |
 | `CategoryGrid` | `<CategoryGrid onSelect={(id) => router.push(routes.newRequest({ categoryId: id }))} limit={7} onShowAll={openPicker} />` – the catalog's popular categories, four per row |
 | `CategoryPickerSheet` | `<CategoryPickerSheet mode="single" visible={open} onClose={close} value={categoryId} onChange={setCategoryId} />` · `mode="multiple"` with `maxSelected` and a "Done (n)" footer – search on top, then plain rows (icon + name; a check or checkbox) in one soft group per catalog group |
+| `CategoryPicker` | The same picker inline, for a screen whose job is choosing services (the professional sign-up step): `<CategoryPicker mode="multiple" value={ids} onChange={setIds} maxSelected={10} />` |
 | `UrgencyBadge` | `<UrgencyBadge level={request.urgency} size="sm" />` (text pill) |
 | `RequestCard` | Compact list card. `<RequestCard variant="customer" request={r} hasNewOffers={…} appointmentAt={job?.scheduledStartAt} onPress={…} />` → category icon + name, one-line description, one status line in its tone ("3 offers to review", "Waiting for offers", "Booked · Tue 10:00", "In progress", "Draft", "Completed", "Cancelled"; `statusLine={{ label, tone }}` overrides it). `<RequestCard variant="professional" request={r} onPress={…} />` → category + urgency pill, one-line description, "2.4 km · 5 minutes ago", an "Offered" pill once the pro sent an offer. `<RequestCardSkeleton />` |
 | `getRequestStatusLine` | `getRequestStatusLine(request)` → `{ kind, tone, count }` – the customer card's status line (pure, `request-status-line.ts`) |
@@ -110,7 +112,7 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 | `RatingSummary` | `<RatingSummary breakdown={breakdown} />` |
 | `JobCard` | `<JobCard job={job} viewerRole={user.role} onPress={…} />` – category + status pill, counterpart, date/time (`showPrice` appends the price) · `<JobCardSkeleton />` (a completed job shows its completion time) |
 | `useJobWhen` | `const { completed, text } = useJobWhen(job)` – the appointment, or "Completed today at 19:28" once done |
-| `LocationPicker` | `<LocationPicker value={location} onChange={setLocation} error={errorText} initialRegion={regionForRadius(center, 5)} />` |
+| `LocationPicker` | `<LocationPicker value={location} onChange={setLocation} error={errorText} required initialRegion={regionForRadius(center, 5)} />` (until an address is chosen the error shows under the label, next to the search field) |
 | `AppMap` | `<AppMap style={{ height: 320 }} markers={[{ id, coordinate, tone: 'danger', icon, label, selected }]} circles={[{ center, radiusKm: 15 }]} onMarkerPress={select} />` (web: `showPreviewBadge={false}` while a card covers the bottom) |
 
 `AppMap` uses `react-native-maps` on iOS/Android (`app-map.tsx`) and an interactive canvas on the web

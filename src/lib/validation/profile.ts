@@ -13,7 +13,7 @@ import {
   type CategoryId,
   type CurrencyCode,
   type CustomerProfile,
-  type ProfessionalProfile,
+  type OwnProfessionalProfile,
   type User,
   type Weekday,
 } from '@/types/domain';
@@ -180,7 +180,8 @@ export const professionalProfileFormSchema = z.object({
 
 export type ProfessionalProfileFormValues = z.input<typeof professionalProfileFormSchema>;
 
-export function professionalProfileToFormValues(profile: ProfessionalProfile): ProfessionalProfileFormValues {
+/** Form values of the professional's own profile (the only one with contact details for sure). */
+export function professionalProfileToFormValues(profile: Omit<OwnProfessionalProfile, 'notificationPreferences'>): ProfessionalProfileFormValues {
   return {
     fullName: profile.fullName,
     displayName: profile.displayName,

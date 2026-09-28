@@ -69,13 +69,13 @@ function updateOwnProfile(ctx: ServerContext, actor: ProfessionalActor, body: un
     ...(payload.notificationPreferences !== undefined ? { notificationPreferences: payload.notificationPreferences } : {}),
     updatedAt: now,
   });
-  // Keep the account in sync with the public profile.
+  // Keep the account in sync with the public profile. The contact email is the one customers see;
+  // it never changes the account's sign-in email (`User.email`).
   ctx.db.users.update(actor.userId, {
     ...splitFullName(updated.fullName),
     displayName: updated.displayName,
     avatarUrl: updated.avatarUrl,
     phone: updated.contact.phone,
-    email: updated.contact.email,
   });
   emitProfileUpdated(ctx, updated.id);
   return updated;

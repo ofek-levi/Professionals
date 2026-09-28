@@ -5,6 +5,8 @@
  * - `SessionProvider` starts the session lifecycle (cache reset, realtime connection and push
  *   registration on every identity change). Mount it once inside `QueryClientProvider`.
  * - `useAuthActions()` signs in/out with demo accounts.
+ * - `establishSession()` is the single sign-in path: demo accounts and the email / Google auth
+ *   mutations (`hooks/mutations/use-auth-mutations.ts`) all go through it.
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
@@ -57,10 +59,17 @@ async function logoutQuietly(): Promise<void> {
   }
 }
 
+/**
+ * Makes `session` the signed-in session. The session lifecycle clears the cache and reconnects
+ * realtime synchronously here; the `Stack.Protected` guards then show the role's home.
+ */
+export async function establishSession(session: AuthSession): Promise<void> {
+  await sessionStore.signIn(session.accessToken, session.user);
+}
+
 async function signInWithDemoAccount(userId: string): Promise<AuthSession> {
   const session = await api.auth.demoLogin({ userId });
-  // The session lifecycle clears the cache and reconnects realtime synchronously here.
-  await sessionStore.signIn(session.accessToken, session.user);
+  await establishSession(session);
   return session;
 }
 

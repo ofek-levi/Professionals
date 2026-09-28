@@ -10,10 +10,13 @@ const ERROR_STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   NETWORK_ERROR: 0,
   TIMEOUT: 408,
   UNAUTHORIZED: 401,
+  INVALID_CREDENTIALS: 401,
+  INVALID_GOOGLE_TOKEN: 401,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   VALIDATION_ERROR: 422,
   CONFLICT: 409,
+  EMAIL_ALREADY_REGISTERED: 409,
   INVALID_STATE_TRANSITION: 409,
   DUPLICATE_OFFER: 409,
   OFFER_EXPIRED: 409,
@@ -29,7 +32,7 @@ type FieldErrors = Record<string, string[]>;
 
 type ConflictCode = Extract<
   ApiErrorCode,
-  'CONFLICT' | 'DUPLICATE_OFFER' | 'OFFER_EXPIRED' | 'REQUEST_NOT_ACCEPTING_OFFERS'
+  'CONFLICT' | 'DUPLICATE_OFFER' | 'OFFER_EXPIRED' | 'REQUEST_NOT_ACCEPTING_OFFERS' | 'EMAIL_ALREADY_REGISTERED'
 >;
 type ValidationCode = Extract<ApiErrorCode, 'VALIDATION_ERROR' | 'UNSUPPORTED_CATEGORY' | 'OUTSIDE_SERVICE_AREA'>;
 
@@ -66,6 +69,16 @@ export class DomainError extends Error {
     return new DomainError('UNAUTHORIZED', message);
   }
 
+  /** 401 for a failed sign-in (same error for an unknown email and a wrong password). */
+  static invalidCredentials(message = 'The email or password is incorrect'): DomainError {
+    return new DomainError('INVALID_CREDENTIALS', message);
+  }
+
+  /** 401 for a Google id token that could not be verified. */
+  static invalidGoogleToken(message = 'The Google sign-in could not be verified'): DomainError {
+    return new DomainError('INVALID_GOOGLE_TOKEN', message);
+  }
+
   static forbidden(message = 'You are not allowed to perform this action'): DomainError {
     return new DomainError('FORBIDDEN', message);
   }
@@ -74,8 +87,8 @@ export class DomainError extends Error {
     return new DomainError('NOT_FOUND', id ? `${entity} "${id}" was not found` : `${entity} was not found`);
   }
 
-  static conflict(message: string, code: ConflictCode = 'CONFLICT'): DomainError {
-    return new DomainError(code, message);
+  static conflict(message: string, code: ConflictCode = 'CONFLICT', fieldErrors?: FieldErrors): DomainError {
+    return new DomainError(code, message, { fieldErrors });
   }
 
   static invalidTransition(entity: string, from: string, to: string): DomainError {

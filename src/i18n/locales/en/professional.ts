@@ -101,8 +101,10 @@ export const professional = {
     },
     contact: {
       title: 'Contact details',
+      helper: 'Only customers who hire you see your phone and email.',
       phone: 'Phone',
       email: 'Email',
+      emailHelper: 'Changing it doesn’t change the email you sign in with.',
       website: 'Website',
     },
     business: {

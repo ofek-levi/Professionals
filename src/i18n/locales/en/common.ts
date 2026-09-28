@@ -221,6 +221,9 @@ export const common = {
   /** Navigation titles (native stack headers, document titles on web). */
   screens: {
     signIn: 'Sign in',
+    login: 'Sign in',
+    signUp: 'Create account',
+    forgotPassword: 'Reset password',
     home: 'Home',
     newRequest: 'New request',
     requestDetails: 'Request details',

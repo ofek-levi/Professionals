@@ -3,7 +3,7 @@ import { useController, type Control, type FieldPath, type FieldValues } from 'r
 import { TextField, type TextFieldProps } from '../ui/text-field';
 import { useTranslatedError } from './use-translated-error';
 
-interface FormTextFieldProps<TFieldValues extends FieldValues, TName extends FieldPath<TFieldValues>>
+export interface FormTextFieldProps<TFieldValues extends FieldValues, TName extends FieldPath<TFieldValues>>
   extends Omit<TextFieldProps, 'value' | 'onChangeText' | 'error' | 'ref'> {
   control: Control<TFieldValues>;
   name: TName;

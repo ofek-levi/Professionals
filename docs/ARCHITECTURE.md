@@ -47,7 +47,7 @@ src/
     ui/                     design system primitives (AppText, Button, Card, Badge, TextField, …)
     categories/ requests/ offers/ professionals/ jobs/ location/ map/ forms/
   features/
-    auth/                   session provider, role guards, demo sign-in
+    auth/                   session provider, role guards, sign-in / sign-up screens, demo accounts
     customer/ professional/ requests/ offers/ jobs/ notifications/ messaging/ reviews/ profiles/ settings/
       *.ts                  pure business logic (state machines, selectors, sorting, matching)
       screens/*.tsx         screen components rendered by src/app routes
@@ -55,6 +55,7 @@ src/
   services/
     api/                    client.ts, transport.ts, http-transport.ts, endpoints/*, config.ts, index.ts
     auth/session-store.ts   persisted access token + identity
+    auth/google-*.ts        Google sign-in config, mock id tokens, real sign-in hook (expo-auth-session)
     realtime/               RealtimeClient (mock event bus today, WebSocket later)
     location/               device location permission & position (expo-location), isolated
     push/                   push provider abstraction (simulated today)
@@ -130,6 +131,15 @@ Who can do what:
   to a handler, deep-clones the JSON response (simulates serialization) and maps thrown
   `DomainError`s (`src/features/shared/domain-error.ts`) to `{ status, data: ApiErrorBody }`.
 - Access tokens are `demo-token:<userId>`.
+- Accounts: the `credentials` table (keyed by the lower-cased email) holds salted SHA-256 password
+  hashes (`src/mocks/server/passwords.ts`, pure JS; never plaintext) and the linked Google account id.
+  Every seeded user signs in with its email and `Demo1234`. `services/account-service.ts` implements
+  login, registration (user + customer or professional profile + credential, in one transaction),
+  Google sign-in and password reset. Newly registered professionals match open requests right away
+  because matching is computed from the profile (categories + service area). Changing a
+  professional's contact email moves the credential (409 if another account uses it).
+- `MOCK_DB_SCHEMA_VERSION` (db.ts) is bumped whenever stored rows change shape; persisted data of
+  another version is re-seeded.
 - The in-memory DB is seeded from `src/mocks/data` (timestamps relative to "now"), persisted to
   AsyncStorage (debounced) and can be reset (`demoTools.resetDemoData()`).
 - All mutations go through the **lifecycle service** (`src/mocks/server/services/lifecycle-service.ts`)
@@ -145,11 +155,15 @@ Who can do what:
 |---|---|---|
 | GET /auth/demo-accounts | public | `DemoAccount[]` |
 | POST /auth/demo-login | public | `AuthSession` |
+| POST /auth/login | public | `AuthSession` (401 `INVALID_CREDENTIALS`) |
+| POST /auth/register | public | `AuthSession` (409 `EMAIL_ALREADY_REGISTERED`, 422, 401 `INVALID_GOOGLE_TOKEN`) |
+| POST /auth/google | public | `GoogleAuthResponse`: `signed_in` + session, or `registration_required` + profile (401 `INVALID_GOOGLE_TOKEN`) |
+| POST /auth/password-reset | public | `SuccessResponse` (always, for a valid email) |
 | POST /auth/logout | any | `SuccessResponse` |
 | GET /me | any | `CurrentUserResponse` |
 | POST /me/devices | any | `SuccessResponse` |
 | GET /catalog/categories | public | `CategoryCatalog` |
-| GET /geo/search?q&limit · GET /geo/reverse?lat&lng | any | `PlaceSuggestion[]` · `PlaceSuggestion` |
+| GET /geo/search?q&limit · GET /geo/reverse?lat&lng | public (a professional picks the base address while signing up) | `PlaceSuggestion[]` · `PlaceSuggestion` |
 | POST /uploads/images | any | `UploadedImage` |
 | GET /customer/dashboard | customer | `CustomerDashboard` |
 | GET /customer/requests?section&statuses&cursor&limit | customer | `Paginated<CustomerRequestView>` |
@@ -167,7 +181,7 @@ Who can do what:
 | GET /professional/requests/nearby?… | professional | `Paginated<ProfessionalRequestView>` |
 | GET /professional/offers?statuses&cursor&limit | professional | `Paginated<OfferWithRequest>` |
 | GET/PATCH /professional/profile | professional | `OwnProfessionalProfile` |
-| GET /professionals?categoryId&lat&lng · /professionals/:id · /professionals/:id/reviews | any | … |
+| GET /professionals?categoryId&lat&lng · /professionals/:id · /professionals/:id/reviews | any | … (`/professionals/:id`: approximate base and area center; `contact` only for customers who hired the pro, otherwise `null`) |
 | GET /jobs?scope · GET /jobs/:id | party | `JobSummary[]` · `JobDetails` |
 | POST /jobs/:id/confirm · /start | professional | `Job` |
 | POST /jobs/:id/complete | party | `Job` |
@@ -188,9 +202,12 @@ at most `APP_CONFIG.maxPageSize` = 100; larger values are rejected with 422 `VAL
 return `Paginated<T> { items, nextCursor, totalCount }`.
 
 Errors: `ApiErrorBody { code, message, fieldErrors? }` with HTTP status: 400/422 `VALIDATION_ERROR`
-(`UNSUPPORTED_CATEGORY`, `OUTSIDE_SERVICE_AREA`), 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 404 `NOT_FOUND`,
-409 `CONFLICT` / `INVALID_STATE_TRANSITION` / `DUPLICATE_OFFER` / `OFFER_EXPIRED` /
-`REQUEST_NOT_ACCEPTING_OFFERS`, 0 `NETWORK_ERROR` (simulated).
+(`UNSUPPORTED_CATEGORY`, `OUTSIDE_SERVICE_AREA`), 401 `UNAUTHORIZED` / `INVALID_CREDENTIALS` /
+`INVALID_GOOGLE_TOKEN`, 403 `FORBIDDEN`, 404 `NOT_FOUND`, 409 `CONFLICT` / `EMAIL_ALREADY_REGISTERED` /
+`INVALID_STATE_TRANSITION` / `DUPLICATE_OFFER` / `OFFER_EXPIRED` / `REQUEST_NOT_ACCEPTING_OFFERS`,
+0 `NETWORK_ERROR` (simulated). A 401 signs the user out (`sessionStore.handleUnauthorized`) except
+for requests sent with `skipUnauthorizedHandler` – the public sign-in endpoints of
+`endpoints/auth.ts`, where it means failed credentials.
 
 ## 5. React Query conventions
 
@@ -234,6 +251,52 @@ Errors: `ApiErrorBody { code, message, fieldErrors? }` with HTTP status: 400/422
 - Stack screens opened with nothing to go back to (deep link, notification on a cold start, web
   refresh) get a header button to the signed-in role's home (`renderHeaderHomeButton`,
   `src/providers/header-home-button.tsx`, used by `src/app/_layout.tsx`).
+
+### Route map (src/app)
+
+Signed-out routes sit in `Stack.Protected guard={!signedIn}`, signed-in ones in
+`Stack.Protected guard={signedIn}` (`src/app/_layout.tsx`); `/` redirects to `/sign-in` or the role's
+home. Build every link with `routes` (`src/lib/routes.ts`).
+
+| Route | Who | Screen |
+|---|---|---|
+| `/sign-in` | signed out | entry: **Create account**, **Sign in**, then the demo account picker (hidden in `http` mode) |
+| `/auth/login` | signed out | email + password, "Continue with Google", links to reset and sign-up |
+| `/auth/sign-up?role=customer\|professional` | signed out | step flow: role → account → services → service area (customers stop after the account); `role` skips the first step |
+| `/auth/forgot-password` | signed out | request a reset link (same answer whether or not the account exists) |
+| `/customer/(home\|requests\|inbox\|profile)` | customer | tabs (`requests?tab=active\|past`, `inbox?tab=updates\|messages`) |
+| `/professional/(home\|explore\|work\|inbox\|profile)` | professional | tabs (`work?tab=offers\|jobs`) |
+| `/requests/new`, `/requests/:id`, `/requests/:id/offer` | customer · both · professional | new request, request details (offers live here), send/edit offer |
+| `/professionals/:id`, `/professionals/:id/reviews` | signed in | public profile, all reviews |
+| `/jobs/:id`, `/jobs/:id/review` | both · customer | job tracking, leave a review |
+| `/conversations/:id`, `/profile/edit`, `/settings` | signed in | chat, edit own profile, settings |
+
+### Account screens (src/features/auth)
+
+- Screens use the auth mutations only (`useLogin`, `useRegister`, `useGoogleAuth`,
+  `useRequestPasswordReset`); a session response goes through `establishSession()`, so the
+  `Stack.Protected` guards swap the auth screens for the role's home. The screen unmounts right
+  away: the welcome toast (`use-welcome-toast.ts`) is shown from the `mutateAsync()` result.
+- Sign-up is one react-hook-form instance over `signUpFormSchema`; "Continue" marks the step's
+  fields as touched and `trigger()`s them (`SIGN_UP_STEP_FIELDS`), so errors show on "Continue" and
+  then update while typing. Server `fieldErrors` are mapped with `registerFieldErrorsToForm`; an
+  error on the current step is only scrolled into view, one on an earlier step jumps back to it
+  (with a toast saying why). `usePreventRemove` turns the header back arrow (and gestures /
+  hardware back) into "previous step", and `useBrowserBack` does the same for the browser's back
+  button on web: one `popstate` listener installed at module load of the root layout (before the
+  router's own, so it can stop it) restores the screen's history entry and calls the screen.
+  A role in the link (`?role=`) skips the role step; the progress counts from the first step shown
+  and shows no total until a role is chosen (`signUpProgress`).
+- Every submit runs through `useSingleFlight`: a second tap while one is being validated or sent
+  is ignored (the button's loading state only starts once the mutation is pending), and results
+  that arrive after the screen unmounted are dropped.
+- A new Google identity (`registration_required`) is kept in memory in
+  `pending-google-sign-up.ts` (never in the URL) and cleared when the sign-up screen unmounts or a
+  session starts. `GoogleSignInButton` hides itself when neither real Google sign-in nor the mock
+  backend is available (`useGoogleSignInAvailable`).
+- An email typed on one auth screen is handed to the next one in memory (`auth-email-hint.ts`,
+  never in the URL): "Sign in with this email" (sign-up → sign in) and "Forgot password?"
+  (sign in → reset) prefill it.
 
 ## 7. Localization
 

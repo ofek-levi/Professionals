@@ -126,7 +126,8 @@ function isValidPhone(value: string): boolean {
   return ISRAELI_PHONE.test(normalized) || INTERNATIONAL_PHONE.test(normalized);
 }
 
-function isValidEmail(value: string): boolean {
+/** Loose email format check (`name@domain.tld`); the server is the source of truth. */
+export function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
 }
 

@@ -219,12 +219,23 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
       <AvailabilitySection control={control} />
 
       <FormSection title={t('professional:form.contact.title')} variant="plain">
-        <FormTextField control={control} name="phone" label={t('professional:form.contact.phone')} required keyboardType="phone-pad" autoComplete="tel" testID="pro-form-phone" />
+        <FormTextField
+          control={control}
+          name="phone"
+          label={t('professional:form.contact.phone')}
+          required
+          helperText={t('professional:form.contact.helper')}
+          keyboardType="phone-pad"
+          autoComplete="tel"
+          testID="pro-form-phone"
+        />
         <FormTextField
           control={control}
           name="email"
           label={t('professional:form.contact.email')}
           required
+          // Customers see this address; the account keeps signing in with its own email.
+          helperText={t('professional:form.contact.emailHelper')}
           keyboardType="email-address"
           autoCapitalize="none"
           autoComplete="email"

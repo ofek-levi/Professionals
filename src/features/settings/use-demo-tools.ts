@@ -9,8 +9,10 @@ import { settingsStore, useSettings } from './settings-store';
 const SIMULATED_FAILURE_RATE = 0.2;
 
 interface DemoToolsState {
-  /** Demo tools only exist with the in-app mock backend. */
+  /** Demo tools (and demo accounts) only exist with the in-app mock backend. */
   isAvailable: boolean;
+  /** A demo account's email and password for trying email sign-in (`null` without the mock backend). */
+  demoSignIn: { email: string; password: string } | null;
   simulationEnabled: boolean;
   setSimulationEnabled: (enabled: boolean) => void;
   networkFailuresEnabled: boolean;
@@ -26,6 +28,7 @@ export function useDemoTools(): DemoToolsState {
 
   return {
     isAvailable: demoTools.isAvailable,
+    demoSignIn: demoTools.demoSignIn,
     simulationEnabled,
     setSimulationEnabled: (enabled) => {
       void settingsStore.setSimulationEnabled(enabled);

@@ -4,6 +4,14 @@ export const APP_CONFIG = {
   /** Service radius bounds for professionals, km. */
   minServiceRadiusKm: 3,
   maxServiceRadiusKm: 80,
+  /** Service radius choices offered when a professional signs up, km (within the bounds above). */
+  serviceRadiusPresetsKm: [5, 10, 20, 40, 80] as const,
+  defaultServiceRadiusKm: 20,
+  /** Account rules (sign-up). */
+  passwordMinLength: 8,
+  passwordMaxLength: 64,
+  personNameMinLength: 2,
+  personNameMaxLength: 40,
   /** Distance filter presets on the job explorer, km. */
   distanceFilterOptionsKm: [5, 10, 20, 40] as const,
   maxRequestPhotos: 6,

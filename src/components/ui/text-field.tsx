@@ -13,6 +13,8 @@ const COUNTER_THRESHOLD = 0.8;
 
 export interface TextFieldProps extends Omit<TextInputProps, 'style' | 'editable'> {
   label?: string;
+  /** Trailing element on the label row (see `Field`). */
+  labelAccessory?: ReactNode;
   required?: boolean;
   optional?: boolean;
   /** Already translated error message. */
@@ -45,6 +47,7 @@ export interface TextFieldProps extends Omit<TextInputProps, 'style' | 'editable
  */
 export function TextField({
   label,
+  labelAccessory,
   required,
   optional,
   error,
@@ -92,6 +95,7 @@ export function TextField({
       counter={counter}
       style={containerStyle}
       nativeID={labelId}
+      labelAccessory={labelAccessory}
     >
       <View
         style={[

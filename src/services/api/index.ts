@@ -7,6 +7,7 @@
 import i18n from 'i18next';
 
 import { getMockServer } from '@/mocks/server';
+import { DEMO_ACCOUNT_PASSWORD, DEMO_SIGN_IN_EMAIL } from '@/mocks/server/passwords';
 import { createMockTransport, type MockTransportControls } from '@/mocks/transport';
 import { sessionStore } from '@/services/auth/session-store';
 
@@ -46,6 +47,8 @@ export const api = createMarketplaceApi(apiClient);
  */
 export const demoTools = {
   isAvailable: apiConfig.mode === 'mock',
+  /** A demo account's email and password to try email sign-in with, `null` without the mock backend. */
+  demoSignIn: apiConfig.mode === 'mock' ? { email: DEMO_SIGN_IN_EMAIL, password: DEMO_ACCOUNT_PASSWORD } : null,
   async resetDemoData(): Promise<void> {
     if (apiConfig.mode === 'mock') await getMockServer().reset();
   },

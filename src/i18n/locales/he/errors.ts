@@ -15,6 +15,14 @@ export const errors: LocaleNamespace<typeof enErrors> = {
       title: 'יש להתחבר מחדש',
       description: 'פג תוקף ההתחברות. התחברו כדי להמשיך.',
     },
+    INVALID_CREDENTIALS: {
+      title: 'האימייל או הסיסמה שגויים',
+      description: 'בדקו את האימייל והסיסמה ונסו שוב, או אפסו את הסיסמה.',
+    },
+    INVALID_GOOGLE_TOKEN: {
+      title: 'ההתחברות עם Google לא הצליחה',
+      description: 'לא הצלחנו לאמת את חשבון ה-Google שלכם. נסו שוב.',
+    },
     FORBIDDEN: {
       title: 'אין הרשאה',
       description: 'אין לכם הרשאה לצפות בתוכן הזה או לשנות אותו.',
@@ -30,6 +38,10 @@ export const errors: LocaleNamespace<typeof enErrors> = {
     CONFLICT: {
       title: 'משהו השתנה',
       description: 'הפריט עודכן בינתיים. רעננו ונסו שוב.',
+    },
+    EMAIL_ALREADY_REGISTERED: {
+      title: 'כתובת האימייל כבר רשומה',
+      description: 'התחברו עם האימייל הזה או השתמשו בכתובת אחרת.',
     },
     INVALID_STATE_TRANSITION: {
       title: 'הפעולה כבר אינה זמינה',
