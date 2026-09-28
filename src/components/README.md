@@ -119,8 +119,9 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 
 `AppMap` (`@/components/map`) is **the** reusable map: Leaflet with free OpenStreetMap tiles, the
 same component on iOS, Android (in a `react-native-webview` WebView) and the web (in a sandboxed
-`<iframe srcdoc>`). No API key, works in Expo Go. Markers, circles, the pin, colors (theme tones),
-labels, RTL and Reduce Motion come from props and the theme; never draw map content yourself.
+`<iframe srcdoc>`). No API key, works in Expo Go (a development build needs `react-native-webview`,
+so rebuild one made before it was added). Markers, circles, the pin, colors (theme tones), labels,
+RTL and Reduce Motion come from props and the theme; never draw map content yourself.
 
 Markers with circles (the job explorer):
 
@@ -147,7 +148,8 @@ A draggable pin (the location picker):
 
 ```tsx
 <AppMap
-  region={focusRegion} // animates whenever this value changes
+  ref={mapRef} // a picked address: mapRef.current?.animateToRegion(regionForRadius(place.coordinates, 0.45))
+  initialRegion={startRegion} // the chosen address, else the user's city
   draggablePin={value ? { coordinate: value.coordinates, onChange: movePin } : undefined}
   onPress={movePin} // tap to place
   showZoomControls
@@ -191,7 +193,12 @@ Notes:
   `npm run generate:map-assets`.
 - An interactive map inside a `ScrollView` keeps its drags: Android through `nestedScrollEnabled`;
   on iOS the map holds the scroll lock of the enclosing `Screen` / `Sheet`. A custom `ScrollView`
-  around a map provides the lock itself (`useScrollLockHost` in `ui/scroll-lock.tsx`).
+  around a map provides the lock itself (`useScrollLockHost` in `ui/scroll-lock.tsx`). There the
+  mouse wheel (web) scrolls the page instead of zooming the map; a map that is the whole screen
+  (the explorer) zooms with it.
+- Tiles: the native page loads them itself; on the web the host fetches them for the sandboxed
+  frame (which has no origin to send as `Referer`), so a custom tile server must allow CORS.
+  Tapping the attribution opens the licence page in the browser – the map page never navigates.
 - Internals: `app-map.tsx` (props + theme → page state) → `leaflet/` (the page document, its
   script, the JSON bridge and the WebView/iframe hosts). See docs/ARCHITECTURE.md → Maps.
 
@@ -216,20 +223,22 @@ Notes:
 
 ## Testing components
 
-Components that use the catalog need React Query; some use Reanimated or maps. In Jest:
+Components that use the catalog need React Query (`renderWithProviders` provides it, with the
+theme and safe areas). Reanimated, worklets and the map's WebView are already mocked for every test
+in `jest.setup.ts` – do not mock them again per file: the official Reanimated mock lacks
+`useReducedMotion`, which the map, skeletons and animated components call, and `jest.setup.ts` adds
+it.
 
 ```ts
 import { renderWithProviders } from '@/components/__test-utils__/render';
-jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
-jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 ```
 
-Maps need no extra mock: `jest.setup.ts` replaces `react-native-webview` for every test with a View
-that exposes the WebView's props (`__test-utils__/react-native-webview.mock.tsx`). Play the page's
-side of the bridge with `__test-utils__/map-bridge.ts`:
+`jest.setup.ts` replaces `react-native-webview` with a View that exposes the WebView's props
+(`__test-utils__/react-native-webview.mock.tsx`). Play the page's side of the bridge with
+`__test-utils__/map-bridge.ts`:
 
 ```ts
-const webView = screen.getByTestId('map-webview'); // the WebView inside an AppMap
+const webView = getMapWebView(); // the WebView inside an AppMap (hidden from screen readers until ready)
 await emitMapMessage(webView, { type: 'ready' }); // the page loaded: state and camera are sent
 await emitMapMessage(webView, { type: 'markerPress', id: 'r1' }); // or mapPress / pinDragEnd { coordinate }
 const state = injectedMapMessages().filter((message) => message.type === 'state').pop()?.state; // markers, circles, pin, insets…

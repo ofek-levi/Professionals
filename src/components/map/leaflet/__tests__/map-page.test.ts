@@ -1,5 +1,7 @@
 /**
- * Runs the real map document (Leaflet + bridge script) in jsdom and drives it like a host does.
+ * Runs the real map document (Leaflet + bridge script) in jsdom and drives it like a host does:
+ * the native host (`window.ReactNativeWebView`) by default, or the web host (a parent window that
+ * posts messages, and loads the tiles) with `web: true`.
  * jsdom has no layout, so the map gets a fixed box; tiles never load (no network), which is fine.
  */
 import { JSDOM } from 'jsdom';
@@ -8,7 +10,7 @@ import { OSM_ATTRIBUTION } from '@/constants/map-tiles';
 
 import { LEAFLET_JS } from '../generated/leaflet-assets';
 import { buildMapDocument } from '../map-document';
-import type { MapPageState, PageMarker } from '../map-protocol';
+import { LEAFLET_CREDIT_URL, type MapPageState, type PageMarker } from '../map-protocol';
 
 const CHANNEL = 'abcdefghijklmnop1234';
 const VIEW = [
@@ -56,6 +58,7 @@ function pageState(overrides: Partial<MapPageState> = {}): MapPageState {
     tiles: { urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxZoom: 19, attribution: OSM_ATTRIBUTION },
     rtl: false,
     interactive: true,
+    wheelZoom: true,
     reduceMotion: false,
     insets: { top: 0, right: 0, bottom: 0, left: 0 },
     accessibilityLabel: 'Map',
@@ -64,9 +67,13 @@ function pageState(overrides: Partial<MapPageState> = {}): MapPageState {
   };
 }
 
-function loadPage({ html = buildMapDocument({ channel: CHANNEL }), width = 390 } = {}) {
+function loadPage({ web = false, html = buildMapDocument({ channel: CHANNEL, hostTiles: web }), width = 390 } = {}) {
   const posted: Record<string, unknown>[] = [];
   const size = { width, height: 600 };
+  const resizeCallbacks: (() => void)[] = [];
+  const record = (data: string) => posted.push(JSON.parse(data) as Record<string, unknown>);
+  /** The web host's window, as the page sees it (`window.parent`). */
+  const parent = { postMessage: (data: string) => record(data) };
   const dom = new JSDOM(html, {
     runScripts: 'dangerously',
     pretendToBeVisual: true,
@@ -78,19 +85,40 @@ function loadPage({ html = buildMapDocument({ channel: CHANNEL }), width = 390 }
       Object.assign(window.SVGSVGElement.prototype, { createSVGRect: () => ({}) });
       // jsdom's window answers `'addEventListener' in window` with false; Leaflet checks exactly that.
       Object.assign(window, { addEventListener: window.addEventListener, removeEventListener: window.removeEventListener });
-      Object.assign(window, { ReactNativeWebView: { postMessage: (data: string) => posted.push(JSON.parse(data) as Record<string, unknown>) } });
+      if (web) Object.defineProperty(window, 'parent', { configurable: true, get: () => parent });
+      else Object.assign(window, { ReactNativeWebView: { postMessage: record } });
+      // jsdom has no ResizeObserver: record the page's callback so a test can report a new size.
+      class ResizeObserverStub {
+        constructor(callback: () => void) {
+          resizeCallbacks.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      }
+      Object.assign(window, { ResizeObserver: ResizeObserverStub });
     },
   });
   const window = dom.window as unknown as PageWindow;
   const document = dom.window.document;
   const receive = (message: Record<string, unknown>, channel = CHANNEL) => window.__appMap.receive({ ...message, channel });
+  /** A window message as the web host sends it (a JSON string), from `source` (default: the parent). */
+  const postFrom = (message: Record<string, unknown>, source: unknown = parent) => {
+    const event = new dom.window.MessageEvent('message', { data: JSON.stringify({ ...message, channel: CHANNEL }) });
+    Object.defineProperty(event, 'source', { value: source });
+    dom.window.dispatchEvent(event);
+  };
   /** Posted messages apart from the (debounced) camera reports. */
   const input = () => posted.filter((message) => message.type !== 'regionChange');
   const types = () => input().map((message) => message.type);
   const markers = () => [...document.querySelectorAll<HTMLElement>('.am-marker')];
   const click = (target: Element, x = 20, y = 20) =>
     target.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
-  return { dom, window, document, posted, size, receive, input, types, markers, click };
+  /** The map container got a new size without a window resize (e.g. a hidden screen came back). */
+  const resizeContainer = (next: { width: number; height: number }) => {
+    Object.assign(size, next);
+    resizeCallbacks.forEach((callback) => callback());
+  };
+  return { dom, window, document, posted, size, receive, postFrom, input, types, markers, click, resizeContainer };
 }
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -98,7 +126,20 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 describe('map page', () => {
   it('boots and reports ready on its channel', () => {
     const page = loadPage();
-    expect(page.posted[0]).toEqual({ type: 'ready', channel: CHANNEL });
+    expect(page.posted[0]).toEqual({ type: 'ready', boot: expect.stringMatching(/^[a-z0-9]{16}$/), channel: CHANNEL });
+    page.dom.window.close();
+  });
+
+  it('repeats ready (same boot id) until the host answers', async () => {
+    const page = loadPage();
+    await wait(1100);
+    const readies = page.posted.filter((message) => message.type === 'ready');
+    expect(readies).toHaveLength(3);
+    expect(new Set(readies.map((message) => message.boot)).size).toBe(1);
+
+    page.receive({ type: 'state', state: pageState() });
+    await wait(600);
+    expect(page.posted.filter((message) => message.type === 'ready')).toHaveLength(3);
     page.dom.window.close();
   });
 
@@ -259,6 +300,33 @@ describe('map page', () => {
     page.dom.window.close();
   });
 
+  it('applies a camera move that arrived while the map was hidden once it has a size again', async () => {
+    const page = loadPage();
+    page.receive({ type: 'state', state: pageState() });
+    page.receive({ type: 'setView', bounds: VIEW });
+    await wait(200);
+    page.posted.length = 0;
+    page.resizeContainer({ width: 0, height: 0 });
+    const target = [
+      [31.6, 34.3],
+      [32.5, 35.3],
+    ];
+    page.receive({ type: 'animateToRegion', bounds: target, durationMs: 350 });
+    await wait(400);
+    // A hidden map keeps its camera and reports nothing.
+    expect(page.posted).toEqual([]);
+
+    // A shown screen resizes the container but fires no window resize event.
+    page.resizeContainer({ width: 390, height: 600 });
+    await wait(200);
+    const [[south, west], [north, east]] = page.posted.find((message) => message.type === 'regionChange')?.bounds as number[][];
+    expect(south).toBeLessThanOrEqual(31.6);
+    expect(north).toBeGreaterThanOrEqual(32.5);
+    expect(west).toBeLessThanOrEqual(34.3);
+    expect(east).toBeGreaterThanOrEqual(35.3);
+    page.dom.window.close();
+  });
+
   it('fits the first view clear of the insets, and restores an exact viewport as it was', async () => {
     const insets = { top: 60, right: 0, bottom: 240, left: 0 };
     const spanOf = async (exact: boolean) => {
@@ -324,5 +392,212 @@ describe('map page', () => {
     await wait(200);
     expect(span()).toBeCloseTo(before / 2, 2);
     page.dom.window.close();
+  });
+
+  it('keeps a selected marker in view clear of overlays that grow over it', async () => {
+    const page = loadPage();
+    const low = marker('low', { latitude: 32.075, longitude: 34.78, label: 'Plumbing' });
+    const state = (bottom: number, selected = true) =>
+      pageState({ reduceMotion: true, insets: { top: 0, right: 0, bottom, left: 0 }, circles: [], markers: [{ ...low, selected }] });
+    const markerY = () => {
+      const [[south], [north]] = page.posted.filter((message) => message.type === 'regionChange').pop()?.bounds as number[][];
+      return ((north - low.latitude) / (north - south)) * 600;
+    };
+    page.receive({ type: 'state', state: state(0, false) });
+    page.receive({ type: 'setView', bounds: VIEW, exact: true });
+    // Selected, then its preview card is measured a moment later.
+    page.receive({ type: 'state', state: state(80) });
+    page.receive({ type: 'state', state: state(300) });
+    await wait(200);
+    expect(markerY()).toBeLessThanOrEqual(600 - 300 - 50);
+
+    // Later the card grows over the marker, which is still in view: it moves clear again.
+    await wait(1000);
+    page.receive({ type: 'state', state: state(450) });
+    await wait(200);
+    expect(markerY()).toBeLessThanOrEqual(600 - 450);
+    page.dom.window.close();
+  });
+
+  it('keeps a selected marker the user panned away where it is when the overlays change', async () => {
+    const page = loadPage();
+    const state = (bottom: number, selected = true) =>
+      pageState({ reduceMotion: true, insets: { top: 0, right: 0, bottom, left: 0 }, circles: [], markers: [marker('a', { selected, label: 'Plumbing' })] });
+    page.receive({ type: 'state', state: state(100, false) });
+    page.receive({ type: 'setView', bounds: VIEW, exact: true });
+    page.receive({ type: 'state', state: state(100) });
+    await wait(1100); // past the settling time of the selection
+    // The user moves the map far away from the selected marker.
+    const away = [
+      [31.0, 34.0],
+      [31.07, 34.08],
+    ];
+    page.receive({ type: 'setView', bounds: away, exact: true });
+    await wait(200);
+    page.posted.length = 0;
+    page.receive({ type: 'state', state: state(260) }); // e.g. its preview card grew
+    await wait(200);
+    expect(page.posted.filter((message) => message.type === 'regionChange')).toEqual([]);
+    page.dom.window.close();
+  });
+
+  it('reports the main world copy after the camera wandered around the globe', async () => {
+    const page = loadPage();
+    page.receive({ type: 'state', state: pageState() });
+    // What Leaflet reports after panning three times around the world eastwards.
+    page.receive({ type: 'setView', bounds: [[32.05, 34.74 + 1080], [32.12, 34.82 + 1080]], exact: true });
+    await wait(200);
+    const [[, west], [, east]] = page.posted.filter((message) => message.type === 'regionChange').pop()?.bounds as number[][];
+    expect(west).toBeCloseTo(34.74, 1);
+    expect(east).toBeCloseTo(34.82, 1);
+    page.dom.window.close();
+  });
+
+  it('keeps markers, circles, the pin and zoom when the tile template cannot be filled', async () => {
+    const page = loadPage();
+    const tiles = { urlTemplate: 'https://tiles.example.com/{z}/{x}/{y}.png?key={apikey}', maxZoom: 19, attribution: OSM_ATTRIBUTION };
+    // Hosts send the state before the first camera: layers are added when the map gets its view.
+    page.receive({ type: 'state', state: pageState({ tiles, reduceMotion: true, pin: { latitude: 32.07, longitude: 34.77, accessibilityLabel: 'Pin' } }) });
+    page.receive({ type: 'setView', bounds: VIEW });
+    await wait(200);
+    expect(page.markers()).toHaveLength(2);
+    expect(page.document.querySelectorAll('.leaflet-overlay-pane path')).toHaveLength(1);
+    expect(page.document.querySelector('.am-pin')).not.toBeNull();
+    expect(page.document.querySelectorAll('img.leaflet-tile')).toHaveLength(0);
+    expect(page.posted).toContainEqual({ type: 'error', message: 'Unsupported tile URL template', fatal: false, channel: CHANNEL });
+
+    const span = () => {
+      const bounds = page.posted.filter((message) => message.type === 'regionChange').pop()?.bounds as number[][];
+      return bounds[1][0] - bounds[0][0];
+    };
+    const before = span();
+    page.receive({ type: 'zoomIn' });
+    await wait(200);
+    expect(span()).toBeCloseTo(before / 2, 2);
+    page.dom.window.close();
+  });
+
+  it('leaves the mouse wheel to the page around a map that should not zoom with it', () => {
+    const wheel = (wheelZoom: boolean) => {
+      const page = loadPage();
+      page.receive({ type: 'state', state: pageState({ wheelZoom }) });
+      page.receive({ type: 'setView', bounds: VIEW });
+      const event = new page.dom.window.WheelEvent('wheel', { deltaY: 100, bubbles: true, cancelable: true });
+      page.document.querySelector('#map')?.dispatchEvent(event);
+      page.dom.window.close();
+      return event.defaultPrevented;
+    };
+    expect(wheel(true)).toBe(true); // Leaflet zooms and swallows it
+    expect(wheel(false)).toBe(false); // it scrolls the screen or sheet around the map
+  });
+
+  describe('native host', () => {
+    it('never navigates on a link tap: the host opens the credits', () => {
+      const page = loadPage();
+      page.receive({ type: 'setView', bounds: VIEW });
+      page.receive({ type: 'state', state: pageState() });
+      page.posted.length = 0;
+      const links = [...page.document.querySelectorAll<HTMLAnchorElement>('.leaflet-control-attribution a')];
+      // Leaflet's own credit (its attribution prefix) and the tile credit: the links the host opens.
+      expect(links.map((link) => link.getAttribute('href'))).toEqual([LEAFLET_CREDIT_URL, OSM_ATTRIBUTION.href]);
+      for (const link of links) {
+        const event = new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true });
+        link.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(true);
+      }
+      expect(page.input()).toEqual([
+        { type: 'openLink', href: LEAFLET_CREDIT_URL, channel: CHANNEL },
+        { type: 'openLink', href: OSM_ATTRIBUTION.href, channel: CHANNEL },
+      ]);
+      page.dom.window.close();
+    });
+
+    it('loads its tiles itself', () => {
+      const page = loadPage();
+      page.receive({ type: 'state', state: pageState() });
+      page.receive({ type: 'setView', bounds: VIEW });
+      const sources = [...page.document.querySelectorAll('img.leaflet-tile')].map((tile) => tile.getAttribute('src'));
+      expect(sources.length).toBeGreaterThan(0);
+      expect(sources.every((source) => source?.startsWith('https://tile.openstreetmap.org/'))).toBe(true);
+      expect(page.types()).not.toContain('tileRequest');
+      page.dom.window.close();
+    });
+  });
+
+  describe('web host', () => {
+    it('talks to its parent window only', () => {
+      const page = loadPage({ web: true });
+      expect(page.posted[0]).toMatchObject({ type: 'ready', channel: CHANNEL });
+
+      // Another window (e.g. a second map, or a foreign frame) cannot drive the page.
+      page.postFrom({ type: 'setView', bounds: VIEW }, {});
+      page.postFrom({ type: 'state', state: pageState() }, {});
+      expect(page.markers()).toHaveLength(0);
+
+      page.postFrom({ type: 'setView', bounds: VIEW });
+      page.postFrom({ type: 'state', state: pageState() });
+      expect(page.markers()).toHaveLength(2);
+      page.dom.window.close();
+    });
+
+    it('opens links in a new tab', () => {
+      const page = loadPage({ web: true });
+      page.postFrom({ type: 'setView', bounds: VIEW });
+      page.postFrom({ type: 'state', state: pageState() });
+      const link = page.document.querySelector<HTMLAnchorElement>(`.leaflet-control-attribution a[href="${OSM_ATTRIBUTION.href}"]`)!;
+      const event = new page.dom.window.MouseEvent('click', { bubbles: true, cancelable: true });
+      link.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+      expect(page.types()).not.toContain('openLink');
+      page.dom.window.close();
+    });
+
+    it('asks the host for its tiles and cancels the ones it no longer needs', async () => {
+      const page = loadPage({ web: true });
+      page.postFrom({ type: 'state', state: pageState({ reduceMotion: true }) });
+      page.postFrom({ type: 'setView', bounds: VIEW });
+      const requests = page.posted.filter((message) => message.type === 'tileRequest');
+      expect(requests.length).toBeGreaterThan(0);
+      for (const request of requests) {
+        expect(request).toEqual({ type: 'tileRequest', id: expect.stringMatching(/^\d+$/), z: expect.any(Number), x: expect.any(Number), y: expect.any(Number), channel: CHANNEL });
+      }
+      // The page itself loads nothing.
+      expect(page.document.querySelectorAll('img[src^="http"]')).toHaveLength(0);
+
+      const [first] = requests;
+      const url = 'data:image/png;base64,iVBORw0KGgo=';
+      page.postFrom({ type: 'tile', id: first.id, url });
+      expect(page.document.querySelector(`img[data-am-tile="${String(first.id)}"]`)?.getAttribute('src')).toBe(url);
+
+      // Zooming replaces the level: tiles still on their way are cancelled.
+      page.postFrom({ type: 'zoomIn' });
+      await wait(100);
+      const cancelled = page.posted.filter((message) => message.type === 'tileCancel').map((message) => message.id);
+      expect(cancelled.length).toBeGreaterThan(0);
+      expect(cancelled).not.toContain(first.id);
+      page.dom.window.close();
+    });
+
+    it('stops asking for tiles a content security policy blocks', async () => {
+      const page = loadPage({ web: true });
+      page.postFrom({ type: 'state', state: pageState({ reduceMotion: true }) });
+      page.postFrom({ type: 'setView', bounds: VIEW });
+      const violation = new page.dom.window.Event('securitypolicyviolation');
+      Object.assign(violation, { effectiveDirective: 'img-src', blockedURI: 'data' });
+      expect(page.document.querySelectorAll('img.leaflet-tile').length).toBeGreaterThan(0);
+      page.document.dispatchEvent(violation);
+      expect(page.document.querySelectorAll('img.leaflet-tile')).toHaveLength(0);
+
+      page.posted.length = 0;
+      page.postFrom({ type: 'zoomIn' });
+      page.postFrom({ type: 'state', state: pageState({ reduceMotion: true, circles: [] }) });
+      await wait(100);
+      expect(page.types()).not.toContain('tileRequest');
+      // The credit stays.
+      expect(page.document.querySelector('.leaflet-control-attribution')?.textContent).toContain(OSM_ATTRIBUTION.text);
+      page.dom.window.close();
+    });
   });
 });

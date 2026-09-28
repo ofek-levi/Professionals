@@ -9,6 +9,7 @@ import type { GeoCoordinates, PlaceSuggestion, ServiceLocation } from '@/types/d
 import { regionForRadius, type MapRegion } from '@/utils/geo';
 
 import { AppMap } from '../map/app-map';
+import type { AppMapHandle } from '../map/types';
 import { AppText } from '../ui/app-text';
 import { Button } from '../ui/button';
 import { Field } from '../ui/field';
@@ -77,9 +78,11 @@ export function LocationPicker({
   const { t } = useTranslation(['location', 'common']);
   const [query, setQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
-  const [focusRegion, setFocusRegion] = useState<MapRegion | undefined>(() =>
-    value ? regionForRadius(value.coordinates, FOCUS_RADIUS_KM) : undefined,
-  );
+  // The map starts at the chosen address; picking a place or the current location moves the camera
+  // there, even back to the same place after the user panned away.
+  const mapRef = useRef<AppMapHandle>(null);
+  const [startRegion] = useState(() => (value ? regionForRadius(value.coordinates, FOCUS_RADIUS_KM) : initialRegion));
+  const focusOn = (coordinates: GeoCoordinates) => mapRef.current?.animateToRegion(regionForRadius(coordinates, FOCUS_RADIUS_KM));
   const [pendingReverse, setPendingReverse] = useState<GeoCoordinates | null>(null);
   const [locating, setLocating] = useState(false);
   const [locateError, setLocateError] = useState<LocationFailureReason | null>(null);
@@ -128,7 +131,7 @@ export function LocationPicker({
     setSearchFocused(false);
     setPendingReverse(null);
     setUsedLastKnown(false);
-    setFocusRegion(regionForRadius(place.coordinates, FOCUS_RADIUS_KM));
+    focusOn(place.coordinates);
     // Apartment / floor details belong to the previous address: keep them only when the same
     // address was picked again (moving the pin, by contrast, fine-tunes the same address).
     const sameAddress = value !== null && value.addressLine === place.addressLine && value.city === place.city;
@@ -146,7 +149,7 @@ export function LocationPicker({
       return;
     }
     setUsedLastKnown(result.source === 'last_known');
-    setFocusRegion(regionForRadius(result.coordinates, FOCUS_RADIUS_KM));
+    focusOn(result.coordinates);
     movePin(result.coordinates);
   };
 
@@ -253,9 +256,9 @@ export function LocationPicker({
 
         <View style={[styles.mapWrapper, { height: mapHeight }]}>
           <AppMap
+            ref={mapRef}
             style={styles.map}
-            initialRegion={initialRegion}
-            region={focusRegion}
+            initialRegion={startRegion}
             draggablePin={value ? { coordinate: value.coordinates, onChange: movePin } : undefined}
             onPress={movePin}
             showZoomControls

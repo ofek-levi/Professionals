@@ -5,7 +5,7 @@ import { initI18n } from '@/i18n';
 import type { ServiceLocation } from '@/types/domain';
 import { regionForRadius } from '@/utils/geo';
 
-import { emitMapMessage, injectedMapMessages } from '../../__test-utils__/map-bridge';
+import { emitMapMessage, getMapWebView, injectedMapMessages } from '../../__test-utils__/map-bridge';
 import { webViewMock } from '../../__test-utils__/react-native-webview.mock';
 import { renderWithProviders } from '../../__test-utils__/render';
 import { regionToBounds } from '../../map/leaflet/map-geometry';
@@ -91,7 +91,7 @@ describe('LocationPicker', () => {
 
   it('places the pin on map tap and fills the address by reverse geocoding', async () => {
     await renderWithProviders(<Harness />);
-    const map = screen.getByTestId('map-webview');
+    const map = getMapWebView();
     await emitMapMessage(map, { type: 'ready' });
     await emitMapMessage(map, { type: 'mapPress', coordinate: { latitude: 32.0801, longitude: 34.7801 } });
     expect(await screen.findByDisplayValue('Ibn Gabirol St 50')).toBeOnTheScreen();
@@ -100,7 +100,7 @@ describe('LocationPicker', () => {
 
   it('moves the map to a picked suggestion and puts the pin there', async () => {
     await renderWithProviders(<Harness />);
-    await emitMapMessage(screen.getByTestId('map-webview'), { type: 'ready' });
+    await emitMapMessage(getMapWebView(), { type: 'ready' });
     expect(lastPin()).toBeNull();
 
     const search = screen.getByTestId('location-search');
@@ -112,9 +112,28 @@ describe('LocationPicker', () => {
     expect(lastPin()).toMatchObject({ latitude: 32.08, longitude: 34.77 });
   });
 
+  it('moves the map again when the same place is picked after panning away', async () => {
+    await renderWithProviders(<Harness />);
+    const map = getMapWebView();
+    await emitMapMessage(map, { type: 'ready' });
+    const search = screen.getByTestId('location-search');
+    const pick = async () => {
+      await fireEvent(search, 'focus');
+      await fireEvent.changeText(search, 'Dizen');
+      await fireEvent.press(await screen.findByRole('button', { name: 'Dizengoff St 120, Center, Tel Aviv-Yafo' }));
+    };
+    await pick();
+    // The user pans somewhere else, then picks the same address again.
+    await emitMapMessage(map, { type: 'regionChange', bounds: [[31.9, 34.6], [32.0, 34.7]] });
+    await pick();
+    const target = regionToBounds(regionForRadius({ latitude: 32.08, longitude: 34.77 }, 0.45));
+    const animations = injectedMapMessages().filter((message) => message.type === 'animateToRegion');
+    expect(animations.map((message) => message.bounds)).toEqual([target, target]);
+  });
+
   it('fine-tunes the address by dragging the pin, keeping the apartment details', async () => {
     await renderWithProviders(<Harness initial={SAVED_ADDRESS} />);
-    const map = screen.getByTestId('map-webview');
+    const map = getMapWebView();
     await emitMapMessage(map, { type: 'ready' });
     expect(lastPin()).toMatchObject({ latitude: 32.082, longitude: 34.813 });
 
@@ -128,7 +147,7 @@ describe('LocationPicker', () => {
   it('zooms with its own buttons once the map is ready', async () => {
     await renderWithProviders(<Harness initial={SAVED_ADDRESS} />);
     expect(screen.queryByRole('button', { name: 'Zoom in' })).toBeNull();
-    await emitMapMessage(screen.getByTestId('map-webview'), { type: 'ready' });
+    await emitMapMessage(getMapWebView(), { type: 'ready' });
     await fireEvent.press(screen.getByRole('button', { name: 'Zoom in' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Zoom out' }));
     expect(injectedMapMessages().map((message) => message.type)).toEqual(expect.arrayContaining(['zoomIn', 'zoomOut']));

@@ -14,18 +14,22 @@ import { FALLBACK_MARKER_ICON, PIN_ICON } from './marker-icons';
 /**
  * Inline code and styles only; images (tiles, inline SVG) over https or data URLs; no fetches,
  * frames, forms or plugins. The host's own injected scripts are not subject to the page CSP.
+ * With `hostTiles` (web) the host hands the page its tiles as data URLs, so the page may load
+ * nothing from the network at all.
  */
-export const MAP_CONTENT_SECURITY_POLICY = [
-  "default-src 'none'",
-  "script-src 'unsafe-inline'",
-  "style-src 'unsafe-inline'",
-  'img-src https: data: blob:',
-  "connect-src 'none'",
-  "frame-src 'none'",
-  "object-src 'none'",
-  "base-uri 'none'",
-  "form-action 'none'",
-].join('; ');
+export function mapContentSecurityPolicy({ hostTiles }: { hostTiles: boolean }): string {
+  return [
+    "default-src 'none'",
+    "script-src 'unsafe-inline'",
+    "style-src 'unsafe-inline'",
+    hostTiles ? 'img-src data:' : 'img-src https: data:',
+    "connect-src 'none'",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; ');
+}
 
 /** Escapes text for an HTML attribute value or text content. */
 export function escapeHtml(value: string): string {
@@ -45,16 +49,20 @@ export function escapeInlineStyle(css: string): string {
   return css.replace(/<\/(style)/gi, '<\\/$1');
 }
 
-export function buildMapDocument({ channel }: { channel: string }): string {
+/**
+ * `hostTiles`: the page asks the host for its tiles (`tileRequest`) instead of loading them itself
+ * (the web host: a sandboxed frame sends no Referer, see `web-tile-loader.ts`).
+ */
+export function buildMapDocument({ channel, hostTiles = false }: { channel: string; hostTiles?: boolean }): string {
   if (!isChannelId(channel)) throw new Error('Invalid map channel id');
-  const config = { channel, icons: MARKER_ICON_PATHS, fallbackIcon: FALLBACK_MARKER_ICON, pinIcon: PIN_ICON };
+  const config = { channel, icons: MARKER_ICON_PATHS, fallbackIcon: FALLBACK_MARKER_ICON, pinIcon: PIN_ICON, hostTiles };
   return [
     '<!doctype html>',
     '<html dir="ltr">',
     '<head>',
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">',
-    `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(MAP_CONTENT_SECURITY_POLICY)}">`,
+    `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(mapContentSecurityPolicy({ hostTiles }))}">`,
     `<style>${escapeInlineStyle(LEAFLET_CSS)}</style>`,
     `<style>${escapeInlineStyle(MAP_PAGE_STYLES)}</style>`,
     '</head>',

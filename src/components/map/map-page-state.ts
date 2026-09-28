@@ -18,6 +18,8 @@ interface PageStateInput {
   circles: readonly AppMapCircle[];
   pin: GeoCoordinates | null;
   interactive: boolean;
+  /** Mouse-wheel zoom (default `true`; off inside scrolling screens). */
+  wheelZoom?: boolean;
   reduceMotion: boolean;
   insets?: AppMapInsets;
   /** Localized accessibility texts. */
@@ -46,6 +48,7 @@ export function buildMapPageState({
   circles,
   pin,
   interactive,
+  wheelZoom = true,
   reduceMotion,
   insets,
   labels,
@@ -98,6 +101,7 @@ export function buildMapPageState({
     tiles: { urlTemplate: tiles.urlTemplate, maxZoom: tiles.maxZoom, attribution: tiles.attribution },
     rtl: theme.isRTL,
     interactive,
+    wheelZoom: interactive && wheelZoom,
     reduceMotion,
     insets: resolvePageInsets(insets, theme.isRTL),
     accessibilityLabel: labels.map,

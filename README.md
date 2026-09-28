@@ -32,22 +32,35 @@ npx expo start           # press i / a / w, or scan the QR code with Expo Go
 ### Maps
 
 Every map (the job explorer and the location pickers) is one component, `AppMap`: **Leaflet** with
-free **OpenStreetMap** raster tiles. It needs **no API key and no native module**, so it works the
-same in Expo Go, development builds, production builds and the browser.
+free **OpenStreetMap** raster tiles. It needs **no API key**. On iOS and Android it uses
+`react-native-webview`, a native module that Expo Go already includes; **rebuild existing
+development builds** made before the switch from `react-native-maps` (they lack `RNCWebView`).
 
-- **iOS / Android:** the map page runs in a `react-native-webview` WebView.
-- **Web:** the same page runs in a sandboxed `<iframe srcdoc>`.
+- **iOS / Android:** the map page runs in a `react-native-webview` WebView and loads its tiles
+  itself, identifying the app in its User-Agent (`professionals/<version>`).
+- **Web:** the same page runs in a sandboxed `<iframe srcdoc>` (no `allow-same-origin`). Such a
+  frame has no origin, so its requests would carry no `Referer`, which the OSM tile servers require
+  from browsers. The app page therefore fetches the tiles for the frame (sending its own origin as
+  `Referer`) and hands them over as images; the frame itself loads nothing. The tile server must
+  allow CORS, as the OSM servers and the common providers do.
 - Leaflet's JS/CSS and the marker glyphs are bundled with the app (no CDN); only the tiles are
   downloaded. Without a connection the map still shows its markers, circles and pin over a plain
   grid in the theme colors.
 - The attribution ("© OpenStreetMap contributors") is always visible, as the tile licence requires.
+  Tapping it opens the licence page in the browser.
+- Inside a scrolling screen or sheet (the location pickers) the mouse wheel scrolls the page; use
+  the zoom buttons, a double click or a pinch to zoom. The explorer map zooms with the wheel.
 
 **Tile usage policy.** The public `tile.openstreetmap.org` servers are run on donated resources and
 are meant for light use: the [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/)
-requires the attribution, forbids heavy or bulk use (prefetching, offline downloads, scraping) and
-can block apps that cause too much traffic. They are fine for development and demos. **For
+requires the attribution, a `Referer` from web pages and a User-Agent that identifies an app (both
+are sent as described above), forbids heavy or bulk use (prefetching, offline downloads, scraping)
+and can block apps that cause too much traffic. They are fine for development and demos. **For
 production**, point `EXPO_PUBLIC_MAP_TILE_URL` at a tile provider (many have a free tier) or at your
-own tile server, and set `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION` to the credit that provider requires.
+own tile server, and set `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION` to the credit that provider requires
+(it is used only together with a custom URL; OpenStreetMap tiles always keep the OSM credit). The
+URL may contain only the placeholders Leaflet fills (`{z}`, `{x}`, `{y}` or `{-y}`, `{s}`, `{r}`);
+put API keys into it as literal text.
 
 **Updating Leaflet or the icons.** `leaflet` and `@mdi/js` are dev dependencies read only by
 `npm run generate:map-assets`, which writes `src/components/map/leaflet/generated/` (commit the
@@ -62,8 +75,8 @@ you do.
 | `EXPO_PUBLIC_API_BASE_URL` | `https://api.example.com/v1` | Real API base URL (http mode) |
 | `EXPO_PUBLIC_MOCK_FAILURE_RATE` | `0` | Probability (0–1) of simulated network failures |
 | `EXPO_PUBLIC_MOCK_PERSIST` | `true` | Persist the mock database across launches |
-| `EXPO_PUBLIC_MAP_TILE_URL` | OpenStreetMap | Map tile URL template (`https://…/{z}/{x}/{y}.png`); use a tile provider or your own server in production |
-| `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION` | `© OpenStreetMap contributors` | Plain-text credit shown on the map for a custom tile provider |
+| `EXPO_PUBLIC_MAP_TILE_URL` | OpenStreetMap | Map tile URL template (`https://…/{z}/{x}/{y}.png`, CORS-enabled for the web); use a tile provider or your own server in production |
+| `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION` | `© OpenStreetMap contributors` | Plain-text credit shown on the map for the custom tile URL (ignored without one) |
 | `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | – | Google OAuth client id for the web (unset → simulated Google sign-in) |
 | `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | – | Google OAuth client id for iOS builds |
 | `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | – | Google OAuth client id for Android builds |
@@ -299,7 +312,7 @@ Key decisions:
 
 ## Testing
 
-`npm test` runs 94 Jest suites (602 tests). They cover the category catalog, sign-in/sign-up,
+`npm test` runs 97 Jest suites (642 tests). They cover the category catalog, sign-in/sign-up,
 request/offer/profile validation, the auth endpoints (registration of both roles, credentials,
 Google sign-in, password reset), status transitions, request filtering by category and service area, offer creation
 and duplicate prevention, offer acceptance (including preventing two accepted offers),
@@ -307,7 +320,8 @@ cancellation cascades, offer expiry and reminders, notification generation for e
 role separation and address privacy, seed data integrity, the React Query hooks against the mock
 backend, the navigation shell and role guards, the account screens (sign-in errors, the sign-up
 steps for both roles, Google demo sign-in, password reset), realtime handling, the map (bridge
-protocol, the Leaflet page in jsdom, the WebView host, the explore map and the location picker), and
+protocol, the Leaflet page in jsdom, the WebView and iframe hosts, the web tile loader, the explore
+map and the location picker), and
 view models and components of the main screens.
 
 ---

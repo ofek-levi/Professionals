@@ -1,6 +1,6 @@
 import { act, fireEvent, screen } from '@testing-library/react-native';
 
-import { emitMapMessage, injectedMapMessages } from '@/components/__test-utils__/map-bridge';
+import { emitMapMessage, getMapWebView, injectedMapMessages } from '@/components/__test-utils__/map-bridge';
 import { webViewMock } from '@/components/__test-utils__/react-native-webview.mock';
 import { renderWithProviders } from '@/components/__test-utils__/render';
 import type { MapPageState } from '@/components/map/leaflet/map-protocol';
@@ -70,7 +70,7 @@ function request(id: string, categoryId: CategoryId, urgency: UrgencyLevel, lati
   };
 }
 
-const webView = () => screen.getByTestId('map-webview');
+const webView = () => getMapWebView();
 const lastState = () => injectedMapMessages().filter((message) => message.type === 'state').pop()?.state as MapPageState;
 const theme = createTheme('light', false);
 const layout = (height: number) => ({ nativeEvent: { layout: { x: 0, y: 0, width: 300, height } } });

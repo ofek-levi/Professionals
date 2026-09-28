@@ -2,17 +2,19 @@ import { act, fireEvent, screen } from '@testing-library/react-native';
 import { createRef } from 'react';
 
 import { initI18n } from '@/i18n';
+import { DEFAULT_MAP_REGION } from '@/utils/geo';
 
-import { emitMapMessage, injectedMapMessages } from '../../__test-utils__/map-bridge';
+import { emitMapMessage, getMapWebView, injectedMapMessages } from '../../__test-utils__/map-bridge';
 import { renderWithProviders } from '../../__test-utils__/render';
 import { webViewMock } from '../../__test-utils__/react-native-webview.mock';
+import { Screen } from '../../ui/screen';
 import { AppMap } from '../app-map';
 import { regionToBounds } from '../leaflet/map-geometry';
 import type { MapPageState } from '../leaflet/map-protocol';
 import type { AppMapHandle } from '../types';
 
 const HOME = { latitude: 32.08, longitude: 34.78, latitudeDelta: 0.1, longitudeDelta: 0.1 };
-const webView = () => screen.getByTestId('map-webview');
+const webView = () => getMapWebView();
 const lastState = () => injectedMapMessages().filter((message) => message.type === 'state').pop()?.state as MapPageState;
 
 beforeAll(async () => {
@@ -86,6 +88,22 @@ describe('AppMap', () => {
     expect(screen.getByTestId('map').props.accessibilityRole).toBe('image');
   });
 
+  it('leaves the mouse wheel to a scrolling screen around it', async () => {
+    const { unmount } = await renderWithProviders(<AppMap />);
+    await emitMapMessage(webView(), { type: 'ready' });
+    expect(lastState()).toMatchObject({ wheelZoom: true });
+    await unmount();
+
+    webViewMock.injectJavaScript.mockClear();
+    await renderWithProviders(
+      <Screen>
+        <AppMap />
+      </Screen>,
+    );
+    await emitMapMessage(webView(), { type: 'ready' });
+    expect(lastState()).toMatchObject({ wheelZoom: false });
+  });
+
   it('keeps the attribution and the camera clear of overlays, mirrored in RTL', async () => {
     await renderWithProviders(<AppMap controlInsets={{ bottom: 120, start: 8 }} />, { isRTL: true });
     await emitMapMessage(webView(), { type: 'ready' });
@@ -108,6 +126,21 @@ describe('camera', () => {
     expect(injectedMapMessages().filter((message) => message.type === 'animateToRegion')).toEqual([
       expect.objectContaining({ bounds: regionToBounds(next), durationMs: 350 }),
     ]);
+  });
+
+  it('never takes an invalid region as its camera', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const broken = { ...HOME, latitudeDelta: Number.NaN, longitudeDelta: Number.NaN };
+    const ref = createRef<AppMapHandle>();
+    const { rerender } = await renderWithProviders(<AppMap ref={ref} region={broken} />);
+    await emitMapMessage(webView(), { type: 'ready' });
+    expect(injectedMapMessages().find((message) => message.type === 'setView')).toMatchObject({ bounds: regionToBounds(DEFAULT_MAP_REGION) });
+
+    webViewMock.injectJavaScript.mockClear();
+    await act(async () => ref.current?.animateToRegion(broken));
+    await rerender(<AppMap ref={ref} region={{ ...broken, latitude: 31 }} />);
+    expect(injectedMapMessages()).toEqual([]);
+    jest.restoreAllMocks();
   });
 
   it('animateToRegion moves the map even to the region it already shows', async () => {

@@ -1,6 +1,6 @@
 import { LEAFLET_CSS, LEAFLET_JS } from '../generated/leaflet-assets';
 import { MARKER_ICON_PATHS } from '../generated/marker-icon-paths';
-import { buildMapDocument, escapeHtml, escapeInlineScript, escapeInlineStyle, MAP_CONTENT_SECURITY_POLICY } from '../map-document';
+import { buildMapDocument, escapeHtml, escapeInlineScript, escapeInlineStyle, mapContentSecurityPolicy } from '../map-document';
 import { MAP_PAGE_SCRIPT } from '../map-page-script';
 import { MAP_PAGE_STYLES } from '../map-page-styles';
 
@@ -20,20 +20,31 @@ describe('buildMapDocument', () => {
     expect(html).not.toMatch(/<script[^>]*\bsrc\s*=/i);
     expect(html).not.toMatch(/<link\b/i);
     expect(html).not.toMatch(/sourceMappingURL/);
-    expect(html).toContain(`content="${escapeHtml(MAP_CONTENT_SECURITY_POLICY)}"`);
+    expect(html).toContain(`content="${escapeHtml(mapContentSecurityPolicy({ hostTiles: false }))}"`);
+  });
+
+  it('lets a page whose host loads its tiles (web) load nothing itself', () => {
+    const web = buildMapDocument({ channel: CHANNEL, hostTiles: true });
+    const policy = mapContentSecurityPolicy({ hostTiles: true });
+    expect(web).toContain(`content="${escapeHtml(policy)}"`);
+    expect(policy).toContain('img-src data:;');
+    expect(policy).not.toMatch(/https:/);
+    expect(mapContentSecurityPolicy({ hostTiles: false })).toContain('img-src https: data:;');
+    expect(web).toContain('"hostTiles":true');
+    expect(html).toContain('"hostTiles":false');
   });
 
   it('embeds the channel and glyph table as parseable JSON', () => {
     const match = /<script type="application\/json" id="app-map-config">([\s\S]*?)<\/script>/.exec(html);
     expect(match).not.toBeNull();
-    const config = JSON.parse(match![1]) as { channel: string; icons: Record<string, string>; fallbackIcon: string; pinIcon: string };
+    const config = JSON.parse(match![1]) as { channel: string; icons: Record<string, string>; fallbackIcon: string; pinIcon: string; hostTiles: boolean };
     expect(config.channel).toBe(CHANNEL);
     expect(config.icons).toEqual(MARKER_ICON_PATHS);
     expect(config.icons[config.fallbackIcon]).toBeDefined();
     expect(config.icons[config.pinIcon]).toBeDefined();
   });
 
-  it('depends only on the channel (hosts build it once per mount)', () => {
+  it('depends only on the channel and the tile source (hosts build it once per mount)', () => {
     expect(buildMapDocument({ channel: CHANNEL })).toBe(html);
     expect(buildMapDocument({ channel: 'zyxwvutsrqponmlk9876' })).not.toBe(html);
   });

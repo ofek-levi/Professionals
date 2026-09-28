@@ -21,7 +21,7 @@ export const FALLBACK_MARKER_ICON = 'shape-outline';
  */
 export const MAP_EXTRA_ICONS = ['map-marker', 'home-map-marker', 'shape-outline', 'briefcase-outline'] as const;
 
-export function hasMarkerIcon(name: string): boolean {
+function hasMarkerIcon(name: string): boolean {
   return Object.prototype.hasOwnProperty.call(MARKER_ICON_PATHS, name);
 }
 

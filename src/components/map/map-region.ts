@@ -3,7 +3,7 @@
  * Distance/region primitives come from `utils/geo`.
  */
 import type { GeoCoordinates } from '@/types/domain';
-import { DEFAULT_MAP_REGION, regionForCoordinates, regionForRadius, type MapRegion } from '@/utils/geo';
+import { DEFAULT_MAP_REGION, isValidCoordinates, regionForCoordinates, regionForRadius, type MapRegion } from '@/utils/geo';
 
 import type { AppMapCircle, AppMapDraggablePin, AppMapMarker } from './types';
 
@@ -25,7 +25,20 @@ function contentCoordinates(
   return points;
 }
 
-/** Picks the initial viewport: explicit region → pin → fitted content → default city region. */
+/**
+ * A region the map can show: a valid center and finite, non-negative spans. Anything else (e.g.
+ * `regionForRadius` of a malformed radius → NaN spans) would leave the map blank.
+ */
+export function isValidRegion(region: MapRegion | undefined): region is MapRegion {
+  if (!region || !isValidCoordinates(region)) return false;
+  const { latitudeDelta, longitudeDelta } = region;
+  return Number.isFinite(latitudeDelta) && Number.isFinite(longitudeDelta) && latitudeDelta >= 0 && longitudeDelta >= 0;
+}
+
+/**
+ * Picks the initial viewport: explicit region → pin → fitted content → default city region.
+ * Invalid candidates are skipped, so the map always has a camera.
+ */
 export function resolveInitialRegion(options: {
   region?: MapRegion;
   initialRegion?: MapRegion;
@@ -34,11 +47,17 @@ export function resolveInitialRegion(options: {
   pin?: AppMapDraggablePin;
 }): MapRegion {
   const { region, initialRegion, markers, circles, pin } = options;
-  if (region) return region;
-  if (initialRegion) return initialRegion;
-  if (pin) return regionForRadius(pin.coordinate, 1);
-  const points = contentCoordinates(markers, circles, pin);
-  if (points.length > 0) return regionForCoordinates(points, 1.3);
+  const validPin = pin && isValidCoordinates(pin.coordinate) ? pin : undefined;
+  for (const candidate of [region, initialRegion, validPin ? regionForRadius(validPin.coordinate, 1) : undefined]) {
+    if (isValidRegion(candidate)) return candidate;
+  }
+  const points = contentCoordinates(
+    markers.filter((marker) => isValidCoordinates(marker.coordinate)),
+    circles.filter((circle) => isValidCoordinates(circle.center) && Number.isFinite(circle.radiusKm) && circle.radiusKm > 0),
+    validPin,
+  );
+  const fitted = points.length > 0 ? regionForCoordinates(points, 1.3) : undefined;
+  if (isValidRegion(fitted)) return fitted;
   return DEFAULT_MAP_REGION;
 }
 

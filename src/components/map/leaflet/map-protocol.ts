@@ -5,10 +5,12 @@
  * pass `parsePageMessage` (right channel, known type, strictly shaped, finite numbers, small), so a
  * foreign frame or a stale page can never drive the app.
  *
- * Host → page: `state` (the full declarative map state; the page diffs it) and camera commands.
- * Page → host: `ready`, user input (`markerPress`, `mapPress`, `pinDragEnd`), `regionChange` after
- * the camera settled, and `error`.
+ * Host → page: `state` (the full declarative map state; the page diffs it), camera commands and
+ * (web) the tiles the host loaded for the page.
+ * Page → host: `ready`, user input (`markerPress`, `mapPress`, `pinDragEnd`, `openLink`),
+ * `regionChange` after the camera settled, `error`, and (web) `tileRequest` / `tileCancel`.
  */
+import type { TileCoordinates } from '@/constants/map-tiles';
 import type { GeoCoordinates } from '@/types/domain';
 
 import type { LatLngBoundsLiteral } from './map-geometry';
@@ -92,6 +94,8 @@ export interface MapPageState {
   rtl: boolean;
   /** `false` = static preview: no gestures, no taps, no keyboard focus. */
   interactive: boolean;
+  /** Mouse-wheel zoom (off where the wheel should scroll the page around the map). */
+  wheelZoom: boolean;
   reduceMotion: boolean;
   insets: PageInsets;
   /** Accessible name of the map region and the page language. */
@@ -111,23 +115,44 @@ export type HostMessage =
   /** `durationMs` 0 or Reduce Motion → instant. */
   | { type: 'animateToRegion'; bounds: LatLngBoundsLiteral; durationMs: number }
   | { type: 'zoomIn' }
-  | { type: 'zoomOut' };
+  | { type: 'zoomOut' }
+  /** Web: a tile the host loaded for `tileRequest` `id` (a `data:image/…` URL; `null` = failed). */
+  | { type: 'tile'; id: string; url: string | null };
 
 export type PageMessage =
-  | { type: 'ready' }
+  /**
+   * The page booted. It repeats this until the host answers (a first one can be lost while the
+   * host is not listening yet); `boot` is random per page load, so repeats are recognized.
+   */
+  | { type: 'ready'; boot: string }
   | { type: 'markerPress'; id: string }
   | { type: 'mapPress'; coordinate: GeoCoordinates }
   | { type: 'pinDragEnd'; coordinate: GeoCoordinates }
   | { type: 'regionChange'; bounds: LatLngBoundsLiteral }
+  /** Native: a tapped link (the attribution); the page never navigates itself. */
+  | { type: 'openLink'; href: string }
+  /** Web: the page asks the host to load a tile (see `web-tile-loader.ts`). */
+  | ({ type: 'tileRequest'; id: string } & TileCoordinates)
+  | { type: 'tileCancel'; id: string }
   /** `fatal`: the page could not start (the host shows its error fallback). */
   | { type: 'error'; message: string; fatal: boolean };
+
+/** Leaflet's own credit, the link its attribution prefix shows next to the tile credit. */
+export const LEAFLET_CREDIT_URL = 'https://leafletjs.com';
 
 /** Page messages are tiny; anything bigger is not ours. */
 export const MAX_PAGE_MESSAGE_LENGTH = 4096;
 const MAX_ID_LENGTH = 256;
 const MAX_ERROR_LENGTH = 500;
+const MAX_LINK_LENGTH = 2048;
+/** Deepest tile zoom a template may serve (Leaflet's own ceiling for raster tiles is far above). */
+const MAX_TILE_ZOOM = 24;
 
 const CHANNEL_PATTERN = /^[A-Za-z0-9]{16,64}$/;
+const BOOT_PATTERN = /^[A-Za-z0-9]{8,64}$/;
+const TILE_ID_PATTERN = /^[A-Za-z0-9]{1,32}$/;
+/** An absolute https URL without characters that would need escaping in HTML. */
+const LINK_PATTERN = /^https:\/\/[^\s"'<>\\]+$/;
 
 /** A random per-mount channel id (not a secret: it tells this map's messages apart). */
 export function createChannelId(): string {
@@ -176,6 +201,16 @@ function parseCoordinate(value: unknown): GeoCoordinates | null {
 const isNumberPair = (value: unknown): value is [number, number] =>
   Array.isArray(value) && value.length === 2 && value.every(isFiniteNumber);
 
+/** Integer tile coordinates inside the world at their zoom (Leaflet wraps `x` before asking). */
+function parseTile(data: UnknownRecord): TileCoordinates | null {
+  const { z, x, y } = data;
+  if (!Number.isInteger(z) || !Number.isInteger(x) || !Number.isInteger(y)) return null;
+  const [zoom, column, row] = [z, x, y] as number[];
+  if (zoom < 0 || zoom > MAX_TILE_ZOOM) return null;
+  const size = 2 ** zoom;
+  return column >= 0 && column < size && row >= 0 && row < size ? { z: zoom, x: column, y: row } : null;
+}
+
 function parseBounds(value: unknown): LatLngBoundsLiteral | null {
   if (!Array.isArray(value) || value.length !== 2 || !isNumberPair(value[0]) || !isNumberPair(value[1])) return null;
   const [[south, west], [north, east]] = value as LatLngBoundsLiteral;
@@ -204,7 +239,7 @@ export function parsePageMessage(raw: unknown, channel: string): PageMessage | n
 
   switch (data.type) {
     case 'ready':
-      return { type: 'ready' };
+      return typeof data.boot === 'string' && BOOT_PATTERN.test(data.boot) ? { type: 'ready', boot: data.boot } : null;
     case 'markerPress':
       return typeof data.id === 'string' && data.id.length > 0 && data.id.length <= MAX_ID_LENGTH ? { type: 'markerPress', id: data.id } : null;
     case 'mapPress':
@@ -216,6 +251,17 @@ export function parsePageMessage(raw: unknown, channel: string): PageMessage | n
       const bounds = parseBounds(data.bounds);
       return bounds ? { type: 'regionChange', bounds } : null;
     }
+    case 'openLink':
+      return typeof data.href === 'string' && data.href.length <= MAX_LINK_LENGTH && LINK_PATTERN.test(data.href)
+        ? { type: 'openLink', href: data.href }
+        : null;
+    case 'tileRequest': {
+      if (typeof data.id !== 'string' || !TILE_ID_PATTERN.test(data.id)) return null;
+      const tile = parseTile(data);
+      return tile ? { type: 'tileRequest', id: data.id, ...tile } : null;
+    }
+    case 'tileCancel':
+      return typeof data.id === 'string' && TILE_ID_PATTERN.test(data.id) ? { type: 'tileCancel', id: data.id } : null;
     case 'error':
       return typeof data.message === 'string'
         ? { type: 'error', message: data.message.slice(0, MAX_ERROR_LENGTH), fatal: data.fatal === true }

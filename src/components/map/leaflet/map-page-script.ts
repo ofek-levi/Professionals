@@ -12,6 +12,8 @@
  * - User and configuration text only reaches the DOM through `textContent` / attributes; the one
  *   HTML string (the attribution) is built from escaped text.
  * - Host detection: `window.ReactNativeWebView` (native) or `parent.postMessage` (web iframe).
+ * - Tiles: native pages load them directly; the web page asks its host for them (`hostTiles`), as
+ *   its sandboxed frame has no origin to send as the Referer the OSM tile policy requires.
  */
 export const MAP_PAGE_SCRIPT = String.raw`(function () {
   'use strict';
@@ -19,6 +21,9 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
   var TAP_DELAY_MS = 250; // a double tap zooms instead of reporting a tap
   var MARKER_TAP_GUARD_MS = 400; // a tap on a marker or the pin never also counts as a map tap
   var REGION_DEBOUNCE_MS = 120;
+  var READY_RETRY_MS = 500; // 'ready' is repeated until the host answers ...
+  var READY_ATTEMPTS = 30; // ... for up to 15 s (the host's own timeout)
+  var REVEAL_SETTLE_MS = 1000; // overlays measured this soon after a selection still reveal it
   var MAX_MESSAGE_LENGTH = 4000000;
   var MARKER_SIZE = 44;
   var PIN_WIDTH = 44;
@@ -41,15 +46,22 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
     overlay: '--am-overlay',
     controlBackground: '--am-control-bg'
   };
-  var INTERACTION_HANDLERS = ['dragging', 'touchZoom', 'doubleClickZoom', 'scrollWheelZoom', 'keyboard'];
+  var INTERACTION_HANDLERS = ['dragging', 'touchZoom', 'doubleClickZoom', 'keyboard'];
+  var TILE_PLACEHOLDER = /\{[^}]*\}/g;
+  var KNOWN_TILE_PLACEHOLDERS = { '{s}': true, '{z}': true, '{x}': true, '{y}': true, '{-y}': true, '{r}': true };
 
   var documentRoot = document.documentElement;
   var nativeBridge = window.ReactNativeWebView;
-  var config = { channel: '', icons: {}, fallbackIcon: '', pinIcon: '' };
+  var config = { channel: '', icons: {}, fallbackIcon: '', pinIcon: '', hostTiles: false };
+  var bootId = randomId();
+  var answered = false;
   var map = null;
   var attribution = null;
   var tileLayer = null;
   var tilesKey = '';
+  var tilesBlocked = false;
+  var hostTiles = Object.create(null);
+  var tileSequence = 0;
   var attributionHtml = '';
   var markers = Object.create(null);
   var circles = Object.create(null);
@@ -57,12 +69,12 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
   var booted = false;
   var viewSet = false;
   var pendingView = null;
-  var revealedKey = '';
+  var revealed = { id: '', insets: null, at: 0 };
   var tapTimer = 0;
   var regionTimer = 0;
   var lastMarkerPress = 0;
-  var interactiveApplied = false;
-  var settings = { interactive: true, reduceMotion: false, insets: { top: 0, right: 0, bottom: 0, left: 0 } };
+  var interactiveKey = '';
+  var settings = { interactive: true, wheelZoom: true, reduceMotion: false, insets: { top: 0, right: 0, bottom: 0, left: 0 } };
 
   // --- Messaging -----------------------------------------------------------------
 
@@ -91,6 +103,13 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
   };
 
   // --- Helpers -------------------------------------------------------------------
+
+  /** Random per-page-load id (tells a repeated 'ready' from a reloaded page). */
+  function randomId() {
+    var id = '';
+    while (id.length < 16) id += Math.random().toString(36).slice(2);
+    return id.slice(0, 16);
+  }
 
   function isNumber(value) {
     return typeof value === 'number' && isFinite(value);
@@ -173,13 +192,18 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
     };
   }
 
+  /** False while the map is not laid out (a collapsed parent, a hidden screen). */
+  function hasSize() {
+    var container = map.getContainer();
+    return container.clientWidth >= 8 && container.clientHeight >= 8;
+  }
+
   /**
    * Fits the camera to bounds, keeping clear of the overlay insets. 'exact' bounds are a viewport
    * the page showed before (restored after a reload): they fill the whole map.
    */
   function showBounds(bounds, durationMs, exact) {
-    var container = map.getContainer();
-    if (container.clientWidth < 8 || container.clientHeight < 8) {
+    if (!hasSize()) {
       // Not laid out yet (e.g. a collapsed parent): fit as soon as the page gets a size.
       pendingView = { bounds: bounds, exact: exact };
       return;
@@ -204,9 +228,21 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
     else map.zoomOut(-delta, { animate: !settings.reduceMotion });
   }
 
+  function sameInsets(a, b) {
+    return !!a && !!b && a.top === b.top && a.right === b.right && a.bottom === b.bottom && a.left === b.left;
+  }
+
+  /** Whether a point is on screen and outside the areas the overlays ('insets') cover. */
+  function isClear(latLng, insets) {
+    var point = map.latLngToContainerPoint(latLng);
+    var size = map.getSize();
+    return point.x >= insets.left && point.x <= size.x - insets.right && point.y >= insets.top && point.y <= size.y - insets.bottom;
+  }
+
   /**
-   * Pans a newly selected marker (or the selected one when the insets change, e.g. a preview card
-   * opened for it) just enough to sit clear of the overlays. The user can still pan it away.
+   * Pans a newly selected marker just enough to sit clear of the overlays. When the overlays change
+   * while it stays selected (e.g. its preview card got its size, or later grew), it is kept clear
+   * only if it was in view before - a marker the user panned away stays where the user left it.
    */
   function revealSelected() {
     var selected = null;
@@ -215,13 +251,20 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
       return selected !== null;
     });
     if (!selected) {
-      revealedKey = '';
+      revealed = { id: '', insets: null, at: 0 };
       return;
     }
+    if (!viewSet) return;
     var insets = settings.insets;
-    var key = selected.id + '|' + [insets.top, insets.right, insets.bottom, insets.left].join(',');
-    if (key === revealedKey || !viewSet) return;
-    revealedKey = key;
+    if (selected.id === revealed.id) {
+      if (sameInsets(insets, revealed.insets)) return;
+      var settling = Date.now() - revealed.at < REVEAL_SETTLE_MS;
+      var wasClear = isClear(selected.marker.getLatLng(), revealed.insets);
+      revealed.insets = insets;
+      if (!settling && !wasClear) return;
+    } else {
+      revealed = { id: selected.id, insets: insets, at: Date.now() };
+    }
     // The attribution sits on the bottom inset: keep the label clear of it too.
     var credit = attribution.getContainer();
     var creditHeight = credit.offsetHeight ? credit.offsetHeight + (parseFloat(getComputedStyle(credit).marginBottom) || 0) : 0;
@@ -439,17 +482,70 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
     }
   }
 
-  function applyTiles(tiles) {
-    if (!tiles || typeof tiles.urlTemplate !== 'string' || !/^https:\/\//.test(tiles.urlTemplate)) return;
-    var maxZoom = isNumber(tiles.maxZoom) ? Math.max(2, Math.min(22, Math.round(tiles.maxZoom))) : 19;
-    var key = tiles.urlTemplate + '\n' + maxZoom;
-    if (key !== tilesKey) {
-      tilesKey = key;
-      if (tileLayer) tileLayer.remove();
-      map.setMaxZoom(maxZoom);
-      tileLayer = L.tileLayer(tiles.urlTemplate, { maxZoom: maxZoom, maxNativeZoom: maxZoom, className: 'am-tiles' }).addTo(map);
+  /** Web: tiles the host loads for the page (the sandboxed frame itself sends no Referer). */
+  var HostTileLayer = null;
+
+  function createHostTileLayer(options) {
+    if (!HostTileLayer) {
+      HostTileLayer = L.GridLayer.extend({
+        // Two parameters: Leaflet then waits for 'done' instead of marking the tile ready at once.
+        createTile: function (coords, done) {
+          var tile = document.createElement('img');
+          tile.alt = '';
+          tile.setAttribute('role', 'presentation');
+          tileSequence += 1;
+          var id = String(tileSequence);
+          tile.setAttribute('data-am-tile', id);
+          hostTiles[id] = { tile: tile, done: done };
+          post({ type: 'tileRequest', id: id, z: coords.z, x: coords.x, y: coords.y });
+          return tile;
+        }
+      });
     }
-    var credit = tiles.attribution && typeof tiles.attribution === 'object' ? tiles.attribution : {};
+    var layer = new HostTileLayer(options);
+    // A tile scrolled or zoomed away before it arrived is no longer needed.
+    layer.on('tileunload', function (event) {
+      var id = event.tile && event.tile.getAttribute('data-am-tile');
+      if (!id || !hostTiles[id]) return;
+      delete hostTiles[id];
+      post({ type: 'tileCancel', id: id });
+    });
+    return layer;
+  }
+
+  function receiveTile(id, url) {
+    var entry = typeof id === 'string' ? hostTiles[id] : null;
+    if (!entry) return;
+    delete hostTiles[id];
+    var tile = entry.tile;
+    if (typeof url !== 'string' || !/^data:image\/[a-z0-9.+-]+;base64,/i.test(url)) {
+      entry.done(new Error('Tile unavailable'), tile);
+      return;
+    }
+    tile.onload = function () {
+      entry.done(null, tile);
+    };
+    tile.onerror = function () {
+      entry.done(new Error('Tile unavailable'), tile);
+    };
+    tile.src = url;
+  }
+
+  /** Blocked by a content security policy (e.g. one inherited from the page around the map): stop asking. */
+  function blockTiles() {
+    tilesBlocked = true;
+    if (tileLayer) tileLayer.remove();
+    tileLayer = null;
+  }
+
+  function hasKnownPlaceholders(template) {
+    return (template.match(TILE_PLACEHOLDER) || []).every(function (token) {
+      return KNOWN_TILE_PLACEHOLDERS[token] === true;
+    });
+  }
+
+  function applyAttribution(tiles) {
+    var credit = tiles && tiles.attribution && typeof tiles.attribution === 'object' ? tiles.attribution : {};
     var html = escapeHtml(text(credit.text));
     if (html && typeof credit.href === 'string' && /^https:\/\/[^\s"'<>]+$/.test(credit.href)) {
       html = '<a href="' + escapeHtml(credit.href) + '">' + html + '</a>';
@@ -460,17 +556,38 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
     if (html) attribution.addAttribution(html);
   }
 
-  function applyInteractive(interactive) {
-    if (interactiveApplied && interactive === settings.interactive) return;
-    var rebuild = interactiveApplied;
-    interactiveApplied = true;
+  function applyTiles(tiles) {
+    applyAttribution(tiles);
+    if (!tiles || typeof tiles.urlTemplate !== 'string' || !/^https:\/\//.test(tiles.urlTemplate)) return;
+    var maxZoom = isNumber(tiles.maxZoom) ? Math.max(2, Math.min(22, Math.round(tiles.maxZoom))) : 19;
+    var key = tiles.urlTemplate + '\n' + maxZoom;
+    if (key === tilesKey || tilesBlocked) return;
+    tilesKey = key;
+    if (tileLayer) tileLayer.remove();
+    tileLayer = null;
+    map.setMaxZoom(maxZoom);
+    // Leaflet throws on placeholders it cannot fill (the host validates too): keep the backdrop.
+    if (!hasKnownPlaceholders(tiles.urlTemplate)) throw new Error('Unsupported tile URL template');
+    var options = { maxZoom: maxZoom, maxNativeZoom: maxZoom, className: 'am-tiles' };
+    tileLayer = (config.hostTiles === true ? createHostTileLayer(options) : L.tileLayer(tiles.urlTemplate, options)).addTo(map);
+  }
+
+  function applyInteractive(interactive, wheelZoom) {
+    var key = interactive + '|' + wheelZoom;
+    if (key === interactiveKey) return;
+    var rebuild = interactiveKey !== '' && interactive !== settings.interactive;
+    interactiveKey = key;
     settings.interactive = interactive;
+    settings.wheelZoom = wheelZoom;
     INTERACTION_HANDLERS.forEach(function (name) {
       var handler = map[name];
       if (!handler) return;
       if (interactive) handler.enable();
       else handler.disable();
     });
+    // Off inside a scrolling screen: the wheel scrolls the page (Leaflet would swallow it).
+    if (interactive && wheelZoom) map.scrollWheelZoom.enable();
+    else map.scrollWheelZoom.disable();
     map.getContainer().tabIndex = interactive ? 0 : -1;
     documentRoot.classList.toggle('am-static', !interactive);
     if (!rebuild) return;
@@ -494,18 +611,24 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
     applyInsets(state.insets);
     var position = state.rtl === true ? 'bottomleft' : 'bottomright';
     if (attribution.getPosition() !== position) attribution.setPosition(position);
-    applyTiles(state.tiles);
-    applyInteractive(state.interactive !== false);
+    applyInteractive(state.interactive !== false, state.wheelZoom !== false);
     applyCircles(Array.isArray(state.circles) ? state.circles : []);
     applyMarkers(Array.isArray(state.markers) ? state.markers : []);
     applyPin(state.pin);
     revealSelected();
+    // Last and on its own: a tile layer that cannot be built never costs the markers or the pin.
+    try {
+      applyTiles(state.tiles);
+    } catch (error) {
+      reportError(error, false);
+    }
   }
 
   // --- Host -> page ---------------------------------------------------------------
 
   function receive(message) {
     if (!map || !message || typeof message !== 'object' || message.channel !== config.channel) return;
+    answered = true;
     try {
       switch (message.type) {
         case 'state':
@@ -522,6 +645,9 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
           break;
         case 'zoomOut':
           zoomBy(-1);
+          break;
+        case 'tile':
+          receiveTile(message.id, message.url);
           break;
         default:
           break;
@@ -560,22 +686,45 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
     if (regionTimer) clearTimeout(regionTimer);
     regionTimer = setTimeout(function () {
       regionTimer = 0;
+      if (!hasSize()) return; // a hidden map has no viewport to report
       var bounds = map.getBounds();
-      post({ type: 'regionChange', bounds: [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]] });
+      // Leaflet reports the longitudes of whichever world copy is on screen: report the main one.
+      var shift = Math.round((bounds.getWest() + bounds.getEast()) / 720) * 360;
+      post({ type: 'regionChange', bounds: [[bounds.getSouth(), bounds.getWest() - shift], [bounds.getNorth(), bounds.getEast() - shift]] });
     }, REGION_DEBOUNCE_MS);
   }
 
-  /** Links (attribution) never navigate this page: native hosts open them outside; the web opens a tab. */
+  /** A camera fit that waited for the page to get a size. */
+  function onResize() {
+    if (pendingView) showBounds(pendingView.bounds, 0, pendingView.exact);
+  }
+
+  /**
+   * Links (the attribution) never navigate this page. Native: the host opens them outside (a
+   * navigation must not even start - Android lets it through when the app is slow to refuse it).
+   * Web: they open in a new tab.
+   */
   function onLinkClick(event) {
     var link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
     if (!link) return;
-    if (!/^https?:\/\//i.test(link.getAttribute('href') || '')) {
+    var href = link.getAttribute('href') || '';
+    if (nativeBridge || !/^https?:\/\//i.test(href)) {
       event.preventDefault();
+      if (nativeBridge && /^https:\/\//i.test(href)) post({ type: 'openLink', href: href });
       return;
     }
-    if (!nativeBridge) {
-      link.setAttribute('target', '_blank');
-      link.setAttribute('rel', 'noopener noreferrer');
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+  }
+
+  /** Says 'ready' until the host answers: a first message can be lost while the host is not listening yet. */
+  function announce(attempt) {
+    if (answered) return;
+    post({ type: 'ready', boot: bootId });
+    if (attempt + 1 < READY_ATTEMPTS) {
+      setTimeout(function () {
+        announce(attempt + 1);
+      }, READY_RETRY_MS);
     }
   }
 
@@ -589,7 +738,9 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
       zoomSnap: 0.25,
       minZoom: 2,
       maxZoom: 19,
-      boxZoom: false
+      boxZoom: false,
+      // Dragging past the date line jumps back to the main world copy, where the markers are.
+      worldCopyJump: true
     });
     map.getContainer().setAttribute('role', 'region');
 
@@ -607,12 +758,24 @@ export const MAP_PAGE_SCRIPT = String.raw`(function () {
     map.on('dblclick', cancelTap);
     map.on('moveend', onMoveEnd);
     document.addEventListener('click', onLinkClick, true);
-    window.addEventListener('resize', function () {
-      if (pendingView) showBounds(pendingView.bounds, 0, pendingView.exact);
+    document.addEventListener('securitypolicyviolation', function (event) {
+      // The page loads no images but tiles.
+      if (/^img-src/.test(event.effectiveDirective || event.violatedDirective || '')) blockTiles();
     });
+    window.addEventListener('resize', onResize);
+    // A map on a hidden screen (web: a pushed route collapses the one below to 0x0) gets its size
+    // back without a window resize event: watch the container itself.
+    if (typeof window.ResizeObserver === 'function') {
+      new window.ResizeObserver(function () {
+        // While hidden, Leaflet keeps its last size (and camera) instead of shrinking to nothing.
+        if (!hasSize()) return;
+        map.invalidateSize({ debounceMoveend: true });
+        onResize();
+      }).observe(map.getContainer());
+    }
 
     booted = true;
-    post({ type: 'ready' });
+    announce(0);
   }
 
   try {

@@ -1,20 +1,23 @@
 import { act, fireEvent, screen } from '@testing-library/react-native';
 import { createRef } from 'react';
 import { Linking } from 'react-native';
+import type { ShouldStartLoadRequest, ShouldStartLoadRequestEvent } from 'react-native-webview/lib/WebViewTypes';
+// The real policy plumbing of react-native-webview (only the native view is mocked).
+import { createOnShouldStartLoadWithRequest } from 'react-native-webview/lib/WebViewShared';
 
 import { initI18n } from '@/i18n';
 import { createTheme } from '@/theme';
 
-import { emitMapMessage, injectedMapMessages, mapChannel } from '../../../__test-utils__/map-bridge';
+import { emitMapMessage, getMapWebView, injectedMapMessages, mapChannel } from '../../../__test-utils__/map-bridge';
 import { renderWithProviders } from '../../../__test-utils__/render';
 import { webViewMock } from '../../../__test-utils__/react-native-webview.mock';
 import { Screen } from '../../../ui/screen';
 import { buildMapPageState } from '../../map-page-state';
-import { LeafletMap, MAP_BASE_URL, receiveScript, shouldStartMapLoad } from '../leaflet-map';
+import { LeafletMap, MAP_BASE_URL, ORIGIN_WHITELIST, receiveScript, shouldStartMapLoad } from '../leaflet-map';
 import { regionToBounds } from '../map-geometry';
-import { serializeHostMessage } from '../map-protocol';
+import { LEAFLET_CREDIT_URL, serializeHostMessage } from '../map-protocol';
 import type { LeafletMapHandle } from '../types';
-import { MAP_READY_TIMEOUT_MS } from '../use-map-bridge';
+import { MAP_READY_TIMEOUT_MS, MAX_AUTO_RELOADS } from '../use-map-bridge';
 
 const REGION = { latitude: 32.08, longitude: 34.78, latitudeDelta: 0.1, longitudeDelta: 0.1 };
 const LABELS = { map: 'Map', pin: 'Selected location', marker: (label: string) => `Map marker: ${label}` };
@@ -33,7 +36,7 @@ function pageState(markerIds: string[] = ['a']) {
 }
 
 const types = () => injectedMapMessages().map((message) => message.type);
-const webView = () => screen.getByTestId('map-webview');
+const webView = () => getMapWebView();
 
 beforeAll(async () => {
   await initI18n('en');
@@ -152,16 +155,102 @@ describe('native LeafletMap host', () => {
       expect(screen.queryByTestId('map-error')).toBeNull();
       await act(async () => jest.advanceTimersByTime(MAP_READY_TIMEOUT_MS + 1));
       expect(screen.getByText('The map couldn’t load')).toBeOnTheScreen();
+      // The failed page is gone: nothing under the error for screen readers either.
+      expect(screen.queryByTestId('map-webview', { includeHiddenElements: true })).toBeNull();
 
-      const failed = webView();
       await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
       expect(screen.queryByTestId('map-error')).toBeNull();
-      expect(webView()).not.toBe(failed);
+      expect(webView()).toBeTruthy();
 
       await emitMapMessage(webView(), { type: 'error', message: 'Leaflet did not load', fatal: true });
       expect(screen.getByTestId('map-error')).toBeOnTheScreen();
     } finally {
       jest.useRealTimers();
+    }
+  });
+
+  it('shows its own error instead of the WebView library’s English one', async () => {
+    await renderWithProviders(<LeafletMap state={pageState()} initialRegion={REGION} />);
+    const preventDefault = jest.fn();
+    await act(async () => (webView().props.onError as (event: unknown) => void)({ preventDefault, nativeEvent: { code: -1009 } }));
+    expect(preventDefault).toHaveBeenCalled();
+    expect(screen.getByText('The map couldn’t load')).toBeOnTheScreen();
+  });
+
+  it('keeps a static preview’s retry pressable', async () => {
+    jest.useFakeTimers();
+    try {
+      await renderWithProviders(<LeafletMap state={{ ...pageState(), interactive: false }} initialRegion={REGION} />);
+      // Touches pass through the page itself...
+      expect(screen.getByTestId('map-webview', { includeHiddenElements: true }).parent?.props.style).toContainEqual({ pointerEvents: 'none' });
+      await act(async () => jest.advanceTimersByTime(MAP_READY_TIMEOUT_MS + 1));
+      // ... but not through the status overlay.
+      await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+      expect(screen.queryByTestId('map-error')).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('hides the page from screen readers until it is ready', async () => {
+    await renderWithProviders(<LeafletMap state={pageState()} initialRegion={REGION} />);
+    expect(screen.queryByTestId('map-webview')).toBeNull();
+    await emitMapMessage(webView(), { type: 'ready' });
+    expect(screen.getByTestId('map-webview')).toBeTruthy();
+  });
+
+  it('reloads a page that keeps crashing only a few times, then offers the retry', async () => {
+    await renderWithProviders(<LeafletMap state={pageState()} initialRegion={REGION} />);
+    const crash = async () => act(async () => (webView().props.onRenderProcessGone as () => void)());
+    for (let reload = 0; reload < MAX_AUTO_RELOADS; reload += 1) {
+      const before = webView();
+      await crash();
+      expect(webView()).not.toBe(before);
+    }
+    await crash();
+    expect(screen.getByTestId('map-error')).toBeOnTheScreen();
+
+    // The user's retry starts over.
+    await fireEvent.press(screen.getByRole('button', { name: 'Try again' }));
+    const retried = webView();
+    await crash();
+    expect(webView()).not.toBe(retried);
+    expect(screen.queryByTestId('map-error')).toBeNull();
+  });
+
+  it('answers a repeated ready of the same page load only once', async () => {
+    const ref = createRef<LeafletMapHandle>();
+    await renderWithProviders(<LeafletMap ref={ref} state={pageState()} initialRegion={REGION} />);
+    await emitMapMessage(webView(), { type: 'ready', boot: 'pageload0001' });
+    await act(async () => ref.current?.animateToRegion({ ...REGION, latitude: 31 }, 350));
+    await emitMapMessage(webView(), { type: 'ready', boot: 'pageload0001' });
+    // The repeat would otherwise jump back to the initial camera, undoing the animation.
+    expect(types()).toEqual(['state', 'setView', 'animateToRegion']);
+
+    // A new page load (it reloaded by itself) gets everything again.
+    await emitMapMessage(webView(), { type: 'ready', boot: 'pageload0002' });
+    expect(types()).toEqual(['state', 'setView', 'animateToRegion', 'state', 'setView']);
+  });
+
+  it('passes a stable message handler (Android re-subscribes whenever it changes)', async () => {
+    const { rerender } = await renderWithProviders(<LeafletMap state={pageState()} initialRegion={REGION} />);
+    const { onMessage } = webView().props as { onMessage: unknown };
+    await rerender(<LeafletMap state={pageState(['a', 'b'])} initialRegion={REGION} onMapPress={jest.fn()} />);
+    expect(webView().props.onMessage).toBe(onMessage);
+  });
+
+  it('opens the map’s credit links outside, and nothing else', async () => {
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    try {
+      await renderWithProviders(<LeafletMap state={pageState()} initialRegion={REGION} />);
+      await emitMapMessage(webView(), { type: 'ready' });
+      await emitMapMessage(webView(), { type: 'openLink', href: 'https://www.openstreetmap.org/copyright' });
+      await emitMapMessage(webView(), { type: 'openLink', href: LEAFLET_CREDIT_URL });
+      await emitMapMessage(webView(), { type: 'openLink', href: 'https://evil.example.com/' });
+      await emitMapMessage(webView(), { type: 'openLink', href: 'tel:+972500000000' });
+      expect(openURL.mock.calls).toEqual([['https://www.openstreetmap.org/copyright'], [LEAFLET_CREDIT_URL]]);
+    } finally {
+      openURL.mockRestore();
     }
   });
 
@@ -171,36 +260,76 @@ describe('native LeafletMap host', () => {
         <LeafletMap state={pageState()} initialRegion={REGION} testID="map" />
       </Screen>,
     );
-    expect(screen.getByTestId('scroll').props.scrollEnabled).toBe(true);
-    await fireEvent(screen.getByTestId('map'), 'touchStart', { nativeEvent: { touches: [{}] } });
-    expect(screen.getByTestId('scroll').props.scrollEnabled).toBe(false);
-    await fireEvent(screen.getByTestId('map'), 'touchEnd', { nativeEvent: { touches: [] } });
-    expect(screen.getByTestId('scroll').props.scrollEnabled).toBe(true);
+    const touch = (identifier: string) => ({ identifier });
+    const scrollEnabled = () => screen.getByTestId('scroll').props.scrollEnabled as boolean;
+    expect(scrollEnabled()).toBe(true);
+    await fireEvent(screen.getByTestId('map'), 'touchStart', { nativeEvent: { touches: [touch('1')], changedTouches: [touch('1')] } });
+    expect(scrollEnabled()).toBe(false);
+    await fireEvent(screen.getByTestId('map'), 'touchEnd', { nativeEvent: { touches: [], changedTouches: [touch('1')] } });
+    expect(scrollEnabled()).toBe(true);
+
+    // Two-finger pinch on the map: locked until both fingers are up.
+    await fireEvent(screen.getByTestId('map'), 'touchStart', { nativeEvent: { touches: [touch('2')], changedTouches: [touch('2')] } });
+    await fireEvent(screen.getByTestId('map'), 'touchStart', { nativeEvent: { touches: [touch('2'), touch('3')], changedTouches: [touch('3')] } });
+    await fireEvent(screen.getByTestId('map'), 'touchEnd', { nativeEvent: { touches: [touch('3')], changedTouches: [touch('2')] } });
+    expect(scrollEnabled()).toBe(false);
+    await fireEvent(screen.getByTestId('map'), 'touchEnd', { nativeEvent: { touches: [], changedTouches: [touch('3')] } });
+    expect(scrollEnabled()).toBe(true);
+
+    // A finger on the map, another one on the form: lifting the map finger releases the scroll,
+    // although the other finger (whose end the map never sees) is still down.
+    await fireEvent(screen.getByTestId('map'), 'touchStart', { nativeEvent: { touches: [touch('4')], changedTouches: [touch('4')] } });
+    await fireEvent(screen.getByTestId('map'), 'touchEnd', { nativeEvent: { touches: [touch('5')], changedTouches: [touch('4')] } });
+    expect(scrollEnabled()).toBe(true);
   });
 });
 
 describe('navigation policy', () => {
   const request = (url: string, isTopFrame = true) => ({ url, isTopFrame });
 
-  it('allows the initial document load and sub-frame loads', () => {
+  it('loads nothing but the page itself', () => {
     expect(shouldStartMapLoad(request(MAP_BASE_URL))).toBe(true);
     expect(shouldStartMapLoad(request('about:blank'))).toBe(true);
-    expect(shouldStartMapLoad(request('https://tile.example.com/frame', false))).toBe(true);
+    for (const url of [
+      'https://www.openstreetmap.org/copyright',
+      'https://localhost.example.com/',
+      'javascript:alert(1)',
+      'file:///etc/passwd',
+      'intent://scan/#Intent;scheme=zxing;end',
+      'tel:+972500000000',
+    ]) {
+      expect(shouldStartMapLoad(request(url))).toBe(false);
+    }
+    // The page has no frames (CSP frame-src 'none'): none may load either.
+    expect(shouldStartMapLoad(request('https://tile.example.com/frame', false))).toBe(false);
+    expect(shouldStartMapLoad(request(MAP_BASE_URL, false))).toBe(false);
   });
 
-  it('opens tapped web links in the browser instead of navigating the map', () => {
+  it('decides every navigation the WebView asks about (the library opens rejected origins itself)', async () => {
     const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
-    expect(shouldStartMapLoad(request('https://www.openstreetmap.org/copyright'))).toBe(false);
-    expect(openURL).toHaveBeenCalledWith('https://www.openstreetmap.org/copyright');
-    // A lookalike of the page origin is just another link.
-    expect(shouldStartMapLoad(request('https://localhost.example.com/'))).toBe(false);
-    openURL.mockClear();
-
-    expect(shouldStartMapLoad(request('javascript:alert(1)'))).toBe(false);
-    expect(shouldStartMapLoad(request('file:///etc/passwd'))).toBe(false);
-    expect(shouldStartMapLoad(request('intent://scan/#Intent;scheme=zxing;end'))).toBe(false);
-    expect(openURL).not.toHaveBeenCalled();
-    openURL.mockRestore();
+    const canOpenURL = jest.spyOn(Linking, 'canOpenURL').mockResolvedValue(true);
+    try {
+      await renderWithProviders(<LeafletMap state={pageState()} initialRegion={REGION} />);
+      const { originWhitelist, onShouldStartLoadWithRequest } = webView().props as {
+        originWhitelist: readonly string[];
+        onShouldStartLoadWithRequest: (request: ShouldStartLoadRequest) => boolean;
+      };
+      expect(originWhitelist).toEqual(ORIGIN_WHITELIST);
+      // The handler react-native-webview builds from these props, as the native view calls it.
+      const decide = jest.fn();
+      const handle = createOnShouldStartLoadWithRequest(decide, originWhitelist, onShouldStartLoadWithRequest);
+      const urls = [MAP_BASE_URL, 'https://www.openstreetmap.org/copyright', 'intent://x#Intent;end', 'tel:123', 'market://details?id=x'];
+      urls.forEach((url, lockIdentifier) =>
+        handle({ nativeEvent: { url, lockIdentifier, isTopFrame: true, navigationType: 'click' } } as unknown as ShouldStartLoadRequestEvent),
+      );
+      await act(async () => undefined);
+      expect(decide.mock.calls).toEqual(urls.map((url, lockIdentifier) => [url === MAP_BASE_URL, url, lockIdentifier]));
+      expect(canOpenURL).not.toHaveBeenCalled();
+      expect(openURL).not.toHaveBeenCalled();
+    } finally {
+      openURL.mockRestore();
+      canOpenURL.mockRestore();
+    }
   });
 });
 

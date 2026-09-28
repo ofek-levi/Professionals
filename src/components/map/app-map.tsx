@@ -10,17 +10,25 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { useTranslation } from 'react-i18next';
 
 import { makeStyles, useTheme } from '@/theme';
+import type { MapRegion } from '@/utils/geo';
 
 import { IconButton } from '../ui/icon-button';
+import { useScrollLock } from '../ui/scroll-lock';
 import { LeafletMap } from './leaflet/leaflet-map';
 import type { LeafletMapHandle, MapStatus } from './leaflet/types';
 import { buildMapPageState } from './map-page-state';
-import { regionKey, resolveInitialRegion } from './map-region';
+import { isValidRegion, regionKey, resolveInitialRegion } from './map-region';
 import type { AppMapCircle, AppMapMarker, AppMapProps } from './types';
 
 const ANIMATION_MS = 350;
 const NO_MARKERS: readonly AppMapMarker[] = [];
 const NO_CIRCLES: readonly AppMapCircle[] = [];
+
+/** Camera moves skip regions the map cannot show (e.g. NaN spans from a malformed radius). */
+function animateTo(map: LeafletMapHandle | null, region: MapRegion, durationMs: number) {
+  if (isValidRegion(region)) map?.animateToRegion(region, durationMs);
+  else if (__DEV__) console.warn('[AppMap] Ignored an invalid region', region);
+}
 
 export function AppMap({
   initialRegion,
@@ -43,6 +51,8 @@ export function AppMap({
   const styles = useStyles();
   const { t, i18n } = useTranslation('location');
   const reduceMotion = useReducedMotion();
+  // Inside a scrolling screen or sheet the mouse wheel scrolls the page, not the map.
+  const inScrollView = useScrollLock() !== null;
   const mapRef = useRef<LeafletMapHandle>(null);
   const [status, setStatus] = useState<MapStatus>('loading');
   const [initial] = useState(() =>
@@ -50,7 +60,7 @@ export function AppMap({
   );
 
   useImperativeHandle(ref, () => ({
-    animateToRegion: (target, durationMs = ANIMATION_MS) => mapRef.current?.animateToRegion(target, durationMs),
+    animateToRegion: (target, durationMs = ANIMATION_MS) => animateTo(mapRef.current, target, durationMs),
   }));
 
   // Animate to the focus region whenever it changes (skip the initial mount).
@@ -59,7 +69,7 @@ export function AppMap({
   useEffect(() => {
     if (!region || focusKey === lastFocusKey.current) return;
     lastFocusKey.current = focusKey;
-    mapRef.current?.animateToRegion(region, ANIMATION_MS);
+    animateTo(mapRef.current, region, ANIMATION_MS);
   }, [focusKey, region]);
 
   const label = accessibilityLabel ?? t('map.label');
@@ -70,6 +80,7 @@ export function AppMap({
     circles,
     pin: draggablePin?.coordinate ?? null,
     interactive,
+    wheelZoom: !inScrollView,
     reduceMotion,
     insets: controlInsets,
     labels: { map: label, pin: t('map.pin'), marker: (text) => t('map.marker', { label: text }) },

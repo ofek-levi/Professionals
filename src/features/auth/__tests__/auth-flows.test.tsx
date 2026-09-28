@@ -6,7 +6,7 @@
  */
 import { cleanup, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
 
-import { emitMapMessage } from '@/components/__test-utils__/map-bridge';
+import { emitMapMessage, getMapWebView } from '@/components/__test-utils__/map-bridge';
 import { pendingGoogleSignUpStore } from '@/features/auth/pending-google-sign-up';
 import { i18n } from '@/i18n';
 import { queryClient } from '@/lib/query-client';
@@ -250,7 +250,7 @@ describe('sign up', () => {
     await fireEvent.press(suggestions[0]);
     // A tap on the map fine-tunes the base location (the address is looked up again).
     const tapped = { latitude: 32.0571, longitude: 34.7694 };
-    const map = screen.getByTestId('map-webview');
+    const map = getMapWebView();
     await emitMapMessage(map, { type: 'ready' });
     await emitMapMessage(map, { type: 'mapPress', coordinate: tapped });
     await waitFor(() => expect(screen.queryByText('Looking up the address…')).toBeNull(), TIMEOUT);

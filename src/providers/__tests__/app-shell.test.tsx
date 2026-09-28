@@ -5,7 +5,7 @@
  */
 import { act, cleanup, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
 
-import { emitMapMessage, injectedMapMessages } from '@/components/__test-utils__/map-bridge';
+import { emitMapMessage, findMapWebView, injectedMapMessages } from '@/components/__test-utils__/map-bridge';
 import type { MapPageState } from '@/components/map/leaflet/map-protocol';
 import { i18n } from '@/i18n';
 import { queryClient } from '@/lib/query-client';
@@ -115,7 +115,7 @@ describe('app shell', () => {
 
     // Explore opens on the map: the service-area circle and a marker per nearby job.
     await navigate('/professional/explore');
-    const map = await screen.findByTestId('map-webview', {}, { timeout: 10_000 });
+    const map = await findMapWebView('map-webview', 10_000);
     await emitMapMessage(map, { type: 'ready' });
     await waitFor(
       () => {
