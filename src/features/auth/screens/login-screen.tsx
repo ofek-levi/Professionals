@@ -6,10 +6,10 @@
  * backend a demo account (email + password) is suggested and can be filled in with one tap.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
-import { Pressable, View } from 'react-native';
+import { Platform, Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
 
@@ -20,13 +20,14 @@ import { useGoogleAuth, useLogin } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { createEmptyLoginFormValues, loginSchema, toLoginRequest, type LoginFormValues } from '@/lib/validation/auth';
 import { toApiError } from '@/services/api/errors';
-import { makeStyles } from '@/theme';
+import { makeStyles, spacing } from '@/theme';
 import { isolateLtr } from '@/utils/bidi';
 
 import { authEmailHint, useAuthEmailHint } from '../auth-email-hint';
 import { AuthIntro } from '../components/auth-intro';
 import { AuthLinkRow } from '../components/auth-link-row';
 import { GoogleSignInButton, useGoogleSignInAvailable } from '../components/google-sign-in-button';
+import { LanguageMenuButton } from '../components/language-menu-button';
 import { PasswordField } from '../components/password-field';
 import { useSingleFlight } from '../use-single-flight';
 import { useWelcomeToast } from '../use-welcome-toast';
@@ -127,110 +128,123 @@ export default function LoginScreen() {
   };
 
   return (
-    <Screen edges={['left', 'right', 'bottom']} testID="login-screen">
-      <View style={styles.body}>
-        <AuthIntro title={t('auth:login.title')} subtitle={t('auth:login.subtitle')} withBrandMark />
+    <>
+      <Stack.Screen options={{ headerRight: renderLanguageMenu }} />
+      <Screen edges={['left', 'right', 'bottom']} testID="login-screen">
+        <View style={styles.body}>
+          <AuthIntro title={t('auth:login.title')} subtitle={t('auth:login.subtitle')} withBrandMark />
 
-        <View style={styles.fields}>
-          <FormTextField
-            control={control}
-            name="email"
-            label={t('auth:fields.email')}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="email"
-            textContentType="username"
-            returnKeyType="next"
-            submitBehavior="submit"
-            onSubmitEditing={() => setFocus('password')}
-            testID="login-email"
-          />
-          <PasswordField
-            control={control}
-            name="password"
-            purpose="current"
-            label={t('auth:fields.password')}
-            // On the label row: an error appearing under the field on blur doesn't move it.
-            labelAccessory={
-              <Pressable
-                accessibilityRole="link"
-                onPress={() => {
-                  authEmailHint.set(email);
-                  resettingPassword.current = true;
-                  router.push(routes.auth.forgotPassword);
-                }}
-                hitSlop={12}
-                style={({ pressed }) => (pressed ? styles.pressed : null)}
-                testID="login-forgot-password"
-              >
-                <AppText variant="captionStrong" color="primary">
-                  {t('auth:login.forgotPassword')}
-                </AppText>
-              </Pressable>
-            }
-            returnKeyType="go"
-            onSubmitEditing={() => void submit()}
-            testID="login-password"
-          />
-        </View>
-
-        <View style={styles.actions}>
-          {showRejected ? (
-            <InlineAlert
-              tone="danger"
-              title={t('errors:codes.INVALID_CREDENTIALS.title')}
-              message={t('errors:codes.INVALID_CREDENTIALS.description')}
-              testID="login-invalid-credentials"
+          <View style={styles.fields}>
+            <FormTextField
+              control={control}
+              name="email"
+              label={t('auth:fields.email')}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="email"
+              textContentType="username"
+              returnKeyType="next"
+              submitBehavior="submit"
+              onSubmitEditing={() => setFocus('password')}
+              testID="login-email"
             />
-          ) : null}
-          <Button
-            label={t('auth:login.submit')}
-            fullWidth
-            loading={login.isPending}
-            disabled={busy && !login.isPending}
-            onPress={() => void submit()}
-            testID="login-submit"
-          />
-          {googleAvailable ? (
-            <GoogleSignInButton
-              onIdToken={(idToken) => void continueWithGoogle(idToken)}
-              loading={googleAuth.isPending}
-              disabled={busy && !googleAuth.isPending}
-              testID="login-google"
+            <PasswordField
+              control={control}
+              name="password"
+              purpose="current"
+              label={t('auth:fields.password')}
+              // On the label row: an error appearing under the field on blur doesn't move it.
+              labelAccessory={
+                <Pressable
+                  accessibilityRole="link"
+                  onPress={() => {
+                    authEmailHint.set(email);
+                    resettingPassword.current = true;
+                    router.push(routes.auth.forgotPassword);
+                  }}
+                  hitSlop={12}
+                  style={({ pressed }) => (pressed ? styles.pressed : null)}
+                  testID="login-forgot-password"
+                >
+                  <AppText variant="captionStrong" color="primary">
+                    {t('auth:login.forgotPassword')}
+                  </AppText>
+                </Pressable>
+              }
+              returnKeyType="go"
+              onSubmitEditing={() => void submit()}
+              testID="login-password"
             />
-          ) : null}
-        </View>
+          </View>
 
-        <View style={styles.footer}>
-          <AuthLinkRow
-            prompt={t('auth:login.noAccount')}
-            actionLabel={t('auth:login.createAccount')}
-            onPress={() => router.push(routes.auth.signUp())}
-            testID="login-create-account"
-          />
-          {demoSignIn ? (
-            <View style={styles.demoHint}>
-              <AppText variant="caption" color="muted" align="center" testID="login-demo-hint">
-                {t('auth:login.demoHint', { email: isolateLtr(demoSignIn.email), password: isolateLtr(demoSignIn.password) })}
-              </AppText>
-              <Pressable
-                accessibilityRole="button"
-                onPress={fillDemoAccount}
-                hitSlop={12}
-                style={({ pressed }) => (pressed ? styles.pressed : null)}
-                testID="login-fill-demo"
-              >
-                <AppText variant="captionStrong" color="primary">
-                  {t('auth:login.fillDemo')}
+          <View style={styles.actions}>
+            {showRejected ? (
+              <InlineAlert
+                tone="danger"
+                title={t('errors:codes.INVALID_CREDENTIALS.title')}
+                message={t('errors:codes.INVALID_CREDENTIALS.description')}
+                testID="login-invalid-credentials"
+              />
+            ) : null}
+            <Button
+              label={t('auth:login.submit')}
+              fullWidth
+              loading={login.isPending}
+              disabled={busy && !login.isPending}
+              onPress={() => void submit()}
+              testID="login-submit"
+            />
+            {googleAvailable ? (
+              <GoogleSignInButton
+                onIdToken={(idToken) => void continueWithGoogle(idToken)}
+                loading={googleAuth.isPending}
+                disabled={busy && !googleAuth.isPending}
+                testID="login-google"
+              />
+            ) : null}
+          </View>
+
+          <View style={styles.footer}>
+            <AuthLinkRow
+              prompt={t('auth:login.noAccount')}
+              actionLabel={t('auth:login.createAccount')}
+              onPress={() => router.push(routes.auth.signUp())}
+              testID="login-create-account"
+            />
+            {demoSignIn ? (
+              <View style={styles.demoHint}>
+                <AppText variant="caption" color="muted" align="center" testID="login-demo-hint">
+                  {t('auth:login.demoHint', { email: isolateLtr(demoSignIn.email), password: isolateLtr(demoSignIn.password) })}
                 </AppText>
-              </Pressable>
-            </View>
-          ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={fillDemoAccount}
+                  hitSlop={12}
+                  style={({ pressed }) => (pressed ? styles.pressed : null)}
+                  testID="login-fill-demo"
+                >
+                  <AppText variant="captionStrong" color="primary">
+                    {t('auth:login.fillDemo')}
+                  </AppText>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
         </View>
-      </View>
-    </Screen>
+      </Screen>
+    </>
   );
+}
+
+/**
+ * Header end side: the language pill (the page itself has no header title). iOS and Android inset
+ * header items from the screen edge; the web header does not, so the pill gets the page gutter.
+ */
+const HEADER_END_INSET = Platform.OS === 'web' ? { marginEnd: spacing.screen } : null;
+
+function renderLanguageMenu() {
+  return <LanguageMenuButton testID="login-language" style={HEADER_END_INSET} />;
 }
 
 const useStyles = makeStyles((t) => ({

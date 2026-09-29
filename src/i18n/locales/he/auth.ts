@@ -6,6 +6,10 @@ export const auth: LocaleNamespace<typeof enauth> = {
     createAccount: 'יצירת חשבון',
     signIn: 'התחברות',
   },
+  language: {
+    button: 'שפה: {{language}}',
+    sheetTitle: 'בחירת שפה',
+  },
   signIn: {
     languageLabel: 'שפה',
     title: 'או נסו חשבון הדגמה',
@@ -40,8 +44,8 @@ export const auth: LocaleNamespace<typeof enauth> = {
     businessName: 'שם העסק',
   },
   login: {
-    title: 'טוב לראות אתכם שוב',
-    subtitle: 'התחברו עם האימייל והסיסמה שלכם.',
+    title: 'ברוכים הבאים',
+    subtitle: 'התחברו כדי למצוא בעלי מקצוע אמינים או את העבודה הבאה שלכם.',
     forgotPassword: 'שכחתם את הסיסמה?',
     submit: 'התחברות',
     noAccount: 'חדשים כאן?',

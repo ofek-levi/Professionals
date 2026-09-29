@@ -4,6 +4,11 @@ export const auth = {
     createAccount: 'Create account',
     signIn: 'Sign in',
   },
+  /** Language button (sign-in header) and the sheet it opens. */
+  language: {
+    button: 'Language: {{language}}',
+    sheetTitle: 'Choose language',
+  },
   /** Demo account picker on the entry screen. */
   signIn: {
     languageLabel: 'Language',
@@ -38,8 +43,9 @@ export const auth = {
     businessName: 'Business name',
   },
   login: {
-    title: 'Welcome back',
-    subtitle: 'Sign in with your email and password.',
+    title: 'Welcome',
+    // For both roles: customers hire pros, professionals find work.
+    subtitle: 'Sign in to hire trusted pros or find your next job.',
     forgotPassword: 'Forgot password?',
     submit: 'Sign in',
     noAccount: 'New here?',
