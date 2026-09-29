@@ -3,7 +3,7 @@
 #
 # Manual only (Actions tab -> "Android APK" -> Run workflow). Nothing runs on push/PR.
 #
-# What it does: npm ci -> expo prebuild (android) -> ./gradlew assembleRelease
+# What it does (in frontend/): npm ci -> expo prebuild (android) -> ./gradlew assembleRelease
 #   - release variant: __DEV__ = false, JS compiled to Hermes bytecode, New Architecture on
 #   - signed with the React Native template's public debug keystore (fine for sideloading and
 #     testing, NOT for the Play Store; every build uses the same key, so a new APK installs over
@@ -38,6 +38,8 @@ concurrency:
 defaults:
   run:
     shell: bash
+    # The Expo app lives in the monorepo's frontend/ folder (the server is in backend/).
+    working-directory: frontend
 
 jobs:
   build:
@@ -57,6 +59,7 @@ jobs:
         with:
           node-version: 22 # react-native 0.86 needs ^20.19.4 || ^22.13.0 || ^24.3.0
           cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -117,7 +120,7 @@ jobs:
           } >> android/gradle.properties
 
       - name: Build release APK
-        working-directory: android
+        working-directory: frontend/android
         run: ./gradlew assembleRelease -PreactNativeArchitectures="$ABIS" --stacktrace --console=plain
 
       - name: Verify and rename APK
@@ -143,7 +146,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APK_NAME }}
-          path: dist/
+          path: frontend/dist/
           if-no-files-found: error
           retention-days: 14
 
