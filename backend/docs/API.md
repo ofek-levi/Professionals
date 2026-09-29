@@ -1,0 +1,741 @@
+# Professionals API
+
+The REST + WebSocket API the app talks to. This page starts with the rules every endpoint shares
+(authentication, errors, pagination, limits, realtime) and the list of contract changes against the
+app's current types; then one section per module. Source of each rule: `src/` (see
+[CONVENTIONS.md](CONVENTIONS.md)); operations and deployment: [OPERATIONS.md](OPERATIONS.md).
+
+## Contents
+
+- [General](#general): base URL, authentication, errors, pagination, rate limits, caching, realtime, health
+- [Contract changes vs the app's types](#contract-changes-vs-the-apps-types) (summary)
+- [Auth](#auth) · [Users](#users) · [Profiles](#profiles-customers-professionals-geo-uploads) ·
+  [Messaging](#messaging-conversations-notifications-push-realtime) ·
+  [Marketplace](#marketplace-requests-offers-jobs-reviews-dashboard)
+
+## General
+
+### Base URL and formats
+
+- Every endpoint lives under **`/v1`** (the app's `EXPO_PUBLIC_API_BASE_URL` ends in `/v1`), e.g.
+  `https://api.example.com/v1/requests`. Health checks are outside it (`/health`, `/ready`).
+- Requests and responses are JSON (`Content-Type: application/json`, bodies up to 100 KB). Exceptions:
+  `POST /uploads/images` (multipart) and the email link pages (`/auth/verify-email`,
+  `/auth/reset-password`: HTML).
+- Ids are 24-character hex strings (MongoDB ObjectIds). Timestamps are ISO-8601 UTC strings; calendar
+  dates (`preferredSchedule.date`, explorer date filters) are `YYYY-MM-DD` in the market's zone
+  (`Asia/Jerusalem`). Money is `{ amount, currency: 'ILS' }`.
+- `Accept-Language: en|he` localizes geocoding results; push and email texts use the account's
+  language (`PATCH /me`). Error `message`s are English for developers; the app shows its own texts,
+  keyed by `code` and the `validation:*` keys in `fieldErrors`.
+- Every response carries `X-Request-Id` (the client's own value when it sends a sane one, 8–64
+  characters of `[A-Za-z0-9._-]`): quote it when reporting a problem, it is on the server's log line
+  of that request.
+
+### Authentication
+
+- `Authorization: Bearer <access token>` on every endpoint except `/auth/*`, `/catalog/categories`
+  and `/geo/*`. Access tokens are HS256 JWTs valid **30 minutes**; refresh tokens are opaque, valid
+  **90 days** (sliding) and rotate on every `POST /auth/refresh`. Details: [Auth](#auth).
+- A missing, malformed or expired token, or one whose session was signed out/revoked, answers
+  **401 `UNAUTHORIZED`**. Revocation is immediate: logout, refresh-token reuse, a password reset or
+  Google linking over an unverified password put the session ids on a Redis denylist for the
+  remaining lifetime of their access tokens.
+- The wrong role answers **403 `FORBIDDEN`** (e.g. a professional calling `/customer/dashboard`), as
+  does another user's resource (someone else's request, offer, job, conversation or notification).
+  An unknown or malformed id answers **404 `NOT_FOUND`**.
+
+### Errors
+
+Every non-2xx answer has the app's `ApiErrorBody` shape:
+
+```json
+{ "code": "VALIDATION_ERROR", "message": "The request payload is invalid",
+  "fieldErrors": { "location.addressLine": ["validation:location.addressRequired"] } }
+```
+
+| Status | Codes | When |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Body/query/params rejected by the zod schema, malformed JSON (`fieldErrors.root`), an invalid cursor or limit, operator keys (`$…`) in the input. `fieldErrors` keys are the dotted paths the app's forms use; values are `validation:<key>` i18n keys of the app. |
+| 401 | `UNAUTHORIZED`, `INVALID_CREDENTIALS`, `INVALID_GOOGLE_TOKEN` | No/invalid/expired/revoked token; wrong email or password (same answer for an unknown email and a Google-only account); an unverifiable Google id token. |
+| 403 | `FORBIDDEN` | Wrong role or not your resource. |
+| 404 | `NOT_FOUND` | Unknown route, unknown or malformed id; a professional opening a draft request. |
+| 409 | `CONFLICT`, `EMAIL_ALREADY_REGISTERED`, `INVALID_STATE_TRANSITION`, `DUPLICATE_OFFER`, `OFFER_EXPIRED`, `REQUEST_NOT_ACCEPTING_OFFERS` | The current state forbids the action (lifecycle rules of the app's mock backend), including the losers of concurrent writes (two accepts, two reviews, two offers). |
+| 413 | `VALIDATION_ERROR` | JSON body over 100 KB. |
+| 422 | `UNSUPPORTED_CATEGORY`, `OUTSIDE_SERVICE_AREA` | Domain rules the mock reports with these codes (with `fieldErrors`). |
+| 429 | `RATE_LIMITED` | See [Rate limits](#rate-limits); `Retry-After` says when to retry. |
+| 500 | `SERVER_ERROR` | Unexpected failure; no internals leak, the details are in the server log under the request id. |
+| 503 | `SERVER_ERROR` | A provider is not configured (development without Cloudinary/Google) or unreachable (geocoder, Google certificates). Retry later. |
+
+The app's client also produces `NETWORK_ERROR`, `TIMEOUT` and `UNKNOWN` locally; the server never
+sends them.
+
+### Pagination
+
+Every list is keyset-paginated: `?cursor=&limit=` → `{ items, nextCursor, totalCount }`.
+
+- `limit`: default **20**, max **100** (the app's `APP_CONFIG.pageSize` / `maxPageSize`; its explorer
+  map asks 100). Out of range or not an integer → 400 `fieldErrors.limit`.
+- `cursor`: opaque; pass the previous page's `nextCursor` unchanged. `null` means the last page. A
+  tampered cursor → 400 `fieldErrors.cursor`. Cursors encode the sort key of the last item, so pages
+  stay stable while new items arrive (no duplicates, no skips).
+- `totalCount` counts every item matching the filters (not only the remaining ones).
+- Filters must stay the same between pages of one list; changing them starts over without a cursor.
+- Lists that are arrays in the app's current types (`GET /conversations`, `GET /requests/:id/offers`,
+  `GET /jobs`) are paginated too; see the contract changes below.
+
+### Rate limits
+
+Counted in Redis (shared by every instance; keys `${APP_ENV}:rl:*`). Over the limit → 429
+`RATE_LIMITED` with `RateLimit`/`RateLimit-Policy`/`Retry-After` headers. If Redis is unreachable,
+requests pass (availability first).
+
+| Scope | Limit |
+|---|---|
+| Every `/v1` request, per IP | 600 / min |
+| `POST /auth/login` | 30 / 15 min per IP, 10 / 15 min per email |
+| `POST /auth/register` | 20 / h per IP, 5 / h per email |
+| `POST /auth/google` | 30 / 15 min per IP |
+| `POST /auth/refresh` | 120 / 15 min per IP |
+| `POST /auth/password-reset` | 10 / h per IP, 3 / h per email |
+| `POST /auth/reset-password` | 30 / 15 min per IP |
+| `GET /geo/search`, `GET /geo/reverse` (together) | 60 / min per IP |
+| `POST /uploads/images` | 60 / 10 min per user |
+| `POST /requests` | 30 / h per customer |
+| `POST /requests/:id/offers` | 60 / 10 min per professional |
+| `POST /conversations/:id/messages` | 60 / min per user |
+
+Behind a load balancer set `TRUST_PROXY` (see OPERATIONS.md), or every client shares the balancer's
+IP.
+
+### Caching
+
+- `GET /catalog/categories`: `ETag` + `Cache-Control: public, max-age=3600, stale-while-revalidate=86400`;
+  `If-None-Match` → 304.
+  The catalog is a code constant (versioned), never a database read.
+- `GET /geo/*`: `Cache-Control: public, max-age=3600`, `Vary: Accept-Language`; results are cached
+  30 days in Redis.
+- Public professional profiles are cached 60 s in Redis and dropped on every profile or stats change.
+- Everything else is private and not cached (`Cache-Control` is not set; clients should not cache).
+
+### Realtime (WebSocket)
+
+`ws(s)://<host>/v1/realtime?token=<access token>`, on the same server and port as the API.
+
+- The token is checked on connect: missing, invalid, expired or revoked → close code **4001**. An open
+  socket is closed with **4001** when its token expires (the app refreshes and reconnects) and when its
+  session is signed out or revoked (on every instance). Code **1001** means the server is shutting
+  down (reconnect).
+- Frames are server → client JSON, exactly the app's `RealtimeEvent` union: `notification.created`,
+  `message.created`, `conversation.read`, `request.updated`, `offer.updated`, `job.updated`,
+  `profile.updated`. They are sent after the transaction that caused them commits. Client frames are
+  ignored (max 4 KB).
+- Ping every 30 s; a socket that misses a pong is dropped. Delivery is best effort: after a
+  reconnect the app refetches what it shows.
+- Several instances fan out through Redis pub/sub (`${APP_ENV}:realtime`). Details:
+  [Messaging → Realtime](#realtime-get-v1realtimetokenaccess-token-websocket).
+
+### Health
+
+- `GET /health` → 200 `{ status: 'ok' }` while the process runs (liveness).
+- `GET /ready` → 200 `{ status: 'ready', checks: { mongo: 'ok', redis: 'ok' } }`, or 503
+  `{ status: 'unavailable', checks }` when MongoDB or Redis does not answer (readiness: take the instance out of the load balancer).
+
+## Contract changes vs the app's types
+
+The server implements every call in `frontend/src/services/api/endpoints/*` except the demo ones
+(`GET /auth/demo-accounts`, `POST /auth/demo-login`). `npm run typecheck` includes a compile-time
+check (`test/contract/frontend-contract.check.ts`) that every response DTO is assignable to the app's
+type and every app payload is accepted by the server's schema. These are the differences the app's
+next phase has to adopt (details in each module's section):
+
+| Area | Change | App change needed |
+|---|---|---|
+| Auth | `AuthSession` adds `accessTokenExpiresAt` + `refreshToken`; new `POST /auth/refresh` (rotating refresh token); `POST /auth/logout` takes `{ refreshToken? }`. | Store the refresh token in secure storage, single-flight refresh on 401 / before expiry, send it on logout. |
+| Auth | `POST /auth/register` answers 201; `VALIDATION_ERROR` is 400 (mock: 422). No demo endpoints. | None (the client handles both statuses). |
+| Users | New `PATCH /me { preferredLanguage }` and `DELETE /me/devices/:token`; `POST /me/devices` accepts only Expo push tokens. | Call `PATCH /me` when the language changes; register real Expo tokens only (not the simulated provider, not web). |
+| Uploads | `POST /uploads/images` is **multipart** (`file` field, JPEG/PNG/WebP/HEIC ≤ 8 MB), not JSON with a local `uri`. | `FormData.append('file', { uri, name, type })`. |
+| Profiles | `avatarUrl` must be the URL of one of the caller's own uploads (or the current avatar). `GET /geo/reverse` answers 404 where there is no address. | None (already the app's flow / error path). |
+| Lists | `GET /conversations`, `GET /requests/:id/offers`, `GET /jobs` return `Paginated<…>` instead of arrays. | Read `.items` (or use infinite queries); cache helpers map `pages[].items`. |
+| Push | Push `data` is `{ notificationId, notificationType, target }`. | The Expo provider copies it into `PushMessage`. |
+| Realtime | Close code 4001 = the token expired or the session was revoked. | On 4001 refresh the access token before reconnecting (today's client retries every 3 s with the same token); stop on a failed refresh. |
+| Limits | New 429 limits (see [Rate limits](#rate-limits)). | Show the generic error. |
+| Time | Calendar rules use `Asia/Jerusalem` instead of the device zone. | None for Israeli users. |
+
+## Auth
+
+Public endpoints (no `Authorization` needed) under `/v1/auth`. Source: `src/modules/auth`.
+
+### Tokens and sessions
+
+- **Access token**: JWT (HS256), valid **30 minutes**, sent as `Authorization: Bearer <token>` (and as
+  `?token=` for `/v1/realtime`). Claims: `sub` (user id), `role`, `sid` (session id), `typ: "access"`,
+  `iss`, `aud`. It is verified without a database hit; one Redis lookup refuses tokens of sessions that
+  were signed out or revoked, so revocation takes effect immediately (the denylist entry lives as long
+  as the longest remaining access token, 30 minutes).
+- **Refresh token**: opaque random 256-bit string (43 base64url characters), valid **90 days, sliding**:
+  every refresh returns a new one (the old one stops working) and extends the session to now + 90 days.
+  The server stores only SHA-256 hashes (`sessions` collection, TTL-deleted when expired).
+- **Reuse detection**: presenting a refresh token that a refresh already replaced means two parties hold
+  the session, so the whole session is revoked (and its push devices removed) and the answer is 401.
+  Within 30 seconds of the rotation it is treated as a concurrent refresh by the same app instead: 401,
+  the session stays. Clients should run one refresh at a time and store the new token before using it.
+- One session per sign-in (per device). Signing out deletes it; a password reset, or Google linking over
+  an unverified password, deletes all sessions of the account.
+
+### Contract changes vs the app's types (`frontend/src/types/api/auth.ts`)
+
+| # | Change | App impact |
+|---|---|---|
+| 1 | `AuthSession` = `{ accessToken, accessTokenExpiresAt, refreshToken, user }` (login, register, Google `signed_in`). | Store the refresh token (secure storage); refresh before `accessTokenExpiresAt` or on 401. |
+| 2 | New `POST /auth/refresh`. | Add a single-flight refresh in `ApiClient`. |
+| 3 | `POST /auth/logout` takes `{ refreshToken? }`. Without it, the bearer token's session is revoked (what the current app sends). | Send the refresh token. |
+| 4 | `POST /auth/register` answers **201** (the mock 200). `VALIDATION_ERROR` is **400** (the mock 422); both are handled by the app's client. | None. |
+| 5 | `GET /auth/demo-accounts`, `POST /auth/demo-login` do not exist. | Demo UI already hides itself in `http` mode. |
+| 6 | New server pages `GET /auth/verify-email`, `GET`/`POST /auth/reset-password` (opened from emails, not by the app). | None. |
+
+### `POST /auth/register` → 201 `AuthSession`
+
+Body: `RegisterRequest` (validated with the same rules as the app's `registerRequestSchema`, parity-tested):
+`role`, `firstName`, `lastName` (2–40, letters/space/-/'), `email` (trimmed, lower-cased), `phone`
+(Israeli or E.164), exactly one of `password` (8–64, a letter and a digit, not a common password) and
+`googleIdToken`, `acceptedTerms: true`, `preferredLanguage` (`en`|`he`), and `professional`
+(`{ businessName|null, categoryIds 1–10, baseLocation, serviceRadiusKm 3–80 }`) iff `role = professional`.
+After the app's rules pass, the server also rejects a password found in a known data breach
+(Pwned Passwords k-anonymity API: only 5 characters of the password's SHA-1 leave the server) with
+`fieldErrors.password = ["validation:auth.passwordTooCommon"]`; the check fails open when the service
+is unreachable and can be switched off with `PASSWORD_BREACH_CHECK=false`.
+
+In one transaction: the user (argon2id password hash, `language = preferredLanguage`, default
+notification preferences), for professionals the profile (display name = business name or full name,
+service area centered on the base location with the given radius and the city as label, default
+availability, contact = sign-up phone + email, `business.languages = [preferredLanguage]`, zero stats,
+not verified), and the first session. Password sign-ups then get a verification email (en/he by
+`preferredLanguage`); Google sign-ups are verified (Google's `email_verified`) and take the Google avatar.
+
+| Error | When |
+|---|---|
+| 400 `VALIDATION_ERROR` + `fieldErrors` (`email`, `password`, `professional.categoryIds`, `professional.baseLocation.city`, …, messages `validation:*`) | invalid payload; all problems at once |
+| 422 `UNSUPPORTED_CATEGORY` (`fieldErrors["professional.categoryIds.<i>"]`) | category outside the catalog |
+| 409 `EMAIL_ALREADY_REGISTERED` + `fieldErrors.email = ["validation:auth.emailTaken"]` | address (any case) or Google account already registered, also for a concurrent duplicate sign-up |
+| 401 `INVALID_GOOGLE_TOKEN` | Google token invalid/expired, or its email differs from `email` |
+| 503 `SERVER_ERROR` | Google sign-up while Google is not configured (development only) |
+| 429 `RATE_LIMITED` | 20/h per IP, 5/h per email |
+
+### `POST /auth/login` → 200 `AuthSession`
+
+Body `{ email, password }`. 401 `INVALID_CREDENTIALS` (same body and same argon2 work) for an unknown
+email, a wrong password and a Google-only account. Hashes made with older argon2 parameters are
+upgraded on success. 400 for an empty email/password. Rate limits: 30/15 min per IP, 10/15 min per email.
+
+### `POST /auth/google` → 200 `GoogleAuthResponse`
+
+Body `{ idToken }` (Google id token; signature, `aud` ∈ web/iOS/Android client ids, issuer, expiry and
+`email_verified` are checked). Linking rules (BACKEND_INTEGRATION.md §3):
+1. an account linked to this Google `sub` → `{ status: 'signed_in', session }` (matched by `sub` only);
+2. an account with the email but linked to another `sub` → 401 `INVALID_GOOGLE_TOKEN`;
+3. an email + password account → linked and `signed_in`. If its email was **not verified**, the password
+   is removed, the email marked verified and **every session and push device of the account revoked**
+   (pre-account hijacking); a verified account keeps its password and sessions;
+4. unknown → `{ status: 'registration_required', profile: { email, firstName, lastName, avatarUrl } }`.
+
+Errors: 400 without `idToken`, 401 `INVALID_GOOGLE_TOKEN`, 503 when Google is not configured
+(development without client ids), 429 over 30/15 min per IP.
+
+### `POST /auth/refresh` → 200 `{ accessToken, accessTokenExpiresAt, refreshToken }`
+
+Body `{ refreshToken }`. 401 `UNAUTHORIZED` for an unknown, expired, revoked or replayed token (see
+reuse detection); 400 without a token; 429 over 120/15 min per IP.
+
+### `POST /auth/logout` → 200 `{ success: true }`
+
+Body `{ refreshToken? }`; also reads an optional valid bearer token. Revokes that session (the current
+or just-rotated-away refresh token both work) and deletes the push devices it registered, so a
+signed-out phone stops receiving the account's notifications. Always succeeds (idempotent, no auth).
+
+### `POST /auth/password-reset` → 200 `{ success: true }`
+
+Body `{ email }`. Always the same answer, immediately: the lookup and the email happen in the
+background, so neither the answer nor its timing tells whether the address has an account. When it
+has, a single-use link valid **60 minutes** is emailed (en/he by the account's language); requesting a
+new link invalidates the previous one. Google-only accounts can set a password this way. 400 for an
+invalid email; 429 over 10/h per IP or 3/h per email.
+
+### Email link pages (server-rendered HTML, en/he, RTL for Hebrew, `Cache-Control: no-store`)
+
+- `GET /auth/verify-email?token=` — marks the email verified (first time only), 200 page in the
+  account's language; 400 page (browser language) for an unknown, expired (48 h) or used link.
+- `GET /auth/reset-password?token=` — the new-password form (never uses the link up, so email
+  scanners prefetching links cannot burn it); 400 page for an invalid link.
+- `POST /auth/reset-password`:
+  - form-encoded `{ token, password, confirmPassword }` (the page's form) → HTML: 400 with the form and
+    translated field errors (same rules and wording as the app), 400 invalid-link page, or 200 success;
+  - JSON `{ token, password }` → 200 `{ success: true }`, 400 `VALIDATION_ERROR` with
+    `fieldErrors.password` or `fieldErrors.token = ["validation:invalid"]` (invalid/expired/used link).
+  - Both reject a breached password like sign-up does (the link stays usable).
+  - Success: new argon2id hash, email marked verified (the link proves the mailbox), link consumed,
+    **every session and push device of the account revoked**. 30/15 min per IP.
+
+No lists here, so no pagination.
+
+## Users
+
+Authenticated (`Authorization: Bearer`). Source: `src/modules/users`.
+
+### `GET /me` → 200 `CurrentUserResponse`
+
+`{ user, customerProfile, professionalProfile }` exactly as the app's type: customers get
+`customerProfile` (default location, `savedLocations: []`, notification preferences, stats counted from
+requests/jobs), professionals the complete own `professionalProfile` (`user.displayName` = profile
+display name). 401 when the token is missing/invalid/expired or the account no longer exists; 404 if a
+professional's profile is missing.
+
+### `PATCH /me` → 200 `CurrentUserResponse` (addition, not in the app yet)
+
+Body `{ preferredLanguage: 'en' | 'he' }`. The language of push notifications and emails; the app should
+call it when the user switches language (it is otherwise the sign-up language). 400 for another value.
+Notification preferences stay on `PATCH /customer/profile` / `PATCH /professional/profile`.
+
+### `POST /me/devices` → 200 `{ success: true }`
+
+Body `{ pushToken, platform: 'ios' | 'android' | 'web' }` (`RegisterDeviceRequest`). Upserts the token:
+a token registered by another account moves to the caller (shared phone); concurrent registrations are
+safe. The device is tied to the caller's session and removed when that session signs out or is revoked.
+400 `fieldErrors.pushToken = ["validation:invalid"]` when it is not an Expo push token
+(`ExponentPushToken[…]`): the app's simulated provider (`simulated:*`) must not register in `http` mode,
+and web (no Expo push) should not register at all.
+
+### `DELETE /me/devices/:token` → 200 `{ success: true }` (addition)
+
+URL-encoded token. Removes the caller's device with that token; idempotent, never touches another
+account's device.
+
+## Profiles (customers, professionals, geo, uploads)
+
+Module owners: `src/modules/customers`, `src/modules/professionals`, `src/modules/geo`, `src/modules/uploads`.
+Types below are the app's (`frontend/src/types`); field errors carry `validation:*` keys as everywhere.
+
+### `GET /customer/profile` — customer
+`200 { user: User, profile: CustomerProfile }`. `profile.stats` is counted live (published requests,
+completed jobs). `savedLocations` is always `[]` (the app never reads or writes saved addresses).
+Errors: 401, 403 (professional).
+
+### `PATCH /customer/profile` — customer
+Body `UpdateCustomerProfilePayload`, every field optional: `firstName`, `lastName` (1–60, trimmed),
+`phone` (Israeli or E.164), `avatarUrl` (`string | null`, see *Avatars*), `defaultLocation`
+(`ServiceLocation` without `isApproximate`, or `null` to clear), `notificationPreferences` (all six
+booleans). Response as `GET`. Errors: 400 `VALIDATION_ERROR` (e.g. `defaultLocation.addressLine`,
+`notificationPreferences.messages`, `avatarUrl`), 401, 403.
+
+### `GET /professional/profile` — professional
+`200 OwnProfessionalProfile` (exact base location, contact, notification settings).
+
+### `PATCH /professional/profile` — professional
+Body `UpdateProfessionalProfilePayload` (every field optional), the rules of the app's
+`updateProfessionalProfileSchema`: `fullName` (2+ words, ≤ 60), `displayName` (≤ 60), `headline`
+(≤ 80), `bio` (30–1000), `categoryIds` (1–10 catalog ids, de-duplicated), `yearsOfExperience`
+(integer 0–60), `serviceArea` (`center`, `radiusKm` 3–80, `label`), `baseLocation` (or `null`),
+`availability` (times `HH:mm` on enabled days, end after start, at least one working day),
+`contact` (`phone`, `email` lower-cased, `website` stored with `https://`), `business`
+(`businessName` ≤ 80, `licenseNumber` letters/digits ≤ 30, `isInsured`, `languages` 1–20 ISO codes,
+lower-cased, de-duplicated), `startingPrice` (`{amount, currency}` with the offer price rules, or
+`null`), `notificationPreferences`, `avatarUrl`.
+`200 OwnProfessionalProfile`. Side effects: `fullName` → account first/last name (first word / the
+rest), `contact.phone` → account phone (the sign-in email never changes), realtime
+`profile.updated` to the professional, the cached public profile is dropped.
+Errors: 400 `VALIDATION_ERROR`, 422 `UNSUPPORTED_CATEGORY` (`categoryIds.<i>`), 401, 403.
+
+### `GET /professionals/:professionalId` — any signed-in user
+`200 ProfessionalProfile` as the viewer may see it (same rules as the app's `views.ts`):
+- everyone but the owner: approximate `baseLocation` (no street, no details, `isApproximate: true`)
+  and approximate `serviceArea.center` (deterministic 250–450 m offset, the same for every viewer);
+- `contact` is `null` unless the viewer is a customer who has (or had) a job with the professional;
+- `notificationPreferences` is never included (also not for the owner).
+The viewer-independent view is cached in Redis for 60 s and dropped on profile edits.
+Errors: 404 (unknown or malformed id, or a customer's id), 401.
+
+### `GET /professionals/:professionalId/reviews?cursor=&limit=` — any signed-in user
+`200 Paginated<Review> & { breakdown: RatingBreakdown }`, newest first (keyset on `createdAt, _id`).
+`breakdown` covers all reviews (average rounded to 0.1, `null` without reviews);
+`totalCount === breakdown.reviewCount`. `customerDisplayName` is the short name ("Noa L."),
+reviewer name and avatar are always current. Errors: 404, 400 (`limit`, `cursor`), 401.
+
+### `GET /professionals?categoryId=&lat=&lng=&cursor=&limit=` — any signed-in user
+`200 Paginated<ProfessionalSummary>`, best ranked first: Bayesian rating (`stats.rankScore`), then
+review count, then id. With `lat` + `lng` only professionals whose own service radius covers the
+point are listed, and nearer ones come first among equals (a single coordinate is ignored, as in the
+app). Errors: 400 (`categoryId` outside the catalog → `validation:invalid`, `lat` →
+`validation:location.coordinatesInvalid`, `limit`, `cursor`), 401. (The app has the endpoint in its
+API client but no screen calls it yet.)
+
+### `GET /geo/search?q=&limit=` — public
+`200 PlaceSuggestion[]` (not paginated: autocomplete). `limit` 1–50 (default 8, capped at 20).
+Queries shorter than 2 characters answer `[]` without calling the provider. Language: Hebrew
+letters in `q` → Hebrew results, Latin letters → English, else `Accept-Language`.
+Provider: Nominatim (country filter `GEOCODER_COUNTRY_CODES`), answers cached 30 days in Redis, provider
+calls ≤ 1/s across instances. Headers: `Cache-Control: public, max-age=3600`, `Vary: Accept-Language`.
+Errors: 400 (`limit`), 429 `RATE_LIMITED` (60/min per IP, shared with `/geo/reverse`, or when the
+provider slot stays busy > 4 s), 503 `SERVER_ERROR` (provider down).
+
+### `GET /geo/reverse?lat=&lng=` — public
+`200 PlaceSuggestion` for the nearest address; `coordinates` echo the requested point (the pin the
+user placed), like the app's reference backend. Errors: 400 with
+`{ lat: ['validation:location.coordinatesInvalid'], lng: [same] }` for a missing/invalid pair,
+**404 `NOT_FOUND` when there is no address at that point** (the app shows its "type the address"
+hint), 429, 503.
+
+### `POST /uploads/images` — any signed-in user
+**Contract change:** `multipart/form-data` with the image in the field **`file`** (the app currently
+posts the JSON `UploadImagePayload` with a local `uri`; it must send
+`FormData.append('file', { uri, name: fileName ?? 'photo.jpg', type: mimeType ?? 'image/jpeg' })`).
+Other form fields are ignored. JPEG, PNG, WebP or HEIC/HEIF, ≤ 8 MB; the type is detected from the
+file's bytes, not from the declared type. Stored on Cloudinary under
+`professionals/<APP_ENV>/images`, longest edge ≤ 2048 px.
+`201 UploadedImage { id, url, width, height }` (dimensions of the stored image).
+Errors: 400 `{ file: ['validation:upload.invalid'] }` (missing, not an image, too large; a wrong
+field name is reported under that name), 401, 429 (60 uploads / 10 min per user), 503 `SERVER_ERROR`
+(storage not configured: development without Cloudinary credentials).
+Uploads nobody attaches within 24 h are deleted by the daily `orphan-uploads` cron (03:17 UTC).
+
+### Avatars
+There is no separate avatar endpoint (the app has none): upload with `POST /uploads/images`, then
+send the returned `url` as `avatarUrl` in `PATCH /customer/profile` or `PATCH /professional/profile`.
+**Stricter than the app's mock:** `avatarUrl` must be the URL of one of the caller's own uploads that
+is not used elsewhere (or the current avatar URL, a no-op); any other URL → 400
+`{ avatarUrl: ['validation:invalid'] }`, so a profile can never make other users' apps load an
+arbitrary URL. `null` removes the avatar. A replaced or removed avatar image is released to the
+orphan cron (Google profile pictures are left alone).
+
+## Messaging (conversations, notifications, push, realtime)
+
+Module owners: `src/modules/conversations`, `src/modules/notifications` (+ `src/infra/push`,
+`src/infra/realtime`). Every route needs `Authorization: Bearer` and works for both roles; callers only
+ever see their own conversations and notifications. Lists are keyset-paginated (`?cursor=&limit=`,
+default 20, max 100; bad values → 400 `fieldErrors.cursor` / `fieldErrors.limit`).
+
+### Contract changes vs the app's types (`frontend/src/types`, `services/api/endpoints`)
+
+| # | Change | App impact |
+|---|---|---|
+| 1 | `GET /conversations` is paginated: `?cursor=&limit=` → `Paginated<Conversation>` (the app expects `Conversation[]`). | `getConversations` becomes an infinite query; the cache helpers that map the list (`realtime-events.ts`, `use-message-mutations.ts`) map `pages[].items`. The inbox badge sums `unreadCount` of the loaded pages only (see *Open points*). |
+| 2 | Push `data` is `{ notificationId, notificationType, target }` (adds `notificationType`, a field the app's `PushMessage` already declares). | The Expo push provider copies `data` into `PushMessage`, so a tap marks the notification read and routes like the inbox. |
+| 3 | `VALIDATION_ERROR` is 400 (the mock answers 422); both are handled by the app's client. | None. |
+| 4 | New limit: 60 messages per minute per user → 429 `RATE_LIMITED`. | Keep the failed message in the composer (already the case for any error). |
+
+### `GET /conversations?cursor=&limit=` → `Paginated<Conversation>`
+Most recent activity first (last message, else creation; ties by id), `totalCount` = all of the
+caller's conversations. Per item: `participants` (customer, professional) with `displayName` (the
+professional profile's display name / the customer's full name; both parties of a hired job) and
+`avatarUrl`; `lastMessage` (a full `Message` incl. `readAt`, `null` before the first message);
+`unreadCount` = the caller's unread messages from the other participant; `isOpen` (`false` once the job
+is cancelled); `updatedAt` = last message or closing time (reading does not change it). One indexed
+query + one batch load of names/avatars per page. Errors: 400, 401.
+
+### `GET /conversations/:conversationId` → `Conversation`
+Same shape as a list item. 404 unknown or malformed id, 403 not a participant, 401.
+
+### `GET /conversations/:conversationId/messages?cursor=&limit=` → `Paginated<Message>`
+Newest first (the chat's inverted list); a cursor stays valid while new messages arrive (keyset).
+`readAt` = when the recipient read the message (`null` until then), `clientMessageId` = the sender's id.
+Errors: 400, 401, 403, 404.
+
+### `POST /conversations/:conversationId/messages` → 201 `Message`
+Body `SendMessagePayload { text, clientMessageId }`, validated like the app's `sendMessageSchema`: `text`
+is normalized (CRLF → LF, trailing spaces per line, 3+ blank lines → one, trimmed) and must then be
+1–2000 characters (`validation:message.empty` / `validation:message.tooLong`); `clientMessageId` 1–100
+characters (`validation:invalid`).
+- **Idempotent** per (conversation, sender, `clientMessageId`): a retry answers 201 with the stored
+  message and has no side effects, also when identical retries race (unique index) and after the
+  conversation closed. The same id from the other participant is a different message.
+- **Closed conversation** (job cancelled) → 409 `CONFLICT` "This conversation is closed".
+- **Effects** (one transaction; events and push after the commit, in this order): replying first reads
+  the counterpart's messages (exactly like `POST …/read`, incl. its `conversation.read` event when
+  something was unread); the recipient's `unreadCount` + 1 and `lastMessage` updated; a `new_message`
+  notification for the recipient (`params { categoryId, professionalName | customerName,
+  messagePreview }`, `target { kind: 'conversation', conversationId }`; only the newest unread one per
+  conversation is kept; none when the recipient's `messages` preference is off) with
+  `notification.created` and push; `message.created` to both participants (the sender's other devices
+  included).
+- Errors: 400, 401, 403, 404, 409, 429.
+
+### `POST /conversations/:conversationId/read` → `{ success: true }`
+Marks every unread message of the other participant read (`readAt` = now), resets the caller's
+`unreadCount` and `lastMessage.readAt`, and marks the caller's notifications that target this
+conversation read. When at least one message changed, `conversation.read { conversationId, readerId,
+readAt }` goes to both participants (the sender's double check, the reader's other devices). Idempotent:
+nothing unread → nothing changes, no event. The caller's own messages are never affected.
+Errors: 401, 403, 404.
+
+### `GET /notifications?unreadOnly=&cursor=&limit=` → `Paginated<AppNotification>`
+Newest first. `unreadOnly` = `true|false|1|0` (default `false`; anything else → 400
+`fieldErrors.unreadOnly`); `totalCount` counts the filtered set. Notifications are deleted 90 days after
+creation (TTL index). Errors: 400, 401.
+
+### `GET /notifications/unread-count` → `{ count }`
+Unread notifications of the caller (indexed count). 401.
+
+### `POST /notifications/:notificationId/read` → `AppNotification`
+Sets `readAt` and returns the notification; an already read one is returned unchanged (idempotent).
+404 unknown or malformed id, 403 another user's notification, 401. No realtime event (as in the mock).
+
+### `POST /notifications/read-all` → `{ success: true }`
+Marks all of the caller's unread notifications read. 401.
+
+### How notifications are produced (every module)
+`createNotification(s)` (`notifications/create-notification.service.ts`) stores nothing when the
+recipient's category toggle for the type is off (`jobUpdates`, `messages`, `newRequests`, `reminders`;
+`emailEnabled` is not used: no notification emails), stores inside the caller's transaction, then
+publishes `notification.created` to the recipient and, when `pushEnabled`, sends push in the background
+(never delays the response).
+
+### Push (Expo)
+- Every device the recipient registered with `POST /me/devices` gets the notification, localized in the
+  user's language (en/he, the app's `notifications:types.*` texts; Latin names bidi-isolated in Hebrew),
+  `sound: default`, `priority: high`, `data: { notificationId, notificationType, target }`.
+- Sent in chunks of 100 (Expo's limit; the SDK retries 429s). A failed chunk does not stop the others;
+  the failure is logged and those devices are kept.
+- Tokens that are not Expo push tokens, or that Expo answers `DeviceNotRegistered`, are deleted at once.
+  Other tickets wait in Redis (`${APP_ENV}:push-tickets`, sorted set by send time, 24 h). The
+  `push-receipts` cron (every 15 min, Redis-locked) fetches receipts of tickets ≥ 15 min old in batches
+  of 1000 (up to 50 000 per run), deletes `DeviceNotRegistered` tokens, logs the other receipt errors
+  by type, drops answered tickets and purges tickets older than a day.
+
+### Realtime: `GET /v1/realtime?token=<access token>` (WebSocket)
+- Same HTTP server as the API. The access token is verified on connect: missing/invalid/expired, or of
+  a revoked session → close **4001**; open sockets of a session are closed with **4001** when it is
+  revoked; an open socket is closed with **4001** when its token expires (the app reconnects with a
+  refreshed token). The token is never logged.
+- Server → client JSON frames only, exactly the app's `RealtimeEvent` union; client frames are ignored
+  (max 4 KB). Ping every 30 s; a socket that misses a pong is terminated.
+- Messaging emits `message.created` (both participants), `conversation.read` (both participants) and
+  `notification.created` (the recipient); the other modules emit `request.updated`, `offer.updated`,
+  `job.updated`, `profile.updated`. Events are published after the transaction commits.
+- Multi-instance: events go through Redis pub/sub (`${APP_ENV}:realtime`); each instance delivers to its
+  local sockets of the addressed users. Delivery is best effort: the app refetches on reconnect/focus.
+
+### Open points for the app integration
+- Inbox badge: the app sums `Conversation.unreadCount` over the conversation list. With pagination only
+  loaded pages count; request the first page with `limit=100`, or add a
+  `GET /conversations/unread-count` if accounts may have more active conversations than that.
+
+## Marketplace (requests, offers, jobs, reviews, dashboard)
+
+Module owners: `src/modules/requests` (+ matching, explorer), `src/modules/offers`,
+`src/modules/jobs`, `src/modules/reviews`, `src/modules/dashboard`. Every route needs
+`Authorization: Bearer`; the role column says who may call it (the other role gets 403 `FORBIDDEN`).
+Rules, errors, notifications and realtime events are those of the app's mock backend
+(`frontend/src/mocks/server/services/lifecycle-service.ts`, `views.ts`); malformed ids answer 404.
+Lists are keyset-paginated (`?cursor=&limit=`, default 20, max 100; bad values → 400
+`fieldErrors.cursor` / `fieldErrors.limit`).
+
+### Contract changes vs the app's types (`frontend/src/types`, `services/api/endpoints`)
+
+| # | Change | App impact |
+|---|---|---|
+| 1 | `GET /requests/:id/offers` is paginated: `?sort=&statuses=&cursor=&limit=` → `Paginated<OfferWithProfessional>` (the app expects `OfferWithProfessional[]`). The whole ranked list is computed per request (the "recommended" score is relative to the other offers), the cursor resumes after the last offer returned. | `getOffersForRequest` reads `.items` (ask `limit=100`: a request rarely gets more offers). |
+| 2 | `GET /jobs?scope=` is paginated → `Paginated<JobSummary>` (the app expects `JobSummary[]`). | `useJobs` reads `.items` (or becomes an infinite query). |
+| 3 | `GET /jobs?scope=all` is ordered by appointment, latest first (the mock: most recently updated). The app never requests `all`. | None. |
+| 4 | `CustomerDashboard.jobsAwaitingReview` holds at most the 20 most recently completed unreviewed jobs (the mock: all). | None in practice (the app shows the first one and marks requests in lists). |
+| 5 | `photoIds` must be ids returned by `POST /uploads/images` to the same customer and not used elsewhere; unknown/foreign ids → 400 `{ photoIds: ['validation:request.photoNotFound'] }`. Repeated ids are kept once. | Already the app's flow. |
+| 6 | New limits: 30 new requests per hour per customer, 60 new offers per 10 minutes per professional → 429 `RATE_LIMITED`. | Show the generic error. |
+| 7 | `VALIDATION_ERROR` is 400 (the mock answers 422). The body is validated before ownership/state checks, so e.g. an invalid body on a published request answers 400 where the mock answered 409. | None (the client maps both). |
+| 8 | Calendar rules run in `Asia/Jerusalem` (the market's time zone): "today" for preferred dates, the day an emergency/urgent preferred date starts, "this month" for earnings. The mock used the device zone. | None for Israeli users. |
+| 9 | `stats.responseTimeMinutes` is the median over the professional's 100 most recently updated offers (the mock: all offers), so its cost stays bounded. | None. |
+
+### Requests
+
+#### `POST /requests` — customer → 201 `CustomerRequestView`
+Body `CreateServiceRequestPayload`: `categoryId` (catalog id; unknown → 422 `UNSUPPORTED_CATEGORY`),
+`description` (15–1000, trimmed), `location` (`coordinates`, `addressLine` ≤ 120, `city` ≤ 60,
+`neighborhood`, `details` ≤ 200), `urgency`, `preferredSchedule` (`{ date: YYYY-MM-DD, timeWindow }`
+or `null`, default `null`), `photoIds` (≤ 6, default `[]`), `notes` (≤ 500, empty → `null`),
+`publish` (default `true`; `false` saves a draft).
+Preferred date rules (`fieldErrors['preferredSchedule.date']`): real day
+(`request.preferredDateInvalid`), not before today (`…InPast`), ≤ 60 days ahead (`…TooFar`), and
+starting before the latest start an offer may propose — emergency ≤ 24 h, urgent ≤ 72 h
+(`…BeyondUrgency`). Photos are attached (kept by the orphan cleanup).
+Published: every matching professional (category + own service radius, haversine from the
+service-area center) gets `new_matching_request` (`distanceKm`, customer short name) and
+`request.updated`; a draft only emits `request.updated` to its owner.
+
+#### `GET /requests/:requestId` — any role → `RequestDetailsResponse`
+- Owner customer: `{ viewerRole: 'customer', request: CustomerRequestView }` (`latestOfferAt` =
+  newest pending offer, `lowestOfferPrice` = lowest pending/accepted price). Another customer → 403.
+- Professional: 404 for drafts; 403 unless the request matches their categories and service area or
+  they sent an offer on it. `{ viewerRole: 'professional', request: ProfessionalRequestView }` with
+  the privacy view until their offer is accepted: `location` approximate (deterministic 250–450 m
+  offset seeded by the request id, no street, no details, `isApproximate: true`), `notes: null`,
+  `jobId: null`. Plus `distanceKm` (0.1 km, from the service-area center to the real location),
+  `customer` (`CustomerSummary`, short name), `myOffer` (their active offer, else their newest),
+  `isMatch`.
+
+#### `PATCH /requests/:requestId` — customer (drafts) → `CustomerRequestView`
+Body: any field of the create payload except `publish`. Not a draft → 409 `CONFLICT`; not the
+owner → 403. A new `urgency` or `preferredSchedule` re-checks the date rules; `photoIds` replaces
+the photos (removed uploads are released for the orphan cleanup).
+
+#### `DELETE /requests/:requestId` — customer (drafts) → `{ success: true }`
+Not a draft → 409 `CONFLICT`. Photos are released. `request.updated` to the owner.
+
+#### `POST /requests/:requestId/publish` — customer → `CustomerRequestView`
+`draft → open` (else 409 `INVALID_STATE_TRANSITION`); date rules re-checked on today's date;
+notifications as for a published create.
+
+#### `POST /requests/:requestId/cancel` — customer → `CustomerRequestView`
+Body `{ reason: RequestCancellationReason, comment?: string | null }` (comment ≤ 300, empty →
+`null`). Allowed from `draft`, `open`, `offers_received`, `professional_selected`, `scheduled`
+(`in_progress`/`completed`/`cancelled` → 409 `INVALID_STATE_TRANSITION`). One transaction: pending
+offers → `rejected` (`request_cancelled`), an assigned job → `cancelled` and its chat closed, the
+request → `cancelled` with recounted `offerCount`/`pendingOfferCount`. `request_cancelled` goes to
+every professional with a rejected offer or the cancelled job; `offer.updated`/`job.updated` to the
+parties; `request.updated` to the owner, every offering professional and — when it was accepting
+offers — every matching professional (it leaves their explorer). An accepted offer stays `accepted`.
+
+#### `GET /customer/requests?section=&statuses=&cursor=&limit=` — customer → `Paginated<CustomerRequestView>`
+Most recently updated first (keyset `updatedAt, _id`). `section` ∈ `CUSTOMER_REQUEST_SECTIONS`
+(`awaiting_offers` = open without pending offers, `has_offers` = offers_received or open with pending
+offers, `active` = professional_selected/scheduled/in_progress), `statuses` comma separated; both
+combine with AND. Unknown values → 400 (`section`, `statuses.<i>`).
+
+#### `GET /professional/requests/nearby?…` — professional → `Paginated<ProfessionalRequestView>`
+The explorer: requests in `open`/`offers_received` within the professional's radius, in their
+categories. Query (the app's `NearbyRequestsParams`): `categoryIds` (subset of their own; none of
+their own → empty page), `maxDistanceKm` (> 0, capped by the radius), `urgencies`,
+`preferredDateFrom`/`preferredDateTo` (`YYYY-MM-DD`, inclusive; requests without a preferred date are
+then excluded), `offerPresence` (`no_offers` / `has_offers` on pending offers), `excludeWithMyOffer`
+(hide requests with their pending/accepted offer), `sort` (`newest` default: publication time desc,
+then id asc; `nearest`: the shown 0.1 km distance, then newest; `most_urgent`; `fewest_offers`:
+pending offers asc), `cursor`, `limit` (the app's map asks 100). One `$geoNear` aggregation returns
+the page and `totalCount`; distances use the app's haversine Earth radius, so "inside the radius"
+is exactly the app's `isWithinServiceArea`. Items use the privacy view above.
+
+### Offers
+
+#### `POST /requests/:requestId/offers` — professional → 201 `Offer`
+Body `CreateOfferPayload`: `price` (20–200 000, ≤ 2 decimals), `currency` (only `ILS` is accepted:
+others → 400 `offer.currencyUnsupported`), `proposedStartAt` (ISO instant), `estimatedDurationMinutes`
+(integer 15–10 080 or `null`), `message` (≤ 500, empty → `null`); every key required.
+Errors in the mock's order: draft or unknown request 404; not `open`/`offers_received` → 409
+`REQUEST_NOT_ACCEPTING_OFFERS`; category not theirs → 422 `UNSUPPORTED_CATEGORY`
+(`categoryId: category.notOffered`); outside their radius → 422 `OUTSIDE_SERVICE_AREA`
+(`location: location.outsideServiceArea`); an active (pending/accepted) offer of theirs → 409
+`DUPLICATE_OFFER` (also for concurrent double submits: unique index); time rules → 400 on
+`proposedStartAt` (`offer.startTooSoon` < 30 min, `…StartTooFar` > 60 days, `…emergencyWindow`
+> 24 h, `…urgentWindow` > 72 h). `expiresAt` = now + the urgency's validity (6 h / 24 h / 72 h /
+7 days), never after the proposed start. The request is recounted (`open → offers_received`), the
+professional's response time refreshed; `offer_received` to the customer; `offer.updated` +
+`request.updated`.
+
+#### `GET /requests/:requestId/offers?sort=&statuses=&cursor=&limit=` — customer (owner) → `Paginated<OfferWithProfessional>`
+Ranked like the app's `sortOffers` (accepted first, then pending, then the rest; `sort` ∈
+`recommended` (default) | `lowest_price` | `earliest_availability` | `highest_rating` |
+`most_reviews`; ties by submission time). `distanceKm` from the professional's service-area center.
+See contract change 1.
+
+#### `GET /offers/:offerId` — the request's owner or the offering professional → `OfferDetails`
+`OfferWithProfessional & { request: OfferRequestSummary }`; the request location is exact for the
+owner and the hired professional, approximate otherwise. Others → 403.
+
+#### `PATCH /offers/:offerId` — professional (own) → `Offer`
+Body: any field of the create payload. Past `expiresAt` or `expired` → 409 `OFFER_EXPIRED`; not
+pending → 409 `INVALID_STATE_TRANSITION`; request closed → 409 `REQUEST_NOT_ACCEPTING_OFFERS`;
+time/currency rules as on create. `expiresAt` restarts from now. `offer_updated` to the customer.
+
+#### `POST /offers/:offerId/withdraw` — professional (own) → `Offer`
+`pending → withdrawn` (`withdrawn_by_professional`); `expired` → 409 `OFFER_EXPIRED`, other
+statuses → 409 `INVALID_STATE_TRANSITION`. The request is recounted (`offers_received → open` when
+none are pending). `offer_withdrawn` to the customer. The professional may offer again afterwards.
+
+#### `POST /offers/:offerId/accept` — customer (owner) → `AcceptOfferResponse`
+One MongoDB transaction: the offer → `accepted` (`accepted_by_customer`), every other pending offer →
+`rejected` (`another_offer_accepted`), a job (`awaiting_confirmation`, price/start/duration copied
+from the offer) and its conversation are created, the request → `professional_selected` with
+`acceptedOfferId`/`jobId`. Blockers (the app's `getOfferAcceptBlocker`): the request already has an
+accepted offer → 409 `CONFLICT`; expired → 409 `OFFER_EXPIRED`; not pending → 409
+`INVALID_STATE_TRANSITION`; request closed → 409 `REQUEST_NOT_ACCEPTING_OFFERS`. Concurrent
+acceptances: exactly one wins, the others get 409 (write conflict → driver retry → re-check; a
+unique job-per-request index backs it up). `offer_accepted` to the hired professional,
+`offer_not_selected` to the others, `offer.updated` per changed offer, `job.updated`, and
+`request.updated` also to the matching professionals whose explorer it leaves.
+Response: `{ offer: Offer, request: ServiceRequest, job: Job }`.
+
+#### `GET /professional/offers?statuses=&cursor=&limit=` — professional → `Paginated<OfferWithRequest>`
+Their offers, most recently updated first (keyset `updatedAt, _id`), optional `statuses` filter.
+The embedded request location is approximate unless their offer on it was accepted.
+
+### Jobs
+
+`Job.location` is the request's exact address (only the two parties see jobs). A job's status
+mirrors onto its request (`awaiting_confirmation → professional_selected`, then the same names).
+
+#### `GET /jobs?scope=&cursor=&limit=` — both roles → `Paginated<JobSummary>`
+The caller's jobs (as customer or professional). `scope`: `active` (awaiting_confirmation,
+scheduled, in_progress; soonest appointment first), `upcoming` (awaiting_confirmation/scheduled
+starting from 2 h ago; soonest first), `completed` (most recently completed first), `all` (default;
+latest appointment first — contract change 3). `JobSummary` adds `description`, `professional`
+(`ProfessionalSummary`) and `customer` (`CustomerSummary`).
+
+#### `GET /jobs/:jobId` — the job's parties → `JobDetails`
+Adds the full `request` (`ServiceRequest`), `review` (`Review | null`) and `canReview` (the customer,
+completed, not reviewed yet). Others → 403.
+
+#### `POST /jobs/:jobId/confirm` — professional (own) → `Job`
+`awaiting_confirmation → scheduled` (`confirmedAt`); request → `scheduled`; `job_confirmed` to the
+customer. Other states → 409 `INVALID_STATE_TRANSITION`; another professional's job → 403.
+
+#### `POST /jobs/:jobId/start` — professional (own) → `Job`
+`scheduled → in_progress` (`startedAt`); `job_started` to the customer.
+
+#### `POST /jobs/:jobId/complete` — either party → `Job`
+`scheduled | in_progress → completed` (`completedAt`, `completedBy` = caller's role); the
+professional's `stats.completedJobsCount` is recounted; `job_completed` to the other party.
+Every transition emits `job.updated` (both parties) and `request.updated`.
+
+#### `POST /jobs/:jobId/review` — customer (own job) → 201 `Review`
+Body `{ rating: 1–5, comment: string | null }` (comment ≤ 800, empty → `null`; missing rating →
+`review.ratingRequired`, other values → `review.ratingInvalid`). Job not completed → 409 `CONFLICT`;
+already reviewed (also a concurrent double submit) → 409 `CONFLICT`; another customer → 403.
+One transaction stores the review, links it on the job and recomputes the professional's
+`averageRating` (0.1 precision), `reviewCount` and search rank; the cached public profile is dropped,
+`profile.updated` and `review_received` go to the professional, `job.updated` to both parties.
+
+### Dashboards
+
+#### `GET /customer/dashboard` — customer → `CustomerDashboard`
+`openRequestsCount` (open + offers_received), `requestsWithOffersCount` (the "has offers" section),
+`pendingOffersCount` (pending offers on those requests), `activeJobsCount`, `recentRequests` (5 most
+recently updated), `upcomingJobs` (3 soonest active jobs), `jobsAwaitingReview` (completed without
+review, most recent first, ≤ 20).
+
+#### `GET /professional/dashboard` — professional → `ProfessionalDashboard`
+`nearbyOpenRequestsCount` (what the explorer shows without filters), `newRequests` (the 5 newest of
+those without an active offer of theirs), `pendingOffersCount` + `pendingOffers` (5 newest),
+`activeJobsCount` + `upcomingAppointments` (5 soonest), `recentNotifications` (5 newest),
+`earningsThisMonth` (sum of agreed prices of jobs completed since the 1st of the month, Israel time,
+`{ amount, currency: 'ILS' }`), `completedJobsCount`.
+
+### Scheduled work
+- `offer-expiry` (every 5 min): pending offers past `expiresAt` → `expired` (one transaction each,
+  idempotent), the request is recounted (`offers_received → open` when none are left),
+  `offer_expired` to the professional, `offer.updated` + `request.updated`.
+- `appointment-reminders` (every 15 min): awaiting_confirmation/scheduled jobs starting within 2 h get
+  one `appointment_reminder` per party; `reminderSentAt` is claimed in the same transaction (exactly
+  once; it does not change the job's `updatedAt`).
+
+### Notifications and events per action
+
+| Action | Notification (recipient) | Realtime |
+|---|---|---|
+| Publish | `new_matching_request` (matching professionals) | `request.updated` (owner, matching professionals) |
+| Submit offer | `offer_received` (customer) | `offer.updated`, `request.updated` |
+| Edit / withdraw offer | `offer_updated` / `offer_withdrawn` (customer) | `offer.updated`, `request.updated` |
+| Accept | `offer_accepted` (hired), `offer_not_selected` (others) | `offer.updated` ×n, `request.updated` (+ explorer), `job.updated` |
+| Cancel request | `request_cancelled` (pending offers' + job's professionals) | `offer.updated`, `job.updated`, `request.updated` (+ explorer) |
+| Confirm / start | `job_confirmed` / `job_started` (customer) | `job.updated`, `request.updated` |
+| Complete | `job_completed` (the other party) | `job.updated`, `request.updated`, `profile.updated` |
+| Review | `review_received` (professional) | `job.updated`, `profile.updated` |
+| Offer expiry cron | `offer_expired` (professional) | `offer.updated`, `request.updated` |
+| Reminder cron | `appointment_reminder` (both) | — |
+
+`request.updated` always reaches the owner and every professional who ever sent an offer on the
+request. Notifications honour the recipients' preference toggles and fan out to push.

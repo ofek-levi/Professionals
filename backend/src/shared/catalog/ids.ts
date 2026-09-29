@@ -1,0 +1,68 @@
+/** Stable category ids. Copied from the app (`frontend/src/constants/professional-categories.ts`); a drift test keeps them equal. */
+export const CATEGORY_GROUP_IDS = [
+  'home_repairs',
+  'construction_renovation',
+  'moving_transportation',
+  'other_services',
+] as const;
+export type CategoryGroupId = (typeof CATEGORY_GROUP_IDS)[number];
+
+export const CATEGORY_IDS = [
+  // Home repairs & maintenance
+  'plumbing',
+  'electrical',
+  'hvac',
+  'appliance_repair',
+  'handyman',
+  'painting',
+  'carpentry',
+  'furniture_assembly',
+  'locksmith',
+  'glass_window_repair',
+  'door_shutter_repair',
+  'roofing',
+  'waterproofing_leak_detection',
+  'flooring_tiling',
+  'plastering_drywall',
+  'pest_control',
+  'cleaning',
+  'home_maintenance',
+  'water_heater',
+  'gas_technician',
+  // Construction & renovation
+  'general_contractor',
+  'masonry',
+  'renovation',
+  'kitchen_renovation',
+  'bathroom_renovation',
+  'welding',
+  'ironwork',
+  'aluminum_work',
+  'insulation',
+  'landscaping_gardening',
+  'tree_services',
+  'pool_maintenance',
+  'pergolas_decking',
+  // Moving & transportation
+  'moving',
+  'truck_moving',
+  'furniture_transport',
+  'delivery',
+  'junk_removal',
+  'heavy_lifting',
+  'packing_unpacking',
+  'vehicle_towing',
+  // Other services
+  'computer_it_repair',
+  'network_wifi_setup',
+  'security_systems',
+  'solar_panels',
+  'water_filtration',
+  'window_cleaning',
+  'upholstery_cleaning',
+  'carpet_cleaning',
+  'chimney_vent_cleaning',
+  'tv_mounting',
+  'smart_home',
+] as const;
+export type CategoryId = (typeof CATEGORY_IDS)[number];
