@@ -43,6 +43,8 @@ export interface ColorPalette {
   primaryFill: string;
   primaryFillPressed: string;
   onPrimary: string;
+  /** The logo's own blue (app icon, splash, `BrandMark`); the same in both schemes. */
+  brandMark: string;
   accent: string;
   accentSoft: string;
   success: string;
@@ -99,6 +101,7 @@ const lightColors: ColorPalette = {
   primaryFill: '#3B5BDB',
   primaryFillPressed: '#2F4BC0',
   onPrimary: '#FFFFFF',
+  brandMark: '#1E62E6',
   accent: '#0CA678',
   accentSoft: '#E7F7F1',
   success: '#2F9E44',
@@ -135,6 +138,7 @@ export const darkColors: ColorPalette = {
   primaryFill: '#4466F0',
   primaryFillPressed: '#3A57D9',
   onPrimary: '#FFFFFF',
+  brandMark: '#1E62E6',
   accent: '#20C997',
   accentSoft: 'rgba(32, 201, 151, 0.12)',
   success: '#40C057',

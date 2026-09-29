@@ -72,6 +72,8 @@ describe('entry screen', () => {
     const app = await renderApp('/sign-in');
     expect(await screen.findByTestId('entry-create-account', {}, TIMEOUT)).toHaveTextContent('Create account');
     expect(screen.getByTestId('entry-sign-in')).toHaveTextContent('Sign in');
+    // Decorative: hidden from screen readers, so the query has to include hidden elements.
+    expect(screen.getByTestId('entry-brand-mark', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.getByText('Or try a demo account')).toBeOnTheScreen();
     expect((await screen.findAllByTestId(/^demo-account-/, {}, TIMEOUT)).length).toBeGreaterThan(0);
 
@@ -84,6 +86,7 @@ describe('sign in', () => {
   it('validates, rejects wrong credentials with one alert and signs in', async () => {
     const app = await renderApp('/auth/login');
     await screen.findByTestId('login-screen', {}, TIMEOUT);
+    expect(screen.getByTestId('auth-brand-mark', { includeHiddenElements: true })).toBeOnTheScreen();
     expect(screen.getByTestId('login-demo-hint')).toHaveTextContent(/noa\.levi@example\.com.*Demo1234/);
 
     await press('login-submit');
@@ -138,6 +141,8 @@ describe('sign up', () => {
     // The length of the flow depends on the role: no progress bar until one is chosen.
     expect(await screen.findByTestId('sign-up-step-role', {}, TIMEOUT)).toBeOnTheScreen();
     expect(screen.queryByTestId('sign-up-progress')).toBeNull();
+    // The logo stays on the entry and sign-in screens; the sign-up steps keep the space for the task.
+    expect(screen.queryByTestId('auth-brand-mark', { includeHiddenElements: true })).toBeNull();
 
     // Step 1: the role is required.
     await press('sign-up-continue');

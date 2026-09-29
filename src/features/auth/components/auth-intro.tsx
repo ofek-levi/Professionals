@@ -1,13 +1,21 @@
 import { View } from 'react-native';
 
-import { AppText } from '@/components/ui';
+import { AppText, BrandMark } from '@/components/ui';
 import { makeStyles } from '@/theme';
 
+interface AuthIntroProps {
+  title: string;
+  subtitle?: string;
+  /** Shows the logo mark above the title (sign-in screen). */
+  withBrandMark?: boolean;
+}
+
 /** Title and one line of context at the top of an auth screen or sign-up step. */
-export function AuthIntro({ title, subtitle }: { title: string; subtitle?: string }) {
+export function AuthIntro({ title, subtitle, withBrandMark = false }: AuthIntroProps) {
   const styles = useStyles();
   return (
     <View style={styles.intro}>
+      {withBrandMark ? <BrandMark size={44} style={styles.mark} testID="auth-brand-mark" /> : null}
       <AppText variant="title" accessibilityRole="header">
         {title}
       </AppText>
@@ -23,5 +31,8 @@ export function AuthIntro({ title, subtitle }: { title: string; subtitle?: strin
 const useStyles = makeStyles((t) => ({
   intro: {
     gap: t.spacing.xs,
+  },
+  mark: {
+    marginBottom: t.spacing.lg - t.spacing.xs,
   },
 }));

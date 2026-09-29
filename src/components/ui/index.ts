@@ -6,6 +6,7 @@ export { AppSwitch } from './app-switch';
 export { AppText, resolveInputTextAlign } from './app-text';
 export { Avatar } from './avatar';
 export { Badge, type BadgeSize } from './badge';
+export { BrandMark } from './brand-mark';
 export { BUTTON_SIZE_TOKENS, Button } from './button';
 export { Card } from './card';
 export { Chip } from './chip';

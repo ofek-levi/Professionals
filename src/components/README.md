@@ -73,6 +73,7 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 | `Badge` | `<Badge label={t('common:verified')} tone="brand" size="sm" />` – small text-only pill on a soft tone background |
 | `Chip` | `<Chip label="Urgent" selected={on} onPress={toggle} />` / `onRemove` adds a close button, `leading` a small glyph |
 | `Avatar` | `<Avatar name={pro.displayName} uri={pro.avatarUrl} size="lg" verified />` |
+| `BrandMark` | `<BrandMark size={44} />` – the logo mark (vector, from `assets/brand/logo-mark.svg`) in the logo blue `colors.brandMark`; pass `color={theme.colors.onPrimary}` on brand-colored backgrounds. Decorative (hidden from screen readers) |
 | `Divider` | `<Divider inset={56} />` |
 | `Screen` | `<Screen refreshing={isRefetching} onRefresh={refetch} footer={<Button … fullWidth />} edges={['top','bottom']}>…</Screen>` (`scroll={false}` for static layouts, `header` for fixed content) |
 | `ScreenHeader` | `<ScreenHeader title={t('…')} actions={<IconButton icon="plus" … />} />` – large 28pt title and one optional trailing action |

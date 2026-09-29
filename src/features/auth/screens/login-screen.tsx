@@ -130,7 +130,7 @@ export default function LoginScreen() {
   return (
     <Screen edges={['left', 'right', 'bottom']} testID="login-screen">
       <View style={styles.body}>
-        <AuthIntro title={t('auth:login.title')} subtitle={t('auth:login.subtitle')} />
+        <AuthIntro title={t('auth:login.title')} subtitle={t('auth:login.subtitle')} withBrandMark />
 
         <View style={styles.fields}>
           <FormTextField

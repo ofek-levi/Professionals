@@ -14,9 +14,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   AppText,
+  BrandMark,
   Button,
   EmptyState,
-  Icon,
   QueryState,
   Screen,
   SegmentedControl,
@@ -58,7 +58,6 @@ export default function SignInScreen() {
   const focused = useIsFocused();
 
   const onColor = theme.colors.onPrimary;
-  const glass = withAlpha(onColor, 0.16);
 
   return (
     <Screen
@@ -81,9 +80,7 @@ export default function SignInScreen() {
           </View>
 
           <View style={styles.heroText}>
-            <View style={[styles.logo, { backgroundColor: glass }]}>
-              <Icon name="account-hard-hat" size={32} color={onColor} />
-            </View>
+            <BrandMark size={56} color={onColor} style={styles.logo} testID="entry-brand-mark" />
             <AppText variant="display" color="onPrimary" accessibilityRole="header">
               {t('common:appName')}
             </AppText>
@@ -234,11 +231,6 @@ const useStyles = makeStyles((t) => ({
     gap: t.spacing.sm,
   },
   logo: {
-    width: 64,
-    height: 64,
-    borderRadius: t.radii.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: t.spacing.sm,
   },
   sheet: {

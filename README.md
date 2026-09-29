@@ -45,6 +45,19 @@ allow installs from the browser) and attached to the run as an artifact.
 - The demo runs fully on the phone (mock backend, simulated Google sign-in, OSM map tiles); no
   secrets or `EXPO_PUBLIC_*` variables are needed.
 
+### App icon & logo
+
+The master artwork is `assets/brand/logo-mark.svg` (speech bubble with a wrench, brand blue
+`#1E62E6`). Everything else is derived from it:
+
+| File | Use |
+|---|---|
+| `assets/images/icon.png` | App icon (iOS and fallback), 1024 × 1024, opaque: white mark at 50 % width on the brand blue |
+| `assets/images/android-icon-foreground.png` / `-monochrome.png` | Android adaptive icon layers (white mark inside the 66 dp safe circle; background color `#1E62E6` in `app.json`; the monochrome layer drives Android 13+ themed icons) |
+| `assets/images/splash-icon.png` | Splash screen mark (white, on `#1E62E6`) |
+| `assets/images/favicon.png` | Web favicon |
+| `BrandMark` (`src/components/ui/brand-mark.tsx`) | The mark inside the app: white on the entry screen's blue hero, blue above the sign-in title |
+
 ### Maps
 
 Every map (the job explorer and the location pickers) is one component, `AppMap`: **Leaflet** with
