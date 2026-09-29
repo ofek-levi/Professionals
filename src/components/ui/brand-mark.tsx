@@ -1,4 +1,4 @@
-import type { StyleProp, ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { useTheme } from '@/theme';
@@ -19,22 +19,16 @@ interface BrandMarkProps {
 
 /**
  * The Professionals logo mark. Decorative: screens name the app or the page in text next to it,
- * so it is hidden from screen readers.
+ * so it is hidden from screen readers (on a View: react-native-svg would pass the native-only
+ * accessibility props to the web's <svg> element as unknown DOM attributes).
  */
 export function BrandMark({ size = 48, color, style, testID }: BrandMarkProps) {
   const theme = useTheme();
   return (
-    <Svg
-      width={(size * VIEW_BOX.width) / VIEW_BOX.height}
-      height={size}
-      viewBox={`0 0 ${VIEW_BOX.width} ${VIEW_BOX.height}`}
-      style={style}
-      accessible={false}
-      importantForAccessibility="no-hide-descendants"
-      aria-hidden
-      testID={testID}
-    >
-      <Path fill={color ?? theme.colors.brandMark} d={MARK_PATH} />
-    </Svg>
+    <View style={style} accessible={false} importantForAccessibility="no-hide-descendants" aria-hidden testID={testID}>
+      <Svg width={(size * VIEW_BOX.width) / VIEW_BOX.height} height={size} viewBox={`0 0 ${VIEW_BOX.width} ${VIEW_BOX.height}`}>
+        <Path fill={color ?? theme.colors.brandMark} d={MARK_PATH} />
+      </Svg>
+    </View>
   );
 }

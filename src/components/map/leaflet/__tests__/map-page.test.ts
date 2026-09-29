@@ -28,8 +28,8 @@ const THEME: MapPageState['theme'] = {
   text: '#15171C',
   mutedText: '#50555F',
   border: '#E8E9ED',
-  link: '#3B5BDB',
-  pin: '#3B5BDB',
+  link: '#1E62E6',
+  pin: '#1E62E6',
   onColor: '#FFFFFF',
   shadow: 'rgba(16, 18, 24, 0.08)',
   overlay: 'rgba(12, 14, 20, 0.42)',
@@ -52,7 +52,7 @@ const marker = (id: string, overrides: Partial<PageMarker> = {}): PageMarker => 
 function pageState(overrides: Partial<MapPageState> = {}): MapPageState {
   return {
     markers: [marker('a'), marker('b', { latitude: 32.09, longitude: 34.79, icon: 'no-such-icon' })],
-    circles: [{ id: 'area', latitude: 32.085, longitude: 34.785, radiusMeters: 3000, color: '#3B5BDB' }],
+    circles: [{ id: 'area', latitude: 32.085, longitude: 34.785, radiusMeters: 3000, color: '#1E62E6' }],
     pin: null,
     theme: THEME,
     tiles: { urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxZoom: 19, attribution: OSM_ATTRIBUTION },

@@ -46,9 +46,9 @@ describe('AppMap', () => {
     const state = lastState();
     expect(state.markers).toEqual([
       expect.objectContaining({ id: 'm1', color: '#E03131', icon: 'pipe-wrench', label: 'Plumbing', selected: true, accessibilityLabel: 'Map marker: Plumbing' }),
-      expect.objectContaining({ id: 'm2', color: '#3B5BDB', icon: 'shape-outline', label: null, selected: false }),
+      expect.objectContaining({ id: 'm2', color: '#1E62E6', icon: 'shape-outline', label: null, selected: false }),
     ]);
-    expect(state.circles).toEqual([expect.objectContaining({ id: 'circle-0', radiusMeters: 3000, color: '#3B5BDB' })]);
+    expect(state.circles).toEqual([expect.objectContaining({ id: 'circle-0', radiusMeters: 3000, color: '#1E62E6' })]);
     expect(state.pin).toEqual({ latitude: 32.07, longitude: 34.77, accessibilityLabel: 'Selected location' });
     expect(state).toMatchObject({ interactive: true, rtl: false, accessibilityLabel: 'Map', theme: { dark: false } });
 

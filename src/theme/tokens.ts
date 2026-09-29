@@ -69,7 +69,7 @@ const lightTones: Record<StatusTone, ToneColors> = {
   warning: { fg: '#B25600', bg: '#FFF3E5', solid: '#F08C00' },
   danger: { fg: '#C23030', bg: '#FDEEEE', solid: '#E03131' },
   accent: { fg: '#0B7456', bg: '#E7F7F1', solid: '#0CA678' },
-  brand: { fg: '#3450C4', bg: '#EEF1FD', solid: '#3B5BDB' },
+  brand: { fg: '#1B4EBB', bg: '#ECF2FE', solid: '#1E62E6' },
 };
 
 const darkTones: Record<StatusTone, ToneColors> = {
@@ -79,7 +79,7 @@ const darkTones: Record<StatusTone, ToneColors> = {
   warning: { fg: '#F7BE7C', bg: 'rgba(247, 190, 124, 0.12)', solid: '#FD7E14' },
   danger: { fg: '#F7A6A6', bg: 'rgba(247, 166, 166, 0.12)', solid: '#D62F2F' },
   accent: { fg: '#6EDDBB', bg: 'rgba(110, 221, 187, 0.11)', solid: '#20C997' },
-  brand: { fg: '#A9B9FF', bg: 'rgba(122, 147, 255, 0.15)', solid: '#6E8BFF' },
+  brand: { fg: '#A3C2FF', bg: 'rgba(112, 160, 255, 0.15)', solid: '#70A0FF' },
 };
 
 const lightColors: ColorPalette = {
@@ -95,11 +95,12 @@ const lightColors: ColorPalette = {
   // ≥ 4.5:1 on the background and on `surface` (meta lines, timestamps, hints).
   textMuted: '#6B7079',
   textInverse: '#FFFFFF',
-  primary: '#3B5BDB',
-  primaryPressed: '#2F4BC0',
-  primarySoft: '#EEF1FD',
-  primaryFill: '#3B5BDB',
-  primaryFillPressed: '#2F4BC0',
+  // The logo blue (5.3:1 on white).
+  primary: '#1E62E6',
+  primaryPressed: '#1B54C5',
+  primarySoft: '#ECF2FE',
+  primaryFill: '#1E62E6',
+  primaryFillPressed: '#1B54C5',
   onPrimary: '#FFFFFF',
   brandMark: '#1E62E6',
   accent: '#0CA678',
@@ -114,8 +115,9 @@ const lightColors: ColorPalette = {
   skeleton: '#EDEEF1',
   tabBar: '#FFFFFF',
   shadow: 'rgba(16, 18, 24, 0.08)',
-  heroGradient: ['#3B5BDB', '#4A67E0'],
-  proGradient: ['#3B5BDB', '#4A67E0'],
+  // Starts on the logo blue, so the splash screen (#1E62E6) fades into the entry hero seamlessly.
+  heroGradient: ['#1E62E6', '#2468EA'],
+  proGradient: ['#1E62E6', '#2468EA'],
   tones: lightTones,
 };
 
@@ -131,12 +133,12 @@ export const darkColors: ColorPalette = {
   textSecondary: '#AEB2BA',
   textMuted: '#7D818A',
   textInverse: '#0C0D10',
-  primary: '#6E8BFF',
-  primaryPressed: '#5A76EB',
-  primarySoft: 'rgba(110, 139, 255, 0.15)',
-  // White labels need a deeper fill than the text-friendly `primary` (≈ 4.8:1).
-  primaryFill: '#4466F0',
-  primaryFillPressed: '#3A57D9',
+  primary: '#70A0FF',
+  primaryPressed: '#5A8CF0',
+  primarySoft: 'rgba(112, 160, 255, 0.15)',
+  // White labels need a deeper fill than the text-friendly `primary` (≈ 5.2:1).
+  primaryFill: '#2063E9',
+  primaryFillPressed: '#1B54C5',
   onPrimary: '#FFFFFF',
   brandMark: '#1E62E6',
   accent: '#20C997',
@@ -151,8 +153,8 @@ export const darkColors: ColorPalette = {
   skeleton: '#1D1F24',
   tabBar: '#0C0D10',
   shadow: 'rgba(0, 0, 0, 0.5)',
-  heroGradient: ['#3A55C9', '#4461D6'],
-  proGradient: ['#3A55C9', '#4461D6'],
+  heroGradient: ['#1C56CA', '#1C5EE3'],
+  proGradient: ['#1C56CA', '#1C5EE3'],
   tones: darkTones,
 };
 
