@@ -1,0 +1,179 @@
+# Builds a release APK of the Expo app and publishes it as a GitHub pre-release so it can be
+# downloaded and installed straight from a phone.
+#
+# Manual only (Actions tab -> "Android APK" -> Run workflow). Nothing runs on push/PR.
+#
+# What it does: npm ci -> expo prebuild (android) -> ./gradlew assembleRelease
+#   - release variant: __DEV__ = false, JS compiled to Hermes bytecode, New Architecture on
+#   - signed with the React Native template's public debug keystore (fine for sideloading and
+#     testing, NOT for the Play Store; every build uses the same key, so a new APK installs over
+#     the previous one without uninstalling)
+name: Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      abis:
+        description: >-
+          CPU architectures. arm64-v8a = every modern phone (fastest build, smallest APK).
+          Add armeabi-v7a for old 32-bit phones, x86/x86_64 for emulators.
+        type: choice
+        default: arm64-v8a
+        options:
+          - arm64-v8a
+          - armeabi-v7a,arm64-v8a
+          - armeabi-v7a,arm64-v8a,x86,x86_64
+      publish_release:
+        description: Publish the APK as a GitHub pre-release (downloadable on a phone)
+        type: boolean
+        default: true
+
+permissions:
+  contents: write # create the tag + release and upload the APK
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: false # never cancel a build halfway through publishing a release
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: Build release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EXPO_NO_TELEMETRY: 1
+      ABIS: ${{ inputs.abis }}
+      VERSION_CODE: ${{ github.run_number }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22 # react-native 0.86 needs ^20.19.4 || ^22.13.0 || ^24.3.0
+          cache: npm
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17 # RN Gradle plugin pins Kotlin/Java toolchains to 17
+
+      - name: Set up Gradle (cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Android SDK packages the build asks for
+        # Versions come from React Native's own version catalog, so an SDK upgrade needs no edit here.
+        # ubuntu-latest ships platform 36 / build-tools 36.0.0 but a different NDK patch release;
+        # AGP would also auto-download missing packages, doing it here is explicit and logged.
+        run: |
+          TOML=node_modules/react-native/gradle/libs.versions.toml
+          get() { sed -nE "s/^$1 *= *\"([^\"]+)\".*/\1/p" "$TOML" | head -1; }
+          NDK=$(get ndkVersion); BUILD_TOOLS=$(get buildTools); COMPILE_SDK=$(get compileSdk)
+          echo "NDK=$NDK build-tools=$BUILD_TOOLS compileSdk=$COMPILE_SDK"
+          test -n "$NDK" && test -n "$BUILD_TOOLS" && test -n "$COMPILE_SDK"
+          echo "BUILD_TOOLS=$BUILD_TOOLS" >> "$GITHUB_ENV"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" --install \
+            "platforms;android-$COMPILE_SDK" \
+            "build-tools;$BUILD_TOOLS" \
+            "ndk;$NDK" \
+            "cmake;3.22.1" > /dev/null
+
+      - name: Stamp versionCode
+        # versionCode must grow for Android to treat a new APK as an update; use the run number.
+        run: |
+          node -e '
+            const fs = require("fs");
+            const config = JSON.parse(fs.readFileSync("app.json", "utf8"));
+            config.expo.android.versionCode = Number(process.env.VERSION_CODE);
+            fs.writeFileSync("app.json", JSON.stringify(config, null, 2) + "\n");
+          '
+          echo "APP_VERSION=$(node -p 'require("./app.json").expo.version')" >> "$GITHUB_ENV"
+
+      - name: Generate the native Android project
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Tune Gradle memory for this runner
+        # 2 vCPU / 7 GB (private repos) vs 4 vCPU / 16 GB (public repos). The Kotlin daemon would
+        # otherwise inherit the Gradle heap and the two together can exceed 7 GB.
+        run: |
+          MEM_GB=$(awk '/MemTotal/ { printf "%d", $2 / 1024 / 1024 }' /proc/meminfo)
+          if [ "$MEM_GB" -ge 14 ]; then GRADLE_HEAP=4g; KOTLIN_HEAP=2g; else GRADLE_HEAP=3g; KOTLIN_HEAP=1536m; fi
+          echo "RAM ${MEM_GB} GB, $(nproc) CPUs -> Gradle ${GRADLE_HEAP}, Kotlin ${KOTLIN_HEAP}"
+          {
+            echo ""
+            echo "org.gradle.jvmargs=-Xmx${GRADLE_HEAP} -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
+            echo "kotlin.daemon.jvmargs=-Xmx${KOTLIN_HEAP}"
+          } >> android/gradle.properties
+
+      - name: Build release APK
+        working-directory: android
+        run: ./gradlew assembleRelease -PreactNativeArchitectures="$ABIS" --stacktrace --console=plain
+
+      - name: Verify and rename APK
+        run: |
+          SRC=android/app/build/outputs/apk/release/app-release.apk
+          test -f "$SRC"
+          if [ "$ABIS" = "arm64-v8a" ]; then ABI_LABEL=arm64; else ABI_LABEL=$(echo "$ABIS" | tr ',' '-'); fi
+          NAME="Professionals-v${APP_VERSION}-${VERSION_CODE}-${ABI_LABEL}.apk"
+          mkdir -p dist && cp "$SRC" "dist/$NAME"
+          BT="$ANDROID_HOME/build-tools/$BUILD_TOOLS"
+          "$BT/apksigner" verify --print-certs "dist/$NAME"
+          "$BT/aapt2" dump badging "dist/$NAME" | grep -E "^(package|sdkVersion|targetSdkVersion|native-code|application-label):"
+          if "$BT/zipalign" -c -P 16 4 "dist/$NAME" > /dev/null; then
+            echo "Native libraries are 16 KB page aligned."
+          else
+            echo "::warning::APK is not 16 KB page aligned (only matters on 16 KB page-size devices)."
+          fi
+          (cd dist && sha256sum "$NAME" > "$NAME.sha256")
+          echo "APK_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "APK_SIZE=$(du -h "dist/$NAME" | cut -f1)" >> "$GITHUB_ENV"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_NAME }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish GitHub pre-release
+        if: ${{ inputs.publish_release }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="android-v${APP_VERSION}-${VERSION_CODE}"
+          if [ "${GITHUB_RUN_ATTEMPT}" != "1" ]; then TAG="${TAG}.${GITHUB_RUN_ATTEMPT}"; fi
+          NOTES=$(printf '%s\n' \
+            "Release APK built from \`${GITHUB_SHA::7}\` (${GITHUB_REF_NAME}), ABIs: ${ABIS}, ${APK_SIZE}." \
+            "" \
+            "Install: open this page on the phone, download **${APK_NAME}**, allow installs from the browser when asked." \
+            "Signed with the public debug key: for testing only, not for the Play Store.")
+          gh release create "$TAG" "dist/${APK_NAME}" "dist/${APK_NAME}.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Android ${APP_VERSION} (build ${VERSION_CODE})" \
+            --notes "$NOTES" \
+            --prerelease
+          echo "RELEASE_URL=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url)" >> "$GITHUB_ENV"
+
+      - name: Summary
+        if: ${{ always() && env.APK_NAME != '' }}
+        run: |
+          {
+            echo "### Android APK"
+            echo ""
+            echo "- File: \`${APK_NAME}\` (${APK_SIZE}), ABIs: \`${ABIS}\`, versionCode ${VERSION_CODE}"
+            if [ -n "${RELEASE_URL:-}" ]; then echo "- Download on the phone: ${RELEASE_URL}"; fi
+            echo "- Also attached to this run as an artifact (zipped)."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -29,6 +29,22 @@ npx expo start           # press i / a / w, or scan the QR code with Expo Go
 | `npm test` | Jest (`jest-expo`) unit + integration tests |
 | `npm run verify` | typecheck + lint + tests |
 
+### Android APK (GitHub Actions)
+
+`.github/workflows/android-apk.yml` builds an installable release APK on GitHub. It never runs
+by itself: open **Actions → Android APK → Run workflow**, pick the CPU architectures
+(`arm64-v8a` covers modern phones and builds fastest) and whether to publish a release. After
+about 15–30 minutes the APK is on a GitHub **pre-release** (open it on the phone, download,
+allow installs from the browser) and attached to the run as an artifact.
+
+- Steps: `npm ci` → `expo prebuild --platform android` → `./gradlew assembleRelease`. The native
+  `android/` folder is generated on the runner and never committed.
+- Signed with React Native's public debug key: fine for testing and sideloading, **not** for the
+  Play Store (that needs your own upload key, e.g. with EAS Build). Every build uses the same key,
+  and `versionCode` is the run number, so a new APK installs over the previous one.
+- The demo runs fully on the phone (mock backend, simulated Google sign-in, OSM map tiles); no
+  secrets or `EXPO_PUBLIC_*` variables are needed.
+
 ### Maps
 
 Every map (the job explorer and the location pickers) is one component, `AppMap`: **Leaflet** with
