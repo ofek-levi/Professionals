@@ -4,6 +4,7 @@ import { DomainError } from '@/features/shared/domain-error';
 import { sendMessageSchema } from '@/lib/validation/message';
 import type { Paginated, PaginationParams } from '@/types/api';
 import type { Conversation, Message } from '@/types/domain';
+import { compareIds } from '@/utils/id';
 
 import type { Actor } from '../auth';
 import type { ServerContext } from '../context';
@@ -57,7 +58,7 @@ export function listConversations(ctx: ServerContext, userId: string): Conversat
   return ctx.db.conversations
     .filter((conversation) => isParticipant(conversation, userId))
     .map((conversation) => toConversation(ctx, conversation, userId))
-    .sort((a, b) => lastActivity(b) - lastActivity(a) || b.id.localeCompare(a.id));
+    .sort((a, b) => lastActivity(b) - lastActivity(a) || compareIds(b.id, a.id));
 }
 
 export function getConversation(ctx: ServerContext, userId: string, conversationId: string): Conversation {

@@ -3,7 +3,13 @@ import { ActivityIndicator, Keyboard, Pressable, View, type StyleProp, type View
 import { useTranslation } from 'react-i18next';
 
 import { usePlaceSearch, useReverseGeocode } from '@/hooks/queries/use-geo';
-import { locateDevice, openLocationSettings, type LocationFailureReason } from '@/services/location';
+import {
+  canEnableLocationServices,
+  enableLocationServices,
+  locateDevice,
+  openLocationSettings,
+  type LocationFailureReason,
+} from '@/services/location';
 import { makeStyles, useTheme } from '@/theme';
 import type { GeoCoordinates, PlaceSuggestion, ServiceLocation } from '@/types/domain';
 import { regionForRadius, type MapRegion } from '@/utils/geo';
@@ -153,6 +159,10 @@ export function LocationPicker({
     movePin(result.coordinates);
   };
 
+  const turnOnLocation = async () => {
+    if (await enableLocationServices()) await locateMe();
+  };
+
   const updateField = (patch: Partial<Pick<ServiceLocation, 'addressLine' | 'city' | 'details'>>) => {
     if (value) onChange({ ...value, ...patch });
   };
@@ -161,6 +171,18 @@ export function LocationPicker({
   const suggestions = places.data ?? [];
   const resolving = pendingReverse !== null && reverse.isFetching;
   const failure = locateError ? FAILURE_KEYS[locateError] : null;
+  // A blocked permission is fixed on the app's settings page. Location services have no switch there:
+  // only Android lets the app turn them on (iOS allows no link to that setting).
+  const failureAction =
+    locateError === 'permission_blocked'
+      ? 'openSettings'
+      : locateError === 'services_disabled' && canEnableLocationServices()
+        ? 'turnOnLocation'
+        : null;
+  const runFailureAction = () => {
+    if (failureAction === 'openSettings') void openLocationSettings();
+    else if (failureAction === 'turnOnLocation') void turnOnLocation();
+  };
 
   return (
     // Nothing chosen yet: the error sits right under the label, by the search field that fixes it
@@ -248,8 +270,8 @@ export function LocationPicker({
             icon="map-marker-off-outline"
             title={t(`location:errors.${failure}.title`)}
             message={t(`location:errors.${failure}.message`)}
-            actionLabel={locateError === 'permission_blocked' || locateError === 'services_disabled' ? t('location:openSettings') : undefined}
-            onAction={() => void openLocationSettings()}
+            actionLabel={failureAction ? t(`location:${failureAction}`) : undefined}
+            onAction={runFailureAction}
             onDismiss={() => setLocateError(null)}
           />
         ) : null}

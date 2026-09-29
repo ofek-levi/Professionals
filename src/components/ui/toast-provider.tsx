@@ -11,6 +11,7 @@ import { makeStyles, useTheme } from '@/theme';
 import { AppText } from './app-text';
 import { haptics } from './haptics';
 import { Icon, type IconName, type IconSource } from './icon';
+import { useOverlaysAtRoot } from './overlay-host';
 import { usePanGesture } from './pan-gesture';
 
 interface ToastOptions {
@@ -37,8 +38,14 @@ interface ToastItem extends ToastOptions {
   id: string;
 }
 
+interface ToastState {
+  toasts: readonly ToastItem[];
+  dismiss: (id: string) => void;
+}
+
 const MAX_VISIBLE = 3;
 const ToastContext = createContext<ToastApi | null>(null);
+const ToastStateContext = createContext<ToastState | null>(null);
 
 let nextToastId = 1;
 
@@ -54,12 +61,12 @@ const TONE_ICONS: Record<StatusTone, IconName> = {
 
 /**
  * Hosts in-app toasts / simulated push banners at the top of the screen. Mount once near the root,
- * inside `SafeAreaProvider`, the theme and i18n providers.
+ * inside `SafeAreaProvider`, the theme and i18n providers and `OverlayHostProvider`. The toasts show
+ * at the root, or inside the top-most open `Sheet` (above its backdrop).
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const styles = useStyles();
-  const insets = useSafeAreaInsets();
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const atRoot = useOverlaysAtRoot();
 
   const dismiss = useCallback((id: string) => setToasts((items) => items.filter((item) => item.id !== id)), []);
 
@@ -80,18 +87,35 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     dismissAll: () => setToasts([]),
   };
 
-  // FIFO queue: the oldest visible toasts leave first; newest is rendered on top.
-  const visible = toasts.slice(0, MAX_VISIBLE).reverse();
-
   return (
     <ToastContext.Provider value={api}>
-      {children}
-      <View style={[styles.host, { top: insets.top + 8 }]}>
-        {visible.map((toast) => (
-          <ToastCard key={toast.id} toast={toast} onDismiss={dismiss} />
-        ))}
-      </View>
+      <ToastStateContext.Provider value={{ toasts, dismiss }}>
+        {children}
+        {atRoot ? <ToastOutlet /> : null}
+      </ToastStateContext.Provider>
     </ToastContext.Provider>
+  );
+}
+
+/**
+ * Renders the visible toasts at the top of the screen: at the app root or inside the top-most sheet.
+ * `beforeAction` runs before a tappable toast's own action: the hosting sheet closes, so the screen
+ * that action opens is not left hidden behind it.
+ */
+export function ToastOutlet({ beforeAction }: { beforeAction?: () => void }) {
+  const styles = useStyles();
+  const insets = useSafeAreaInsets();
+  const state = useContext(ToastStateContext);
+  if (!state) return null;
+  // FIFO queue: the oldest visible toasts leave first; newest is rendered on top.
+  const visible = state.toasts.slice(0, MAX_VISIBLE).reverse();
+
+  return (
+    <View style={[styles.host, { top: insets.top + 8 }]}>
+      {visible.map((toast) => (
+        <ToastCard key={toast.id} toast={toast} onDismiss={state.dismiss} beforeAction={beforeAction} />
+      ))}
+    </View>
   );
 }
 
@@ -109,7 +133,15 @@ export function useToast(): ToastApi {
   return useContext(ToastContext) ?? fallbackToast;
 }
 
-function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }) {
+function ToastCard({
+  toast,
+  onDismiss,
+  beforeAction,
+}: {
+  toast: ToastItem;
+  onDismiss: (id: string) => void;
+  beforeAction?: () => void;
+}) {
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation('common');
@@ -157,7 +189,10 @@ function ToastCard({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: str
           accessibilityLabel={toast.message ? `${toast.title}. ${toast.message}` : toast.title}
           accessibilityLiveRegion="polite"
           onPress={() => {
-            toast.onPress?.();
+            if (toast.onPress) {
+              beforeAction?.();
+              toast.onPress();
+            }
             close();
           }}
           style={({ pressed }) => [styles.card, pressed ? styles.pressed : null]}

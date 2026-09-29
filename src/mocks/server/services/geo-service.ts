@@ -93,6 +93,21 @@ function scoreCandidate(place: GazetteerPlace, streetIndex: number, tokens: stri
   return score;
 }
 
+const collators = new Map<AppLanguage, Intl.Collator>();
+
+/**
+ * One collator per language, reused: many candidates tie on score, and `localeCompare` would build a
+ * new platform collator for every comparison on Hermes (a JNI round-trip each on Android).
+ */
+function getCollator(language: AppLanguage): Intl.Collator {
+  let collator = collators.get(language);
+  if (!collator) {
+    collator = new Intl.Collator(language);
+    collators.set(language, collator);
+  }
+  return collator;
+}
+
 /** `GET /geo/search?q=` – street-level suggestions; a house number in the query is kept. */
 export function searchPlaces(query: string, options: { limit?: number; language: AppLanguage }): PlaceSuggestion[] {
   const normalized = normalizeSearchText(query);
@@ -112,12 +127,13 @@ export function searchPlaces(query: string, options: { limit?: number; language:
       if (score > 0) candidates.push({ place, streetIndex, score });
     }
   }
+  const collator = getCollator(language);
   return candidates
     .sort(
       (a, b) =>
         b.score - a.score ||
-        a.place.city[language].localeCompare(b.place.city[language]) ||
-        a.place.streets[a.streetIndex].name[language].localeCompare(b.place.streets[b.streetIndex].name[language]),
+        collator.compare(a.place.city[language], b.place.city[language]) ||
+        collator.compare(a.place.streets[a.streetIndex].name[language], b.place.streets[b.streetIndex].name[language]),
     )
     .slice(0, limit)
     .map(({ place, streetIndex }) => toPlaceSuggestion(place, streetIndex, houseNumber, language));

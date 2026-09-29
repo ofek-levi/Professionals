@@ -10,6 +10,7 @@ import { AppText } from './app-text';
 import { BUTTON_SIZE_TOKENS, Button } from './button';
 import { haptics } from './haptics';
 import { Icon, type IconSource } from './icon';
+import { useOverlaysAtRoot } from './overlay-host';
 
 interface ConfirmOptions {
   title: string;
@@ -33,13 +34,23 @@ interface PendingDialog {
   resolve: (value: boolean) => void;
 }
 
+interface DialogState {
+  current: PendingDialog | null;
+  settle: (result: boolean) => void;
+}
+
 const DialogContext = createContext<ConfirmFn | null>(null);
+const DialogStateContext = createContext<DialogState | null>(null);
 
 let nextDialogId = 1;
 
-/** Hosts the app-wide confirmation dialog. Mount once near the root (inside ThemeProvider + i18n). */
+/**
+ * Hosts the app-wide confirmation dialog. Mount once near the root (inside ThemeProvider + i18n and
+ * `OverlayHostProvider`). The dialog shows at the root, or inside the top-most open `Sheet`.
+ */
 export function DialogProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<PendingDialog[]>([]);
+  const atRoot = useOverlaysAtRoot();
 
   const confirm: ConfirmFn = (options) =>
     new Promise<boolean>((resolve) => {
@@ -57,10 +68,19 @@ export function DialogProvider({ children }: { children: ReactNode }) {
 
   return (
     <DialogContext.Provider value={confirm}>
-      {children}
-      {current ? <ConfirmDialog key={current.id} options={current.options} onSettle={settle} /> : null}
+      <DialogStateContext.Provider value={{ current, settle }}>
+        {children}
+        {atRoot ? <DialogOutlet /> : null}
+      </DialogStateContext.Provider>
     </DialogContext.Provider>
   );
+}
+
+/** Renders the pending confirmation dialog, if any: at the app root or inside the top-most sheet. */
+export function DialogOutlet() {
+  const state = useContext(DialogStateContext);
+  if (!state?.current) return null;
+  return <ConfirmDialog key={state.current.id} options={state.current.options} onSettle={state.settle} />;
 }
 
 const fallbackConfirm: ConfirmFn = async () => {

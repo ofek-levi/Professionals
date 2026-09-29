@@ -5,7 +5,7 @@
  * available and `/` redirects to the account's home tab.
  */
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { View } from 'react-native';
@@ -52,6 +52,11 @@ export default function SignInScreen() {
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const demoSigningIn = pendingUserId !== null;
 
+  // This screen stays mounted under the login / sign-up screens it opens: only while it is in front
+  // may its light status bar (for the blue hero) override the root one, or the icons would turn
+  // white on their white headers.
+  const focused = useIsFocused();
+
   const onColor = theme.colors.onPrimary;
   const glass = withAlpha(onColor, 0.16);
 
@@ -63,7 +68,7 @@ export default function SignInScreen() {
       contentContainerStyle={styles.content}
       testID="sign-in-screen"
     >
-      <StatusBar style="light" />
+      {focused ? <StatusBar style="light" /> : null}
       <LinearGradient
         colors={theme.colors.heroGradient}
         start={{ x: theme.isRTL ? 1 : 0, y: 0 }}

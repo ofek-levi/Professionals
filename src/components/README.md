@@ -19,15 +19,22 @@ import { FormTextField } from '@/components/forms';
 ## Root setup (once, in the root layout)
 
 `DialogProvider` and `ToastProvider` must be mounted inside `SafeAreaProvider`, the theme provider,
-React Query and i18n:
+React Query and i18n, and inside `OverlayHostProvider`:
 
 ```tsx
 <AppThemeProvider scheme={scheme} isRTL={isRTL}>
-  <DialogProvider>
-    <ToastProvider>{children}</ToastProvider>
-  </DialogProvider>
+  <OverlayHostProvider>
+    <DialogProvider>
+      <ToastProvider>{children}</ToastProvider>
+    </DialogProvider>
+  </OverlayHostProvider>
 </AppThemeProvider>
 ```
+
+While a `Sheet` is open, the toasts and the confirm dialog render inside it (`overlay-host.tsx`): a
+sheet is a native Modal, so a dialog hosted at the root could not be presented on iOS and a toast
+would sit under the sheet's backdrop. Tapping a toast that has an action (a push banner) closes the
+sheet first, so the screen it opens is not hidden behind the sheet.
 
 ## Design language
 
@@ -84,7 +91,7 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 | `ListItem` | `<ListItem title={t('…')} trailing={t('common:languages.he')} onPress={…} />` – text row with a light chevron when navigable (`destructive` for sign-out, `checked` for single-select lists). Group rows in a `<Card padding="none" style={{ paddingHorizontal: 16 }}>` with `<Divider />`s |
 | `StatTile` | `<StatTile label={t('…')} value={3} onPress={…} />` – minimal tile: label and a large value on a soft surface, with a chevron when tappable (tiles share a row equally; pass `style={{ minWidth }}` in wrapping grids) |
 | `InlineAlert` | `<InlineAlert tone="warning" title={t('…')} message={t('…')} actionLabel={t('…')} onAction={…} onDismiss={…} />` |
-| `Sheet` | `<Sheet visible={open} onClose={close} title={t('…')} footer={<Button … />}>{…}</Sheet>` (`fullHeight` for searchable lists) |
+| `Sheet` | `<Sheet visible={open} onClose={close} title={t('…')} footer={<Button … />}>{…}</Sheet>` (`fullHeight` for searchable lists). It rises above the keyboard and shrinks when needed. Start anything that presents its own screen (image picker, camera) from `onClosed`, once the sheet is gone: iOS can't present it over a sheet being dismissed |
 | `useConfirm` | `const confirm = useConfirm(); if (await confirm({ title, message, confirmLabel, destructive: true })) …` (buttons stack vertically when a label is too long for half the dialog, so natural labels like "Confirm appointment" are fine) |
 | `useToast` | `const toast = useToast(); toast.show({ title, message, tone: 'success', icon, onPress, durationMs, id })` (top banner; also used as the simulated push notification) |
 | `RatingStars` | `<RatingStars value={4.5} />` (five stars) / `<RatingStars value={4.8} count={32} variant="compact" />` → ★ 4.8 (32) |

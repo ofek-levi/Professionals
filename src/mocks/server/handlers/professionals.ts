@@ -5,6 +5,7 @@ import { bayesianRating } from '@/features/reviews/rating';
 import { DomainError } from '@/features/shared/domain-error';
 import { vm } from '@/lib/validation/messages';
 import { haversineDistanceKm, isValidCoordinates } from '@/utils/geo';
+import { compareIds } from '@/utils/id';
 
 import { paginate } from '../pagination';
 import { requireProfessional } from '../queries';
@@ -40,7 +41,7 @@ export const professionalsRoutes = [
             b.score - a.score ||
             b.professional.stats.reviewCount - a.professional.stats.reviewCount ||
             a.distance - b.distance ||
-            a.professional.id.localeCompare(b.professional.id),
+            compareIds(a.professional.id, b.professional.id),
         )
         .map(({ professional }) => toProfessionalSummary(professional));
       return paginate(professionals, paginationFrom(query));

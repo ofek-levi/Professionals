@@ -8,8 +8,10 @@ import { Rubik_500Medium } from '@expo-google-fonts/rubik/500Medium';
 import { Rubik_600SemiBold } from '@expo-google-fonts/rubik/600SemiBold';
 import { Rubik_700Bold } from '@expo-google-fonts/rubik/700Bold';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import { useFonts } from 'expo-font';
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
 import { ensureLayoutDirection } from '@/features/settings/language';
 import { settingsStore } from '@/features/settings/settings-store';
@@ -22,7 +24,10 @@ const FONTS = {
   [fontFamilies.medium]: Rubik_500Medium,
   [fontFamilies.semibold]: Rubik_600SemiBold,
   [fontFamilies.bold]: Rubik_700Bold,
-  // Tab bar icon font, loaded up front so the tab icons never pop in.
+  // Icon fonts, loaded up front so icons never pop in after the splash screen: the tab bar's
+  // (Ionicons) and, on native, the app's `Icon` (MaterialCommunityIcons). A native app reads it from
+  // the bundle; the web would hold the first screen until 1.3 MB downloaded, so it loads it lazily.
+  ...(Platform.OS === 'web' ? null : MaterialCommunityIcons.font),
   ...Ionicons.font,
 };
 

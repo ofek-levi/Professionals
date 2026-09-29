@@ -2,6 +2,7 @@
 import { OFFER_STATUSES } from '@/constants/offer-statuses';
 import { DomainError } from '@/features/shared/domain-error';
 import type { OfferWithProfessional, OfferWithRequest } from '@/types/domain';
+import { compareIds } from '@/utils/id';
 
 import type { Actor } from '../auth';
 import type { ServerContext } from '../context';
@@ -51,7 +52,7 @@ export const offerRoutes = [
       const statuses = query.enumList('statuses', OFFER_STATUSES);
       const offers = ctx.db.offers
         .filter((offer) => offer.professionalId === actor.professional.id && (!statuses || statuses.includes(offer.status)))
-        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || b.id.localeCompare(a.id));
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || compareIds(b.id, a.id));
       const page = paginate(offers, paginationFrom(query));
       return { ...page, items: page.items.map((offer) => toOfferWithRequest(ctx, offer, actor)) };
     },

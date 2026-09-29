@@ -95,10 +95,14 @@ you do.
     origins* and *Authorized redirect URIs*. The popup redirects back to the app, which completes it
     (`completeGoogleAuthRedirect()` in the root layout).
   - **iOS** client with the bundle id `com.professionals.marketplace`, **Android** client with the
-    package `com.professionals.marketplace` and your signing certificate's SHA-1.
+    package `com.professionals.marketplace` and your signing certificate's SHA-1. A release APK made
+    with `npx expo prebuild` and `./gradlew assembleRelease` is signed with the template's debug
+    keystore, SHA-1 `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
   - iOS/Android need a **development or production build** (`npx expo run:ios|android`,
     `eas build`): Expo Go can't receive Google's native redirect, so it stays in simulated mode.
-    The app scheme is `professionals`; native Google redirects use `<applicationId>:/oauthredirect`.
+    The app scheme is `professionals`; native Google redirects use `<applicationId>:/oauthredirect`
+    (Android gets an intent filter for that scheme from `app.json`, and `src/app/+native-intent.tsx`
+    keeps the router from treating the redirect as a screen).
 
   The app sends Google's `id_token` to `POST /auth/google`; the backend must verify it (see
   [docs/BACKEND_INTEGRATION.md](docs/BACKEND_INTEGRATION.md)). The mock backend decodes real Google

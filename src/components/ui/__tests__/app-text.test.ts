@@ -1,9 +1,10 @@
 import { createElement } from 'react';
 import { Platform } from 'react-native';
 
+import { createTheme } from '@/theme';
 import { isolateText } from '@/utils/bidi';
 
-import { resolveTextDir } from '../app-text';
+import { resolveInputTextAlign, resolveTextDir } from '../app-text';
 
 describe('resolveTextDir', () => {
   it('leaves native text alone (the platform applies the Unicode rules)', () => {
@@ -32,5 +33,24 @@ describe('resolveTextDir', () => {
     it('keeps the default for rich children', () => {
       expect(resolveTextDir(['Hi ', createElement('b', { key: 'b' }, 'there')], true)).toBeUndefined();
     });
+  });
+});
+
+describe('resolveInputTextAlign', () => {
+  const ltr = createTheme('light', false);
+  const rtl = createTheme('light', true);
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  // Inputs never mirror left/right in RTL (iOS Fabric sets no layout direction on an input's text).
+  it.each(['ios', 'android', 'web'] as const)('resolves the physical side on %s', (os) => {
+    jest.replaceProperty(Platform, 'OS', os);
+    expect(resolveInputTextAlign('start', rtl)).toBe('right');
+    expect(resolveInputTextAlign('end', rtl)).toBe('left');
+    expect(resolveInputTextAlign('start', ltr)).toBe('left');
+    expect(resolveInputTextAlign('end', ltr)).toBe('right');
+    expect(resolveInputTextAlign('center', rtl)).toBe('center');
   });
 });

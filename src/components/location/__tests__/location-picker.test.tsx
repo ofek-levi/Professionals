@@ -2,6 +2,7 @@ import { fireEvent, screen } from '@testing-library/react-native';
 import { useState } from 'react';
 
 import { initI18n } from '@/i18n';
+import { canEnableLocationServices, enableLocationServices, locateDevice } from '@/services/location';
 import type { ServiceLocation } from '@/types/domain';
 import { regionForRadius } from '@/utils/geo';
 
@@ -14,6 +15,8 @@ import { AppText } from '../../ui/app-text';
 import { LocationPicker } from '../location-picker';
 
 jest.mock('@/services/location', () => ({
+  canEnableLocationServices: jest.fn(() => false),
+  enableLocationServices: jest.fn(async () => true),
   locateDevice: jest.fn(async () => ({ ok: false, reason: 'permission_blocked' })),
   openLocationSettings: jest.fn(async () => undefined),
 }));
@@ -158,5 +161,32 @@ describe('LocationPicker', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Use my current location' }));
     expect(await screen.findByText('Location access is blocked')).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Open settings' })).toBeOnTheScreen();
+  });
+
+  it('asks Android to turn location services on, then locates again', async () => {
+    jest.mocked(canEnableLocationServices).mockReturnValue(true);
+    jest
+      .mocked(locateDevice)
+      .mockResolvedValueOnce({ ok: false, reason: 'services_disabled' })
+      .mockResolvedValueOnce({ ok: true, coordinates: { latitude: 32.0801, longitude: 34.7801 }, accuracyMeters: 12, source: 'current' });
+    await renderWithProviders(<Harness />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Use my current location' }));
+    expect(await screen.findByText('Location services are off')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Open settings' })).toBeNull();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Turn on location' }));
+    expect(enableLocationServices).toHaveBeenCalledTimes(1);
+    expect(await screen.findByDisplayValue('Ibn Gabirol St 50')).toBeOnTheScreen();
+    expect(screen.queryByText('Location services are off')).toBeNull();
+  });
+
+  it('offers no dead-end settings link when location services are off on iOS', async () => {
+    jest.mocked(canEnableLocationServices).mockReturnValue(false);
+    jest.mocked(locateDevice).mockResolvedValueOnce({ ok: false, reason: 'services_disabled' });
+    await renderWithProviders(<Harness />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Use my current location' }));
+    expect(await screen.findByText('Location services are off')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Open settings' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Turn on location' })).toBeNull();
   });
 });

@@ -11,6 +11,7 @@ import {
 } from '@/features/requests/request-matching';
 import type { NearbyRequestsParams } from '@/types/api';
 import type { OwnProfessionalProfile, ServiceRequest } from '@/types/domain';
+import { compareIds } from '@/utils/id';
 
 import type { ServerContext } from '../context';
 import { activeOfferRequestIds } from '../queries';
@@ -28,7 +29,7 @@ export function findMatchingProfessionals(ctx: ServerContext, request: ServiceRe
       professional,
       distanceKm: distanceFromServiceAreaKm(professional.serviceArea, request.location.coordinates),
     }))
-    .sort((a, b) => a.distanceKm - b.distanceKm || a.professional.id.localeCompare(b.professional.id));
+    .sort((a, b) => a.distanceKm - b.distanceKm || compareIds(a.professional.id, b.professional.id));
 }
 
 /** Open, matching requests for the explorer, filtered and sorted with the shared rules. */

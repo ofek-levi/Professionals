@@ -1,7 +1,7 @@
 /**
  * The app's provider tree (outermost first):
  * gestures → safe area → React Query → design theme → navigation theme/direction → web layout
- * direction root → session → dialogs → toasts → realtime.
+ * direction root → session → overlay hosts (open sheets) → dialogs → toasts → realtime.
  */
 import { QueryClientProvider } from '@tanstack/react-query';
 import { LocaleProvider, ThemeProvider as NavigationThemeProvider } from 'expo-router';
@@ -11,7 +11,7 @@ import { Appearance, Platform, StyleSheet, useColorScheme } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { DialogProvider, ToastProvider } from '@/components/ui';
+import { DialogProvider, OverlayHostProvider, ToastProvider } from '@/components/ui';
 import { SessionProvider } from '@/features/auth/session-provider';
 import { useSettings, type ColorSchemePreference } from '@/features/settings/settings-store';
 import { getIsRTL } from '@/i18n/direction';
@@ -78,11 +78,13 @@ export function AppProviders({ children }: { children: ReactNode }) {
           <AppThemeProvider scheme={scheme} isRTL={isRTL}>
             <NavigationChrome language={language}>
               <SessionProvider>
-                <DialogProvider>
-                  <ToastProvider>
-                    <RealtimeProvider>{children}</RealtimeProvider>
-                  </ToastProvider>
-                </DialogProvider>
+                <OverlayHostProvider>
+                  <DialogProvider>
+                    <ToastProvider>
+                      <RealtimeProvider>{children}</RealtimeProvider>
+                    </ToastProvider>
+                  </DialogProvider>
+                </OverlayHostProvider>
               </SessionProvider>
             </NavigationChrome>
           </AppThemeProvider>

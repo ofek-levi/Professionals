@@ -38,3 +38,13 @@ export function createId(prefix: string, now: Date = new Date()): string {
 export function createClientMessageId(): string {
   return createId('cmsg');
 }
+
+/**
+ * Orders ids by their code units, for sort tie-breaks. Ids are ASCII, so this needs no locale:
+ * `localeCompare` depends on the device locale and, on Hermes, creates a platform collator (a JNI
+ * round-trip on Android) on every call.
+ */
+export function compareIds(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}

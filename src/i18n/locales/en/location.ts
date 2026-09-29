@@ -37,6 +37,7 @@ export const location = {
     search: 'Address search isn’t available right now. Try again in a moment.',
   },
   openSettings: 'Open settings',
+  turnOnLocation: 'Turn on location',
   map: {
     label: 'Map',
     hint: 'Tap the map or drag the pin to set the exact spot',

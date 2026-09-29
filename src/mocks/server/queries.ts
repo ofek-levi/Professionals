@@ -1,11 +1,12 @@
 /** Read helpers over the mock database (no side effects). */
 import { isOfferActive } from '@/features/offers/offer-status-machine';
 import type { Message, Offer, OwnProfessionalProfile, Review, ServiceRequest } from '@/types/domain';
+import { compareIds } from '@/utils/id';
 
 import type { MockDatabase, StoredConversation, StoredJob, StoredUser } from './db';
 
 const byCreatedAt = <T extends { createdAt: string; id: string }>(a: T, b: T) =>
-  Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id);
+  Date.parse(a.createdAt) - Date.parse(b.createdAt) || compareIds(a.id, b.id);
 
 export const requireRequest = (db: MockDatabase, id: string): ServiceRequest => db.requests.require(id, 'Request');
 export const requireOffer = (db: MockDatabase, id: string): Offer => db.offers.require(id, 'Offer');

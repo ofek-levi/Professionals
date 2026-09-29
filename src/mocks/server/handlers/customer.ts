@@ -3,6 +3,7 @@ import { REQUEST_STATUSES, CUSTOMER_REQUEST_SECTIONS } from '@/constants/request
 import { getCustomerRequestSection } from '@/features/requests/request-status-machine';
 import { updateCustomerProfileSchema } from '@/lib/validation/profile';
 import type { CustomerProfile, ServiceLocation, User } from '@/types/domain';
+import { compareIds } from '@/utils/id';
 
 import type { CustomerActor } from '../auth';
 import type { ServerContext } from '../context';
@@ -72,7 +73,7 @@ export const customerRoutes = [
             (!section || getCustomerRequestSection(request) === section) &&
             (!statuses || statuses.includes(request.status)),
         )
-        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || b.id.localeCompare(a.id));
+        .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || compareIds(b.id, a.id));
       const page = paginate(requests, paginationFrom(query));
       return { ...page, items: page.items.map((request) => toCustomerRequestView(ctx, request)) };
     },

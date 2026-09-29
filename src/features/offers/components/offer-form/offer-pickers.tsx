@@ -7,7 +7,7 @@ import { Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { parsePriceInput } from '@/components/forms';
-import { AppText, haptics, resolveTextAlign, SegmentedControl, type SegmentedOption } from '@/components/ui';
+import { AppText, haptics, resolveInputTextAlign, SegmentedControl, type SegmentedOption } from '@/components/ui';
 import { APP_CONFIG } from '@/constants/app-config';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
@@ -73,8 +73,8 @@ export function LargePriceInput({ value, onChange, onBlur, currency, accessibili
         maxLength={9}
         selectTextOnFocus
         maxFontSizeMultiplier={1.3}
-        // Digits would align by their own (LTR) direction on the web; keep them next to the symbol.
-        style={[styles.priceInput, { textAlign: resolveTextAlign('start', theme) }]}
+        // Digits would align by their own (LTR) direction; keep them next to the symbol.
+        style={[styles.priceInput, { textAlign: resolveInputTextAlign('start', theme) }]}
         testID={testID}
       />
     </Pressable>

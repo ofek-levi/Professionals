@@ -9,6 +9,7 @@ import { APP_CONFIG } from '@/constants/app-config';
 import { DomainError } from '@/features/shared/domain-error';
 import { vm } from '@/lib/validation/messages';
 import type { Paginated, PaginationParams } from '@/types/api';
+import { compareIds } from '@/utils/id';
 
 /** Contract limit shared with the client (`APP_CONFIG.maxPageSize`). */
 export const MAX_PAGE_SIZE = APP_CONFIG.maxPageSize;
@@ -55,7 +56,7 @@ interface FeedKey {
 
 /** Newest-first order: `createdAt` descending, ties by id descending. */
 export function compareNewestFirst(a: FeedKey, b: FeedKey): number {
-  return Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id.localeCompare(a.id);
+  return Date.parse(b.createdAt) - Date.parse(a.createdAt) || compareIds(b.id, a.id);
 }
 
 function encodeKeysetCursor(item: FeedKey): string {

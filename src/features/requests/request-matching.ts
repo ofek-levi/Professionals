@@ -8,6 +8,7 @@ import { hashString } from '@/features/shared/seeded-random';
 import type { NearbyRequestSort, NearbyRequestsParams } from '@/types/api';
 import type { GeoCoordinates, ProfessionalProfile, ServiceArea, ServiceLocation, ServiceRequest } from '@/types/domain';
 import { haversineDistanceKm, offsetCoordinates, roundDistanceKm } from '@/utils/geo';
+import { compareIds } from '@/utils/id';
 
 import { requestAcceptsOffers } from './request-status-machine';
 
@@ -104,7 +105,7 @@ export function sortNearbyRequests<T extends WithDistance<ServiceRequest>>(
   list: readonly T[],
   sort: NearbyRequestSort = 'newest',
 ): T[] {
-  const newestFirst = (a: T, b: T) => recency(b) - recency(a) || a.id.localeCompare(b.id);
+  const newestFirst = (a: T, b: T) => recency(b) - recency(a) || compareIds(a.id, b.id);
   const comparators: Record<NearbyRequestSort, (a: T, b: T) => number> = {
     newest: newestFirst,
     nearest: (a, b) => a.distanceKm - b.distanceKm || newestFirst(a, b),

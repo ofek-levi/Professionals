@@ -29,6 +29,24 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
+      ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
+      "allowBackup": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ],
+          "data": [
+            {
+              "scheme": "com.professionals.marketplace"
+            }
+          ]
+        }
       ]
     },
     "web": {
@@ -46,23 +64,22 @@
           "imageWidth": 76
         }
       ],
-      [
-        "expo-localization",
-        {
-          "supportsRTL": true
-        }
-      ],
+      "expo-localization",
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Your location is used to set the service address and to show nearby jobs."
+          "locationWhenInUsePermission": "Your location is used to set the service address and to show nearby jobs.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false
         }
       ],
       [
         "expo-image-picker",
         {
           "photosPermission": "Photos help professionals understand the job before sending an offer.",
-          "cameraPermission": "Take photos of the problem to attach them to your request."
+          "cameraPermission": "Take photos of the problem to attach them to your request.",
+          "microphonePermission": false
         }
       ],
       "expo-font"
@@ -70,9 +87,6 @@
     "experiments": {
       "typedRoutes": false,
       "reactCompiler": true
-    },
-    "extra": {
-      "supportsRTL": true
     }
   }
 }

@@ -7,6 +7,7 @@ import { DomainError } from '@/features/shared/domain-error';
 import { createReviewSchema } from '@/lib/validation/review';
 import type { Paginated, PaginationParams } from '@/types/api';
 import type { CustomerProfile, OwnProfessionalProfile, ProfessionalStats, RatingBreakdown, Review } from '@/types/domain';
+import { compareIds } from '@/utils/id';
 
 import type { CustomerActor } from '../auth';
 import type { ServerContext } from '../context';
@@ -105,6 +106,6 @@ export function listProfessionalReviews(
   requireProfessional(ctx.db, professionalId);
   const reviews = ctx.db.reviews
     .filter((review) => review.professionalId === professionalId)
-    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || b.id.localeCompare(a.id));
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || compareIds(b.id, a.id));
   return { ...paginate(reviews, params), breakdown: computeRatingBreakdown(reviews) };
 }

@@ -3,6 +3,7 @@ import { APP_CONFIG } from '@/constants/app-config';
 import { isJobActive } from '@/features/jobs/job-status-machine';
 import { getCustomerRequestSection, requestAcceptsOffers } from '@/features/requests/request-status-machine';
 import type { CustomerDashboard, ProfessionalDashboard } from '@/types/api';
+import { compareIds } from '@/utils/id';
 
 import type { CustomerActor, ProfessionalActor } from '../auth';
 import type { ServerContext } from '../context';
@@ -14,7 +15,7 @@ import { recentNotifications } from './notification-service';
 
 const byStartAsc = (a: StoredJob, b: StoredJob) => Date.parse(a.scheduledStartAt) - Date.parse(b.scheduledStartAt);
 const byUpdatedDesc = <T extends { updatedAt: string; id: string }>(a: T, b: T) =>
-  Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || b.id.localeCompare(a.id);
+  Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || compareIds(b.id, a.id);
 
 export function getCustomerDashboard(ctx: ServerContext, actor: CustomerActor): CustomerDashboard {
   const requests = ctx.db.requests.filter((request) => request.customerId === actor.userId);

@@ -142,11 +142,14 @@ export function formatCurrency(amount: number, currency: CurrencyCode | string, 
 /** Currency symbol for input prefixes (`₪`, `$`, `€`). */
 export function getCurrencySymbol(currency: CurrencyCode | string, language: AppLanguage): string {
   try {
-    const parts = getNumberFormat(language, { style: 'currency', currency, maximumFractionDigits: 0 }).formatToParts(0);
-    const symbol = parts.find((part) => part.type === 'currency')?.value;
-    if (symbol) return symbol;
+    const formatter = getNumberFormat(language, { style: 'currency', currency, maximumFractionDigits: 0 });
+    // Hermes on iOS has no `NumberFormat#formatToParts`: use the table below instead of throwing.
+    if (typeof formatter.formatToParts === 'function') {
+      const symbol = formatter.formatToParts(0).find((part) => part.type === 'currency')?.value;
+      if (symbol) return symbol;
+    }
   } catch {
-    // fall through
+    // Unknown currency code: fall through.
   }
   return FALLBACK_CURRENCY_SYMBOLS[currency as CurrencyCode] ?? currency;
 }

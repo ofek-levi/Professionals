@@ -1,11 +1,10 @@
 import { Image } from 'expo-image';
-import { useState } from 'react';
 import { Pressable, ScrollView, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { makeStyles, useTheme } from '@/theme';
 
-import { PhotoViewer, type ViewerPhoto } from './photo-viewer';
+import { PhotoViewer, usePhotoViewer, type ViewerPhoto } from './photo-viewer';
 
 interface PhotoStripProps {
   photos: readonly ViewerPhoto[];
@@ -19,7 +18,7 @@ export function PhotoStrip({ photos, size = 76, style }: PhotoStripProps) {
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation('common');
-  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const viewer = usePhotoViewer();
 
   if (photos.length === 0) return null;
 
@@ -31,7 +30,7 @@ export function PhotoStrip({ photos, size = 76, style }: PhotoStripProps) {
             key={photo.id ?? `${index}-${photo.url}`}
             accessibilityRole="imagebutton"
             accessibilityLabel={t('a11y.openPhoto', { index: index + 1, total: photos.length })}
-            onPress={() => setViewerIndex(index)}
+            onPress={() => viewer.open(index)}
             style={({ pressed }) => [
               styles.thumb,
               { width: size, height: size, backgroundColor: theme.colors.skeleton },
@@ -42,7 +41,7 @@ export function PhotoStrip({ photos, size = 76, style }: PhotoStripProps) {
           </Pressable>
         ))}
       </ScrollView>
-      <PhotoViewer visible={viewerIndex !== null} photos={photos} initialIndex={viewerIndex ?? 0} onClose={() => setViewerIndex(null)} />
+      <PhotoViewer visible={viewer.index !== null} photos={photos} initialIndex={viewer.index ?? 0} onClose={viewer.close} />
     </>
   );
 }

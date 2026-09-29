@@ -2,6 +2,11 @@
  * i18next setup. Language resolution order: saved preference → device language → English.
  * Call `initI18n()` once before rendering (the root layout does this).
  */
+// Must come first. Hermes (the iOS/Android engine) has no `Intl.PluralRules`: without it i18next
+// silently falls back to one/other and never picks the Hebrew dual (`*_two`) forms. The polyfill
+// installs itself only where `Intl.PluralRules` (or its `selectRange`) is missing, so browsers and
+// Node (Jest) keep their own implementation.
+import 'intl-pluralrules';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getLocales } from 'expo-localization';
 import i18n from 'i18next';

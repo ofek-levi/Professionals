@@ -44,11 +44,21 @@ const MAX_FONT_SCALE: Record<TypographyVariant, number> = {
  * Maps a logical alignment to `textAlign`. Native mirrors `left`/`right` itself in RTL
  * (`swapLeftAndRightInRTL`), the web does not, so we resolve it from the theme direction there.
  */
-export function resolveTextAlign(align: TextAlign, theme: Theme): TextStyle['textAlign'] {
+function resolveTextAlign(align: TextAlign, theme: Theme): TextStyle['textAlign'] {
   if (align === 'center') return 'center';
   const start = align === 'start';
   if (Platform.OS === 'web' && theme.isRTL) return start ? 'right' : 'left';
   return start ? 'left' : 'right';
+}
+
+/**
+ * `textAlign` for a `TextInput`. Unlike texts, inputs never mirror `left`/`right` in RTL: Android
+ * maps them to absolute gravity, iOS (Fabric) gives an input's text no layout direction to swap
+ * them by, and the web never mirrors. So the physical side is resolved from the layout direction.
+ */
+export function resolveInputTextAlign(align: TextAlign, theme: Theme): TextStyle['textAlign'] {
+  if (align === 'center') return 'center';
+  return (align === 'start') === theme.isRTL ? 'right' : 'left';
 }
 
 /** Plain text content of `children` when it only consists of strings and numbers, else `null`. */

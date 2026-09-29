@@ -1,4 +1,5 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+// The icon set's own module: the package barrel would bundle every icon font on native.
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import type { StyleProp, TextStyle } from 'react-native';
 
 import { useTheme } from '@/theme';

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useEffectEvent, useState, type ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -19,13 +19,23 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { makeStyles, useTheme } from '@/theme';
 
 import { AppText } from './app-text';
+import { DialogOutlet } from './dialog-provider';
 import { IconButton } from './icon-button';
+import { useKeyboardVisible } from './keyboard';
+import { useOverlayHost } from './overlay-host';
 import { usePanGesture } from './pan-gesture';
 import { ScrollLockProvider, useScrollLockHost } from './scroll-lock';
+import { ToastOutlet } from './toast-provider';
 
 interface SheetProps {
   visible: boolean;
   onClose: () => void;
+  /**
+   * Called once the sheet has fully closed (exit animation done, its Modal gone). Start anything
+   * that presents its own screen here, e.g. the image picker: iOS cannot present it over a sheet
+   * that is still being dismissed.
+   */
+  onClosed?: () => void;
   title?: string;
   subtitle?: string;
   children: ReactNode;
@@ -45,17 +55,21 @@ interface SheetProps {
   testID?: string;
 }
 
+const IS_WEB = Platform.OS === 'web';
 const OPEN_DURATION_MS = 280;
 const CLOSE_DURATION_MS = 200;
 const DISMISS_DISTANCE = 90;
 
 /**
  * Bottom sheet built on `Modal` (works on native and web): backdrop fade, slide-up animation,
- * swipe-down / backdrop / back-button dismissal, title bar and sticky footer.
+ * swipe-down / backdrop / back-button dismissal, title bar and sticky footer. It rises above the
+ * software keyboard and shrinks (its content scrolls) when the keyboard leaves too little room.
+ * While open it hosts the app's toasts and confirm dialogs (see overlay-host.tsx).
  */
 export function Sheet({
   visible,
   onClose,
+  onClosed,
   title,
   subtitle,
   children,
@@ -75,6 +89,10 @@ export function Sheet({
   const { height: windowHeight } = useWindowDimensions();
   // A map in the content can hold the scroll while it is dragged (see scroll-lock.tsx).
   const scrollLock = useScrollLockHost();
+  const isOverlayHost = useOverlayHost(visible);
+  // The keyboard covers the bottom safe area; the keyboard-avoiding view puts the sheet right on it.
+  const keyboardVisible = useKeyboardVisible();
+  const bottomPadding = keyboardVisible ? theme.spacing.lg : Math.max(insets.bottom, theme.spacing.lg);
 
   // Keep the modal mounted while the exit animation runs.
   const [prevVisible, setPrevVisible] = useState(visible);
@@ -88,6 +106,14 @@ export function Sheet({
   const drag = useSharedValue(0);
   const [sheetHeight, setSheetHeight] = useState(0);
 
+  const finishClosing = useEffectEvent(() => {
+    // Only a sheet that was open and is still closing (not reopened, not mounted hidden) has closed.
+    if (!closing) return;
+    setClosing(false);
+    // iOS reports it from the Modal once the native dismissal has completed (`onDismiss` below).
+    if (Platform.OS !== 'ios') onClosed?.();
+  });
+
   useEffect(() => {
     if (visible) {
       drag.set(0);
@@ -95,7 +121,7 @@ export function Sheet({
     } else {
       progress.set(
         withTiming(0, { duration: CLOSE_DURATION_MS, easing: Easing.in(Easing.cubic) }, (finished) => {
-          if (finished) scheduleOnRN(setClosing, false);
+          if (finished) scheduleOnRN(finishClosing);
         }),
       );
     }
@@ -137,6 +163,7 @@ export function Sheet({
       visible={visible || closing}
       animationType="none"
       onRequestClose={dismissible ? onClose : () => undefined}
+      onDismiss={Platform.OS === 'ios' ? onClosed : undefined}
       statusBarTranslucent
       navigationBarTranslucent
       supportedOrientations={['portrait', 'landscape']}
@@ -151,20 +178,21 @@ export function Sheet({
             onPress={dismissible ? onClose : undefined}
           />
         </Animated.View>
+        {/* Padding on both platforms: the Android Modal window is edge to edge (enforced from
+            Android 15), so the system no longer resizes it for the keyboard. Where a window is
+            still resized, the keyboard no longer overlaps it and the padding is 0. */}
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.avoider}
+          behavior={IS_WEB ? undefined : 'padding'}
+          style={[styles.avoider, { paddingTop: insets.top + theme.spacing.sm }]}
         >
           <Animated.View
             accessibilityViewIsModal
             onLayout={(event) => setSheetHeight(event.nativeEvent.layout.height)}
             style={[
               styles.sheet,
-              {
-                maxHeight: windowHeight * maxHeightRatio,
-                paddingBottom: footer ? 0 : Math.max(insets.bottom, theme.spacing.lg),
-              },
-              fullHeight ? { height: windowHeight * maxHeightRatio } : null,
+              { maxHeight: windowHeight * maxHeightRatio, paddingBottom: footer ? 0 : bottomPadding },
+              // Takes all the room up to its max height, and gives it back to the keyboard.
+              fullHeight ? styles.flex : null,
               sheetStyle,
             ]}
           >
@@ -192,12 +220,26 @@ export function Sheet({
             </View>
             {content}
             {footer ? (
-              <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, theme.spacing.lg) }]}>{footer}</View>
+              <View style={[styles.footer, { paddingBottom: bottomPadding }]}>{footer}</View>
             ) : null}
           </Animated.View>
         </KeyboardAvoidingView>
+        {isOverlayHost ? <OverlayOutlet onToastAction={dismissible ? onClose : undefined} /> : null}
       </View>
     </Modal>
+  );
+}
+
+/**
+ * The app's toasts and confirm dialog, drawn above the sheet (inside its Modal). Tapping a toast
+ * with an action (a push banner opening a screen) closes the sheet first.
+ */
+function OverlayOutlet({ onToastAction }: { onToastAction?: () => void }) {
+  return (
+    <>
+      <ToastOutlet beforeAction={onToastAction} />
+      <DialogOutlet />
+    </>
   );
 }
 
@@ -220,6 +262,8 @@ const useStyles = makeStyles((t) => ({
     width: '100%',
     maxWidth: 640,
     alignSelf: 'center',
+    // Shrinks (the scroll area first) instead of overflowing the top when the keyboard is up.
+    flexShrink: 1,
     backgroundColor: t.colors.surfaceElevated,
     borderTopStartRadius: t.radii.xxl,
     borderTopEndRadius: t.radii.xxl,

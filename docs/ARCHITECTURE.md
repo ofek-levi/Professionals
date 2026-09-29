@@ -229,7 +229,10 @@ for requests sent with `skipUnauthorizedHandler` – the public sign-in endpoint
   `t.colors`, status/urgency colors from `t.colors.tones[tone]`, spacing `t.spacing`, radii `t.radii`,
   text styles via `<AppText variant="heading">`.
 - Icons: `<Icon name="…" />` (MaterialCommunityIcons). Directional icons (chevrons/arrows) must pass
-  `flipInRTL`.
+  `flipInRTL`. Import icon sets by subpath (`@expo/vector-icons/Ionicons`): the package barrel
+  bundles every icon font into the native app.
+- Text inputs: set `textAlign` with `resolveInputTextAlign()`, not a logical `left`/`right` (iOS and
+  Android apply those to inputs as physical sides, even in RTL; only `<Text>` mirrors them).
 - RTL: use `marginStart/End`, `paddingStart/End`, `start/end` – never `left/right` for layout.
   `flexDirection: 'row'` mirrors automatically. `AppText` aligns to the start edge.
 - Touch targets ≥ 44pt, `accessibilityRole`/`accessibilityLabel` on interactive elements.
@@ -359,7 +362,9 @@ AppMap (app-map.tsx)          props + theme → MapPageState (map-page-state.ts)
 
 - i18next + react-i18next, typed keys (`src/i18n/i18next.d.ts`). English is the source of truth;
   Hebrew files are typed `LocaleNamespace<typeof en…>` so missing keys fail type-checking, and every
-  `*_other` plural requires a Hebrew `*_two` (dual) form.
+  `*_other` plural requires a Hebrew `*_two` (dual) form. Hermes (iOS/Android) has no
+  `Intl.PluralRules`, so `src/i18n/index.ts` loads the `intl-pluralrules` polyfill first; without it
+  the dual forms would never be picked on a phone (Jest and browsers have their own).
 - Namespaces (one file per namespace per language): common, errors, validation, auth, settings,
   location, customer, requests, offers, reviews, profile, professional, explore, jobs, notifications,
   messaging. Use `useTranslation(['<ns>', 'common'])` and `t('common:actions.save')` for shared keys.
@@ -367,7 +372,9 @@ AppMap (app-map.tsx)          props + theme → MapPageState (map-page-state.ts)
   form fields translate them.
 - Category names come from the catalog as `LocalizedText` (`{ en, he }`), so a backend can add
   categories without an app release; use `useLocalizedText()` / `useCategoryName()`.
-- RTL: Hebrew forces RTL (`I18nManager.forceRTL`) and reloads the app once (`reloadAppAsync`). On web
+- RTL: Hebrew forces RTL (`I18nManager.forceRTL`) and reloads the app once (`reloadAppAsync`). The
+  app is the only writer of `allowRTL`/`forceRTL`: expo-localization's `supportsRTL` option is off,
+  since on iOS it resets `forceRTL` to the device language on every start. On web
   the direction switches live without a reload: `LayoutDirectionRoot` (`src/providers/layout-direction.tsx`)
   wraps the whole tree in a `View dir="rtl|ltr"`, which is what makes React Native Web resolve logical
   styles (`paddingStart`, `start`/`end`, `borderStart*`) for every screen, header, tab bar and portal

@@ -39,6 +39,7 @@ export const location: LocaleNamespace<typeof enLocation> = {
     search: 'חיפוש הכתובות אינו זמין כרגע. נסו שוב בעוד רגע.',
   },
   openSettings: 'פתיחת ההגדרות',
+  turnOnLocation: 'הפעלת המיקום',
   map: {
     label: 'מפה',
     hint: 'הקישו על המפה או גררו את הסיכה כדי לסמן את המקום המדויק',

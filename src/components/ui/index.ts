@@ -3,7 +3,7 @@
  * See src/components/README.md for usage examples.
  */
 export { AppSwitch } from './app-switch';
-export { AppText, resolveTextAlign } from './app-text';
+export { AppText, resolveInputTextAlign } from './app-text';
 export { Avatar } from './avatar';
 export { Badge, type BadgeSize } from './badge';
 export { BUTTON_SIZE_TOKENS, Button } from './button';
@@ -17,8 +17,10 @@ export { ScreenHeader, SectionHeader } from './headers';
 export { Icon, type IconName, type IconSource } from './icon';
 export { IconButton } from './icon-button';
 export { InlineAlert } from './inline-alert';
+export { KEYBOARD_DISMISS_MODE } from './keyboard';
 export { Divider } from './layout';
 export { ListItem, StatTile } from './list-item';
+export { OverlayHostProvider } from './overlay-host';
 export { RatingInput, RatingStars } from './rating';
 export { Screen } from './screen';
 export { SegmentedControl, type SegmentedOption } from './segmented-control';

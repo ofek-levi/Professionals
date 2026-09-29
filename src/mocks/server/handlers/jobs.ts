@@ -2,6 +2,7 @@
 import { isJobActive } from '@/features/jobs/job-status-machine';
 import { DomainError } from '@/features/shared/domain-error';
 import { JOB_SCOPES, type JobScope } from '@/types/api';
+import { compareIds } from '@/utils/id';
 
 import type { Actor } from '../auth';
 import type { ServerContext } from '../context';
@@ -46,7 +47,7 @@ function listJobs(ctx: ServerContext, actor: Actor, scope: JobScope) {
       selected = jobs.filter((job) => job.status === 'completed').sort((a, b) => finished(b) - finished(a));
       break;
     case 'all':
-      selected = jobs.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || b.id.localeCompare(a.id));
+      selected = jobs.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || compareIds(b.id, a.id));
       break;
   }
   return selected.map((job) => toJobSummary(ctx, job));

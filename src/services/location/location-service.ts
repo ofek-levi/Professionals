@@ -177,6 +177,33 @@ export async function locateDevice(options: GetCoordinatesOptions = {}): Promise
   return getCurrentCoordinates(options);
 }
 
+/** `true` where the app can ask the system to switch location services on (Android only). */
+export function canEnableLocationServices(): boolean {
+  return Platform.OS === 'android';
+}
+
+/**
+ * Location services are off (`services_disabled`): on Android, shows the system "Turn on location"
+ * dialog (Google Play services), or opens the device's location settings where that dialog is not
+ * available. Resolves `true` once location is on. iOS only lets apps open their own settings page,
+ * which has no such switch, so there (and on web) it resolves `false` without doing anything.
+ */
+export async function enableLocationServices(): Promise<boolean> {
+  if (!canEnableLocationServices()) return false;
+  try {
+    await Location.enableNetworkProviderAsync();
+    return true;
+  } catch {
+    // Declined, or no Google Play services: the settings screen has the switch.
+    try {
+      await Linking.sendIntent('android.settings.LOCATION_SOURCE_SETTINGS');
+    } catch {
+      // Nothing else we can do.
+    }
+    return false;
+  }
+}
+
 /** Opens the app's system settings page (to re-enable a blocked permission). No-op on web. */
 export async function openLocationSettings(): Promise<void> {
   if (Platform.OS === 'web') return;

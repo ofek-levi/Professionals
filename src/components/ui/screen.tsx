@@ -15,6 +15,7 @@ import { SafeAreaView, useSafeAreaInsets, type Edge } from 'react-native-safe-ar
 
 import { makeStyles, useTheme, type Theme } from '@/theme';
 
+import { KEYBOARD_DISMISS_MODE, useKeyboardVisible } from './keyboard';
 import { ScrollLockProvider, useScrollLockHost } from './scroll-lock';
 
 interface ScreenProps {
@@ -57,13 +58,6 @@ interface ScreenProps {
 const DEFAULT_EDGES: readonly Edge[] = ['top', 'left', 'right'];
 
 /**
- * Dragging the content dismisses the keyboard on native. react-native-web treats *every* scroll
- * event as a drag, including the browser scrolling a just-focused field into view, so 'on-drag'
- * would blur the field while the user types. The web keyboard is dismissed by the browser itself.
- */
-const KEYBOARD_DISMISS_MODE = Platform.select({ ios: 'interactive', android: 'on-drag', default: 'none' } as const);
-
-/**
  * Root container for every screen: safe areas, background, keyboard avoidance, pull-to-refresh,
  * readable max width on large screens and an optional sticky footer.
  */
@@ -92,6 +86,9 @@ export function Screen({
   const headerHeight = useContext(HeaderHeightContext) ?? 0;
   // A map in the content can hold the scroll while it is dragged (see scroll-lock.tsx).
   const scrollLock = useScrollLockHost();
+  // The keyboard-avoiding view lifts the footer onto the keyboard, which covers the bottom inset.
+  const keyboardVisible = useKeyboardVisible();
+  const footerBottom = keyboardAvoiding && keyboardVisible ? theme.spacing.lg : Math.max(insets.bottom, theme.spacing.lg);
 
   const wantsBottomInset = edges.includes('bottom');
   const containerEdges = edges.filter((edge) => edge !== 'bottom');
@@ -150,7 +147,7 @@ export function Screen({
         {header ? <View style={[constrained, { paddingHorizontal: padded ? theme.spacing.screen : 0 }]}>{header}</View> : null}
         {body}
         {footer ? (
-          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, theme.spacing.lg) }]}>
+          <View style={[styles.footer, { paddingBottom: footerBottom }]}>
             <View style={[constrained, { paddingHorizontal: theme.spacing.screen }]}>{footer}</View>
           </View>
         ) : null}

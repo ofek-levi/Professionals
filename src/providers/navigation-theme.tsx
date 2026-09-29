@@ -22,11 +22,13 @@ export function buildNavigationTheme(theme: Theme): NavigationTheme {
       border: colors.border,
       notification: colors.danger,
     },
+    // Each weight is its own font family. Keep `fontWeight` below 700: Android registers a loaded
+    // font only as the regular style and would draw a bold-weighted custom family in the system font.
     fonts: {
       regular: { fontFamily: fonts.regular, fontWeight: '400' },
       medium: { fontFamily: fonts.medium, fontWeight: '500' },
       bold: { fontFamily: fonts.semibold, fontWeight: '600' },
-      heavy: { fontFamily: fonts.bold, fontWeight: '700' },
+      heavy: { fontFamily: fonts.bold, fontWeight: '400' },
     },
   };
 }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Platform, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { AppText, IconButton, resolveTextAlign } from '@/components/ui';
+import { AppText, IconButton, resolveInputTextAlign } from '@/components/ui';
 import { APP_CONFIG } from '@/constants/app-config';
 import { isSendableMessageText } from '@/features/messaging/message-rules';
 import { makeStyles, useTheme } from '@/theme';
@@ -37,7 +37,7 @@ export function ChatComposer({ value, onChangeText, onSend, disabled = false }: 
   const remaining = maxLength - value.length;
   const canSend = !disabled && isSendableMessageText(value);
   const textDirection = getTextDirection(value);
-  const textAlign = resolveTextAlign(alignForTextDirection(textDirection, theme.isRTL), theme);
+  const textAlign = resolveInputTextAlign(alignForTextDirection(textDirection, theme.isRTL), theme);
 
   const send = () => {
     if (!canSend) return;

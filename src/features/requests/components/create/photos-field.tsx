@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
@@ -10,7 +10,7 @@ import {
   takePhotoWithCamera,
   type PickImagesResult,
 } from '@/components/forms';
-import { PhotoViewer } from '@/components/requests';
+import { PhotoViewer, usePhotoViewer } from '@/components/requests';
 import { AppText, Card, Icon, ListItem, Sheet } from '@/components/ui';
 import { APP_CONFIG } from '@/constants/app-config';
 import type { RequestFormPhoto } from '@/lib/validation';
@@ -21,6 +21,7 @@ import { pickedPhotosToForm } from './request-form-model';
 const THUMB_SIZE = 64;
 
 type PhotoProblem = 'library_denied' | 'camera_denied' | 'camera_unavailable' | 'failed' | 'limit';
+type PhotoSource = 'library' | 'camera';
 
 interface PhotosFieldProps {
   value: readonly RequestFormPhoto[];
@@ -34,11 +35,13 @@ export function PhotosField({ value, onChange }: PhotosFieldProps) {
   const styles = useStyles();
   const { t } = useTranslation(['requests', 'common']);
   const [sourceOpen, setSourceOpen] = useState(false);
+  // The source picked in the sheet; the picker opens once the sheet has closed (see `Sheet.onClosed`).
+  const pendingSource = useRef<PhotoSource | null>(null);
   const [problem, setProblem] = useState<PhotoProblem | null>(null);
-  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const viewer = usePhotoViewer();
   const remaining = Math.max(0, max - value.length);
 
-  const handleResult = (result: PickImagesResult, source: 'library' | 'camera') => {
+  const handleResult = (result: PickImagesResult, source: PhotoSource) => {
     switch (result.status) {
       case 'picked': {
         const merged = [...value, ...pickedPhotosToForm(result.photos)];
@@ -61,13 +64,23 @@ export function PhotosField({ value, onChange }: PhotosFieldProps) {
   };
 
   const pickFromLibrary = async () => {
-    setSourceOpen(false);
     handleResult(await pickImagesFromLibrary(remaining), 'library');
   };
 
   const takePhoto = async () => {
-    setSourceOpen(false);
     handleResult(await takePhotoWithCamera(), 'camera');
+  };
+
+  const chooseSource = (source: PhotoSource) => {
+    pendingSource.current = source;
+    setSourceOpen(false);
+  };
+
+  const openPendingSource = () => {
+    const source = pendingSource.current;
+    pendingSource.current = null;
+    if (source === 'library') void pickFromLibrary();
+    else if (source === 'camera') void takePhoto();
   };
 
   const add = () => {
@@ -103,7 +116,7 @@ export function PhotosField({ value, onChange }: PhotosFieldProps) {
               <Pressable
                 accessibilityRole="imagebutton"
                 accessibilityLabel={t('common:a11y.openPhoto', { index: index + 1, total: value.length })}
-                onPress={() => setViewerIndex(index)}
+                onPress={() => viewer.open(index)}
                 style={({ pressed }) => [styles.thumb, { backgroundColor: theme.colors.skeleton }, pressed ? styles.pressed : null]}
               >
                 <Image source={{ uri: photo.uri }} style={styles.image} contentFit="cover" transition={120} />
@@ -149,16 +162,22 @@ export function PhotosField({ value, onChange }: PhotosFieldProps) {
         </Pressable>
       ) : null}
 
-      <Sheet visible={sourceOpen} onClose={() => setSourceOpen(false)} title={t('common:photos.sourceTitle')}>
-        <ListItem title={t('common:photos.fromLibrary')} onPress={() => void pickFromLibrary()} showChevron={false} />
-        <ListItem title={t('common:photos.takePhoto')} onPress={() => void takePhoto()} showChevron={false} />
+      <Sheet
+        visible={sourceOpen}
+        onClose={() => setSourceOpen(false)}
+        onClosed={openPendingSource}
+        title={t('common:photos.sourceTitle')}
+        testID="photo-source-sheet"
+      >
+        <ListItem title={t('common:photos.fromLibrary')} onPress={() => chooseSource('library')} showChevron={false} />
+        <ListItem title={t('common:photos.takePhoto')} onPress={() => chooseSource('camera')} showChevron={false} />
       </Sheet>
 
       <PhotoViewer
-        visible={viewerIndex !== null}
+        visible={viewer.index !== null}
         photos={value.map((photo) => ({ url: photo.uri, width: photo.width, height: photo.height }))}
-        initialIndex={viewerIndex ?? 0}
-        onClose={() => setViewerIndex(null)}
+        initialIndex={viewer.index ?? 0}
+        onClose={viewer.close}
       />
     </View>
   );

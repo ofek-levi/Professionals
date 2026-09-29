@@ -5,6 +5,7 @@
 import type { OfferSort } from '@/types/api';
 import type { EntityId, OfferStatus, OfferWithProfessional } from '@/types/domain';
 import { bayesianRating } from '@/features/reviews/rating';
+import { compareIds } from '@/utils/id';
 
 /** Weights of the "recommended" score (sum = 1). */
 const RECOMMENDED_SCORE_WEIGHTS = {
@@ -75,7 +76,7 @@ export function sortOffers<T extends RankableOffer>(offers: readonly T[], sort: 
     computeRecommendationScores(group).forEach((value, id) => scores.set(id, value));
   }
   const score = (offer: T) => scores.get(offer.id) ?? 0;
-  const tieBreak = (a: T, b: T) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id);
+  const tieBreak = (a: T, b: T) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || compareIds(a.id, b.id);
   const byRating = (a: T, b: T) =>
     (b.professional.averageRating ?? -1) - (a.professional.averageRating ?? -1) ||
     b.professional.reviewCount - a.professional.reviewCount;

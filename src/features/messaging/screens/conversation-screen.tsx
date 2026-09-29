@@ -9,7 +9,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { AppText, Avatar, EmptyState, ErrorState, Screen, Skeleton, useConfirm, useNow } from '@/components/ui';
+import { AppText, Avatar, EmptyState, ErrorState, KEYBOARD_DISMISS_MODE, Screen, Skeleton, useConfirm, useNow } from '@/components/ui';
 import { useSession } from '@/features/auth';
 import { canSendMessage } from '@/features/messaging/message-rules';
 import {
@@ -156,7 +156,7 @@ function ChatView({ conversation }: { conversation: Conversation }) {
           messagesQuery.isFetchingNextPage ? <ActivityIndicator color={theme.colors.primary} style={styles.olderSpinner} /> : null
         }
         keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
+        keyboardDismissMode={KEYBOARD_DISMISS_MODE}
         showsVerticalScrollIndicator={false}
         testID="chat-messages"
       />

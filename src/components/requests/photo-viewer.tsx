@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { useRef, useState } from 'react';
-import { FlatList, Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { FlatList, Modal, Platform, Pressable, StatusBar, StyleSheet, View, useWindowDimensions, type StatusBarProps } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -24,6 +24,40 @@ interface PhotoViewerProps {
   photos: readonly ViewerPhoto[];
   initialIndex?: number;
   onClose: () => void;
+}
+
+/**
+ * Open/close state for a `PhotoViewer`, with light status bar icons over its black background
+ * while it is open. The style must change before the viewer's Modal is shown (so in the tap
+ * handler, not in an effect): an Android dialog copies the app's status bar appearance only when
+ * it is shown.
+ */
+export function usePhotoViewer(): { index: number | null; open: (index: number) => void; close: () => void } {
+  const [index, setIndex] = useState<number | null>(null);
+  const statusBarEntry = useRef<StatusBarProps | null>(null);
+
+  const restoreStatusBar = () => {
+    if (statusBarEntry.current) StatusBar.popStackEntry(statusBarEntry.current);
+    statusBarEntry.current = null;
+  };
+
+  // Restores the status bar if the screen goes away while the viewer is open.
+  useEffect(() => restoreStatusBar, []);
+
+  return {
+    index,
+    open: (next) => {
+      // Web has no status bar (nor this API).
+      if (!IS_WEB && !statusBarEntry.current) {
+        statusBarEntry.current = StatusBar.pushStackEntry({ barStyle: 'light-content', animated: true });
+      }
+      setIndex(next);
+    },
+    close: () => {
+      restoreStatusBar();
+      setIndex(null);
+    },
+  };
 }
 
 /** Full-screen, swipeable photo pager (always dark, like native photo viewers). */

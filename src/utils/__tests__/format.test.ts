@@ -28,6 +28,19 @@ describe('utils/format', () => {
     expect(getCurrencySymbol('ILS', 'en')).toBe('₪');
   });
 
+  it('knows the currency symbols without NumberFormat#formatToParts (Hermes on iOS)', () => {
+    const formatToParts = jest.spyOn(Intl.NumberFormat.prototype, 'formatToParts');
+    Reflect.deleteProperty(Intl.NumberFormat.prototype, 'formatToParts');
+    try {
+      expect(getCurrencySymbol('USD', 'he')).toBe('$');
+      expect(getCurrencySymbol('EUR', 'he')).toBe('€');
+      expect(getCurrencySymbol('GBP', 'he')).toBe('GBP');
+    } finally {
+      formatToParts.mockRestore();
+    }
+    expect(getCurrencySymbol('EUR', 'en')).toBe('€');
+  });
+
   it('formats distances with sensible precision', () => {
     expect(formatDistanceKm(0.04, 'en')).toBe('0.1 km');
     expect(formatDistanceKm(3.26, 'en')).toBe('3.3 km');
