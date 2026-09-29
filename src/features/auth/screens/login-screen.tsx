@@ -27,7 +27,6 @@ import { authEmailHint, useAuthEmailHint } from '../auth-email-hint';
 import { AuthIntro } from '../components/auth-intro';
 import { AuthLinkRow } from '../components/auth-link-row';
 import { GoogleSignInButton, useGoogleSignInAvailable } from '../components/google-sign-in-button';
-import { OrDivider } from '../components/or-divider';
 import { PasswordField } from '../components/password-field';
 import { useSingleFlight } from '../use-single-flight';
 import { useWelcomeToast } from '../use-welcome-toast';
@@ -194,15 +193,12 @@ export default function LoginScreen() {
             testID="login-submit"
           />
           {googleAvailable ? (
-            <>
-              <OrDivider />
-              <GoogleSignInButton
-                onIdToken={(idToken) => void continueWithGoogle(idToken)}
-                loading={googleAuth.isPending}
-                disabled={busy && !googleAuth.isPending}
-                testID="login-google"
-              />
-            </>
+            <GoogleSignInButton
+              onIdToken={(idToken) => void continueWithGoogle(idToken)}
+              loading={googleAuth.isPending}
+              disabled={busy && !googleAuth.isPending}
+              testID="login-google"
+            />
           ) : null}
         </View>
 

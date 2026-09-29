@@ -112,7 +112,6 @@ export const auth = {
   },
   google: {
     continue: 'Continue with Google',
-    or: 'or',
     promptFailedTitle: 'Google sign-in didn’t open',
     promptFailedMessage: 'Check your connection and that pop-ups are allowed, then try again.',
     demoSheet: {

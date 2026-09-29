@@ -1,18 +1,16 @@
 import { View } from 'react-native';
-import { useTranslation } from 'react-i18next';
 
 import { AppText } from '@/components/ui';
 import { makeStyles } from '@/theme';
 
-/** A hairline with "or" in the middle, between email sign-in and "Continue with Google". */
-export function OrDivider({ label }: { label?: string }) {
+/** A hairline with a short label in the middle (e.g. "or sign up with email" after "Continue with Google"). */
+export function OrDivider({ label }: { label: string }) {
   const styles = useStyles();
-  const { t } = useTranslation('auth');
   return (
     <View style={styles.row}>
       <View style={styles.line} />
       <AppText variant="caption" color="muted">
-        {label ?? t('google.or')}
+        {label}
       </AppText>
       <View style={styles.line} />
     </View>

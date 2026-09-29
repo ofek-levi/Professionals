@@ -62,7 +62,8 @@ function RootStack() {
 
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" options={{ headerShown: false, title: t('screens.signIn') }} />
-          <Stack.Screen name="auth/login" options={{ title: t('screens.login') }} />
+          {/* The page's own button already says "Sign in": the header keeps only the back button. */}
+          <Stack.Screen name="auth/login" options={{ title: t('screens.login'), headerTitle: '' }} />
           <Stack.Screen name="auth/sign-up" options={{ title: t('screens.signUp') }} />
           <Stack.Screen name="auth/forgot-password" options={{ title: t('screens.forgotPassword') }} />
         </Stack.Protected>

@@ -114,7 +114,6 @@ export const auth: LocaleNamespace<typeof enauth> = {
   },
   google: {
     continue: 'המשך עם Google',
-    or: 'או',
     promptFailedTitle: 'לא הצלחנו לפתוח את ההתחברות עם Google',
     promptFailedMessage: 'בדקו את החיבור לאינטרנט ושחלונות קופצים מותרים, ונסו שוב.',
     demoSheet: {
