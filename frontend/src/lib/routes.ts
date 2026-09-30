@@ -108,5 +108,7 @@ export const routes = {
   reviewJob: (jobId: string): Href => `/jobs/${enc(jobId)}/review` as Href,
   conversation: (conversationId: string): Href => `/conversations/${enc(conversationId)}` as Href,
   editProfile: '/profile/edit' as Href,
+  /** The profile form scrolled to the service area (from Explore's empty state). */
+  editServiceArea: '/profile/edit?section=area' as Href,
   settings: '/settings' as Href,
 } as const;

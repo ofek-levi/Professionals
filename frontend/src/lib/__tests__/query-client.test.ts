@@ -18,6 +18,16 @@ describe('query client defaults', () => {
     expect(shouldRetryQuery(0, new Error('boom'))).toBe(false);
   });
 
+  it('retries a rate-limited query only after a short Retry-After, and waits that long', () => {
+    const limited = (retryAfter: number | null) => new ApiError(429, { code: 'RATE_LIMITED', message: 'slow down' }, retryAfter);
+    expect(shouldRetryQuery(0, limited(null))).toBe(false);
+    expect(shouldRetryQuery(0, limited(900))).toBe(false);
+    expect(shouldRetryQuery(0, limited(3))).toBe(true);
+    expect(retryDelay(0, limited(3))).toBe(3000);
+    expect(retryDelay(0, limited(0))).toBe(1000);
+    expect(retryDelay(1, error('NETWORK_ERROR'))).toBe(1600);
+  });
+
   it('backs off exponentially with a cap', () => {
     expect(retryDelay(0)).toBe(800);
     expect(retryDelay(1)).toBe(1600);

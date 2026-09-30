@@ -26,6 +26,7 @@ import { AuthLinkRow } from '../components/auth-link-row';
 import { GoogleSignInButton, useGoogleSignInAvailable } from '../components/google-sign-in-button';
 import { LanguageMenuButton } from '../components/language-menu-button';
 import { PasswordField } from '../components/password-field';
+import { SignInPausedAlert } from '../components/sign-in-paused-alert';
 import { useSingleFlight } from '../use-single-flight';
 import { useWelcomeToast } from '../use-welcome-toast';
 
@@ -56,6 +57,8 @@ export default function LoginScreen() {
   const { control, setError, setFocus, reset, setValue } = form;
   // The credentials the server rejected: the alert shows until either field changes.
   const [rejected, setRejected] = useState<LoginFormValues | null>(null);
+  // Too many failed attempts (429): seconds until signing in works again (`null` = not said).
+  const [paused, setPaused] = useState<{ retryAfterSeconds: number | null } | null>(null);
   // An email typed elsewhere (e.g. the sign-up found an existing account) starts a fresh form.
   useAuthEmailHint((hintedEmail) => {
     reset(createEmptyLoginFormValues(hintedEmail));
@@ -69,6 +72,7 @@ export default function LoginScreen() {
       resettingPassword.current = false;
       setValue('password', '');
       setRejected(null);
+      setPaused(null);
     }, [setValue]),
   );
   const [email, password] = useWatch({ control, name: ['email', 'password'] });
@@ -80,6 +84,7 @@ export default function LoginScreen() {
     flight.run(
       form.handleSubmit(async (values) => {
         setRejected(null);
+        setPaused(null);
         try {
           const session = await login.mutateAsync(toLoginRequest(values));
           welcome(session.user, 'signIn');
@@ -96,6 +101,10 @@ export default function LoginScreen() {
       setRejected(form.getValues());
       return;
     }
+    if (apiError.code === 'RATE_LIMITED') {
+      setPaused({ retryAfterSeconds: apiError.retryAfterSeconds });
+      return;
+    }
     let mapped = 0;
     for (const [field, messages] of Object.entries(apiError.fieldErrors ?? {})) {
       if (!isLoginField(field) || !messages[0]) continue;
@@ -103,6 +112,12 @@ export default function LoginScreen() {
       mapped += 1;
     }
     if (mapped === 0) showError(error);
+  };
+
+  const openForgotPassword = () => {
+    authEmailHint.set(email);
+    resettingPassword.current = true;
+    router.push(routes.auth.forgotPassword);
   };
 
   const continueWithGoogle = (idToken: string) =>
@@ -148,11 +163,7 @@ export default function LoginScreen() {
               labelAccessory={
                 <Pressable
                   accessibilityRole="link"
-                  onPress={() => {
-                    authEmailHint.set(email);
-                    resettingPassword.current = true;
-                    router.push(routes.auth.forgotPassword);
-                  }}
+                  onPress={openForgotPassword}
                   hitSlop={12}
                   style={({ pressed }) => (pressed ? styles.pressed : null)}
                   testID="login-forgot-password"
@@ -169,6 +180,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.actions}>
+            {paused ? <SignInPausedAlert retryAfterSeconds={paused.retryAfterSeconds} onResetPassword={openForgotPassword} /> : null}
             {showRejected ? (
               <InlineAlert
                 tone="danger"

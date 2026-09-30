@@ -75,7 +75,7 @@ describe('professional profile form', () => {
       errorsOf({
         ...values,
         fullName: 'Avi',
-        headline: '',
+        headline: 'x'.repeat(81),
         bio: 'Too short',
         categoryIds: [],
         yearsOfExperience: 61,
@@ -89,7 +89,7 @@ describe('professional profile form', () => {
       }),
     ).toEqual({
       fullName: ['validation:profile.fullNameTooShort'],
-      headline: ['validation:profile.headlineRequired'],
+      headline: ['validation:profile.headlineTooLong'],
       bio: ['validation:profile.bioTooShort'],
       categoryIds: ['validation:category.minOne'],
       yearsOfExperience: ['validation:profile.yearsInvalid'],
@@ -101,6 +101,14 @@ describe('professional profile form', () => {
       languages: ['validation:profile.languagesRequired'],
       startingPrice: ['validation:profile.startingPriceInvalid'],
     });
+  });
+
+  it('saves a new professional’s profile with no headline and no bio yet', () => {
+    const values = { ...professionalProfileToFormValues(profile), headline: ' ', bio: '' };
+    expect(errorsOf(values)).toEqual({});
+    const payload = toUpdateProfessionalProfilePayload(values);
+    expect(payload).toMatchObject({ headline: '', bio: '' });
+    expect(updateProfessionalProfileSchema.safeParse(payload).success).toBe(true);
   });
 
   it('requires at least one working day and supported categories', () => {

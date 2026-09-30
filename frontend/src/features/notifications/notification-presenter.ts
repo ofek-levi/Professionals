@@ -12,7 +12,7 @@
  */
 import type { TFunction } from 'i18next';
 
-import { NOTIFICATION_TYPE_META } from '@/constants/notification-types';
+import { notificationTypeMeta } from '@/constants/notification-types';
 import type { StatusTone } from '@/constants/tones';
 import type { AppNotification } from '@/types/domain';
 import { isolateText } from '@/utils/bidi';
@@ -45,7 +45,9 @@ export function getNotificationContent(
   lookups: NotificationLookups,
 ): NotificationContent {
   const { params } = notification;
-  const meta = NOTIFICATION_TYPE_META[notification.type];
+  const meta = notificationTypeMeta(notification.type);
+  // A type a newer server added (installed apps cannot be forced to update): a generic item.
+  if (!meta) return unknownNotificationContent(t);
 
   const category = (params.categoryId && lookups.categoryName(params.categoryId)) || t('fallbacks.service');
   const professionalName = params.professionalName ? isolateText(params.professionalName) : t('fallbacks.professional');
@@ -118,5 +120,11 @@ export function getNotificationContent(
         t('types.new_message.title', { name: counterpart || t('fallbacks.customer') }),
         params.messagePreview ? t('types.new_message.body', { preview: params.messagePreview }) : t('types.new_message.bodyEmpty'),
       );
+    default:
+      return unknownNotificationContent(t);
   }
+}
+
+function unknownNotificationContent(t: NotificationsT): NotificationContent {
+  return { title: t('unknownType.title'), body: t('unknownType.body'), icon: 'bell-outline', tone: 'neutral' };
 }

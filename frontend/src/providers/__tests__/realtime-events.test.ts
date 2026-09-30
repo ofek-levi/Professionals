@@ -55,6 +55,21 @@ describe('applyRealtimeEvent', () => {
     expect(qc.getQueryState(queryKeys.notifications.unreadCount(USER))?.isInvalidated).toBe(true);
   });
 
+  it('keeps a chat notification out of the Updates list and its count (it counts under Messages)', () => {
+    const qc = createClient();
+    const updatesKey = queryKeys.notifications.list(USER, { excludeTypes: ['new_message'], limit: 20 });
+    const allKey = queryKeys.notifications.list(USER, { limit: 20 });
+    qc.setQueryData(updatesKey, page<AppNotification>([]));
+    qc.setQueryData(allKey, page<AppNotification>([]));
+    qc.setQueryData<UnreadCountResponse>(queryKeys.notifications.unreadCount(USER), { count: 2 });
+
+    applyRealtimeEvent(qc, USER, { type: 'notification.created', notification: { ...notification, id: 'ntf_chat', type: 'new_message' } });
+
+    expect(qc.getQueryData<PaginatedInfiniteData<AppNotification>>(updatesKey)?.pages[0].items).toEqual([]);
+    expect(qc.getQueryData<PaginatedInfiniteData<AppNotification>>(allKey)?.pages[0].items.map((item) => item.id)).toEqual(['ntf_chat']);
+    expect(qc.getQueryData<UnreadCountResponse>(queryKeys.notifications.unreadCount(USER))).toEqual({ count: 2 });
+  });
+
   it('ignores notifications addressed to another user', () => {
     const qc = createClient();
     qc.setQueryData<UnreadCountResponse>(queryKeys.notifications.unreadCount(USER), { count: 0 });

@@ -28,6 +28,19 @@ export const auth = {
     noAccount: 'New here?',
     createAccount: 'Create account',
     welcomeBack: 'Welcome back, {{name}}',
+    /** 429 after too many failed attempts (also blocks the right password until the window ends). */
+    paused: {
+      title: 'Too many failed attempts',
+      message_one: 'For your security, signing in to this account is paused for {{count}} minute. Reset your password to sign in right away.',
+      message_other: 'For your security, signing in to this account is paused for {{count}} minutes. Reset your password to sign in right away.',
+      messageSoon: 'For your security, signing in to this account is paused for a few minutes. Reset your password to sign in right away.',
+      resetPassword: 'Reset password',
+    },
+  },
+  /** The server ended the session (signed out elsewhere, password reset, expired). */
+  sessionEnded: {
+    title: 'You’ve been signed out',
+    message: 'Your session has ended. Please sign in again.',
   },
   forgotPassword: {
     title: 'Reset your password',

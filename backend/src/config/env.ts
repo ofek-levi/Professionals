@@ -40,11 +40,13 @@ const rawEnvSchema = z.object({
   CORS_ORIGINS: csv,
   TRUST_PROXY: optionalString,
   LOG_LEVEL: z.enum(LOG_LEVELS).optional(),
-  MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
+  MONGODB_URI: z.string({ error: 'MONGODB_URI is required' }).min(1, 'MONGODB_URI is required'),
   MONGODB_DB_NAME: optionalString,
   MONGODB_MAX_POOL_SIZE: z.coerce.number().int().min(1).max(500).default(20),
-  REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
-  JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
+  REDIS_URL: z.string({ error: 'REDIS_URL is required' }).min(1, 'REDIS_URL is required'),
+  JWT_ACCESS_SECRET: z
+    .string({ error: 'JWT_ACCESS_SECRET is required' })
+    .min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
   /** Defaults include APP_ENV, so a secret shared by mistake cannot replay staging tokens in production. */
   JWT_ISSUER: optionalString,
   JWT_AUDIENCE: optionalString,
@@ -104,6 +106,8 @@ export interface Env {
   jwt: { accessSecret: string; issuer: string; audience: string };
   /** Accepted `aud` values of Google id tokens; empty = Google sign-in not configured. */
   googleClientIds: string[];
+  /** The same ids per app platform (`null` = that app's Google sign-in is refused with 401). */
+  googleClients: Record<GooglePlatform, string | null>;
   cloudinary: CloudinaryConfig | null;
   mail: { from: string; resendApiKey: string | null; smtp: SmtpConfig | null };
   expoAccessToken: string | null;
@@ -115,6 +119,8 @@ export interface Env {
   shutdownTimeoutMs: number;
   realtime: { explorerEventWindowMs: number };
 }
+
+export type GooglePlatform = 'web' | 'ios' | 'android';
 
 export class EnvError extends Error {
   constructor(readonly issues: string[]) {
@@ -141,7 +147,6 @@ function missingForDeployedEnv(raw: RawEnv, cloudinary: CloudinaryConfig | null)
   const missing: string[] = [];
   if (!raw.PUBLIC_API_URL) missing.push('PUBLIC_API_URL');
   if (!raw.GOOGLE_WEB_CLIENT_ID) missing.push('GOOGLE_WEB_CLIENT_ID');
-  if (!raw.GOOGLE_IOS_CLIENT_ID) missing.push('GOOGLE_IOS_CLIENT_ID');
   if (!cloudinary) missing.push('CLOUDINARY_URL (or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET)');
   if (!raw.RESEND_API_KEY) missing.push('RESEND_API_KEY');
   if (!raw.EMAIL_FROM) missing.push('EMAIL_FROM');
@@ -150,9 +155,19 @@ function missingForDeployedEnv(raw: RawEnv, cloudinary: CloudinaryConfig | null)
   return missing.map((name) => `${name} is required when APP_ENV=${raw.APP_ENV}`);
 }
 
+/**
+ * `.env` files write an unset variable as `NAME=` (see `.env.example`): a blank value means "not
+ * set", so it falls back to the default instead of failing the variable's format.
+ */
+function withoutBlankValues(source: Record<string, string | undefined>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(source).filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1].trim() !== ''),
+  );
+}
+
 /** Parses and validates `source` (default `process.env`); throws `EnvError` listing every problem. */
 export function parseEnv(source: Record<string, string | undefined> = process.env): Env {
-  const result = rawEnvSchema.safeParse(source);
+  const result = rawEnvSchema.safeParse(withoutBlankValues(source));
   if (!result.success) {
     throw new EnvError(result.error.issues.map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`));
   }
@@ -186,6 +201,11 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
     googleClientIds: [raw.GOOGLE_WEB_CLIENT_ID, raw.GOOGLE_IOS_CLIENT_ID, raw.GOOGLE_ANDROID_CLIENT_ID].filter(
       (id): id is string => id !== undefined,
     ),
+    googleClients: {
+      web: raw.GOOGLE_WEB_CLIENT_ID ?? null,
+      ios: raw.GOOGLE_IOS_CLIENT_ID ?? null,
+      android: raw.GOOGLE_ANDROID_CLIENT_ID ?? null,
+    },
     cloudinary,
     mail: {
       from: raw.EMAIL_FROM ?? (smtp ? `Professionals <${smtp.user}>` : 'Professionals <no-reply@localhost>'),
@@ -209,13 +229,40 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
   };
 }
 
-/** Features that run degraded in development because a credential is missing. */
+/**
+ * Startup warnings. Development: features that run degraded because a credential is missing.
+ * Staging/production: settings that start fine but break a client (the web app, a native app's
+ * Google sign-in) in a way its users would only see as a generic error.
+ */
 export function envWarnings(env: Env): string[] {
-  if (env.appEnv !== 'development') return [];
+  return env.appEnv === 'development' ? developmentWarnings(env) : deployedWarnings(env);
+}
+
+function developmentWarnings(env: Env): string[] {
   const warnings: string[] = [];
   if (isPlaceholderSecret(env.jwt.accessSecret)) warnings.push('JWT_ACCESS_SECRET is the example placeholder (refused in staging/production)');
   if (!env.mail.smtp) warnings.push('SMTP_USER/SMTP_PASS not set: emails are written to the log instead of being sent');
   if (!env.cloudinary) warnings.push('Cloudinary is not configured: POST /v1/uploads/images answers 503');
   if (env.googleClientIds.length === 0) warnings.push('Google client ids are not configured: Google sign-in answers 503');
+  return warnings;
+}
+
+const NATIVE_GOOGLE_CLIENTS = [
+  ['android', 'GOOGLE_ANDROID_CLIENT_ID', 'Android'],
+  ['ios', 'GOOGLE_IOS_CLIENT_ID', 'iOS'],
+] as const;
+
+function deployedWarnings(env: Env): string[] {
+  const warnings: string[] = [];
+  if (Array.isArray(env.corsOrigins) && env.corsOrigins.length === 0) {
+    warnings.push(
+      'CORS_ORIGINS is empty: browsers may not call this API, so the web app cannot load or sign in (it reports "No connection"); set it to the web app\'s origin(s)',
+    );
+  }
+  for (const [platform, variable, app] of NATIVE_GOOGLE_CLIENTS) {
+    if (!env.googleClients[platform]) {
+      warnings.push(`${variable} is not set: "Continue with Google" in the ${app} app is refused (401 INVALID_GOOGLE_TOKEN); set it if that app is shipped`);
+    }
+  }
   return warnings;
 }

@@ -7,6 +7,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
 import type { AppDeps } from '../../deps.js';
 import { isApiError } from '../../lib/errors.js';
+import { clientIpKey } from '../../middleware/rate-limit.js';
 import type { AppLanguage } from '../../shared/domain.js';
 import { vm, type ValidationMessage } from '../../shared/validation-messages.js';
 import { verifyEmail, verifyLinkAccount } from './email-verification.service.js';
@@ -110,7 +111,7 @@ export const resetPasswordFormSubmit = (deps: AppDeps) =>
       return { status: 400, html: renderResetForm(account.language, { token, email: account.email, errors: translated }) };
     }
     try {
-      await resetPassword(deps, { token, password });
+      await resetPassword(deps, { token, password }, clientIpKey(req));
     } catch (error) {
       if (!isApiError(error) || error.status !== 400) throw error;
       // A breached password: back to the form with the message; otherwise the link was used up in

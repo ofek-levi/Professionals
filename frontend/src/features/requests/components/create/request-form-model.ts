@@ -70,6 +70,7 @@ export function pickedPhotosToForm(picked: readonly PickedPhoto[]): RequestFormP
     width: photo.width ?? 0,
     height: photo.height ?? 0,
     fileName: photo.fileName,
+    fileSize: photo.fileSize ?? null,
     uploadId: null,
   }));
 }
@@ -82,6 +83,7 @@ export function toUploadPayload(photo: RequestFormPhoto): UploadImagePayload {
     width: photo.width > 0 ? photo.width : null,
     height: photo.height > 0 ? photo.height : null,
     fileName: photo.fileName,
+    fileSize: photo.fileSize ?? null,
   };
 }
 

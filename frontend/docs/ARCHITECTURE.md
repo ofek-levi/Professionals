@@ -31,8 +31,8 @@ Hard rules
 1. **App code never imports `src/test-utils`** (ESLint `no-restricted-imports`; only tests and
    test helpers may), and screens/components never call `api.*` directly: they use hooks from
    `src/hooks`.
-2. **No business rules in screens.** Status transitions, allowed actions, matching, sorting and
-   validation live in `src/features/<feature>/*.ts` (pure functions) and `src/lib/validation`. The
+2. **No business rules in screens.** Status transitions, allowed actions, sorting and validation
+   live in `src/features/<feature>/*.ts` (pure functions) and `src/lib/validation`. The
    backend enforces the same rules (its copies of the constants, status models, limits and sign-up
    validation are drift- and parity-tested against `frontend/`), so client affordances and server
    answers agree.
@@ -53,7 +53,7 @@ src/
   features/
     auth/                   session provider + lifecycle, role guards, entry / sign-in / sign-up screens
     customer/ professional/ requests/ offers/ jobs/ notifications/ messaging/ reviews/ profiles/ settings/
-      *.ts                  pure business logic (state machines, selectors, sorting, matching)
+      *.ts                  pure business logic (state machines, selectors, sorting)
       screens/*.tsx         screen components rendered by src/app routes
       components/*.tsx      feature-private components
   services/
@@ -159,7 +159,9 @@ instead of talking to the wrong server. The realtime URL is derived from the bas
   request is created and referenced by id.
 - Errors the UI explains: `VALIDATION_ERROR` (400) maps `fieldErrors` onto the form fields whatever
   the status; `RATE_LIMITED` (429) says when to try again (`Retry-After`); a refused photo (400/413)
-  or the upload quota (429) get their own message (`components/forms/use-upload-error-toast.ts`).
+  or the upload quota (429) get their own message, and so does a photo service that is down or not
+  configured (5xx: "try again later", plus "or remove the photos" where they are optional)
+  (`components/forms/use-upload-error-toast.ts`).
 
 ### Session and tokens (src/services/auth)
 
@@ -171,14 +173,28 @@ instead of talking to the wrong server. The realtime URL is derived from the bas
 - `token-manager.ts` (`sessionTokens` in `services/api/index.ts`) keeps the access token valid for
   the API client and the WebSocket: **proactively** 60 s before `accessTokenExpiresAt` and
   **reactively** after a 401, one `POST /auth/refresh` at a time (everyone waits for the same one).
+  The expiry is stored on the device's clock (`token-clock.ts`: arrival time + the JWT's
+  `exp - iat`), so a device clock that is off by any amount neither refreshes before every request
+  nor lets a token expire unnoticed.
   The rotated refresh token is stored before it is used; the server answers a replay of the
-  just-replaced token within 30 s with the same new pair, so concurrent refreshes converge. A
-  rejected refresh token (401/400) ends the session locally; a network error keeps it.
+  just-replaced token with the same new pair while that pair is unused (up to 30 min), so concurrent
+  refreshes converge and a refresh whose response was lost can be retried later. A
+  rejected refresh token (401/400) ends the session locally and the entry screen says why ("You've
+  been signed out", `features/auth/session-ended-notice.tsx` via `services/auth/session-ended.ts`);
+  a network error keeps the session.
 - Sign-in paths (email, register, Google) all go through `establishSession()`
   (`features/auth/session-provider.tsx`), which also syncs the account language
   (`PATCH /me { preferredLanguage }`, also sent when the language changes while signed in).
-- Sign-out: `POST /auth/logout { refreshToken }` (best effort, at most 5 s; the server revokes the
-  session and removes its push devices), then the local session is cleared.
+- Sign-out: the realtime socket is closed first (the server closes a revoked session's sockets with
+  4001, which would otherwise be taken for an expired token and spend the revoked refresh token),
+  then the local session is cleared at once (the entry screen shows without waiting for the
+  network). `POST /auth/logout { refreshToken }` (the server revokes the session and removes its
+  push devices) follows in the background through `services/auth/pending-logouts.ts`: the refresh
+  token is queued in secure storage before the local sign-out and stays there until the server
+  accepts it or refuses it for good (400/401/403/404); network errors, timeouts, 429 and 5xx keep it
+  for the next try at launch, after a sign-in, on returning to the foreground and (web) when back
+  online (`features/auth/pending-logout-retries.ts`). A session that ends without a logout (expired,
+  revoked) gets no push either: the server skips devices whose session is gone.
 - `features/auth/session-lifecycle.ts` reacts to every identity change (sign in/out, restored
   session, another tab, failed refresh) synchronously inside the store: it clears the query cache
   and disconnects/connects realtime, so no screen can see another user's data. The
@@ -186,8 +202,9 @@ instead of talking to the wrong server. The realtime URL is derived from the bas
 
 ### Realtime (src/services/realtime)
 
-`websocket-realtime-client.ts` connects to `ws(s)://…/v1/realtime?token=<access token>` while
-signed in and parses `RealtimeEvent` frames (`realtime-frames.ts`, `types.ts`):
+`websocket-realtime-client.ts` connects to `ws(s)://…/v1/realtime` while signed in, with the access
+token as a WebSocket subprotocol (`professionals.v1`, `bearer.<token>`: `realtime-protocol.ts`), never
+in the URL (proxies and browsers log URLs), and parses `RealtimeEvent` frames (`realtime-frames.ts`, `types.ts`):
 
 - close **4001** (expired or revoked token): refresh through the token manager and reconnect with
   the new token; stop when the refresh fails (the session is over);
@@ -215,7 +232,8 @@ open, `notification.created` also shows an in-app banner (`src/providers/realtim
 - `PushNotifications` registers the device (`POST /me/devices { pushToken, platform }`) while the
   account has push enabled, asking for permission 1.5 s after the signed-in home appears (never on
   the entry screens), and again when the OS rotates the token. Turning push off in Settings calls
-  `DELETE /me/devices/:token`; signing out needs nothing (the server's logout removes the devices).
+  `DELETE /me/devices/:token`; signing out needs nothing more (the server's logout, queued until it
+  succeeds, removes the devices, and push fan-out skips devices of ended sessions).
 - A tapped notification (including the one that launched the app) is marked read and opens
   `notificationTargetToHref(data.target)`, like a tap in the inbox.
 
@@ -251,7 +269,8 @@ compiles a contract check against these types). The conventions the client relie
 Jest suites run the real hooks, endpoint modules, API client, token manager, WebSocket client and
 screens against an in-process implementation of the backend contract
 (`createTestEnvironment()` in `testing/test-server.ts`: in-memory database seeded from `data/`,
-controllable clock, the shared state machines). It follows `backend/docs/API.md`: sessions with
+controllable clock, the shared state machines; request matching, approximate locations and offer
+counters, which only the server computes, live in `server/`). It follows `backend/docs/API.md`: sessions with
 30-minute access tokens and rotating refresh tokens (30 s replay window, reuse revokes the session
 and its devices), `POST /auth/refresh|logout`, `PATCH /me`, Expo-only `POST /me/devices` and
 `DELETE /me/devices/:token`, `VALIDATION_ERROR` as 400, register 201, paginated lists,
@@ -273,6 +292,10 @@ connects (`src/test-utils/native`).
 - Mutations invalidate through helpers in `src/hooks/mutations/invalidation.ts` (e.g.
   `invalidateRequestGraph`). Realtime events reuse the same helpers.
 - Optimistic updates: marking notifications read, sending chat messages, editing profile.
+- Retries never duplicate: chat messages carry a `clientMessageId`, and posting the request form a
+  `clientRequestId` (`features/requests/components/create/submission-key.ts`: the same key while the
+  form is unchanged), so posting again after a timeout returns the request already created (with its
+  photos) instead of a second one; publishing a draft is idempotent on the server too.
 - Lists that can grow use `useInfiniteQuery` with cursor pagination. Badges read the dedicated
   counters (`/notifications/unread-count`, `/conversations/unread-count`), kept in step by realtime
   events and optimistic mark-read updates.
@@ -303,8 +326,10 @@ connects (`src/test-utils/native`).
   `notificationTargetToHref` straight to these destinations. Offers are seen and acted on from the
   request screen (`/requests/:id`), for both roles – there is no separate offer screen. Cancelling a
   booking also lives there only ("Cancel request"; the job screen has no cancel action). The Inbox
-  shows chat messages under Messages only: `new_message` notifications are left out of Updates, and
-  the tab badge is always Updates + Messages (`src/features/notifications/inbox-counts.ts`).
+  shows chat messages under Messages only: the server leaves `new_message` notifications out of the
+  Updates list and its unread count (`?excludeTypes=new_message`, so every page is full and the count
+  is exact however many notifications there are), and the tab badge is always Updates + Messages
+  (`src/features/notifications/inbox-counts.ts`).
 - Design language and component rules: `src/components/README.md`.
 - Safe areas: use `<Screen>` which handles insets, keyboard avoidance and pull-to-refresh.
 - Stack screens opened with nothing to go back to (deep link, notification on a cold start, web

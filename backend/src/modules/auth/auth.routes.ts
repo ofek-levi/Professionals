@@ -1,5 +1,5 @@
 /**
- * `/auth/*`: public endpoints (no `requireAuth`) with Redis rate limits: generous per-IP caps (many
+ * `/auth/*`: public endpoints (no `requireAuth`, except resending the verification email) with Redis rate limits: generous per-IP caps (many
  * mobile users share one carrier IP), per (email, IP) for sign-up, per session for refresh. Failed
  * sign-ins are limited by the login throttle and reset emails by a per-address budget, both inside
  * the services, in ways a stranger cannot use to lock the owner out. The HTML forms post
@@ -9,8 +9,18 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 
 import type { AppDeps } from '../../deps.js';
 import { asyncHandler } from '../../lib/async-handler.js';
-import { emailAndIpKey, RATE_LIMITS, rateLimit } from '../../middleware/rate-limit.js';
-import { passwordReset, refresh, registerAccount, resetPasswordJson, signInGoogle, signInWithPassword, signOut } from './auth.controller.js';
+import { requireAuth } from '../../middleware/auth.js';
+import { emailAndIpKey, RATE_LIMITS, rateLimit, userKey } from '../../middleware/rate-limit.js';
+import {
+  passwordReset,
+  refresh,
+  registerAccount,
+  resendVerification,
+  resetPasswordJson,
+  signInGoogle,
+  signInWithPassword,
+  signOut,
+} from './auth.controller.js';
 import { resetPasswordFormSubmit, resetPasswordPage, verifyEmailFormSubmit, verifyEmailPage } from './auth-pages.controller.js';
 import { refreshSessionKey } from './refresh-token.js';
 
@@ -33,6 +43,12 @@ export function createAuthRouter(deps: AppDeps): Router {
   router.post('/auth/logout', asyncHandler(signOut(deps)));
   router.post('/auth/password-reset', rateLimit(deps, 'password-reset-ip', RATE_LIMITS.passwordResetPerIp), asyncHandler(passwordReset(deps)));
 
+  router.post(
+    '/auth/verify-email/resend',
+    requireAuth(deps),
+    rateLimit(deps, 'verify-email-resend-user', { ...RATE_LIMITS.verificationEmailsPerUser, key: userKey }),
+    asyncHandler(resendVerification(deps)),
+  );
   router.get('/auth/verify-email', verifyEmailPage(deps));
   router.post('/auth/verify-email', verifyEmailFormSubmit(deps));
   router.get('/auth/reset-password', resetPasswordPage(deps));

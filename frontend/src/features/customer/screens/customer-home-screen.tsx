@@ -8,7 +8,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { CategoryGrid, CategoryPickerSheet } from '@/components/categories';
-import { AppText, Button, Card, ErrorState, Screen, Skeleton } from '@/components/ui';
+import { AppText, Button, Card, Screen, Skeleton } from '@/components/ui';
 import { useCurrentUser, useCustomerDashboard, useCustomerRequests, useRefetchOnFocus } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
@@ -49,15 +49,11 @@ export default function CustomerHomeScreen() {
     else router.push(routes.request(row.request.id));
   };
 
-  const refresh = () => {
-    void dashboardQuery.refetch();
-    void activeQuery.refetch();
-  };
+  const refresh = () => Promise.all([dashboardQuery.refetch(), activeQuery.refetch()]);
 
   return (
     <Screen
       gap="xxxl"
-      refreshing={dashboardQuery.isRefetching || activeQuery.isRefetching}
       onRefresh={refresh}
       testID="customer-home"
     >
@@ -65,6 +61,11 @@ export default function CustomerHomeScreen() {
         {firstName !== undefined ? (
           <AppText variant="largeTitle" accessibilityRole="header" numberOfLines={1}>
             {t('home.hello', { name: isolateText(firstName) })}
+          </AppText>
+        ) : userQuery.isError ? (
+          // Not a skeleton that never resolves: the "Active" section below says what failed.
+          <AppText variant="largeTitle" accessibilityRole="header" numberOfLines={1} testID="home-greeting-neutral">
+            {t('home.helloNeutral')}
           </AppText>
         ) : (
           <Skeleton width="45%" height={30} style={styles.greetingSkeleton} />
@@ -86,11 +87,13 @@ export default function CustomerHomeScreen() {
         <CategoryGrid limit={POPULAR_LIMIT} onSelect={startRequest} onShowAll={() => setPickerOpen(true)} />
       </View>
 
-      {rows === undefined && error ? (
-        <ErrorState compact error={error} onRetry={refresh} retrying={dashboardQuery.isRefetching || activeQuery.isRefetching} />
-      ) : (
-        <ActiveSection rows={rows} onOpenRow={openRow} />
-      )}
+      <ActiveSection
+        rows={rows}
+        onOpenRow={openRow}
+        error={rows === undefined ? error : null}
+        onRetry={() => void refresh()}
+        retrying={dashboardQuery.isRefetching || activeQuery.isRefetching}
+      />
 
       <CategoryPickerSheet mode="single" visible={pickerOpen} value={null} onClose={() => setPickerOpen(false)} onChange={startRequest} />
     </Screen>

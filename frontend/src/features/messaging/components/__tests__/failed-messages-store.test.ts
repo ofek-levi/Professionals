@@ -1,6 +1,12 @@
+import type { FailedMessage } from '../chat-model';
 import { createFailedMessagesStore } from '../failed-messages-store';
 
-const failed = (clientMessageId: string, text = 'hello') => ({ clientMessageId, text, createdAt: '2026-09-27T10:00:00.000Z' });
+const failed = (clientMessageId: string, text = 'hello'): FailedMessage => ({
+  clientMessageId,
+  text,
+  createdAt: '2026-09-27T10:00:00.000Z',
+  reason: 'offline',
+});
 
 describe('failed messages store', () => {
   it('adds, replaces and removes messages per conversation and notifies subscribers', () => {

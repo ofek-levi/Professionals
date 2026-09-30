@@ -7,6 +7,7 @@ import { makeStyles, useTheme } from '@/theme';
 import { alignForText } from '@/utils/bidi';
 
 import type { ChatMessageRow, FailedMessage, MessageDeliveryState } from './chat-model';
+import { canRetrySend } from './send-failure';
 
 interface MessageBubbleProps {
   row: ChatMessageRow;
@@ -37,7 +38,8 @@ export function MessageBubble({ row, counterpartName, onRetry, onDiscard }: Mess
   const time = format.time(message.createdAt);
   const metaColor = mine ? withAlpha(theme.colors.onPrimary, 0.78) : theme.colors.textMuted;
 
-  const deliveryLabel = delivery ? t(`chat.${delivery === 'failed' ? 'failedA11y' : delivery}`) : null;
+  const retryable = failed ? canRetrySend(failed.reason) : false;
+  const deliveryLabel = failed ? t(`chat.failedReason.${failed.reason}`) : delivery && delivery !== 'failed' ? t(`chat.${delivery}`) : null;
   const accessibilityLabel = [
     mine ? t('chat.a11y.fromYou', { time, text: message.text }) : t('chat.a11y.fromOther', { name: counterpartName, time, text: message.text }),
     deliveryLabel,
@@ -73,27 +75,48 @@ export function MessageBubble({ row, counterpartName, onRetry, onDiscard }: Mess
   );
 
   if (failed) {
+    const retry = () => {
+      haptics.light();
+      onRetry(failed);
+    };
     return (
       <View style={[styles.container, styles.containerMine, row.groupedWithPrevious ? styles.joined : null]}>
         <Pressable
-          accessibilityRole="button"
+          accessibilityRole={retryable ? 'button' : undefined}
           accessibilityLabel={accessibilityLabel}
-          onPress={() => {
-            haptics.light();
-            onRetry(failed);
+          accessibilityHint={retryable ? t('chat.retryHint') : undefined}
+          // Screen readers: retry (when it can work) and delete from the actions menu.
+          accessibilityActions={[...(retryable ? [{ name: 'activate', label: t('chat.retry') }] : []), { name: 'delete', label: t('chat.delete') }]}
+          onAccessibilityAction={({ nativeEvent }) => {
+            if (nativeEvent.actionName === 'activate' && retryable) retry();
+            if (nativeEvent.actionName === 'delete') onDiscard(failed);
           }}
+          onPress={retryable ? retry : undefined}
           onLongPress={() => onDiscard(failed)}
-          style={({ pressed }) => [styles.pressable, pressed ? styles.pressed : null]}
+          style={({ pressed }) => [styles.pressable, pressed && retryable ? styles.pressed : null]}
           testID={`chat-failed-${failed.clientMessageId}`}
         >
           {bubble}
-          <View style={styles.failedLine}>
-            <Icon name={DELIVERY_ICONS.failed} size={14} color="danger" />
-            <AppText variant="tiny" color="danger">
-              {t('chat.failed')}
-            </AppText>
-          </View>
         </Pressable>
+        <View style={styles.failedLine}>
+          <Icon name={DELIVERY_ICONS.failed} size={14} color="danger" />
+          <AppText variant="tiny" color="danger" style={styles.failedText} testID={`chat-failed-reason-${failed.clientMessageId}`}>
+            {t(`chat.failedReason.${failed.reason}`)}
+            {retryable ? ` · ${t('chat.tapToRetry')}` : ''}
+          </AppText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t('chat.deleteA11y')}
+            onPress={() => onDiscard(failed)}
+            hitSlop={10}
+            style={({ pressed }) => (pressed ? styles.pressed : null)}
+            testID={`chat-failed-delete-${failed.clientMessageId}`}
+          >
+            <AppText variant="tiny" color="danger" style={styles.deleteLabel}>
+              {t('chat.delete')}
+            </AppText>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -175,5 +198,12 @@ const useStyles = makeStyles((t) => ({
     alignItems: 'center',
     gap: t.spacing.xs,
     paddingHorizontal: t.spacing.xs,
+    marginTop: t.spacing.xs,
+  },
+  failedText: {
+    flexShrink: 1,
+  },
+  deleteLabel: {
+    textDecorationLine: 'underline',
   },
 }));

@@ -91,7 +91,7 @@ export function ReviewCard({
           {expandable ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityState={{ expanded }}
+              aria-expanded={expanded}
               onPress={() => setExpanded((value) => !value)}
               hitSlop={10}
               style={styles.toggle}

@@ -78,8 +78,8 @@ export function ListItem({
       accessibilityRole={checked === undefined ? 'button' : 'radio'}
       accessibilityLabel={title}
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled }}
-      // `aria-checked` (unlike `accessibilityState.checked`) also reaches the DOM on web.
+      aria-disabled={disabled}
+      // aria-* props (unlike `accessibilityState`) also reach the DOM on web (react-native-web).
       aria-checked={checked}
       disabled={disabled}
       onPress={() => {

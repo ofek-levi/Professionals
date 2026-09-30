@@ -6,7 +6,7 @@ import { api } from '@/services/api';
 import type { UnreadCountResponse } from '@/types/api';
 import type { AppNotification } from '@/types/domain';
 
-import { adjustUnreadCount, isNotificationUnread, markAllNotificationsRead, markNotificationRead } from './cache-updates';
+import { adjustUnreadCount, isUnreadUpdate, markAllNotificationsRead, markNotificationRead } from './cache-updates';
 import { invalidateNotifications } from './invalidation';
 
 interface NotificationsSnapshot {
@@ -30,7 +30,7 @@ function restoreNotifications(qc: QueryClient, userId: string | null, snapshot: 
 
 /**
  * `POST /notifications/:id/read` – optimistic: the item is marked read in every cached list and
- * the unread badge is decremented immediately; both roll back on error.
+ * the unread Updates badge is decremented immediately (for an update); both roll back on error.
  */
 export function useMarkNotificationAsRead() {
   const qc = useQueryClient();
@@ -39,7 +39,8 @@ export function useMarkNotificationAsRead() {
     mutationFn: (notificationId: string) => api.notifications.markNotificationAsRead(notificationId),
     onMutate: async (notificationId) => {
       const snapshot = await snapshotNotifications(qc, userId);
-      const wasUnread = snapshot.lists.some(([, data]) => isNotificationUnread(data, notificationId));
+      // The cached count is of Updates: reading a chat notification does not change it.
+      const wasUnread = snapshot.lists.some(([, data]) => isUnreadUpdate(data, notificationId));
       const readAt = new Date().toISOString();
       qc.setQueriesData<PaginatedInfiniteData<AppNotification>>({ queryKey: queryKeys.notifications.lists(userId) }, (data) =>
         markNotificationRead(data, notificationId, readAt),

@@ -4,6 +4,7 @@ import type { LocaleNamespace } from '../../types';
 export const customer: LocaleNamespace<typeof encustomer> = {
   home: {
     hello: 'היי, {{name}}',
+    helloNeutral: 'שלום',
     request: {
       title: 'במה אפשר לעזור?',
       subtitle: 'מתארים את העבודה ומקבלים הצעות מאנשי מקצוע מהאזור.',
@@ -37,7 +38,10 @@ export const customer: LocaleNamespace<typeof encustomer> = {
     status: {
       draft: 'טיוטה – עדיין לא פורסמה',
       waiting: 'ממתינה להצעות',
-      waitingHint: 'שלחנו את הבקשה לאנשי מקצוע באזור.',
+      waitingHint_one: 'שלחנו את הבקשה לאיש מקצוע אחד באזור.',
+      waitingHint_two: 'שלחנו את הבקשה לשני אנשי מקצוע באזור.',
+      waitingHint_other: 'שלחנו את הבקשה ל־{{count}} אנשי מקצוע באזור.',
+      waitingNoPros: 'עדיין אין באזור שלכם אנשי מקצוע שמציעים את השירות הזה. הבקשה נשארת פתוחה – אנשי מקצוע שיצטרפו באזור יראו אותה.',
       offersToReview_one: 'הצעה אחת לבדיקה',
       offersToReview_two: 'שתי הצעות לבדיקה',
       offersToReview_other: '{{count}} הצעות לבדיקה',
@@ -50,7 +54,7 @@ export const customer: LocaleNamespace<typeof encustomer> = {
     },
     posted: 'פורסמה {{time}}',
     saved: 'נשמרה {{time}}',
-    postedBanner: 'הכול מוכן. הצעות מגיעות בדרך כלל תוך דקות – נעדכן אתכם.',
+    postedBanner: 'הכול מוכן. נעדכן אתכם כשיגיעו הצעות.',
     hired: {
       appointment: 'מועד',
       completed: 'הושלמה',

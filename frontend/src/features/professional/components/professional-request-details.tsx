@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, ErrorState, InlineAlert, Screen, useNow } from '@/components/ui';
 import { useWithdrawOfferFlow } from '@/features/offers/components/use-withdraw-offer-flow';
 import { getProfessionalOfferOutcome, isOfferActive } from '@/features/offers/offer-status-machine';
-import { isRequestOpenForOffers } from '@/features/requests/request-matching';
+import { requestAcceptsOffers } from '@/features/requests/request-status-machine';
 import { useRefetchOnFocus, useRequest } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
@@ -53,7 +53,7 @@ export function ProfessionalRequestDetails({ requestId }: ProfessionalRequestDet
 
   const myOffer = request.myOffer;
   const hasActiveOffer = myOffer !== null && isOfferActive(myOffer.status);
-  const acceptsOffers = isRequestOpenForOffers(request);
+  const acceptsOffers = requestAcceptsOffers(request.status);
   const outcome = myOffer ? getProfessionalOfferOutcome(myOffer.status, request.status) : null;
   // Hired and the job still stands (an accepted offer stays accepted after a cancellation).
   const accepted = outcome === 'accepted';
@@ -84,8 +84,7 @@ export function ProfessionalRequestDetails({ requestId }: ProfessionalRequestDet
   return (
     <Screen
       edges={['left', 'right', 'bottom']}
-      refreshing={query.isRefetching}
-      onRefresh={() => void query.refetch()}
+      onRefresh={() => query.refetch()}
       footer={footer}
       contentContainerStyle={styles.content}
       testID={`ProfessionalRequestDetails-${requestId}`}

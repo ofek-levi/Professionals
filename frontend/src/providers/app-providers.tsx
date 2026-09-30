@@ -1,7 +1,8 @@
 /**
  * The app's provider tree (outermost first):
  * gestures → safe area → React Query → design theme → navigation theme/direction → web layout
- * direction root → session → overlay hosts (open sheets) → dialogs → toasts → realtime (+ push).
+ * direction root → session → overlay hosts (open sheets) → dialogs → toasts → realtime (+ push, and
+ * the notice of a session the server ended).
  */
 import { QueryClientProvider } from '@tanstack/react-query';
 import { LocaleProvider, ThemeProvider as NavigationThemeProvider } from 'expo-router';
@@ -12,6 +13,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { DialogProvider, OverlayHostProvider, ToastProvider } from '@/components/ui';
+import { SessionEndedNotice } from '@/features/auth/session-ended-notice';
 import { SessionProvider } from '@/features/auth/session-provider';
 import { useSettings, type ColorSchemePreference } from '@/features/settings/settings-store';
 import { getIsRTL } from '@/i18n/direction';
@@ -85,6 +87,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
                       <RealtimeProvider>
                         {children}
                         <PushNotifications />
+                        <SessionEndedNotice />
                       </RealtimeProvider>
                     </ToastProvider>
                   </DialogProvider>

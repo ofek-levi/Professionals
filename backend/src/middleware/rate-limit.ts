@@ -50,6 +50,8 @@ export const RATE_LIMITS = {
    * already sent stay valid, so a stranger cannot block the owner's reset (`password-reset.service`).
    */
   passwordResetEmailsPerAddress: { windowMs: 60 * MINUTE, limit: 3 },
+  /** "Send the verification link again" (signed in). */
+  verificationEmailsPerUser: { windowMs: 60 * MINUTE, limit: 3 },
   geoPerIp: { windowMs: MINUTE, limit: 60 },
   /** Geocoder cache misses (the provider takes 1 request/s for everyone): per IP when anonymous… */
   geoMissesPerIp: { windowMs: MINUTE, limit: 15 },

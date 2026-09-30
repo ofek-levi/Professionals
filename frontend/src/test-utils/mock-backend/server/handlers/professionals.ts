@@ -1,6 +1,6 @@
 /** `/professionals/*` routes (public profiles, reviews, browse). */
 import { CATEGORY_IDS } from '@/constants/professional-categories';
-import { isWithinServiceArea } from '@/features/requests/request-matching';
+import { isWithinServiceArea } from '../request-matching';
 import { bayesianRating } from '@/features/reviews/rating';
 import { DomainError } from '@/features/shared/domain-error';
 import { vm } from '@/lib/validation/messages';

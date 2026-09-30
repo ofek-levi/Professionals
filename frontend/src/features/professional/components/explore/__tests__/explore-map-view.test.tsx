@@ -128,6 +128,8 @@ describe('ExploreMapView', () => {
     await emitMapMessage(webView(), { type: 'markerPress', id: 'r1' });
     expect(screen.getByTestId('explore-map-preview')).toBeOnTheScreen();
     expect(lastState().markers.map((marker) => marker.selected)).toEqual([true, false]);
+    // The urgency pill sits on the footer's center line (with the meta text and "View"), not at its top.
+    expect(screen.getByTestId('urgency-badge-emergency')).toHaveStyle({ alignSelf: 'center' });
 
     // The card's height joins the bottom inset: the attribution and the selected marker stay above it.
     await act(async () => fireEvent(screen.getByTestId('explore-map-preview'), 'layout', layout(140)));

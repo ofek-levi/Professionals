@@ -1,7 +1,7 @@
 /**
  * The signed-in session: identity (user id + role, what React renders from) and its tokens.
  *
- * This is the only module that knows where the session is kept:
+ * Kept in `secure-storage.ts`:
  * - iOS/Android: `expo-secure-store` (Keychain / Android Keystore), readable after the first unlock
  *   and never included in backups or restored to another device;
  * - web: `localStorage`. Any script running on the page could read it, which is the documented
@@ -10,17 +10,16 @@
  *   Other tabs follow along through the `storage` event (sign-out, refreshed tokens).
  *
  * React components read the identity through `useSession()` (features/auth). Token refreshes change
- * only the tokens: they never notify identity listeners.
+ * only the tokens: they never notify identity listeners. Tokens are stored with their expiry on this
+ * device's clock (`token-clock.ts`), so a wrong device clock never makes them look expired.
  */
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
-
 import type { AuthSession, SessionTokens } from '@/types/api';
 import type { UserRole } from '@/types/domain';
 
-/** SecureStore keys may only contain letters, digits, `.`, `-` and `_`. */
+import { isWebStorage as isWeb, readSecureItem, webStorage, writeSecureItem } from './secure-storage';
+import { onDeviceClock } from './token-clock';
+
 const STORAGE_KEY = 'professionals.session.v2';
-const SECURE_OPTIONS: SecureStore.SecureStoreOptions = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY };
 
 export type SessionStatus = 'loading' | 'signedOut' | 'signedIn';
 
@@ -46,31 +45,8 @@ let hydratePromise: Promise<SessionState> | null = null;
 
 // ─────────────────────────────── Storage ───────────────────────────────
 
-const isWeb = Platform.OS === 'web';
-
-function webStorage(): Storage | null {
-  try {
-    return typeof window !== 'undefined' ? window.localStorage : null;
-  } catch {
-    return null; // Storage disabled (privacy mode).
-  }
-}
-
-async function readRaw(): Promise<string | null> {
-  if (isWeb) return webStorage()?.getItem(STORAGE_KEY) ?? null;
-  return SecureStore.getItemAsync(STORAGE_KEY, SECURE_OPTIONS);
-}
-
-async function writeRaw(value: string | null): Promise<void> {
-  if (isWeb) {
-    const storage = webStorage();
-    if (value === null) storage?.removeItem(STORAGE_KEY);
-    else storage?.setItem(STORAGE_KEY, value);
-    return;
-  }
-  if (value === null) await SecureStore.deleteItemAsync(STORAGE_KEY, SECURE_OPTIONS);
-  else await SecureStore.setItemAsync(STORAGE_KEY, value, SECURE_OPTIONS);
-}
+const readRaw = () => readSecureItem(STORAGE_KEY);
+const writeRaw = (value: string | null) => writeSecureItem(STORAGE_KEY, value);
 
 function parsePersisted(raw: string | null): PersistedSession | null {
   if (!raw) return null;
@@ -183,7 +159,7 @@ export const sessionStore = {
   /** Starts `session` (sign-in / sign-up / Google). */
   async signIn(session: AuthSession): Promise<void> {
     const { accessToken, accessTokenExpiresAt, refreshToken, user } = session;
-    tokens = { accessToken, accessTokenExpiresAt, refreshToken };
+    tokens = onDeviceClock({ accessToken, accessTokenExpiresAt, refreshToken });
     setState({ status: 'signedIn', userId: user.id, role: user.role });
     await persist(currentPersisted());
   },
@@ -191,7 +167,7 @@ export const sessionStore = {
   /** Stores refreshed tokens of the current session (identity listeners are not notified). */
   async updateTokens(next: SessionTokens): Promise<void> {
     if (state.status !== 'signedIn') return;
-    tokens = { accessToken: next.accessToken, accessTokenExpiresAt: next.accessTokenExpiresAt, refreshToken: next.refreshToken };
+    tokens = onDeviceClock({ accessToken: next.accessToken, accessTokenExpiresAt: next.accessTokenExpiresAt, refreshToken: next.refreshToken });
     await persist(currentPersisted());
   },
 

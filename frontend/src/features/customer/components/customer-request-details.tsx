@@ -10,7 +10,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { Button, EmptyState, ErrorState, InlineAlert, Screen, useConfirm, useErrorToast, useToast } from '@/components/ui';
-import { REQUEST_STATUS_META } from '@/constants/request-statuses';
+import { requestStatusMeta } from '@/constants/request-statuses';
 import { getCustomerRequestActions } from '@/features/requests/request-status-machine';
 import { useDeleteDraftRequest, useJob, useRefetchOnFocus, useRequest } from '@/hooks';
 import { routes } from '@/lib/routes';
@@ -74,14 +74,13 @@ function RequestDetailsContent({ request, justPosted }: { request: CustomerReque
 
   const actions = getCustomerRequestActions(request);
   const isDraft = request.status === 'draft';
-  const acceptsOffers = REQUEST_STATUS_META[request.status].acceptsOffers;
+  const acceptsOffers = requestStatusMeta(request.status).acceptsOffers;
   const job = jobQuery.data;
   const showHiredPro = Boolean(request.jobId) && request.status !== 'cancelled';
 
   const refresh = () => {
-    void requestQuery.refetch();
-    if (request.jobId) void jobQuery.refetch();
     setRefreshSignal((value) => value + 1);
+    return Promise.all([requestQuery.refetch(), request.jobId ? jobQuery.refetch() : null]);
   };
 
   const confirmDeleteDraft = async () => {
@@ -116,7 +115,6 @@ function RequestDetailsContent({ request, justPosted }: { request: CustomerReque
   return (
     <Screen
       edges={['left', 'right', 'bottom']}
-      refreshing={requestQuery.isRefetching}
       onRefresh={refresh}
       footer={footer}
       testID={`CustomerRequestDetails-${request.id}`}

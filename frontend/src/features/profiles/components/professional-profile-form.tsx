@@ -7,9 +7,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm, type FieldErrors } from 'react-hook-form';
-import { Pressable, View } from 'react-native';
+import { Pressable, View, type LayoutChangeEvent, type ScrollView } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
 
@@ -48,7 +48,10 @@ function errorPaths(errors: FieldErrors<ProfessionalProfileFormValues>): string[
   return paths;
 }
 
-export function ProfessionalProfileForm() {
+/** `area`: scrolled to the service area when it opens. */
+type FormFocus = 'area';
+
+export function ProfessionalProfileForm({ focus }: { focus?: FormFocus } = {}) {
   const { t } = useTranslation(['professional', 'common']);
   const query = useOwnProfessionalProfile();
   if (!query.data) {
@@ -71,10 +74,10 @@ export function ProfessionalProfileForm() {
       </Screen>
     );
   }
-  return <ProfessionalProfileFormContent key={query.data.id} profile={query.data} />;
+  return <ProfessionalProfileFormContent key={query.data.id} profile={query.data} focus={focus} />;
 }
 
-function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalProfile }) {
+function ProfessionalProfileFormContent({ profile, focus }: { profile: OwnProfessionalProfile; focus?: FormFocus }) {
   const styles = useStyles();
   const router = useRouter();
   const navigation = useNavigation();
@@ -99,6 +102,13 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
   const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl);
   const [saved, setSaved] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const focused = useRef(false);
+  const onAreaLayout = (event: LayoutChangeEvent) => {
+    if (focus !== 'area' || focused.current) return;
+    focused.current = true;
+    scrollRef.current?.scrollTo({ y: event.nativeEvent.layout.y, animated: false });
+  };
   const avatarChanged = avatarUrl !== profile.avatarUrl;
   const hasChanges = formState.isDirty || avatarChanged;
 
@@ -159,6 +169,7 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
           testID="pro-profile-save"
         />
       }
+      scrollRef={scrollRef}
       testID="pro-profile-form"
     >
       <AvatarField name={profile.displayName} value={avatarUrl} verified={profile.isVerified} onChange={setAvatarUrl} />
@@ -178,7 +189,6 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
           name="headline"
           label={t('professional:form.identity.headline')}
           placeholder={t('professional:form.identity.headlinePlaceholder')}
-          required
           maxLength={PROFILE_LIMITS.headlineMax}
           testID="pro-form-headline"
         />
@@ -188,7 +198,6 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
           label={t('professional:form.identity.bio')}
           placeholder={t('professional:form.identity.bioPlaceholder')}
           helperText={t('professional:form.identity.bioHelper', { min: PROFILE_LIMITS.bioMin })}
-          required
           multiline
           minRows={4}
           maxLength={PROFILE_LIMITS.bioMax}
@@ -214,7 +223,9 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
         />
       </FormSection>
 
-      <ServiceAreaSection control={control} />
+      <View onLayout={onAreaLayout} testID="pro-form-area-section">
+        <ServiceAreaSection control={control} />
+      </View>
 
       <AvailabilitySection control={control} />
 
@@ -246,7 +257,7 @@ function ProfessionalProfileFormContent({ profile }: { profile: OwnProfessionalP
       <View style={styles.more}>
         <Pressable
           accessibilityRole="button"
-          accessibilityState={{ expanded: moreOpen }}
+          aria-expanded={moreOpen}
           onPress={() => setMoreOpen((open) => !open)}
           style={({ pressed }) => [styles.moreHeader, pressed ? styles.pressed : null]}
           testID="pro-form-more"

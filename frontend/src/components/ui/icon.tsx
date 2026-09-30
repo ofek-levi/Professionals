@@ -52,6 +52,8 @@ export function Icon({ name, size = 20, color, flipInRTL = false, accessibilityL
       accessibilityRole={decorative ? undefined : 'image'}
       importantForAccessibility={decorative ? 'no-hide-descendants' : 'yes'}
       accessibilityElementsHidden={decorative}
+      // The web ignores the two props above: without this, screen readers read the glyph itself.
+      aria-hidden={decorative}
       testID={testID}
     />
   );

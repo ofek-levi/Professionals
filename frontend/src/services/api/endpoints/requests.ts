@@ -7,6 +7,7 @@ import type {
   RequestDetailsResponse,
   SuccessResponse,
   UpdateDraftRequestPayload,
+  WireQueries,
 } from '@/types/api';
 import type { CustomerRequestView, ProfessionalRequestView } from '@/types/domain';
 import type { ApiClient } from '../client';
@@ -40,7 +41,7 @@ export function createRequestsApi(client: ApiClient) {
     getCustomerRequests: (params: CustomerRequestsParams = {}, signal?: AbortSignal) =>
       client.get<Paginated<CustomerRequestView>>('/customer/requests', {
         signal,
-        query: { section: params.section, statuses: params.statuses, cursor: params.cursor, limit: params.limit },
+        query: { section: params.section, statuses: params.statuses, cursor: params.cursor, limit: params.limit } satisfies WireQueries['/customer/requests'],
       }),
 
     /** `GET /professional/requests/nearby` – open requests matching the professional's categories & area. */
@@ -58,7 +59,7 @@ export function createRequestsApi(client: ApiClient) {
           sort: params.sort,
           cursor: params.cursor,
           limit: params.limit,
-        },
+        } satisfies WireQueries['/professional/requests/nearby'],
       }),
   };
 }

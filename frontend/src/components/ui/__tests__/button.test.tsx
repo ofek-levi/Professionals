@@ -1,9 +1,10 @@
 import { fireEvent, screen } from '@testing-library/react-native';
 
 import { initI18n } from '@/i18n';
+import { createTheme } from '@/theme';
 
 import { renderWithProviders } from '../../__test-utils__/render';
-import { Button } from '../button';
+import { Button, variantColors } from '../button';
 import { IconButton } from '../icon-button';
 
 describe('Button', () => {
@@ -44,5 +45,17 @@ describe('Button', () => {
   it('IconButton is announced with its label', async () => {
     await renderWithProviders(<IconButton icon="plus" accessibilityLabel="New request" onPress={jest.fn()} />);
     expect(screen.getByRole('button', { name: 'New request' })).toBeOnTheScreen();
+  });
+});
+
+describe('secondary button colors', () => {
+  it('keeps a visible shape on the dark background (lighter fill and a border)', () => {
+    const dark = createTheme('dark', false);
+    const colors = variantColors(dark, 'secondary');
+    expect(colors.border).toBe(dark.colors.borderStrong);
+    expect(colors.background).not.toBe(dark.colors.background);
+    expect(colors.background).not.toBe(dark.colors.surface);
+    const light = createTheme('light', false);
+    expect(variantColors(light, 'secondary')).toMatchObject({ background: light.colors.surface, border: light.colors.surface });
   });
 });

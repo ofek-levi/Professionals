@@ -20,3 +20,8 @@ export const OFFER_STATUS_META: Record<OfferStatus, OfferStatusMeta> = {
   withdrawn: { tone: 'neutral', isActive: false },
   expired: { tone: 'warning', isActive: false },
 };
+
+/** Display rules of `status`; an unknown (newer) status renders neutral and inactive. */
+export function offerStatusMeta(status: OfferStatus): OfferStatusMeta {
+  return (OFFER_STATUS_META as Partial<Record<string, OfferStatusMeta>>)[status] ?? { tone: 'neutral', isActive: false };
+}

@@ -35,16 +35,19 @@ type ValidationCode = Extract<ServerErrorCode, 'VALIDATION_ERROR' | 'UNSUPPORTED
 export class ApiError extends Error {
   readonly status: number;
   readonly fieldErrors: FieldErrors | undefined;
+  /** Sent as `Retry-After` (seconds): when a rate-limited call can succeed again. */
+  readonly retryAfterSeconds: number | undefined;
 
   constructor(
     readonly code: ServerErrorCode,
     message: string,
-    options: { status?: number; fieldErrors?: FieldErrors } = {},
+    options: { status?: number; fieldErrors?: FieldErrors; retryAfterSeconds?: number } = {},
   ) {
     super(message);
     this.name = 'ApiError';
     this.status = options.status ?? HTTP_STATUS_BY_CODE[code];
     this.fieldErrors = options.fieldErrors && Object.keys(options.fieldErrors).length > 0 ? options.fieldErrors : undefined;
+    this.retryAfterSeconds = options.retryAfterSeconds;
   }
 
   toBody(): { code: ServerErrorCode; message: string; fieldErrors?: FieldErrors } {
@@ -85,8 +88,8 @@ export class ApiError extends Error {
     return new ApiError(code, message, { fieldErrors });
   }
 
-  static rateLimited(message = 'Too many requests, please try again later'): ApiError {
-    return new ApiError('RATE_LIMITED', message);
+  static rateLimited(message = 'Too many requests, please try again later', retryAfterSeconds?: number): ApiError {
+    return new ApiError('RATE_LIMITED', message, { retryAfterSeconds });
   }
 
   /** A provider is not configured or unreachable (503 with the generic `SERVER_ERROR` code). */

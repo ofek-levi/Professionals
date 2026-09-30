@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 
 import { EmptyState, ErrorState, Screen, Skeleton, useNow } from '@/components/ui';
 import { getProfessionalOfferActions, isOfferActive } from '@/features/offers/offer-status-machine';
-import { isRequestOpenForOffers } from '@/features/requests/request-matching';
+import { requestAcceptsOffers } from '@/features/requests/request-status-machine';
 import { useOffer, useOwnProfessionalProfile, useRequest, useRouteParam } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
@@ -101,7 +101,7 @@ export default function SubmitOfferScreen() {
         </Screen>
       );
     }
-    if (!isRequestOpenForOffers(request)) {
+    if (!requestAcceptsOffers(request.status)) {
       return (
         <Screen edges={['left', 'right', 'bottom']}>
           {header}

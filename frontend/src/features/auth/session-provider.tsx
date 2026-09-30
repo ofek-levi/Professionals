@@ -4,7 +4,8 @@
  * - `useSession()` reads the persisted session store (`services/auth/session-store`).
  * - `SessionProvider` starts the session lifecycle (cache reset and realtime connection on every
  *   identity change). Mount it once inside `QueryClientProvider`.
- * - `useAuthActions()` signs out.
+ * - `useAuthActions()` signs out: realtime closed first, the session ended locally at once, then
+ *   the server logout, queued until the server confirms it (`pendingLogouts`).
  * - `establishSession()` is the single sign-in path: the email / Google auth mutations
  *   (`hooks/mutations/use-auth-mutations.ts`) all go through it.
  */
@@ -14,14 +15,16 @@ import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { syncAccountLanguage } from '@/features/settings/account-language';
 import { i18n, isSupportedLanguage } from '@/i18n';
 import { api } from '@/services/api';
+import { createPendingLogouts } from '@/services/auth/pending-logouts';
 import { sessionStore, type SessionState } from '@/services/auth/session-store';
 import { realtimeClient } from '@/services/realtime';
 import type { AuthSession } from '@/types/api';
 
+import { startPendingLogoutRetries } from './pending-logout-retries';
 import { startSessionLifecycle } from './session-lifecycle';
 
-/** Longest signing out waits for the server's logout (offline, slow network). */
-const LOGOUT_TIMEOUT_MS = 5_000;
+/** Server sign-outs not confirmed yet (offline, slow server), sent again until they are. */
+export const pendingLogouts = createPendingLogouts({ logout: (refreshToken) => api.auth.logout({ refreshToken }) });
 
 /** The current session: `{ status, userId, role }`. Re-renders on change. */
 export function useSession(): SessionState {
@@ -32,28 +35,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   useEffect(() => startSessionLifecycle({ store: sessionStore, queryClient, realtime: realtimeClient }), [queryClient]);
+  useEffect(() => startPendingLogoutRetries({ queue: pendingLogouts, store: sessionStore }), []);
 
   return <>{children}</>;
 }
 
 interface AuthActions {
-  /** Signs out (best-effort server logout, then local sign out). */
+  /**
+   * Signs out on this device at once (resolves then) and ends the session on the server in the
+   * background (`POST /auth/logout`, retried later when it fails).
+   */
   signOut: () => Promise<void>;
-}
-
-/** `POST /auth/logout` with the session's refresh token, bounded in time; failures are ignored. */
-async function logoutQuietly(): Promise<void> {
-  const refreshToken = sessionStore.getTokens()?.refreshToken;
-  if (!refreshToken) return;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), LOGOUT_TIMEOUT_MS);
-  try {
-    await api.auth.logout({ refreshToken }, controller.signal);
-  } catch {
-    // The local session is cleared regardless (e.g. offline); the refresh token expires unused.
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 /**
@@ -69,8 +61,23 @@ export async function establishSession(session: AuthSession): Promise<void> {
 
 const authActions: AuthActions = {
   async signOut() {
-    await logoutQuietly();
-    await sessionStore.signOut();
+    // Closed first: ending the session, the server closes its sockets (4001), which the realtime
+    // client would otherwise take for an expired token and answer with a refresh of the refresh
+    // token just revoked.
+    realtimeClient.disconnect();
+    const refreshToken = sessionStore.getTokens()?.refreshToken;
+    // Queued (persisted) before the local sign-out, so the server logout survives the app being
+    // closed right after.
+    if (refreshToken) await pendingLogouts.add(refreshToken);
+    try {
+      await sessionStore.signOut();
+    } catch (error) {
+      // Still signed in (the local sign-out failed): keep the session and its live updates.
+      if (refreshToken) await pendingLogouts.discard(refreshToken);
+      if (sessionStore.getState().status === 'signedIn') realtimeClient.connect();
+      throw error;
+    }
+    void pendingLogouts.flush();
   },
 };
 

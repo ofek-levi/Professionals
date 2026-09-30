@@ -6,10 +6,12 @@
  * replace the auth screens with the role's home. The calling screen unmounts right after: read
  * the result from `mutateAsync()` (or hook-level callbacks) rather than per-call `mutate` callbacks.
  */
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { pendingGoogleSignUpStore } from '@/features/auth/pending-google-sign-up';
 import { establishSession } from '@/features/auth/session-provider';
+import { queryKeys } from '@/hooks/queries/query-keys';
+import { useQueryScope } from '@/hooks/queries/query-scope';
 import { api } from '@/services/api';
 import type { AuthSession, GoogleAuthResponse, LoginRequest, PasswordResetRequest, RegisterRequest, SuccessResponse } from '@/types/api';
 
@@ -57,6 +59,19 @@ export function useGoogleAuth() {
         pendingGoogleSignUpStore.set({ idToken, profile: response.profile });
       }
       return response;
+    },
+  });
+}
+
+/** `POST /auth/verify-email/resend` – a new verification link; `/me` is refetched (it may be verified by now). */
+export function useResendVerificationEmail() {
+  const qc = useQueryClient();
+  const { userId } = useQueryScope();
+  return useMutation<SuccessResponse, Error, void>({
+    mutationKey: ['auth', 'verify-email-resend'],
+    mutationFn: () => api.auth.resendVerificationEmail(),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.auth.me(userId) });
     },
   });
 }

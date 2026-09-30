@@ -82,6 +82,16 @@ describe('query plans of deep cursor pages', () => {
         .expect(200),
     );
     expectIndexBoundedPage(unread, 'notifications', 22);
+
+    // The app's Updates list: chat notifications left out, same index and bounds.
+    const updates = await profiled(() =>
+      request(app)
+        .get('/v1/notifications')
+        .query({ excludeTypes: 'new_message', limit: 20, cursor: encodeCursor({ values: [deep.createdAt, deep._id], totalCount: FILLER }) })
+        .set(me.headers)
+        .expect(200),
+    );
+    expectIndexBoundedPage(updates, 'notifications', 22);
   });
 
   it('chat messages ("load older")', async () => {

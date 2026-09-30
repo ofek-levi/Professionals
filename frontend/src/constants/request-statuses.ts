@@ -30,6 +30,11 @@ export const REQUEST_STATUS_META: Record<RequestStatus, RequestStatusMeta> = {
   cancelled: { acceptsOffers: false },
 };
 
+/** Rules of `status`; an unknown (newer) status accepts no offers (no offer actions shown). */
+export function requestStatusMeta(status: RequestStatus): RequestStatusMeta {
+  return (REQUEST_STATUS_META as Partial<Record<string, RequestStatusMeta>>)[status] ?? { acceptsOffers: false };
+}
+
 /**
  * Customer "My requests" sections. Each request belongs to exactly one section.
  * `awaiting_offers` = open with no offers yet, `has_offers` = offers waiting for a decision.

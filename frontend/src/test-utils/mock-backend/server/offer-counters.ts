@@ -1,4 +1,4 @@
-/** Aggregates over a request's offers (denormalized onto requests and customer views). */
+/** Aggregates over a request's offers, denormalized onto requests and customer views (the backend keeps these counters itself). */
 import type { ISODateTimeString, Offer } from '@/types/domain';
 
 interface RequestOfferStats {

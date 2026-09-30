@@ -17,24 +17,27 @@ for push notifications, Google id tokens for "Sign in with Google".
 
 ## Run it locally
 
-Requirements: Node ≥ 22.12, Docker (for MongoDB and Redis).
+Requirements: Node ≥ 22.12 (the app in `../frontend` needs 22.13 or newer), Docker (for MongoDB and Redis).
 
 ```bash
 # 1. MongoDB as a single-member replica set (transactions need a replica set) + Redis
 #    (or, from the repository root: docker compose up -d --wait)
 docker run -d --name pro-mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+# mongod needs a few seconds before it accepts connections: wait for it, then initiate the replica set
+until docker exec pro-mongo mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' >/dev/null 2>&1; do sleep 1; done
 docker exec pro-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
 docker run -d --name pro-redis -p 6379:6379 redis:7
 
 # 2. The API
 cd backend
-cp .env.example .env        # set JWT_ACCESS_SECRET (openssl rand -base64 48); the rest can stay empty
+cp .env.example .env        # starts as is; set your own JWT_ACCESS_SECRET (openssl rand -base64 48)
 npm install
 npm run dev                 # http://localhost:4000 (restarts on changes)
 ```
 
 Check it: `curl localhost:4000/ready` → `{"status":"ready",…}`; the API is under
-`http://localhost:4000/v1` and the WebSocket at `ws://localhost:4000/v1/realtime?token=<access token>`.
+`http://localhost:4000/v1` and the WebSocket at `ws://localhost:4000/v1/realtime` (access token in the
+`bearer.<token>` subprotocol, see docs/API.md).
 The app targets `http://localhost:4000/v1` by default; on a phone set
 `EXPO_PUBLIC_API_BASE_URL=http://<your LAN IP>:4000/v1` (a phone cannot reach `localhost` of your
 computer; see [`frontend/README.md`](../frontend/README.md#quick-start)).

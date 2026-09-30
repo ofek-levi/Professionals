@@ -32,7 +32,7 @@ export default function ProfessionalAccountScreen() {
   const rating = profile?.stats.averageRating ?? null;
 
   return (
-    <Screen gap="xxl" refreshing={query.isRefetching} onRefresh={() => void query.refetch()} testID="pro-account-screen">
+    <Screen gap="xxl" onRefresh={() => query.refetch()} testID="pro-account-screen">
       <ScreenHeader title={t('common:tabs.profile')} />
       {profile ? (
         <AccountHeader

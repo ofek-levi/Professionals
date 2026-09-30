@@ -2,10 +2,10 @@
  * Helpers used to write the seed scenarios: a clock relative to the seed "now" and thin wrappers
  * around the factories that insert rows into the database.
  */
-import { computeRequestOfferStats } from '@/features/offers/offer-counters';
+import { computeRequestOfferStats } from '../server/offer-counters';
 import { validateOfferAgainstRequest } from '@/features/offers/offer-rules';
 import { findNextWorkingSlot } from '@/features/profiles/availability';
-import { distanceFromServiceAreaKm } from '@/features/requests/request-matching';
+import { distanceFromServiceAreaKm } from '../server/request-matching';
 import { requestStatusForPendingOffers } from '@/features/requests/request-status-machine';
 import type { NotificationInput } from '../server/notification-factory';
 import type { ISODateString, ISODateTimeString, RequestPhoto, ServiceLocation, ServiceRequest } from '@/types/domain';

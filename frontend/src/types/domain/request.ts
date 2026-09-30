@@ -95,4 +95,9 @@ export interface CustomerRequestView extends ServiceRequest {
   latestOfferAt: ISODateTimeString | null;
   /** Lowest pending/accepted offer price, if any. */
   lowestOfferPrice: number | null;
+  /**
+   * Professionals notified when the request was published (their services and area cover it);
+   * `0` = nobody covers it there yet, `null` for drafts and right after publishing (being counted).
+   */
+  matchedProfessionalCount: number | null;
 }

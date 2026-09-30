@@ -120,8 +120,12 @@ stranger lock its owner out (see the notes below the table).
 | `POST /conversations/:id/messages` | 60 / min per user |
 
 - **Only failed sign-ins count**, so the owner's correct password never uses a budget up. The strict
-  budget is per (email, IP); the account-wide one skips IPs the owner signed in from, and a password
-  reset (which proves the mailbox) clears it. Google sign-in and existing sessions are never affected.
+  budget is per (email, IP); the account-wide one skips IPs the owner signed in from. A password
+  reset (which proves the mailbox) clears the account-wide budget and the (email, IP) one of the IP
+  the reset was completed from, so an owner blocked on their own phone who resets the password there
+  signs in right away. Google sign-in and existing sessions are never affected.
+  A blocked sign-in (also with the right password) answers 429 with `Retry-After` = the seconds left
+  in the blocking 15-minute window; the app says when to try again and offers "Forgot password?".
 - **Reset emails**: a new reset link does not invalidate the earlier ones (each stays valid for its hour
   until one is used), so someone requesting resets for another person's address can neither block nor
   break the owner's reset.
@@ -146,7 +150,10 @@ OPERATIONS.md); `true` is refused, since it would let any client choose the IP t
 
 ### Realtime (WebSocket)
 
-`ws(s)://<host>/v1/realtime?token=<access token>`, on the same server and port as the API.
+`ws(s)://<host>/v1/realtime`, on the same server and port as the API. The app offers two WebSocket
+subprotocols, `professionals.v1` and `bearer.<access token>`; the server selects `professionals.v1`
+(the token is never echoed back). `?token=<access token>` is still accepted for app versions released
+before this change, but it puts the token in the URL (access logs: OPERATIONS.md §4).
 
 - The token is checked on connect: missing, invalid, expired or revoked → close code **4001**. An open
   socket is closed with **4001** when its token expires (the app refreshes and reconnects) and when its
@@ -171,8 +178,10 @@ OPERATIONS.md); `true` is refused, since it would let any client choose the IP t
 
 The server implements every call in `frontend/src/services/api/endpoints/*` except the demo ones
 (`GET /auth/demo-accounts`, `POST /auth/demo-login`). `npm run typecheck` includes a compile-time
-check (`test/contract/frontend-contract.check.ts`) that every response DTO is assignable to the app's
-type and every app payload is accepted by the server's schema. These are the differences the app's
+check (`test/contract/frontend-contract.check.ts`, also run by `.github/workflows/ci.yml`) that every
+response DTO (including `POST /auth/refresh`, `/customer/profile` and the push `data`, `PushData`) is
+assignable to the app's type, every app payload is accepted by the server's schema, and every query
+parameter the app sends (`WireQueries`, by wire name) is read by the server's query schema. These are the differences the app's
 next phase has to adopt (details in each module's section):
 
 | Area | Change | App change needed |
@@ -196,7 +205,7 @@ Public endpoints (no `Authorization` needed) under `/v1/auth`. Source: `src/modu
 ### Tokens and sessions
 
 - **Access token**: JWT (HS256), valid **30 minutes**, sent as `Authorization: Bearer <token>` (and as
-  `?token=` for `/v1/realtime`). Claims: `sub` (user id), `role`, `sid` (session id), `typ: "access"`,
+  the `bearer.<token>` subprotocol for `/v1/realtime`; older apps: `?token=`). Claims: `sub` (user id), `role`, `sid` (session id), `typ: "access"`,
   `iss`, `aud`. It is verified without a database hit; one Redis lookup refuses tokens of sessions that
   were signed out or revoked, so revocation takes effect immediately (the denylist entry outlives the
   longest remaining access token: 31 minutes).
@@ -211,11 +220,14 @@ Public endpoints (no `Authorization` needed) under `/v1/auth`. Source: `src/modu
   the whole session is revoked (and its push devices removed) and the answer is 401. A thief who
   refreshes a stolen token (even several times) is cut off as soon as the owner's app presents its
   own token. A forged token naming someone's session is simply refused (401) and revokes nothing.
-- **Concurrent refresh / lost response**: presenting the token the last refresh replaced, within 30
-  seconds of that refresh, answers 200 again with the **same** new refresh token (and a fresh access
-  token). Two tabs refreshing at once, or a retry after a lost response, therefore end up with one
-  token, never two diverging ones. Clients should still refresh one at a time and store the new token
-  before using it.
+- **Concurrent refresh / lost response**: presenting the token the last refresh replaced, while the
+  token that refresh issued has **not been used yet** and at most 30 minutes (an access token's
+  lifetime) after that refresh, answers 200 again with the **same** new refresh token (and a fresh
+  access token). Two tabs refreshing at once, or a retry after a response that never arrived (a
+  network that dropped mid-response, the app suspended or killed during the refresh, then offline for
+  a while), therefore end up with one token, never two diverging ones, and no false theft alarm. Once
+  the new token has been used, or after 30 minutes, the old one is a replay (above). Clients should
+  still refresh one at a time and store the new token before using it.
 - One session per sign-in (per device). Signing out deletes it; a password reset, or the first Google
   link of a password account, deletes all sessions of the account.
 
@@ -230,6 +242,7 @@ Public endpoints (no `Authorization` needed) under `/v1/auth`. Source: `src/modu
 | 5 | `GET /auth/demo-accounts`, `POST /auth/demo-login` do not exist. | Demo UI already hides itself in `http` mode. |
 | 6 | New server pages `GET`/`POST /auth/verify-email`, `GET`/`POST /auth/reset-password` (opened from emails, not by the app). | None. |
 | 7 | Refresh tokens are 91 characters (`<session>.<secret>.<signature>`), still opaque. | None (store and send as received). |
+| 8 | `GET /me` adds `emailVerified`; new `POST /auth/verify-email/resend` (signed in). | Settings shows "Verify your email" with a resend button under "Email updates" while it is `false`. |
 
 ### `POST /auth/register` → 201 `AuthSession`
 
@@ -286,8 +299,8 @@ Errors: 400 without `idToken`, 401 `INVALID_GOOGLE_TOKEN`, 503 when Google is no
 ### `POST /auth/refresh` → 200 `{ accessToken, accessTokenExpiresAt, refreshToken }`
 
 Body `{ refreshToken }`. 401 `UNAUTHORIZED` for an unknown, expired, revoked, forged or replayed token
-(see reuse detection; the replay of the just-replaced token within 30 s answers 200 with the same new
-token); 400 without a token; 429 over 30/15 min per session or 3000/15 min per IP.
+(see reuse detection; the replay of the just-replaced token, while its successor is unused and within
+30 min, answers 200 with the same new token); 400 without a token; 429 over 30/15 min per session or 3000/15 min per IP.
 
 ### `POST /auth/logout` → 200 `{ success: true }`
 
@@ -304,6 +317,12 @@ does **not** invalidate the earlier ones (a stranger requesting resets for the a
 the link its owner is about to open); a successful reset ends them all. At most 3 emails per address
 and hour: past that the answer is still 200 and nothing is sent (the links already sent stay valid).
 Google-only accounts can set a password this way. 400 for an invalid email; 429 over 30/h per IP.
+
+### `POST /auth/verify-email/resend` → 200 `{ success: true }` (signed in)
+
+Sends a new verification link to the caller's address (the sign-up link expires after 48 h), in the
+account's language; nothing is sent when the address is already verified (same answer; the app
+refetches `/me`). 401 without a valid access token; 429 over 3/h per user.
 
 ### Email link pages (server-rendered HTML, en/he, RTL for Hebrew, `Cache-Control: no-store`)
 
@@ -333,7 +352,10 @@ Authenticated (`Authorization: Bearer`). Source: `src/modules/users`.
 
 ### `GET /me` → 200 `CurrentUserResponse`
 
-`{ user, customerProfile, professionalProfile }` exactly as the app's type: customers get
+`{ user, emailVerified, customerProfile, professionalProfile }` exactly as the app's type
+(`emailVerified`: the sign-in address was confirmed by its verification link, a password reset link or
+Google; "Email updates" only go
+to confirmed addresses, so the app asks to verify under that toggle): customers get
 `customerProfile` (default location, `savedLocations: []`, notification preferences, stats counted from
 requests/jobs), professionals the complete own `professionalProfile` (`user.displayName` = profile
 display name). 401 when the token is missing/invalid/expired or the account no longer exists; 404 if a
@@ -349,7 +371,9 @@ Notification preferences stay on `PATCH /customer/profile` / `PATCH /professiona
 
 Body `{ pushToken, platform: 'ios' | 'android' | 'web' }` (`RegisterDeviceRequest`). Upserts the token:
 a token registered by another account moves to the caller (shared phone); concurrent registrations are
-safe. The device is tied to the caller's session and removed when that session signs out or is revoked.
+safe. The device is tied to the caller's session and removed when that session signs out or is revoked;
+a session that ends otherwise (90 days without a refresh, a sign-out that never reached the server)
+gets no more pushes: fan-out skips and deletes devices whose session is gone.
 400 `fieldErrors.pushToken = ["validation:invalid"]` when it is not an Expo push token
 (`ExponentPushToken[…]`): the app's simulated provider (`simulated:*`) must not register in `http` mode,
 and web (no Expo push) should not register at all.
@@ -382,7 +406,8 @@ booleans). Response as `GET`. Errors: 400 `VALIDATION_ERROR` (e.g. `defaultLocat
 ### `PATCH /professional/profile` — professional
 Body `UpdateProfessionalProfilePayload` (every field optional), the rules of the app's
 `updateProfessionalProfileSchema`: `fullName` (2+ words, ≤ 60), `displayName` (≤ 60), `headline`
-(≤ 80), `bio` (30–1000), `categoryIds` (1–10 catalog ids, de-duplicated), `yearsOfExperience`
+(≤ 80, may be empty), `bio` (empty or 30–1000: sign-up asks for neither, the public profile hides
+them while empty), `categoryIds` (1–10 catalog ids, de-duplicated), `yearsOfExperience`
 (integer 0–60), `serviceArea` (`center`, `radiusKm` 3–80, `label`), `baseLocation` (or `null`),
 `availability` (times `HH:mm` on enabled days, end after start, at least one working day),
 `contact` (`phone`, `email` lower-cased, `website` stored with `https://`), `business`
@@ -482,6 +507,7 @@ default 20, max 100; bad values → 400 `fieldErrors.cursor` / `fieldErrors.limi
 | 4 | New limit: 60 messages per minute per user → 429 `RATE_LIMITED`. | Keep the failed message in the composer (already the case for any error). |
 | 5 | New `GET /conversations/unread-count` → `{ count }` (unread messages over all conversations). | `useInboxCounts` takes `messages` from it (refetched on `message.created` / `conversation.read`) instead of summing the list. |
 | 6 | "Email updates" (`emailEnabled`) now sends notification emails, to verified addresses only, throttled (see [Email updates](#email-updates-notificationpreferencesemailenabled)). | None (the toggle does what it says). |
+| 7 | `GET /notifications` and `GET /notifications/unread-count` take `?excludeTypes=` (addition). | The Updates list and its count send `excludeTypes=new_message`, so the server filters chat notifications instead of the app dropping them from loaded pages. |
 
 ### `GET /conversations?cursor=&limit=` → `Paginated<Conversation>`
 Most recent activity first (last message, else creation; ties by id), `totalCount` = all of the
@@ -533,13 +559,16 @@ readAt }` goes to both participants (the sender's double check, the reader's oth
 nothing unread → nothing changes, no event. The caller's own messages are never affected.
 Errors: 401, 403, 404.
 
-### `GET /notifications?unreadOnly=&cursor=&limit=` → `Paginated<AppNotification>`
+### `GET /notifications?unreadOnly=&excludeTypes=&cursor=&limit=` → `Paginated<AppNotification>`
 Newest first. `unreadOnly` = `true|false|1|0` (default `false`; anything else → 400
-`fieldErrors.unreadOnly`); `totalCount` counts the filtered set. Notifications are deleted 90 days after
-creation (TTL index). Errors: 400, 401.
+`fieldErrors.unreadOnly`). `excludeTypes` = comma-separated notification types to leave out (the app's
+Updates list sends `new_message`: chats have their own list, and filtering on the server keeps every
+page full); an unknown type → 400 `fieldErrors['excludeTypes.<i>']`. `totalCount` counts the filtered
+set. Notifications are deleted 90 days after creation (TTL index). Errors: 400, 401.
 
-### `GET /notifications/unread-count` → `{ count }`
-Unread notifications of the caller (indexed count). 401.
+### `GET /notifications/unread-count?excludeTypes=` → `{ count }`
+Unread notifications of the caller (indexed count), without the `excludeTypes` (as above; the app's
+Updates badge sends `new_message`). Errors: 400, 401.
 
 ### `POST /notifications/:notificationId/read` → `AppNotification`
 Sets `readAt` and returns the notification; an already read one is returned unchanged (idempotent).
@@ -566,7 +595,8 @@ the background (never delaying the response), sends push when `pushEnabled` and 
   in the app (inbox, push).
 
 ### Push (Expo)
-- Every device the recipient registered with `POST /me/devices` gets the notification, localized in the
+- Every device the recipient registered with `POST /me/devices` from a session that is still live gets
+  the notification (devices of ended sessions are deleted instead), localized in the
   user's language (en/he, the app's `notifications:types.*` texts; Latin names bidi-isolated in Hebrew),
   `sound: default`, `priority: high`, `data: { notificationId, notificationType, target }`.
 - Sent in chunks of 100 (Expo's limit; the SDK retries 429s). A failed chunk does not stop the others;
@@ -578,8 +608,10 @@ the background (never delaying the response), sends push when `pushEnabled` and 
   of 1000 (up to 50 000 per run), deletes `DeviceNotRegistered` tokens, logs the other receipt errors
   by type, drops answered tickets and purges tickets older than a day.
 
-### Realtime: `GET /v1/realtime?token=<access token>` (WebSocket)
-- Same HTTP server as the API. The access token is verified on connect: missing/invalid/expired, or of
+### Realtime: `GET /v1/realtime` (WebSocket)
+- Same HTTP server as the API. The access token comes from the `Sec-WebSocket-Protocol` header
+  (`professionals.v1, bearer.<access token>`; the server answers `professionals.v1`), or from `?token=`
+  (older apps). It is verified on connect: missing/invalid/expired, or of
   a revoked session → close **4001**; open sockets of a session are closed with **4001** when it is
   revoked; an open socket is closed with **4001** when its token expires (the app reconnects with a
   refreshed token). The token is never logged.
@@ -593,7 +625,9 @@ the background (never delaying the response), sends push when `pushEnabled` and 
 
 ### Inbox badge
 The app sums `Conversation.unreadCount` over the conversation list; with pagination only the loaded
-pages would count. Use `GET /conversations/unread-count` for the messages part of the badge instead.
+pages would count. Use `GET /conversations/unread-count` for the messages part of the badge instead,
+and `GET /notifications/unread-count?excludeTypes=new_message` for the updates part (a chat message
+also creates a `new_message` notification, which would otherwise count twice).
 
 ## Marketplace (requests, offers, jobs, reviews, dashboard)
 
@@ -636,10 +670,18 @@ Published: every matching professional (category + own service radius, haversine
 service-area center to the request's approximate pin) gets `new_matching_request` (`distanceKm`,
 customer short name) and `request.updated`. This fan-out runs right after the response (in the
 background), so the response never waits for it; a draft only emits `request.updated` to its owner.
+When the fan-out is done, the request stores how many professionals it notified
+(`CustomerRequestView.matchedProfessionalCount`, `null` until then and for drafts; `0` = no
+professional covers this category there yet) and the owner gets `request.updated` to refetch it.
+Idempotency: an optional `clientRequestId` (1–100 characters, one per form submission in the app)
+makes a repeated post (a retry after a lost or late response, a double tap) return the request the
+first one created (201, same body; nothing is created, claimed or notified again). The key is scoped
+to the customer; a new one creates a new request.
 
 #### `GET /requests/:requestId` — any role → `RequestDetailsResponse`
 - Owner customer: `{ viewerRole: 'customer', request: CustomerRequestView }` (`latestOfferAt` =
-  newest pending offer, `lowestOfferPrice` = lowest pending/accepted price). Another customer → 403.
+  newest pending offer, `lowestOfferPrice` = lowest pending/accepted price, `matchedProfessionalCount`
+  = professionals notified at publication, see `POST /requests`). Another customer → 403.
 - Professional: 404 for drafts; 403 unless the request matches their categories and service area or
   they sent an offer on it. `{ viewerRole: 'professional', request: ProfessionalRequestView }` with
   the privacy view until their offer is accepted: `location` approximate (deterministic 250–450 m
@@ -657,8 +699,9 @@ the photos (removed uploads are released for the orphan cleanup).
 Not a draft → 409 `CONFLICT`. Photos are released. `request.updated` to the owner.
 
 #### `POST /requests/:requestId/publish` — customer → `CustomerRequestView`
-`draft → open` (else 409 `INVALID_STATE_TRANSITION`); date rules re-checked on today's date;
-notifications as for a published create.
+`draft → open`; date rules re-checked on today's date; notifications as for a published create.
+Idempotent: an already `open` request is returned unchanged (a retry after a lost response); other
+statuses → 409 `INVALID_STATE_TRANSITION`.
 
 #### `POST /requests/:requestId/cancel` — customer → `CustomerRequestView`
 Body `{ reason: RequestCancellationReason, comment?: string | null }` (comment ≤ 300, empty →

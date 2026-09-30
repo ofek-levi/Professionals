@@ -9,7 +9,17 @@ export type PushPermissionStatus = 'granted' | 'denied' | 'undetermined';
 /** Platform value sent to `POST /me/devices`. */
 export type PushPlatform = 'ios' | 'android' | 'web';
 
-/** A tapped push notification: the server's `data` (`{ notificationId, notificationType, target }`). */
+/** The `data` object of every push the server sends (checked against the backend's `PushData`). */
+export interface PushData {
+  notificationId: string;
+  notificationType: NotificationType;
+  target: NotificationTarget;
+}
+
+/**
+ * A tapped push notification, parsed from its `data` (`PushData`); the id and type are `null` when
+ * missing or unknown to this app version.
+ */
 export interface PushTap {
   notificationId: string | null;
   notificationType: NotificationType | null;

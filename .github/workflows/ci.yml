@@ -1,0 +1,113 @@
+# Checks every push and pull request that touches the app or the server:
+#   backend   typecheck (including the contract check against the app's types, which needs the
+#             frontend's sources and packages), lint, the test suite against MongoDB (single-member
+#             replica set, for transactions) and Redis, and the production build
+#   frontend  typecheck, lint and the Jest suite (`npm run verify`)
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Start MongoDB (single-member replica set)
+        # Service containers cannot take mongod arguments (--replSet), so it runs as a plain container.
+        working-directory: .
+        run: |
+          docker run -d --name mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
+          for _ in $(seq 1 60); do
+            if docker exec mongo mongosh --quiet --eval 'db.runCommand({ ping: 1 }).ok' > /dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          docker exec mongo mongosh --quiet --eval 'rs.initiate({ _id: "rs0", members: [{ _id: 0, host: "127.0.0.1:27017" }] })'
+          for _ in $(seq 1 60); do
+            if [ "$(docker exec mongo mongosh --quiet --eval 'db.hello().isWritablePrimary')" = "true" ]; then exit 0; fi
+            sleep 1
+          done
+          echo "::error::MongoDB did not become primary"
+          exit 1
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          # The contract check compiles the app's types (frontend/src/types) with its packages.
+          npm ci --prefix ../frontend
+
+      - name: Typecheck (with the contract check)
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        env:
+          TEST_MONGODB_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
+          TEST_REDIS_URL: redis://127.0.0.1:6379
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: frontend
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck, lint and test
+        run: npm run verify

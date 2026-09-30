@@ -43,6 +43,7 @@ function request(overrides: Partial<CustomerRequestView> = {}): CustomerRequestV
     updatedAt: '2026-09-26T10:00:00.000Z',
     latestOfferAt: null,
     lowestOfferPrice: null,
+    matchedProfessionalCount: 2,
     ...overrides,
   };
 }

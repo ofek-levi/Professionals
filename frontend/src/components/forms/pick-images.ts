@@ -26,6 +26,7 @@ function toPickedPhoto(asset: ImagePicker.ImagePickerAsset): PickedPhoto {
     height: asset.height || null,
     mimeType: asset.mimeType ?? null,
     fileName: asset.fileName ?? null,
+    fileSize: asset.fileSize ?? null,
   };
 }
 

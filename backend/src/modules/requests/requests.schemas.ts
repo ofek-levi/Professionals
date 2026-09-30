@@ -54,13 +54,17 @@ const requestFields = {
   notes: nullableText(APP_CONFIG.notesMaxLength, vm('request.notesTooLong')),
 };
 
-/** `POST /requests` (`publish: false` saves a draft). */
+/**
+ * `POST /requests` (`publish: false` saves a draft). `clientRequestId` (optional) makes it
+ * idempotent: a retry with the same id returns the request the first attempt created.
+ */
 export const createRequestBody = z.object({
   ...requestFields,
   photoIds: photoIdsSchema.default([]),
   notes: requestFields.notes.default(null),
   preferredSchedule: requestFields.preferredSchedule.default(null),
   publish: z.boolean({ error: vm('invalid') }).default(true),
+  clientRequestId: z.string({ error: vm('invalid') }).trim().min(1, vm('invalid')).max(100, vm('invalid')).optional(),
 });
 export type CreateRequestInput = z.output<typeof createRequestBody>;
 

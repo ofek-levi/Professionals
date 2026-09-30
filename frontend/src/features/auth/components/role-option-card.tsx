@@ -34,7 +34,7 @@ export function RoleOptionCard({ role, selected, onSelect, testID }: RoleOptionC
     <Pressable
       accessibilityRole="radio"
       accessibilityLabel={`${title}, ${description}`}
-      accessibilityState={{ checked: selected }}
+      aria-checked={selected}
       onPress={() => {
         haptics.selection();
         onSelect(role);

@@ -24,6 +24,16 @@ export interface NotificationParams {
   distanceKm?: number;
 }
 
+/**
+ * The `data` object of every push notification (the app opens `target` when it is tapped). A type
+ * alias, not an interface: push payloads are plain JSON records (`Record<string, unknown>`).
+ */
+export type PushData = {
+  notificationId: EntityId;
+  notificationType: NotificationType;
+  target: NotificationTarget;
+};
+
 export interface AppNotification {
   id: EntityId;
   userId: EntityId;

@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RatingSummary, ReviewCard } from '@/components/professionals';
-import { Card, EmptyState, ErrorState, Screen, Skeleton, SkeletonCard } from '@/components/ui';
+import { Card, EmptyState, ErrorState, Screen, Skeleton, SkeletonCard, usePullToRefresh } from '@/components/ui';
 import { useProfessionalProfile, useProfessionalReviews, useRefetchOnFocus, useRouteParam } from '@/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import { isolateText } from '@/utils/bidi';
@@ -21,6 +21,7 @@ export default function ProfessionalReviewsScreen() {
   const professionalId = useRouteParam('professionalId');
   const query = useProfessionalReviews(professionalId);
   const profileQuery = useProfessionalProfile(professionalId);
+  const pull = usePullToRefresh(() => Promise.all([query.refetch(), profileQuery.refetch()]));
   useRefetchOnFocus(query.refetch);
 
   const professional = profileQuery.data;
@@ -91,11 +92,8 @@ export default function ProfessionalReviewsScreen() {
         }}
         refreshControl={
           <RefreshControl
-            refreshing={query.isRefetching && !query.isFetchingNextPage}
-            onRefresh={() => {
-              void query.refetch();
-              void profileQuery.refetch();
-            }}
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
             tintColor={theme.colors.primary}
             colors={[theme.colors.primary]}
           />

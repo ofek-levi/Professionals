@@ -153,8 +153,8 @@ export function DayTiles({ options, value, onChange, now, testID }: DayTilesProp
             key={option.date}
             accessibilityRole="radio"
             accessibilityLabel={`${top}, ${format.date(day, 'long')}`}
-            accessibilityState={{ checked: selected, disabled: option.disabled }}
             aria-checked={selected}
+            aria-disabled={option.disabled}
             disabled={option.disabled}
             onPress={() => {
               haptics.selection();
@@ -236,7 +236,6 @@ export function TimeGrid({ times, value, onChange, testID }: TimeGridProps) {
               <Pressable
                 accessibilityRole="radio"
                 accessibilityLabel={time}
-                accessibilityState={{ checked: selected }}
                 aria-checked={selected}
                 onPress={() => {
                   haptics.selection();

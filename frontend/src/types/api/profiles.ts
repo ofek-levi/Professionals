@@ -1,11 +1,13 @@
 import type {
   CategoryId,
   CurrencyCode,
+  CustomerProfile,
   NotificationPreferences,
   ProfessionalBusinessInfo,
   ProfessionalContact,
   ServiceArea,
   ServiceLocation,
+  User,
   WeeklyAvailability,
 } from '../domain';
 import type { PaginationParams } from './common';
@@ -26,6 +28,12 @@ export interface UpdateProfessionalProfilePayload {
   business?: ProfessionalBusinessInfo;
   startingPrice?: { amount: number; currency: CurrencyCode } | null;
   notificationPreferences?: NotificationPreferences;
+}
+
+/** `GET` and `PATCH /customer/profile` */
+export interface CustomerProfileResponse {
+  user: User;
+  profile: CustomerProfile;
 }
 
 /** `PATCH /customer/profile` */

@@ -13,6 +13,9 @@ const NOTIFICATION_PREFERENCE_KEYS: Record<UserRole, readonly NotificationPrefer
 
 interface NotificationPreferencesState {
   preferences: NotificationPreferences | null;
+  /** The sign-in address, and whether it is verified (email updates only reach verified ones). */
+  email: string | null;
+  emailVerified: boolean | null;
   keys: readonly NotificationPreferenceKey[];
   isLoading: boolean;
   error: unknown;
@@ -64,6 +67,8 @@ export function useNotificationPreferences(): NotificationPreferencesState {
 
   return {
     preferences,
+    email: data?.user.email ?? null,
+    emailVerified: data?.emailVerified ?? null,
     keys: role ? NOTIFICATION_PREFERENCE_KEYS[role] : [],
     isLoading: currentUser.isPending,
     error: currentUser.error,

@@ -10,7 +10,7 @@ export { useOffer, useProfessionalOffers, useRequestOffers, type OfferDetails } 
 export { useJob, useJobs } from './use-job-queries';
 export { useOwnProfessionalProfile, useProfessionalProfile, useProfessionalReviews } from './use-professional-queries';
 export { useCustomerProfile } from './use-customer-queries';
-export { useNotifications, useUnreadNotificationsCount } from './use-notification-queries';
+export { useUnreadNotificationsCount, useUpdateNotifications } from './use-notification-queries';
 export { useConversation, useConversationMessages, useConversations, useUnreadMessagesCount } from './use-conversation-queries';
 export { useRefetchOnFocus } from './use-refetch-on-focus';
 export { useCategoryLookup } from './use-category-catalog';

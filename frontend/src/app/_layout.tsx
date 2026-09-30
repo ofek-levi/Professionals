@@ -1,5 +1,5 @@
 import { isRunningInExpoGo } from 'expo';
-import { Stack } from 'expo-router';
+import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { useSession } from '@/features/auth/session-provider';
 import { installBrowserBackInterceptor } from '@/features/auth/use-browser-back';
 import { AppProviders, buildStackScreenOptions, renderHeaderHomeButton, useAppBootstrap } from '@/providers';
+import { AppErrorBoundary } from '@/providers/app-error-boundary';
 import { completeGoogleAuthRedirect } from '@/services/auth/google-auth';
 import { useTheme } from '@/theme';
 
@@ -20,6 +21,11 @@ installBrowserBackInterceptor();
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 // Custom splash options only apply to development/production builds (Expo Go warns).
 if (!isRunningInExpoGo()) SplashScreen.setOptions({ fade: true, duration: 250 });
+
+/** A screen that throws while rendering shows a retry screen instead of taking the app down. */
+export function ErrorBoundary(props: ErrorBoundaryProps) {
+  return <AppErrorBoundary {...props} />;
+}
 
 export default function RootLayout() {
   const ready = useAppBootstrap();

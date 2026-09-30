@@ -50,11 +50,7 @@ export default function ProfessionalProfileScreen() {
     <Screen
       edges={['left', 'right', 'bottom']}
       gap="xxxl"
-      refreshing={profileQuery.isRefetching}
-      onRefresh={() => {
-        void profileQuery.refetch();
-        void reviewsQuery.refetch();
-      }}
+      onRefresh={() => Promise.all([profileQuery.refetch(), reviewsQuery.refetch()])}
       testID="professional-profile"
     >
       {/* The large name below is the title; the header stays empty (the name still names the page). */}

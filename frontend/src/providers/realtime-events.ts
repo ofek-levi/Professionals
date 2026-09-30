@@ -5,13 +5,14 @@
  */
 import type { QueryClient } from '@tanstack/react-query';
 
-import { NOTIFICATION_TYPE_META } from '@/constants/notification-types';
+import { isUpdateNotificationType, notificationTypeMeta } from '@/constants/notification-types';
 import {
   adjustUnreadCount,
   applyMessageToConversation,
   mapPaginatedItems,
   markConversationRead,
   markMessagesReadBy,
+  notificationListShows,
   prependNotification,
   upsertMessage,
 } from '@/hooks/mutations/cache-updates';
@@ -38,10 +39,12 @@ export function applyRealtimeEvent(qc: CacheClient, userId: string, event: Realt
     case 'notification.created': {
       const { notification } = event;
       if (notification.userId !== userId) return;
-      qc.setQueriesData<PaginatedInfiniteData<AppNotification>>({ queryKey: queryKeys.notifications.lists(userId) }, (data) =>
-        prependNotification(data, notification),
+      qc.setQueriesData<PaginatedInfiniteData<AppNotification>>(
+        { queryKey: queryKeys.notifications.lists(userId), predicate: (query) => notificationListShows(query.queryKey, notification) },
+        (data) => prependNotification(data, notification),
       );
-      if (notification.readAt === null) {
+      // The cached count is of Updates: a chat notification counts under Messages.
+      if (notification.readAt === null && isUpdateNotificationType(notification.type)) {
         qc.setQueryData<UnreadCountResponse>(queryKeys.notifications.unreadCount(userId), (data) => adjustUnreadCount(data, 1));
       }
       void invalidateNotifications(qc, userId);
@@ -103,7 +106,9 @@ interface BannerContext {
 export function shouldPresentBanner(notification: Pick<AppNotification, 'type' | 'target' | 'readAt'>, context: BannerContext): boolean {
   if (notification.readAt !== null) return false;
   const { preferences } = context;
-  if (preferences && (!preferences.pushEnabled || !preferences[NOTIFICATION_TYPE_META[notification.type].preference])) {
+  // A type this app version does not know follows only the push switch.
+  const preference = notificationTypeMeta(notification.type)?.preference;
+  if (preferences && (!preferences.pushEnabled || (preference !== undefined && !preferences[preference]))) {
     return false;
   }
   if (

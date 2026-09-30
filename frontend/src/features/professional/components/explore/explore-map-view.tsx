@@ -152,7 +152,7 @@ export function ExploreMapView({ serviceArea, params, maxDistanceKm, hasFilters,
               label={hasFilters ? t('explore:empty.clearFilters') : t('explore:empty.expandArea')}
               size="sm"
               variant="secondary"
-              onPress={hasFilters ? onClearFilters : () => router.push(routes.editProfile)}
+              onPress={hasFilters ? onClearFilters : () => router.push(routes.editServiceArea)}
               style={styles.centered}
             />
             {hasFilters ? (

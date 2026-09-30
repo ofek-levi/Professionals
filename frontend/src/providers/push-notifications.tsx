@@ -3,7 +3,8 @@
  * - registers this device (`POST /me/devices`) while the account has push on
  *   (`notificationPreferences.pushEnabled`), asking for permission a moment after sign-in, when
  *   the home screen is up (never on the entry screens), and again whenever the OS issues a new
- *   token. Signing out needs nothing: the server's logout removes the session's devices;
+ *   token. Signing out needs nothing more: the server's logout (queued until the server confirms
+ *   it) removes the session's devices, and the server never pushes to a device whose session ended;
  * - a tapped notification (also the one that launched the app) is marked read and opens its
  *   target, like a tap in the inbox.
  *

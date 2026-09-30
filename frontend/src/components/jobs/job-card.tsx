@@ -1,7 +1,7 @@
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { JOB_STATUS_META, type JobStatus } from '@/constants/job-statuses';
+import { jobStatusMeta, type JobStatus } from '@/constants/job-statuses';
 import { useCategoryName, useFormatters } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { Job, JobSummary, UserRole } from '@/types/domain';
@@ -15,7 +15,7 @@ import { Skeleton } from '../ui/skeleton';
 /** Job execution status as a small text pill (`common:jobStatus.<status>`). */
 function JobStatusBadge({ status }: { status: JobStatus }) {
   const { t } = useTranslation('common');
-  return <Badge label={t(`jobStatus.${status}`)} tone={JOB_STATUS_META[status].tone} size="sm" testID={`job-status-${status}`} />;
+  return <Badge label={t(`jobStatus.${status}`)} tone={jobStatusMeta(status).tone} size="sm" testID={`job-status-${status}`} />;
 }
 
 interface JobWhen {

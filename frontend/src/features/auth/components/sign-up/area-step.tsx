@@ -53,7 +53,7 @@ export function AreaStep({ control, anchor }: SignUpStepProps) {
                 <Pressable
                   key={km}
                   accessibilityRole="radio"
-                  accessibilityState={{ checked: selected }}
+                  aria-checked={selected}
                   onPress={() => {
                     haptics.selection();
                     radius.field.onChange(km);

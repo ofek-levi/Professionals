@@ -57,8 +57,9 @@ export function MapRequestPreview({ request, onOpen }: MapRequestPreviewProps) {
         <AppText variant="caption" color="muted" numberOfLines={1} style={styles.shrink}>
           {meta}
         </AppText>
-        {isTimeCriticalUrgency(request.urgency) ? <UrgencyBadge level={request.urgency} size="sm" /> : null}
-        {offered ? <Badge label={offered} tone="brand" size="sm" /> : null}
+        {/* Badges align to the start of their parent by default: centered in this row, next to the button. */}
+        {isTimeCriticalUrgency(request.urgency) ? <UrgencyBadge level={request.urgency} size="sm" style={styles.centered} /> : null}
+        {offered ? <Badge label={offered} tone="brand" size="sm" style={styles.centered} /> : null}
         <View style={styles.flex} />
         <Button label={t('explore:preview.view')} size="sm" onPress={onOpen} testID="explore-map-preview-open" />
       </View>
@@ -90,6 +91,9 @@ const useStyles = makeStyles((t) => ({
   },
   shrink: {
     flexShrink: 1,
+  },
+  centered: {
+    alignSelf: 'center',
   },
   footer: {
     flexDirection: 'row',

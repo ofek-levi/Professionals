@@ -6,8 +6,11 @@
  *   share one carrier IP (CGNAT);
  * - per account from all IPs (50): distributed guessing. A stranger with several IPs could fill
  *   it, so it does not apply to an IP that signed in to this account successfully in the last 30
- *   days, and a password reset (which proves the mailbox) clears it.
+ *   days, and a password reset (which proves the mailbox) clears it, together with the account + IP
+ *   block of the network the reset was made from (usually the phone that got blocked).
  * The address is hashed in Redis keys. A Redis failure lets sign-ins through (as the rate limiter).
+ * A blocked attempt answers 429 with `Retry-After` = when the blocking window ends, so the app can
+ * say "try again in N minutes" (and offer a password reset, which ends the account-wide block).
  */
 import type { AppDeps } from '../../deps.js';
 import { fixedWindowTotal, hitFixedWindow } from '../../infra/fixed-window.js';
@@ -66,11 +69,16 @@ export async function assertLoginAllowed(deps: ThrottleDeps, attempt: LoginAttem
       fixedWindowTotal(deps.redis, keys.account),
       deps.redis.exists(keys.known),
     ]);
-    const blocked =
-      accountAndIp >= LOGIN_THROTTLE.failuresPerAccountAndIp ||
-      ip >= LOGIN_THROTTLE.failuresPerIp ||
-      (account >= LOGIN_THROTTLE.failuresPerAccount && known === 0);
-    if (blocked) throw ApiError.rateLimited('Too many failed sign-in attempts, please try again later');
+    const blockingKeys = [
+      accountAndIp >= LOGIN_THROTTLE.failuresPerAccountAndIp ? keys.accountAndIp : null,
+      ip >= LOGIN_THROTTLE.failuresPerIp ? keys.ip : null,
+      account >= LOGIN_THROTTLE.failuresPerAccount && known === 0 ? keys.account : null,
+    ].filter((key): key is string => key !== null);
+    if (blockingKeys.length === 0) return;
+    const remainingMs = await Promise.all(blockingKeys.map((key) => deps.redis.pttl(key)));
+    // The latest-ending window decides; a key without a TTL cannot exist (see fixed-window.ts).
+    const retryAfterMs = Math.max(...remainingMs.map((ms) => (ms > 0 ? ms : LOGIN_THROTTLE.windowMs)));
+    throw ApiError.rateLimited('Too many failed sign-in attempts, please try again later', Math.ceil(retryAfterMs / 1000));
   });
 }
 
@@ -92,10 +100,14 @@ export async function recordLoginSuccess(deps: ThrottleDeps, attempt: LoginAttem
   });
 }
 
-/** After a password reset: the owner proved the mailbox, so the account-wide failures are dropped. */
-export async function clearAccountLoginFailures(deps: ThrottleDeps, email: string): Promise<void> {
+/**
+ * After a password reset: the owner proved the mailbox, so the account-wide failures are dropped,
+ * and so are the account's failures from the IP the reset came from (`clientIpKey`, when known).
+ */
+export async function clearAccountLoginFailures(deps: ThrottleDeps, email: string, ip: string | null = null): Promise<void> {
   if (!deps.env.rateLimit.enabled) return;
   await failOpen(deps, undefined, async () => {
-    await deps.redis.del(keysOf(deps, { email, ip: '' }).account);
+    const keys = keysOf(deps, { email, ip: ip ?? '' });
+    await deps.redis.del(...(ip ? [keys.account, keys.accountAndIp] : [keys.account]));
   });
 }

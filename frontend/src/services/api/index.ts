@@ -7,6 +7,7 @@
  */
 import i18n from 'i18next';
 
+import { sessionEnded } from '@/services/auth/session-ended';
 import { sessionStore } from '@/services/auth/session-store';
 import { createTokenManager } from '@/services/auth/token-manager';
 
@@ -19,6 +20,7 @@ import { createMarketplaceApi } from './marketplace-api';
 export const sessionTokens = createTokenManager({
   store: sessionStore,
   refresh: (refreshToken) => api.auth.refresh({ refreshToken }),
+  onSessionRejected: sessionEnded.notify,
 });
 
 export const apiClient = new ApiClient({

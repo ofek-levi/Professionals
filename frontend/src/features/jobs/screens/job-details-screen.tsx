@@ -48,19 +48,17 @@ export default function JobDetailsScreen() {
     );
   }
 
-  return <JobDetailsView job={query.data} role={role} refreshing={query.isRefetching} onRefresh={() => void query.refetch()} />;
+  return <JobDetailsView job={query.data} role={role} onRefresh={() => query.refetch()} />;
 }
 
 function JobDetailsView({
   job,
   role,
-  refreshing,
   onRefresh,
 }: {
   job: JobDetails;
   role: UserRole;
-  refreshing: boolean;
-  onRefresh: () => void;
+  onRefresh: () => Promise<unknown>;
 }) {
   const styles = useStyles();
   const router = useRouter();
@@ -114,7 +112,7 @@ function JobDetailsView({
   ) : undefined;
 
   return (
-    <Screen edges={['left', 'right', 'bottom']} gap="xxl" refreshing={refreshing} onRefresh={onRefresh} footer={footer} testID="job-details">
+    <Screen edges={['left', 'right', 'bottom']} gap="xxl" onRefresh={onRefresh} footer={footer} testID="job-details">
       <JobStatusHeader job={job} role={role} />
 
       <View style={styles.group}>

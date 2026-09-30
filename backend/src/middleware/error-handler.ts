@@ -34,6 +34,7 @@ function toApiError(error: unknown): ApiError | null {
 export function errorHandler(logger: Logger) {
   return (error: unknown, req: Request, res: Response, _next: NextFunction) => {
     const apiError = toApiError(error);
+    if (apiError?.retryAfterSeconds !== undefined) res.setHeader('Retry-After', String(Math.max(1, Math.ceil(apiError.retryAfterSeconds))));
     if (apiError && apiError.status < 500) {
       res.status(apiError.status).json(apiError.toBody());
       return;

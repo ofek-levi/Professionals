@@ -40,7 +40,13 @@ export function RequestSummary({ request, job }: RequestSummaryProps) {
       break;
     case 'waitingForOffers':
       statusText = t('customer:details.status.waiting');
-      statusHint = t('customer:details.status.waitingHint');
+      // Who got it, from the server's count (`null` = still being counted right after posting).
+      statusHint =
+        request.matchedProfessionalCount === null
+          ? null
+          : request.matchedProfessionalCount === 0
+            ? t('customer:details.status.waitingNoPros')
+            : t('customer:details.status.waitingHint', { count: request.matchedProfessionalCount });
       break;
     case 'offersToReview':
       statusText = t('customer:details.status.offersToReview', { count: status.count });
@@ -96,7 +102,7 @@ export function RequestSummary({ request, job }: RequestSummaryProps) {
         {long ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityState={{ expanded }}
+            aria-expanded={expanded}
             onPress={() => setExpanded((value) => !value)}
             hitSlop={10}
             style={styles.more}

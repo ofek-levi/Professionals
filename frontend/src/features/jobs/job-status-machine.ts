@@ -2,7 +2,7 @@
  * Job status machine and the actions each party may take on a job.
  * Job status mirrors onto the request status via `JOB_STATUS_META[status].requestStatus`.
  */
-import { JOB_STATUS_META, type JobStatus } from '@/constants/job-statuses';
+import { JOB_STATUS_META, jobStatusMeta, type JobStatus } from '@/constants/job-statuses';
 import type { RequestStatus } from '@/constants/request-statuses';
 import { assertTransition, canTransition, type TransitionTable } from '@/features/shared/state-machine';
 import type { Job, UserRole } from '@/types/domain';
@@ -30,7 +30,7 @@ export function requestStatusForJobStatus(status: JobStatus): RequestStatus {
 }
 
 export function isJobActive(status: JobStatus): boolean {
-  return JOB_STATUS_META[status].isActive;
+  return jobStatusMeta(status).isActive;
 }
 
 export interface JobActions {

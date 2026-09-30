@@ -51,13 +51,18 @@ interface VariantColors {
   border: string;
 }
 
-function variantColors(theme: Theme, variant: ButtonVariant): VariantColors {
+/** Fill, pressed fill, label and border of a variant (exported for tests). */
+export function variantColors(theme: Theme, variant: ButtonVariant): VariantColors {
   const { colors } = theme;
   switch (variant) {
     case 'primary':
       return { background: colors.primaryFill, pressedBackground: colors.primaryFillPressed, foreground: colors.onPrimary, border: colors.primaryFill };
     case 'secondary':
-      return { background: colors.surface, pressedBackground: colors.surfacePressed, foreground: colors.text, border: colors.surface };
+      // In dark mode the soft fill is barely lighter than the background (about 1.1:1): a lighter
+      // fill and a visible border keep the button's shape.
+      return theme.scheme === 'dark'
+        ? { background: colors.surfaceMuted, pressedBackground: colors.surfacePressed, foreground: colors.text, border: colors.borderStrong }
+        : { background: colors.surface, pressedBackground: colors.surfacePressed, foreground: colors.text, border: colors.surface };
     case 'outline':
       return { background: colors.background, pressedBackground: colors.surface, foreground: colors.text, border: colors.borderStrong };
     case 'ghost':
@@ -113,7 +118,8 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
-      accessibilityState={{ disabled: inactive, busy: loading }}
+      aria-disabled={inactive}
+      aria-busy={loading}
       disabled={inactive}
       hitSlop={slop > 0 ? slop : undefined}
       onPress={handlePress}

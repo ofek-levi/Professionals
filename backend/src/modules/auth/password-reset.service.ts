@@ -66,9 +66,10 @@ export async function resetLinkAccount(deps: Pick<AppDeps, 'clock'>, token: stri
 /**
  * Sets the new password. Opening the emailed link proves the mailbox, so the address becomes
  * verified too. Every session (and its push devices) is revoked, every other reset link of the
- * account dies, and the account-wide failed sign-ins are forgotten (see `login-throttle.ts`).
+ * account dies, and the failed sign-ins that block the account are forgotten: account-wide, and
+ * from `clientIp` (the network the reset came from; see `login-throttle.ts`).
  */
-export async function resetPassword(deps: ResetDeps, input: ResetPasswordInput): Promise<void> {
+export async function resetPassword(deps: ResetDeps, input: ResetPasswordInput, clientIp: string | null = null): Promise<void> {
   const now = deps.clock.now();
   if (!(await findEmailTokenUser(input.token, 'reset_password', now))) throw invalidResetLink();
   await assertPasswordNotBreached(deps, input.password);
@@ -80,6 +81,6 @@ export async function resetPassword(deps: ResetDeps, input: ResetPasswordInput):
     await UserModel.updateOne({ _id: userId, emailVerifiedAt: null }, { $set: { emailVerifiedAt: now } }, { session: tx.session });
     await deleteEmailTokens(userId, 'reset_password', tx.session);
     await revokeAllSessions(deps, userId, tx);
-    if (user) tx.afterCommit(() => clearAccountLoginFailures(deps, user.email));
+    if (user) tx.afterCommit(() => clearAccountLoginFailures(deps, user.email, clientIp));
   });
 }

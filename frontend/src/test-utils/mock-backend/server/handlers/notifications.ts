@@ -1,4 +1,5 @@
 /** `/notifications/*` routes. */
+import { NOTIFICATION_TYPES } from '@/constants/notification-types';
 import type { UnreadCountResponse } from '@/types/api';
 
 import { route } from '../router';
@@ -16,13 +17,19 @@ export const notificationRoutes = [
     path: '/notifications',
     auth: 'user',
     handler: ({ ctx, actor, query }) =>
-      listNotifications(ctx, actor.userId, { ...paginationFrom(query), unreadOnly: query.boolean('unreadOnly') }),
+      listNotifications(ctx, actor.userId, {
+        ...paginationFrom(query),
+        unreadOnly: query.boolean('unreadOnly'),
+        excludeTypes: query.enumList('excludeTypes', NOTIFICATION_TYPES),
+      }),
   }),
   route({
     method: 'GET',
     path: '/notifications/unread-count',
     auth: 'user',
-    handler: ({ ctx, actor }): UnreadCountResponse => ({ count: unreadNotificationCount(ctx, actor.userId) }),
+    handler: ({ ctx, actor, query }): UnreadCountResponse => ({
+      count: unreadNotificationCount(ctx, actor.userId, query.enumList('excludeTypes', NOTIFICATION_TYPES)),
+    }),
   }),
   route({
     method: 'POST',

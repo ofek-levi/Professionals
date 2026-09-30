@@ -89,7 +89,9 @@ Categories are a code constant served from memory (`GET /catalog/categories`, ET
   (logout, token theft, password reset, first Google link), so revocation is immediate.
 - Refresh token: opaque, 90 days sliding, `<sessionId>.<secret>.<HMAC tag>`, stored only as a SHA-256
   hash. Rotated on every refresh; any earlier genuine token of a live session revokes it (theft),
-  a forged one revokes nothing, concurrent refreshes get the same successor (`auth/refresh-token.ts`).
+  a forged one revokes nothing, concurrent refreshes and retries after a lost response get the same
+  successor while it is unused, for up to an access token's lifetime (`auth/refresh-token.ts`,
+  `session.service.ts`).
 - Passwords: argon2id, the app's rules, plus a breached-password check (k-anonymity, fails open).
   Google: id tokens verified against the web, iOS and (optional) Android client ids; the linking
   rules of BACKEND_INTEGRATION.md §3, including pre-account-hijacking handling.
@@ -98,14 +100,16 @@ Categories are a code constant served from memory (`GET /catalog/categories`, ET
 
 ## 6. Realtime and notifications
 
-- `ws` at `/v1/realtime?token=`: token checked before the handshake (4001 otherwise), socket closed
+- `ws` at `/v1/realtime`, token in the `bearer.<token>` subprotocol (next to `professionals.v1`, the one
+  the server selects; older apps: `?token=`): checked before the handshake (4001 otherwise), socket closed
   with 4001 when the token expires or the session is revoked, heartbeat ping/pong, per-user socket
   and upgrade limits. Frames are the app's `RealtimeEvent` union.
 - Any instance publishes to Redis channel `${APP_ENV}:realtime`; every instance delivers to its own
   sockets of the addressed users. Revoked session ids travel on `${APP_ENV}:session-revoked`.
 - `createNotifications` is the single entry point for every producer: it honours the recipient's
   category toggles, stores the inbox item (in the caller's transaction), then publishes
-  `notification.created`, fans out Expo push (chunked, `pushEnabled`) and, for "Email updates",
+  `notification.created`, fans out Expo push (chunked, `pushEnabled`, only to devices whose
+  registering session is still live) and, for "Email updates",
   throttled emails to verified addresses. Push tickets wait in Redis for the receipts cron, which
   deletes `DeviceNotRegistered` tokens.
 

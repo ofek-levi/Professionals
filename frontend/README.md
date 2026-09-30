@@ -100,16 +100,38 @@ Configure each environment once under **Settings → Environments → staging | 
 | Variable | `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_ANDROID_CLIENT_ID` | "Continue with Google" (the APK needs the Android id) |
 | Variable | `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION` | custom map tiles |
 | Secret | `GOOGLE_SERVICES_JSON_BASE64` | `base64 -w0 google-services.json` (FCM for push on Android; checked against the app's package name) |
+| Secret | `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | the environment's release keystore (see Signing below): **required for production** |
 
 They become the `EXPO_PUBLIC_*` variables of the build (`EXPO_PUBLIC_APP_ENV` is the chosen
 environment). A missing optional value only turns its feature off, with a warning in the run.
 
 - Steps: `npm ci` → `expo prebuild --platform android` → `./gradlew assembleRelease`. The native
   `android/` folder is generated on the runner and never committed.
-- Signed with React Native's public debug key: fine for testing and sideloading, **not** for the
-  Play Store (that needs your own upload key, e.g. with EAS Build). Every build uses the same key,
-  and `versionCode` is the run number, so a new APK installs over the previous one. The APK name
-  and the release tag include the environment.
+- The build job can only read the repository (`npm ci` install scripts and Gradle plugins run
+  there, and the checkout keeps no token); a separate job, which runs no build code, publishes the
+  finished APK as a pre-release. `versionCode` is the run number, so a new APK installs over the
+  previous one. The APK name and the release tag include the environment.
+
+#### Signing
+
+Android installs an APK over an installed app with the same package only when both are signed with
+the same key, and keeps the app's data (including the signed-in session). So each environment signs
+with its **own private keystore**, kept in that GitHub Environment's secrets:
+
+```bash
+keytool -genkeypair -v -keystore professionals-production.keystore -alias professionals \
+  -keyalg RSA -keysize 4096 -validity 10000          # asks for the passwords; keep a backup
+base64 -w0 professionals-production.keystore          # -> ANDROID_KEYSTORE_BASE64
+keytool -list -v -keystore professionals-production.keystore -alias professionals | grep SHA1
+```
+
+Set `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and
+`ANDROID_KEY_PASSWORD` under **Settings → Environments → production** (and staging, with a
+different keystore). A **production** run without them fails; a **staging** run without them signs
+with React Native's public debug keystore, with a warning (testing only: anyone can sign an APK with
+that key that installs over it). Register each environment's SHA-1 with its own Google Android
+OAuth client (see [Google sign-in](#google-sign-in)). Losing a keystore means users must uninstall
+before they can install new builds, so keep it backed up outside GitHub.
 
 ### App icon & logo
 
@@ -174,9 +196,11 @@ backend the same ids:
   origins* and *Authorized redirect URIs*. The popup redirects back to the app, which completes it
   (`completeGoogleAuthRedirect()` in the root layout).
 - **iOS** client with the bundle id `com.professionals.marketplace`, **Android** client with the
-  package `com.professionals.marketplace` and your signing certificate's SHA-1. A release APK made
-  with `npx expo prebuild` and `./gradlew assembleRelease` (as the GitHub action does) is signed
-  with the template's debug keystore, SHA-1 `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
+  package `com.professionals.marketplace` and the SHA-1 of the keystore that signs that
+  environment's APKs (one Android client per environment; see [Signing](#signing)). Only a local
+  development build (`npx expo run:android`) is signed with the template's public debug keystore,
+  SHA-1 `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`: register it on a
+  development client only, never on the production one.
 - iOS/Android need a **development or release build** (`npx expo run:ios|android`, `eas build`):
   Expo Go can't receive Google's native redirect, so the button stays hidden there. The app scheme
   is `professionals`; native Google redirects use `<applicationId>:/oauthredirect` (Android gets an
@@ -298,8 +322,8 @@ Realtime (WebSocket /v1/realtime) ──> providers/realtime-events.ts ──> R
 src/
   app/            Expo Router routes (thin; render screens from src/features)
   config/         build-time environment (EXPO_PUBLIC_APP_ENV, API base URL, EAS project id)
-  features/       feature screens + components + pure business logic (state machines, matching,
-                  sorting, availability, view models)
+  features/       feature screens + components + pure business logic (state machines, sorting,
+                  availability, view models)
   providers/      app providers, navigation theme/tab bar options, realtime wiring, push, bootstrap
   components/     design system (ui/) + shared domain components (categories, requests, offers,
                   professionals, jobs, location, map, forms)
@@ -363,5 +387,6 @@ of the main screens. The backend has its own suite (`backend/`, `npm test`).
 - Map markers of nearby requests can overlap at the default zoom (no clustering yet).
 - Map tiles need a network connection, and the default OpenStreetMap servers are for light use only
   (see [Maps](#maps)).
-- The APK built by the GitHub action is signed with the public debug key (testing only).
+- A staging APK built without a release keystore is signed with the public debug key (testing
+  only); production APKs need the environment's own keystore.
 - No payments, identity verification or moderation.

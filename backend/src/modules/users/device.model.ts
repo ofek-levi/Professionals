@@ -9,7 +9,9 @@ export interface DeviceDoc {
   user: Types.ObjectId;
   /**
    * The session that registered the token: signing out (or revoking the session) removes the
-   * device, so a signed-out phone stops receiving the account's notifications.
+   * device, so a signed-out phone stops receiving the account's notifications. A session that ends
+   * without that (TTL expiry, a sign-out the server never received) leaves the device behind: push
+   * fan-out skips and deletes devices whose session is gone (`notifications.push.ts`).
    */
   session: Types.ObjectId;
   /** Expo push token; a token re-registered by another user moves to that user. */
@@ -29,7 +31,7 @@ const deviceSchema = new Schema<DeviceDoc>(
 deviceSchema.index({ token: 1 }, { unique: true });
 // Push fan-out: every device of the recipient; revoke-all (password reset) removes them.
 deviceSchema.index({ user: 1 });
-// Logout / revoked session removes the devices it registered.
+// Logout / revoked session removes the devices it registered; fan-out checks them against `sessions`.
 deviceSchema.index({ session: 1 });
 
 export const DeviceModel = model<DeviceDoc>('Device', deviceSchema);

@@ -14,6 +14,8 @@ export const APP_CONFIG = {
   personNameMaxLength: 40,
   distanceFilterOptionsKm: [5, 10, 20, 40],
   maxRequestPhotos: 6,
+  /** Largest photo `POST /uploads/images` accepts (8 MiB); the app shrinks or refuses bigger ones first. */
+  maxUploadBytes: 8 * 1024 * 1024,
   descriptionMinLength: 15,
   descriptionMaxLength: 1000,
   notesMaxLength: 500,
@@ -37,7 +39,7 @@ export const API_LIMITS = {
   /** Notifications are deleted by a TTL index after this many days. */
   notificationTtlDays: 90,
   jsonBodyLimit: '100kb',
-  uploadMaxBytes: 8 * 1024 * 1024,
+  uploadMaxBytes: APP_CONFIG.maxUploadBytes,
   uploadAllowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'],
   /** Unattached uploads older than this are deleted by the orphan-uploads cron. */
   orphanUploadMaxAgeHours: 24,

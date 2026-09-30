@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
+import { CHAT_NOTIFICATION_TYPES } from '@/constants/notification-types';
 import { api } from '@/services/api';
 import type { NotificationsParams, UnreadCountResponse } from '@/types/api';
 
@@ -30,12 +31,20 @@ export function useNotifications(params: NotificationsQueryParams = {}) {
   });
 }
 
-/** Unread notifications count (`data` is a number) – tab badges, bell icons. */
+/** `GET /notifications` of the Inbox's Updates: every type except chat messages (filtered by the server). */
+export function useUpdateNotifications() {
+  return useNotifications({ excludeTypes: CHAT_NOTIFICATION_TYPES });
+}
+
+/**
+ * Unread notifications listed under Updates (`data` is a number; chat notifications are left out
+ * by the server, they count under Messages) – the Updates segment and the Inbox tab badge.
+ */
 export function useUnreadNotificationsCount() {
   const { userId, enabled } = useQueryScope();
   return useQuery({
     queryKey: queryKeys.notifications.unreadCount(userId),
-    queryFn: ({ signal }) => api.notifications.getUnreadCount(signal),
+    queryFn: ({ signal }) => api.notifications.getUnreadCount({ excludeTypes: CHAT_NOTIFICATION_TYPES }, signal),
     select: selectCount,
     enabled,
   });

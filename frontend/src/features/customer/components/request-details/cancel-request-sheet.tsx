@@ -93,7 +93,7 @@ export function CancelRequestSheet({ request, visible, onClose }: CancelRequestS
                   <Pressable
                     key={reason}
                     accessibilityRole="radio"
-                    accessibilityState={{ checked: selected }}
+                    aria-checked={selected}
                     onPress={() => onChange(reason)}
                     testID={`cancel-reason-${reason}`}
                     style={({ pressed }) => [

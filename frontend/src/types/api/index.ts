@@ -9,3 +9,4 @@ export * from './messaging';
 export * from './dashboard';
 export * from './uploads';
 export * from './geo';
+export * from './queries';

@@ -55,7 +55,12 @@ export async function toCustomerRequestViews(requests: RequestDoc[]): Promise<Cu
   const stats = await loadRequestOfferStats(requests.map((request) => request._id));
   return requests.map((request) => {
     const own = stats.get(request._id.toHexString());
-    return { ...toServiceRequestDto(request), latestOfferAt: isoOrNull(own?.latestOfferAt ?? null), lowestOfferPrice: own?.lowestOfferPrice ?? null };
+    return {
+      ...toServiceRequestDto(request),
+      latestOfferAt: isoOrNull(own?.latestOfferAt ?? null),
+      lowestOfferPrice: own?.lowestOfferPrice ?? null,
+      matchedProfessionalCount: request.matchedProfessionalCount ?? null,
+    };
   });
 }
 

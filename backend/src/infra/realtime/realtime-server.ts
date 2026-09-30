@@ -1,5 +1,8 @@
 /**
- * WebSocket endpoint `GET /v1/realtime?token=<access token>` on the API's HTTP server.
+ * WebSocket endpoint `GET /v1/realtime` on the API's HTTP server. The access token travels as a
+ * subprotocol (`Sec-WebSocket-Protocol: professionals.v1, bearer.<JWT>`; the server selects
+ * `professionals.v1`), so it is not in the URL that proxies log and browsers print; `?token=` is
+ * still accepted from older app versions.
  * - The access token is verified on connect; invalid or of a revoked session → close 4001. A socket
  *   is closed with 4001 when its token expires (the app reconnects with a fresh token) and when its
  *   session is revoked (ids announced on `revocationChannel`).
@@ -28,6 +31,9 @@ import { ConnectionRegistry } from './connection-registry.js';
 import type { RealtimeEnvelope } from './publisher.js';
 
 export const REALTIME_PATH = '/v1/realtime';
+/** The subprotocol the app offers and the server selects (the token comes as `bearer.<JWT>`). */
+export const REALTIME_PROTOCOL = 'professionals.v1';
+const BEARER_PROTOCOL_PREFIX = 'bearer.';
 export const CLOSE_UNAUTHORIZED = 4001;
 export const CLOSE_TOO_MANY_CONNECTIONS = 1008;
 const CLOSE_GOING_AWAY = 1001;
@@ -61,8 +67,11 @@ export interface RealtimeServer {
 type Admission = { claims: AccessTokenClaims } | { refused: 'unauthorized' | 'throttled' };
 
 function tokenFrom(request: IncomingMessage): string | null {
-  const url = new URL(request.url ?? '/', 'http://localhost');
-  return url.searchParams.get('token');
+  const offered = (request.headers['sec-websocket-protocol'] ?? '').split(',').map((protocol) => protocol.trim());
+  const bearer = offered.find((protocol) => protocol.startsWith(BEARER_PROTOCOL_PREFIX));
+  if (bearer) return bearer.slice(BEARER_PROTOCOL_PREFIX.length);
+  // Older app versions put it in the URL (keep that out of access logs: OPERATIONS.md §4).
+  return new URL(request.url ?? '/', 'http://localhost').searchParams.get('token');
 }
 
 function rejectUpgrade(socket: Duplex, status: number, message: string): void {
@@ -84,7 +93,12 @@ function closedOrTimeout(sockets: readonly WebSocket[], ms: number): Promise<voi
 export async function attachRealtimeServer(options: RealtimeServerOptions): Promise<RealtimeServer> {
   const { httpServer, subscriber, channel, tokens, clock, logger } = options;
   const maxSocketsPerUser = options.maxSocketsPerUser ?? 10;
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 });
+  const wss = new WebSocketServer({
+    noServer: true,
+    maxPayload: 4 * 1024,
+    // Never echo the bearer subprotocol (the token) back: only the app's protocol is selected.
+    handleProtocols: (protocols) => (protocols.has(REALTIME_PROTOCOL) ? REALTIME_PROTOCOL : false),
+  });
   const registry = new ConnectionRegistry();
   const alive = new WeakMap<WebSocket, boolean>();
   const bySession = new Map<string, Set<WebSocket>>();

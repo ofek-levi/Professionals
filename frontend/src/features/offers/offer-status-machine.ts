@@ -3,7 +3,7 @@
  * The UI uses it for the available actions of both roles; the backend enforces the same machine
  * (`backend/src/modules/offers/offer-rules.ts`).
  */
-import { OFFER_STATUS_META, type OfferStatus } from '@/constants/offer-statuses';
+import { offerStatusMeta, type OfferStatus } from '@/constants/offer-statuses';
 import type { RequestStatus } from '@/constants/request-statuses';
 import { URGENCY_META, type UrgencyLevel } from '@/constants/urgency-levels';
 import { requestAcceptsOffers } from '@/features/requests/request-status-machine';
@@ -26,7 +26,7 @@ export function assertOfferTransition(from: OfferStatus, to: OfferStatus): void 
 
 /** Pending or accepted – an active offer blocks the professional from sending another one. */
 export function isOfferActive(status: OfferStatus): boolean {
-  return OFFER_STATUS_META[status].isActive;
+  return offerStatusMeta(status).isActive;
 }
 
 /** Expired either explicitly or because a pending offer passed its `expiresAt`. */

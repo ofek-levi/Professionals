@@ -86,7 +86,8 @@ export function CategoryPicker(props: CategoryPickerProps) {
         key={category.id}
         accessibilityRole={props.mode === 'single' ? 'radio' : 'checkbox'}
         accessibilityLabel={name}
-        accessibilityState={{ checked: selected, disabled }}
+        aria-checked={selected}
+        aria-disabled={disabled}
         disabled={disabled}
         onPress={() => toggle(category.id)}
         style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null, disabled ? styles.rowDisabled : null]}

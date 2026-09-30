@@ -32,5 +32,11 @@ export const settings = {
     reminders: 'Appointment reminders',
     emailEnabled: 'Email updates',
     saveFailed: 'Your notification preferences weren’t saved',
+    /** Email updates only go to a verified address. */
+    verifyEmail: {
+      message: 'Verify {{email}} to receive email updates. The link we sent when you signed up may have expired.',
+      resend: 'Send a new link',
+      sent: 'We’ve sent a new link to {{email}}',
+    },
   },
 } as const;

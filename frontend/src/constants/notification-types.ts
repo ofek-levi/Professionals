@@ -22,6 +22,18 @@ export const NOTIFICATION_TYPES = [
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
+/**
+ * Chat notifications: a message also creates one (per conversation, collapsed by the server). The
+ * Inbox shows them under Messages, so the Updates list and its count ask the server to leave them
+ * out (`excludeTypes`).
+ */
+export const CHAT_NOTIFICATION_TYPES = ['new_message'] as const satisfies readonly NotificationType[];
+
+/** Notifications listed under Updates: everything except chat messages. */
+export function isUpdateNotificationType(type: NotificationType): boolean {
+  return !(CHAT_NOTIFICATION_TYPES as readonly NotificationType[]).includes(type);
+}
+
 interface NotificationTypeMeta {
   icon: string;
   tone: StatusTone;
@@ -45,3 +57,11 @@ export const NOTIFICATION_TYPE_META: Record<NotificationType, NotificationTypeMe
   review_received: { icon: 'star-outline', tone: 'warning', preference: 'jobUpdates' },
   new_message: { icon: 'message-text-outline', tone: 'info', preference: 'messages' },
 };
+
+/**
+ * Display rules of `type`, or `null` for a type this app version does not know (a newer server may
+ * add types; installed apps cannot be forced to update). Callers render such items generically.
+ */
+export function notificationTypeMeta(type: NotificationType): NotificationTypeMeta | null {
+  return (NOTIFICATION_TYPE_META as Partial<Record<string, NotificationTypeMeta>>)[type] ?? null;
+}

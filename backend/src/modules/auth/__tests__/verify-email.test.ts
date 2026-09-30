@@ -47,6 +47,27 @@ describe('verify-email link (GET confirmation page, POST confirms)', () => {
     expect(user?.passwordHash).toBeUndefined();
   });
 
+  it('sends a new link on request (signed in) when the first one expired, and nothing once verified', async () => {
+    const session = await registerAccount(app, customerPayload({ email: 'later@example.com' }));
+    const first = await linkSentTo(deps, 'later@example.com');
+    deps.clock.advance(49 * 60 * 60_000); // the sign-up link is gone
+    await request(app).post('/v1/auth/verify-email/resend').expect(401);
+
+    // Signed in again (the sign-up access token expired meanwhile).
+    const refreshed = await request(app).post('/v1/auth/refresh').send({ refreshToken: session.refreshToken }).expect(200);
+    const headers = { Authorization: `Bearer ${(refreshed.body as { accessToken: string }).accessToken}` };
+    await request(app).post('/v1/auth/verify-email/resend').set(headers).expect(200, { success: true });
+    const second = await linkSentTo(deps, 'later@example.com');
+    expect(second.token).not.toBe(first.token);
+    await confirm(second.token).expect(200);
+    expect((await request(app).get('/v1/me').set(headers).expect(200)).body.emailVerified).toBe(true);
+
+    const sent = deps.mailer.sent.length;
+    await request(app).post('/v1/auth/verify-email/resend').set(headers).expect(200, { success: true });
+    await deps.background.drain();
+    expect(deps.mailer.sent).toHaveLength(sent);
+  });
+
   it('rejects expired and missing links', async () => {
     await registerAccount(app, customerPayload({ email: 'late@example.com' }));
     const { url } = await linkSentTo(deps, 'late@example.com');

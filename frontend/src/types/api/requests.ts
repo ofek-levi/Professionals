@@ -25,10 +25,15 @@ export interface CreateServiceRequestPayload {
   notes: string | null;
   /** `false` saves the request as a draft. Defaults to `true`. */
   publish: boolean;
+  /**
+   * Idempotency key, one per form submission: a retry with the same key (after a lost or late
+   * response) gets the request the first attempt created instead of a second one.
+   */
+  clientRequestId?: string;
 }
 
 /** `PATCH /requests/:id` – only allowed while in `draft`. */
-export type UpdateDraftRequestPayload = Partial<Omit<CreateServiceRequestPayload, 'publish'>>;
+export type UpdateDraftRequestPayload = Partial<Omit<CreateServiceRequestPayload, 'publish' | 'clientRequestId'>>;
 
 /** `POST /requests/:id/cancel` */
 export interface CancelRequestPayload {

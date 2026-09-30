@@ -1,26 +1,29 @@
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { EmptyState, ErrorState, useNow } from '@/components/ui';
-import { useNotificationPresenter, useNotifications, useOpenNotification, useRefetchOnFocus, useUnreadNotificationsCount } from '@/hooks';
+import { EmptyState, ErrorState, useNow, usePullToRefresh } from '@/components/ui';
+import { useNotificationPresenter, useOpenNotification, useRefetchOnFocus, useUnreadNotificationsCount, useUpdateNotifications } from '@/hooks';
+import { useSession } from '@/features/auth';
 import { makeStyles, useTheme } from '@/theme';
 
-import { isUpdateNotification } from '../inbox-counts';
 import { NotificationDayGroupList, NotificationGroupSkeleton } from './notification-day-group';
 import { groupNotificationsByDay } from './notification-list-model';
 
 /**
  * Inbox "Updates": the signed-in user's notifications grouped by day (infinite list with
- * pull-to-refresh). Chat messages are left out (they are under Messages). Opening a notification
- * marks it read and navigates to its target.
+ * pull-to-refresh). Chat messages are left out by the server (they are under Messages), so every
+ * page it loads is full and scrolling keeps loading older updates. Opening a notification marks it
+ * read and navigates to its target.
  */
 export function UpdatesList() {
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation('notifications');
+  const { role } = useSession();
   const now = useNow(60_000);
-  const query = useNotifications();
+  const query = useUpdateNotifications();
   const unreadQuery = useUnreadNotificationsCount();
+  const pull = usePullToRefresh(() => Promise.all([query.refetch(), unreadQuery.refetch()]));
   const openNotification = useOpenNotification();
   const present = useNotificationPresenter();
   useRefetchOnFocus(query.refetch);
@@ -36,7 +39,7 @@ export function UpdatesList() {
     );
   }
 
-  const groups = groupNotificationsByDay(query.data.items.filter(isUpdateNotification), now);
+  const groups = groupNotificationsByDay(query.data.items, now);
 
   return (
     <FlatList
@@ -47,7 +50,15 @@ export function UpdatesList() {
       )}
       ItemSeparatorComponent={GroupSeparator}
       contentContainerStyle={[styles.content, groups.length === 0 ? styles.emptyContent : null]}
-      ListEmptyComponent={<EmptyState compact icon="bell-outline" title={t('inbox.emptyUpdates')} />}
+      ListEmptyComponent={
+        <EmptyState
+          compact
+          icon="bell-outline"
+          title={t('inbox.emptyUpdates')}
+          description={role ? t(`inbox.emptyUpdatesDescription.${role}`) : undefined}
+          testID="updates-empty"
+        />
+      }
       ListFooterComponent={
         query.isFetchingNextPage ? <ActivityIndicator color={theme.colors.primary} style={styles.spinner} /> : null
       }
@@ -57,11 +68,8 @@ export function UpdatesList() {
       }}
       refreshControl={
         <RefreshControl
-          refreshing={query.isRefetching && !query.isFetchingNextPage}
-          onRefresh={() => {
-            void query.refetch();
-            void unreadQuery.refetch();
-          }}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           tintColor={theme.colors.primary}
           colors={[theme.colors.primary]}
         />

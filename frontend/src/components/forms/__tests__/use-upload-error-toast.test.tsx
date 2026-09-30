@@ -1,6 +1,7 @@
 /**
  * A refused photo upload is explained in the user's language: the photo itself (400/413), the
- * upload limits (429, with Retry-After when sent), anything else like other errors.
+ * upload limits (429, with Retry-After when sent), the photo service (5xx: try later, or go on
+ * without the photos where they are optional), anything else like other errors.
  */
 import { act, screen } from '@testing-library/react-native';
 
@@ -18,10 +19,10 @@ afterAll(async () => {
   await i18n.changeLanguage('en');
 });
 
-async function showFor(error: unknown) {
+async function showFor(error: unknown, options?: { photosOptional?: boolean }) {
   let show: ((error: unknown) => void) | null = null;
   function Probe() {
-    show = useUploadErrorToast();
+    show = useUploadErrorToast(options);
     return null;
   }
   await renderWithProviders(
@@ -55,10 +56,24 @@ describe('upload error toast', () => {
     expect(await screen.findByText('You’ve uploaded a lot of photos recently. Please try again later.')).toBeOnTheScreen();
   });
 
-  it('shows any other failure like other errors (e.g. storage not configured: 503)', async () => {
+  it('says the photo service is down, not the photo (e.g. storage not configured: 503)', async () => {
     await showFor(apiError(503, 'SERVER_ERROR'));
-    expect(await screen.findByText(i18n.t('errors:codes.SERVER_ERROR.title'))).toBeOnTheScreen();
+    expect(await screen.findByText('Photos can’t be uploaded right now')).toBeOnTheScreen();
+    expect(screen.getByText('Please try again in a few minutes.')).toBeOnTheScreen();
+    expect(screen.queryByText(i18n.t('errors:codes.SERVER_ERROR.title'))).toBeNull();
     expect(screen.queryByText('This photo can’t be used')).toBeNull();
+  });
+
+  it('offers going on without optional photos when the photo service is down', async () => {
+    await showFor(apiError(503, 'SERVER_ERROR'), { photosOptional: true });
+    expect(await screen.findByText('Photos can’t be uploaded right now')).toBeOnTheScreen();
+    expect(screen.getByText('Try again in a few minutes, or remove the photos to continue without them.')).toBeOnTheScreen();
+  });
+
+  it('shows any other failure like other errors (e.g. offline)', async () => {
+    await showFor(new ApiError(0, { code: 'NETWORK_ERROR', message: 'offline' }));
+    expect(await screen.findByText(i18n.t('errors:codes.NETWORK_ERROR.title'))).toBeOnTheScreen();
+    expect(screen.queryByText('Photos can’t be uploaded right now')).toBeNull();
   });
 
   it('speaks Hebrew with the dual form', async () => {
@@ -66,6 +81,18 @@ describe('upload error toast', () => {
     await showFor(apiError(429, 'RATE_LIMITED', 2));
     expect(await screen.findByText('יותר מדי תמונות כרגע')).toBeOnTheScreen();
     expect(screen.getByText('נסו שוב בעוד שתי שניות.')).toBeOnTheScreen();
-    await i18n.changeLanguage('en');
+    await act(async () => {
+      await i18n.changeLanguage('en');
+    });
+  });
+
+  it('explains the photo service outage in Hebrew', async () => {
+    await i18n.changeLanguage('he');
+    await showFor(apiError(503, 'SERVER_ERROR'), { photosOptional: true });
+    expect(await screen.findByText('אי אפשר להעלות תמונות כרגע')).toBeOnTheScreen();
+    expect(screen.getByText('נסו שוב בעוד כמה דקות, או הסירו את התמונות כדי להמשיך בלעדיהן.')).toBeOnTheScreen();
+    await act(async () => {
+      await i18n.changeLanguage('en');
+    });
   });
 });

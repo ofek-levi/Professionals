@@ -37,8 +37,10 @@ export const updateProfessionalProfileBody = z
     fullName: fullNameSchema,
     displayName: profileText({ max: PROFILE_LIMITS.displayNameMax, required: vm('profile.displayNameRequired'), tooLong: vm('profile.nameTooLong') }),
     avatarUrl: avatarUrlSchema,
-    headline: profileText({ max: PROFILE_LIMITS.headlineMax, required: vm('profile.headlineRequired'), tooLong: vm('profile.headlineTooLong') }),
+    // Sign-up does not ask for a headline or a bio: both may stay empty (the public profile hides them).
+    headline: profileText({ max: PROFILE_LIMITS.headlineMax, required: vm('profile.headlineRequired'), tooLong: vm('profile.headlineTooLong'), optional: true }),
     bio: profileText({
+      optional: true,
       min: PROFILE_LIMITS.bioMin,
       max: PROFILE_LIMITS.bioMax,
       required: vm('profile.bioTooShort'),

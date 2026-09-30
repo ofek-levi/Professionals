@@ -55,6 +55,13 @@ export interface RequestDoc {
   cancelledAt: Date | null;
   cancellationReason: RequestCancellationReason | null;
   cancellationComment: string | null;
+  /**
+   * Professionals the publication matched and notified (set by the publish fan-out right after
+   * the response; `null` for drafts and until then). Shown to the customer only.
+   */
+  matchedProfessionalCount: number | null;
+  /** The app's idempotency key of `POST /requests` (a retried post returns this request). */
+  clientRequestId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -98,6 +105,8 @@ const requestSchema = new Schema<RequestDoc>(
     cancelledAt: { type: Date, default: null },
     cancellationReason: { type: String, enum: [...REQUEST_CANCELLATION_REASONS, null], default: null },
     cancellationComment: { type: String, default: null },
+    matchedProfessionalCount: { type: Number, default: null },
+    clientRequestId: { type: String },
   },
   { timestamps: modelTimestamps(), versionKey: false },
 );
@@ -117,6 +126,11 @@ requestSchema.pre('validate', function setPublicPoint() {
 requestSchema.index({ customer: 1, updatedAt: -1, _id: -1 });
 // Customer dashboard counters by status.
 requestSchema.index({ customer: 1, status: 1 });
+// Idempotent POST /requests: one request per (customer, clientRequestId), also under retries.
+requestSchema.index(
+  { customer: 1, clientRequestId: 1 },
+  { unique: true, partialFilterExpression: { clientRequestId: { $type: 'string' } }, name: 'customer_1_clientRequestId_1' },
+);
 // Explorer + professional dashboard: $geoNear around a professional's center over requests that
 // accept offers in their categories. Status/category lead so the geo scan never walks the
 // (ever-growing) closed requests of the area.

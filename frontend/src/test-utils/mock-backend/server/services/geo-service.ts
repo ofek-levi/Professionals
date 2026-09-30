@@ -3,7 +3,7 @@
  * reverse geocoding to the nearest known street.
  */
 import { DomainError } from '@/features/shared/domain-error';
-import { hashString } from '@/features/shared/seeded-random';
+import { hashString } from '../../seeded-random';
 import type { AppLanguage, GeoCoordinates, PlaceSuggestion, ServiceLocation } from '@/types/domain';
 import { haversineDistanceKm, offsetCoordinates } from '@/utils/geo';
 

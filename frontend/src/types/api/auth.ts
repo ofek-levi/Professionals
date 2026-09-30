@@ -98,9 +98,13 @@ export interface PasswordResetRequest {
 }
 
 /** `GET /me` – the authenticated user and their role-specific profile. */
+/**
+ * `GET /me`. `emailVerified`: the sign-in address was confirmed (its link, or Google); "Email
+ * updates" only reach confirmed addresses.
+ */
 export type CurrentUserResponse =
-  | { user: User & { role: 'customer' }; customerProfile: CustomerProfile; professionalProfile: null }
-  | { user: User & { role: 'professional' }; customerProfile: null; professionalProfile: OwnProfessionalProfile };
+  | { user: User & { role: 'customer' }; emailVerified: boolean; customerProfile: CustomerProfile; professionalProfile: null }
+  | { user: User & { role: 'professional' }; emailVerified: boolean; customerProfile: null; professionalProfile: OwnProfessionalProfile };
 
 /** `PATCH /me` – the language of push notifications and emails. */
 export interface UpdateMeRequest {

@@ -1,7 +1,9 @@
 /**
  * Customer request lifecycle (the mock's `lifecycle-service.ts`, requests part): create (draft or
  * published), edit/delete drafts, publish. Publishing notifies every matching professional and
- * tells their explorers (`request.updated`), in the background after the commit.
+ * tells their explorers (`request.updated`), in the background after the commit, then stores how
+ * many professionals it matched (the customer sees it). Creating with a `clientRequestId` and
+ * publishing are idempotent, so the app can retry after a lost or late response.
  */
 import type { Types } from 'mongoose';
 
@@ -9,7 +11,7 @@ import type { AppDeps } from '../../deps.js';
 import { withTransaction, type Tx } from '../../infra/mongo.js';
 import { publishEvent } from '../../infra/realtime/index.js';
 import { toLocationDoc, type LocationDoc } from '../../infra/schema-parts.js';
-import { ApiError } from '../../lib/errors.js';
+import { ApiError, isDuplicateKeyError } from '../../lib/errors.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import { createNotifications } from '../notifications/create-notification.service.js';
 import { releaseUploads } from '../uploads/upload-attachments.service.js';
@@ -52,13 +54,41 @@ async function announcePublished(deps: RequestDeps, published: RequestDoc): Prom
     })),
   );
   await publishExplorerChange(deps, published, matches.map((match) => match.professionalId));
+  // The customer's request page says how many were notified (or that none cover the area yet).
+  await RequestModel.updateOne({ _id: published._id }, { $set: { matchedProfessionalCount: matches.length } });
+  await publishRequestUpdated(deps, published);
 }
 
-/** `POST /requests` – a draft, or published right away (`publish`, the default). */
-export function createRequest(deps: RequestDeps, auth: AuthContext, input: CreateRequestInput): Promise<RequestDoc> {
+/** The request an earlier `POST /requests` with this `clientRequestId` created, if any. */
+function findByClientRequestId(auth: AuthContext, clientRequestId: string | undefined, tx?: Tx): Promise<RequestDoc | null> {
+  if (!clientRequestId) return Promise.resolve(null);
+  return RequestModel.findOne({ customer: auth.userId, clientRequestId }, null, { session: tx?.session }).lean<RequestDoc>();
+}
+
+/**
+ * `POST /requests` – a draft, or published right away (`publish`, the default). With a
+ * `clientRequestId`, a repeated call (a retry after a lost or late response, a double tap) returns
+ * the request the first one created instead of creating another one (and of claiming its photos
+ * again, which would fail since they are attached).
+ */
+export async function createRequest(deps: RequestDeps, auth: AuthContext, input: CreateRequestInput): Promise<RequestDoc> {
+  try {
+    return await createRequestOnce(deps, auth, input);
+  } catch (error) {
+    if (!isDuplicateKeyError(error)) throw error;
+    // A concurrent call with the same clientRequestId committed first: answer with its request.
+    const winner = await findByClientRequestId(auth, input.clientRequestId);
+    if (!winner) throw error;
+    return winner;
+  }
+}
+
+function createRequestOnce(deps: RequestDeps, auth: AuthContext, input: CreateRequestInput): Promise<RequestDoc> {
   const now = deps.clock.now();
-  assertPreferredSchedule(input.preferredSchedule, input.urgency, now);
   return withTransaction(deps.logger, async (tx) => {
+    const earlier = await findByClientRequestId(auth, input.clientRequestId, tx);
+    if (earlier) return earlier;
+    assertPreferredSchedule(input.preferredSchedule, input.urgency, now);
     const photos = await resolveRequestPhotos(auth.userId, input.photoIds, [], now, tx.session);
     const [created] = await RequestModel.create(
       [
@@ -72,6 +102,7 @@ export function createRequest(deps: RequestDeps, auth: AuthContext, input: Creat
           photos,
           notes: input.notes,
           status: 'draft',
+          ...(input.clientRequestId ? { clientRequestId: input.clientRequestId } : {}),
         },
       ],
       { session: tx.session },
@@ -84,9 +115,12 @@ export function createRequest(deps: RequestDeps, auth: AuthContext, input: Creat
   });
 }
 
-/** `POST /requests/:id/publish` */
+/** `POST /requests/:id/publish` – idempotent: an already published (open) request is returned as is. */
 export function publishRequest(deps: RequestDeps, auth: AuthContext, requestId: Types.ObjectId): Promise<RequestDoc> {
-  return withTransaction(deps.logger, async (tx) => publishInTx(deps, await loadOwnedRequest(auth, requestId, tx.session), tx));
+  return withTransaction(deps.logger, async (tx) => {
+    const request = await loadOwnedRequest(auth, requestId, tx.session);
+    return request.status === 'open' ? request : publishInTx(deps, request, tx);
+  });
 }
 
 /** A new exact location and its approximate pin, which must always move together. */

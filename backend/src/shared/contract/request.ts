@@ -61,4 +61,9 @@ export interface ProfessionalRequestView extends ServiceRequest {
 export interface CustomerRequestView extends ServiceRequest {
   latestOfferAt: ISODateTimeString | null;
   lowestOfferPrice: number | null;
+  /**
+   * Professionals notified when the request was published (their categories and service area cover
+   * it); `null` for drafts and for the moment between publishing and the fan-out.
+   */
+  matchedProfessionalCount: number | null;
 }

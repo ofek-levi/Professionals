@@ -3,8 +3,9 @@
  * They never mutate their input and return the input unchanged (same reference) when there is
  * nothing to update, so React Query does not notify observers needlessly.
  */
+import { isUpdateNotificationType } from '@/constants/notification-types';
 import type { PaginatedInfiniteData } from '@/hooks/queries/query-scope';
-import type { RequestDetailsResponse, UnreadCountResponse } from '@/types/api';
+import type { NotificationsParams, RequestDetailsResponse, UnreadCountResponse } from '@/types/api';
 import type { AppNotification, Conversation, Message, ServiceRequest } from '@/types/domain';
 
 // ─────────────────────────────── Generic ───────────────────────────────
@@ -64,9 +65,10 @@ export function markAllNotificationsRead(
   return mapPaginatedItems(data, (item) => (item.readAt === null ? { ...item, readAt } : item));
 }
 
-/** Whether `notificationId` is loaded and still unread in `data`. */
-export function isNotificationUnread(data: PaginatedInfiniteData<AppNotification> | undefined, notificationId: string): boolean {
-  return Boolean(data?.pages.some((page) => page.items.some((item) => item.id === notificationId && item.readAt === null)));
+/** Whether `notificationId` is loaded, still unread and counted under Updates (not a chat notification). */
+export function isUnreadUpdate(data: PaginatedInfiniteData<AppNotification> | undefined, notificationId: string): boolean {
+  const item = findPaginatedItem(data, (candidate) => candidate.id === notificationId);
+  return item !== undefined && item.readAt === null && isUpdateNotificationType(item.type);
 }
 
 /**
@@ -84,6 +86,16 @@ export function prependNotification(
     ...data,
     pages: [{ ...first, items: [notification, ...first.items], totalCount: first.totalCount + 1 }, ...rest],
   };
+}
+
+/**
+ * Whether a cached `GET /notifications` list shows `notification`: its key ends with the list's
+ * params (`queryKeys.notifications.list`), whose filters the server applied.
+ */
+export function notificationListShows(queryKey: readonly unknown[], notification: Pick<AppNotification, 'type' | 'readAt'>): boolean {
+  const params = (queryKey[4] ?? {}) as NotificationsParams;
+  if (params.unreadOnly && notification.readAt !== null) return false;
+  return !(params.excludeTypes ?? []).includes(notification.type);
 }
 
 /** Adjusts the cached unread count by `delta`, never below zero. */

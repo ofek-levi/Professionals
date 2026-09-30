@@ -15,7 +15,7 @@ export default function CustomerProfileScreen() {
   const user = query.data?.user;
 
   return (
-    <Screen gap="xxl" refreshing={query.isRefetching} onRefresh={() => void query.refetch()} testID="customer-profile">
+    <Screen gap="xxl" onRefresh={() => query.refetch()} testID="customer-profile">
       <ScreenHeader title={t('common:tabs.profile')} />
       {user ? (
         <AccountHeader

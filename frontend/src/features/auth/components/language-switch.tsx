@@ -44,7 +44,7 @@ export function LanguageSwitch({ appearance = 'default', style }: LanguageSwitch
           <Pressable
             key={option}
             accessibilityRole="radio"
-            accessibilityState={{ checked: selected }}
+            aria-checked={selected}
             accessibilityLabel={t(`common:languages.${option}`)}
             onPress={() => select(option)}
             hitSlop={4}

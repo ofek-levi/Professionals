@@ -1,6 +1,8 @@
 export const customer = {
   home: {
     hello: 'Hi, {{name}}',
+    /** When the account could not be loaded (offline, server down). */
+    helloNeutral: 'Hi there',
     request: {
       title: 'What do you need help with?',
       subtitle: 'Describe the job and get offers from local pros.',
@@ -34,7 +36,9 @@ export const customer = {
     status: {
       draft: 'Draft – not posted yet',
       waiting: 'Waiting for offers',
-      waitingHint: 'We’ve notified pros nearby.',
+      waitingHint_one: 'We’ve notified {{count}} pro nearby.',
+      waitingHint_other: 'We’ve notified {{count}} pros nearby.',
+      waitingNoPros: 'No pros offer this service in your area yet. Your request stays open – pros who join nearby will see it.',
       offersToReview_one: '{{count}} offer to review',
       offersToReview_other: '{{count}} offers to review',
       booked: 'Booked with {{name}}',
@@ -46,7 +50,7 @@ export const customer = {
     },
     posted: 'Posted {{time}}',
     saved: 'Saved {{time}}',
-    postedBanner: 'You’re all set. Offers usually arrive within minutes – we’ll let you know.',
+    postedBanner: 'You’re all set. We’ll let you know when offers arrive.',
     hired: {
       appointment: 'Appointment',
       completed: 'Completed',

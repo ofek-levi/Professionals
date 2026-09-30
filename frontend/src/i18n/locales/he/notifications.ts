@@ -9,6 +9,10 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
       messages: 'שיחות',
     },
     emptyUpdates: 'אין עדכונים עדיין',
+    emptyUpdatesDescription: {
+      customer: 'הצעות לבקשות שלך, תזכורות לעבודות וביקורות יופיעו כאן.',
+      professional: 'עבודות חדשות בסביבה, תשובות להצעות שלך ותזכורות לעבודות יופיעו כאן.',
+    },
   },
   channel: {
     name: 'התראות',
@@ -21,6 +25,10 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
   a11y: {
     unread: 'לא נקראה',
     openHint: 'פתיחת הפרטים הקשורים',
+  },
+  unknownType: {
+    title: 'עדכון חדש',
+    body: 'יש משהו חדש בחשבון שלכם.',
   },
   fallbacks: {
     customer: 'לקוח',

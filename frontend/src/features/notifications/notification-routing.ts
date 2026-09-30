@@ -23,6 +23,9 @@ export function notificationTargetToHref(target: NotificationTarget): Href | nul
       return routes.professionalProfile(target.professionalId);
     case 'none':
       return null;
+    default:
+      // A target kind a newer server added: the notification opens nothing (no crash).
+      return null;
   }
 }
 

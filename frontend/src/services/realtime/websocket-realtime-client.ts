@@ -1,23 +1,31 @@
 /**
- * The realtime connection: `ws(s)://…/v1/realtime?token=<access token>`, JSON `RealtimeEvent` frames.
+ * The realtime connection: `ws(s)://…/v1/realtime`, authenticated by the access token offered as a
+ * subprotocol (`realtime-protocol.ts`: never in the URL), JSON `RealtimeEvent` frames.
  *
  * - Close 4001 (token expired, session revoked): the token is refreshed (`auth.handleUnauthorized`)
  *   and the socket reopened with the new one; when the refresh fails the session is over and the
  *   client stops (the session lifecycle disconnects it on sign-out anyway).
  * - Any other close (1001 server restart, network loss): reconnect with capped exponential backoff
- *   plus jitter.
+ *   plus jitter. The backoff only starts over once a socket stayed open for a while, so a server
+ *   that accepts and then closes at once (1008: too many connections for this user) is retried
+ *   slower and slower instead of about once a second; after a 1008 the next try waits the longest.
  * - Back in the foreground: reconnect right away. On iOS/Android the socket is closed while the app
  *   is in the background (the OS would freeze it anyway; pushes cover that time).
- * - After a reconnect `onReconnect` listeners refetch what they show (events may have been missed).
+ * - After a reconnect `onReconnect` listeners refetch what they show (events may have been missed),
+ *   also when the first connection only succeeded after failed attempts (an app started while the
+ *   server was unreachable: its screens failed meanwhile and recover on their own).
  */
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 
 import { DEFAULT_BACKOFF, parseRealtimeFrame, reconnectDelayMs, type BackoffOptions } from './realtime-frames';
+import { realtimeProtocols } from './realtime-protocol';
 import type { RealtimeClient, RealtimeEvent, RealtimeListener } from './types';
 
 /** Close code of the server for a missing, expired or revoked token. */
 export const CLOSE_UNAUTHORIZED = 4001;
 const CLOSE_NORMAL = 1000;
+/** The server's "too many connections for this user" (it accepts, then closes at once). */
+export const CLOSE_TOO_MANY_CONNECTIONS = 1008;
 /** A socket that stayed open this long was healthy: its 4001 is a plain expiry, not a loop. */
 const HEALTHY_CONNECTION_MS = 5_000;
 
@@ -36,7 +44,8 @@ interface SocketConnection {
   close(code: number, reason: string): void;
 }
 
-export type OpenSocket = (url: string, handlers: SocketHandlers) => SocketConnection;
+/** Opens `url` offering `protocols` (they carry the access token). */
+export type OpenSocket = (url: string, protocols: string[], handlers: SocketHandlers) => SocketConnection;
 
 type AppStateSource = (listener: (status: AppStateStatus) => void) => () => void;
 
@@ -53,8 +62,8 @@ export interface WebSocketRealtimeOptions {
   now?: () => number;
 }
 
-const openWebSocket: OpenSocket = (url, handlers) => {
-  const socket = new WebSocket(url);
+const openWebSocket: OpenSocket = (url, protocols, handlers) => {
+  const socket = new WebSocket(url, protocols);
   socket.onopen = () => handlers.onOpen();
   socket.onmessage = (event) => handlers.onMessage(event.data);
   socket.onclose = (event) => handlers.onClose(event.code);
@@ -66,6 +75,9 @@ const nativeAppState: AppStateSource = (listener) => {
   const subscription = AppState.addEventListener('change', listener);
   return () => subscription.remove();
 };
+
+/** An attempt number whose delay is the backoff's cap (`maxDelayMs`) for any sensible config. */
+const MAX_BACKOFF_ATTEMPT = 16;
 
 export function createWebSocketRealtimeClient({
   url,
@@ -89,6 +101,8 @@ export function createWebSocketRealtimeClient({
   let attempt = 0;
   let unauthorizedStreak = 0;
   let wasConnected = false;
+  /** Events may have been missed since the last open (a failed attempt, a drop, the background). */
+  let missedEvents = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let stopAppState: (() => void) | null = null;
 
@@ -109,6 +123,7 @@ export function createWebSocketRealtimeClient({
 
   const scheduleReconnect = () => {
     clearTimer();
+    missedEvents = true;
     if (!wanted || suspended) return;
     timer = setTimeout(() => void open(), reconnectDelayMs(attempt, random, backoff));
     attempt += 1;
@@ -116,11 +131,15 @@ export function createWebSocketRealtimeClient({
 
   const handleClose = async (code: number, token: string, openedAt: number | null, current: number) => {
     if (!wanted || current !== generation) return;
+    const wasHealthy = openedAt !== null && now() - openedAt >= HEALTHY_CONNECTION_MS;
+    // Only a connection that lasted starts the backoff over (not one closed right after opening).
+    if (wasHealthy) attempt = 0;
     if (code !== CLOSE_UNAUTHORIZED) {
+      if (code === CLOSE_TOO_MANY_CONNECTIONS) attempt = Math.max(attempt, MAX_BACKOFF_ATTEMPT);
       scheduleReconnect();
       return;
     }
-    if (openedAt !== null && now() - openedAt >= HEALTHY_CONNECTION_MS) unauthorizedStreak = 0;
+    if (wasHealthy) unauthorizedStreak = 0;
     let next: string | null;
     try {
       next = await auth.handleUnauthorized(token);
@@ -164,12 +183,12 @@ export function createWebSocketRealtimeClient({
     }
     const socketToken = token;
     let openedAt: number | null = null;
-    const socket = openSocket(`${url}?token=${encodeURIComponent(socketToken)}`, {
+    const socket = openSocket(url, realtimeProtocols(socketToken), {
       onOpen: () => {
         openedAt = now();
-        attempt = 0;
-        if (wasConnected) reconnectListeners.forEach((listener) => listener());
+        if (wasConnected || missedEvents) reconnectListeners.forEach((listener) => listener());
         wasConnected = true;
+        missedEvents = false;
       },
       onMessage: (data) => {
         const event = parseRealtimeFrame(data);
@@ -199,6 +218,7 @@ export function createWebSocketRealtimeClient({
       void open();
     } else if (status === 'background' && closeInBackground) {
       suspended = true;
+      missedEvents = true;
       generation += 1;
       clearTimer();
       closeConnection();
@@ -211,6 +231,7 @@ export function createWebSocketRealtimeClient({
       wanted = true;
       suspended = false;
       wasConnected = false;
+      missedEvents = false;
       attempt = 0;
       unauthorizedStreak = 0;
       stopAppState ??= appState(onAppStateChange);

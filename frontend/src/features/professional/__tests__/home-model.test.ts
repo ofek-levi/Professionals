@@ -1,4 +1,4 @@
-import { upNextJobs } from '../home-model';
+import { profileGaps, upNextJobs } from '../home-model';
 
 describe('professional home model', () => {
   it('lists jobs awaiting confirmation soonest first', () => {
@@ -21,5 +21,13 @@ describe('professional home model', () => {
     expect(upNextJobs(jobs).map((job) => job.id)).toEqual(['confirm', 'running']);
     expect(upNextJobs(jobs, 4).map((job) => job.id)).toEqual(['confirm', 'running', 'soon', 'later']);
     expect(upNextJobs([])).toEqual([]);
+  });
+});
+
+describe('profileGaps', () => {
+  it('lists the empty parts of a new professional’s public profile', () => {
+    expect(profileGaps({ avatarUrl: null, headline: '', bio: ' ' })).toEqual(['photo', 'headline', 'bio']);
+    expect(profileGaps({ avatarUrl: 'https://img/1.jpg', headline: 'Plumber', bio: '' })).toEqual(['bio']);
+    expect(profileGaps({ avatarUrl: 'https://img/1.jpg', headline: 'Plumber', bio: 'Twenty years of fixing leaks in Haifa.' })).toEqual([]);
   });
 });

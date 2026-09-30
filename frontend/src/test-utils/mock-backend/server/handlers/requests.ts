@@ -1,7 +1,7 @@
 /** `/requests/*` routes. */
 import { OFFER_STATUSES } from '@/constants/offer-statuses';
 import { sortOffers } from '@/features/offers/offer-sorting';
-import { isRequestMatchForProfessional } from '@/features/requests/request-matching';
+import { isRequestMatchForProfessional } from '../request-matching';
 import { DomainError } from '@/features/shared/domain-error';
 import { OFFER_SORTS, type RequestDetailsResponse } from '@/types/api';
 

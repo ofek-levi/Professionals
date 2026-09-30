@@ -2,18 +2,18 @@
  * Unread counts of the Inbox tab: unread updates (notifications) plus unread chat messages.
  *
  * A chat message also creates a `new_message` notification (one per conversation, collapsed by
- * the server). Those belong to Messages, not Updates: the Updates list hides them and the counts
- * leave them out, so one message never counts twice and the tab badge always equals the sum of
- * the two segment counts.
+ * the server). Those belong to Messages, not Updates: the server leaves them out of the Updates
+ * list and its unread count (`excludeTypes=new_message`), so one message never counts twice and
+ * the tab badge always equals the sum of the two segment counts, however many notifications the
+ * account has.
  */
-import { useNotifications, useUnreadMessagesCount, useUnreadNotificationsCount } from '@/hooks';
+import { isUpdateNotificationType } from '@/constants/notification-types';
+import { useUnreadMessagesCount, useUnreadNotificationsCount } from '@/hooks';
 import type { AppNotification } from '@/types/domain';
 
 interface InboxBadgeInput {
-  /** Server-side unread notifications count (all types). */
-  unreadNotifications: number;
-  /** Loaded unread notifications (to find the `new_message` ones). */
-  unreadList: readonly Pick<AppNotification, 'type' | 'readAt'>[];
+  /** Server-side unread notifications under Updates (`new_message` excluded by the server). */
+  unreadUpdates: number;
   /** Server-side unread chat messages over all conversations (`GET /conversations/unread-count`). */
   unreadMessages: number;
 }
@@ -29,12 +29,11 @@ interface InboxCounts {
 
 /** Notifications listed under Updates: everything except chat messages (they live in Messages). */
 export function isUpdateNotification(notification: Pick<AppNotification, 'type'>): boolean {
-  return notification.type !== 'new_message';
+  return isUpdateNotificationType(notification.type);
 }
 
-export function countInboxUnread({ unreadNotifications, unreadList, unreadMessages }: InboxBadgeInput): InboxCounts {
-  const messageNotifications = unreadList.filter((notification) => !isUpdateNotification(notification) && notification.readAt === null).length;
-  const updates = Math.max(0, unreadNotifications - messageNotifications);
+export function countInboxUnread({ unreadUpdates, unreadMessages }: InboxBadgeInput): InboxCounts {
+  const updates = Math.max(0, unreadUpdates);
   const messages = Math.max(0, unreadMessages);
   return { updates, messages, total: updates + messages };
 }
@@ -44,8 +43,7 @@ export function countInboxUnread({ unreadNotifications, unreadList, unreadMessag
  * counts come from the server (`message.created` / `conversation.read` refetch the messages one).
  */
 export function useInboxCounts(): InboxCounts {
-  const unreadNotifications = useUnreadNotificationsCount().data ?? 0;
-  const unreadList = useNotifications({ unreadOnly: true }).data?.items ?? [];
+  const unreadUpdates = useUnreadNotificationsCount().data ?? 0;
   const unreadMessages = useUnreadMessagesCount().data ?? 0;
-  return countInboxUnread({ unreadNotifications, unreadList, unreadMessages });
+  return countInboxUnread({ unreadUpdates, unreadMessages });
 }

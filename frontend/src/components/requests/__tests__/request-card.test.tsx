@@ -50,6 +50,7 @@ const customerRequest: CustomerRequestView = {
   ...baseRequest,
   latestOfferAt: minutesAgo(1),
   lowestOfferPrice: 250,
+  matchedProfessionalCount: 3,
 };
 
 const professionalRequest: ProfessionalRequestView = {

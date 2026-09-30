@@ -82,6 +82,12 @@ export const errors = {
     },
   },
   /** `Retry-After` of a 429, appended to the RATE_LIMITED text. */
+  /** A screen failed to render (the app-wide error boundary). */
+  crash: {
+    title: 'Something went wrong',
+    message: 'This screen couldn’t be shown. Try again, and if it keeps happening, restart the app.',
+    retry: 'Try again',
+  },
   retryAfter: {
     seconds_one: 'Please try again in {{count}} second.',
     seconds_other: 'Please try again in {{count}} seconds.',
@@ -97,6 +103,13 @@ export const errors = {
     rateLimited: {
       title: 'Too many photos for now',
       description: 'You’ve uploaded a lot of photos recently. Please try again later.',
+    },
+    /** 5xx: the photo service is down or not set up; nothing is wrong with the photo. */
+    unavailable: {
+      title: 'Photos can’t be uploaded right now',
+      description: 'Please try again in a few minutes.',
+      /** Where photos are optional (a new request). */
+      optionalDescription: 'Try again in a few minutes, or remove the photos to continue without them.',
     },
   },
 } as const;

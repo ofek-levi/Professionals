@@ -107,6 +107,18 @@ describe('PATCH /v1/professional/profile', () => {
     expect(await UserModel.findById(pro.user._id).lean()).toEqual(before);
   });
 
+  it('saves a profile whose headline and bio are still empty (sign-up asks for neither)', async () => {
+    const pro = await signInProfessional(deps);
+    await ProfessionalModel.updateOne({ _id: pro.professional._id }, { headline: '', bio: '' });
+    const payload = fullPayload();
+    const res = await request(app)
+      .patch('/v1/professional/profile')
+      .set(pro.headers)
+      .send({ ...payload, headline: '  ', bio: '', serviceArea: { ...payload.serviceArea, radiusKm: 20 } })
+      .expect(200);
+    expect(res.body).toMatchObject({ headline: '', bio: '', serviceArea: { radiusKm: 20 } });
+  });
+
   it('validates every field with the app’s message keys', async () => {
     const pro = await signInProfessional(deps);
     const payload = fullPayload();

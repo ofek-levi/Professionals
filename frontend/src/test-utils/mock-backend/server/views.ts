@@ -2,12 +2,12 @@
  * Response views: turn stored rows into the DTOs of the REST contract, applying per-viewer
  * privacy rules (approximate locations, stripped private settings, per-viewer unread counts).
  */
-import { computeRequestOfferStats } from '@/features/offers/offer-counters';
+import { computeRequestOfferStats } from './offer-counters';
 import {
   approximateLocation,
   distanceFromServiceAreaKm,
   isRequestMatchForProfessional,
-} from '@/features/requests/request-matching';
+} from './request-matching';
 import type {
   Conversation,
   CustomerRequestView,
@@ -40,6 +40,7 @@ import {
   requireStoredUser,
   reviewForJob,
 } from './queries';
+import { findMatchingProfessionals } from './services/matching-service';
 
 // ────────────────────────────── Users & profiles ──────────────────────────────
 
@@ -116,7 +117,13 @@ function toCustomerSummary(ctx: ServerContext, customerId: string): CustomerSumm
 
 export function toCustomerRequestView(ctx: ServerContext, request: ServiceRequest): CustomerRequestView {
   const stats = computeRequestOfferStats(offersForRequest(ctx.db, request.id));
-  return { ...request, latestOfferAt: stats.latestOfferAt, lowestOfferPrice: stats.lowestOfferPrice };
+  return {
+    ...request,
+    latestOfferAt: stats.latestOfferAt,
+    lowestOfferPrice: stats.lowestOfferPrice,
+    // The real server stores the count of its publish fan-out; the double counts the matches now.
+    matchedProfessionalCount: request.publishedAt ? findMatchingProfessionals(ctx, request).length : null,
+  };
 }
 
 function toMyOfferSummary(offer: Offer | undefined): MyOfferSummary | null {

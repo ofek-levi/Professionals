@@ -18,16 +18,22 @@ interface TextRuleOptions {
   required?: ValidationMessageKey;
   tooShort?: ValidationMessageKey;
   tooLong: ValidationMessageKey;
+  /** Accept an empty value (default `false`). */
+  optional?: boolean;
 }
 
-/** Required text: trimmed, non-empty, within `[min, max]`. */
-export function requiredText({ min = 1, max, required = vm('required'), tooShort, tooLong }: TextRuleOptions) {
+/**
+ * Required text: trimmed, non-empty, within `[min, max]`. With `optional`, an empty value is
+ * accepted too (a field the user has not written yet); any other value follows the same rules.
+ */
+export function requiredText({ min = 1, max, required = vm('required'), tooShort, tooLong, optional = false }: TextRuleOptions) {
   return z
     .string({ error: required })
     .trim()
     .superRefine((value, ctx) => {
-      if (value.length === 0) ctx.addIssue({ code: 'custom', message: required });
-      else if (value.length < min) ctx.addIssue({ code: 'custom', message: tooShort ?? required });
+      if (value.length === 0) {
+        if (!optional) ctx.addIssue({ code: 'custom', message: required });
+      } else if (value.length < min) ctx.addIssue({ code: 'custom', message: tooShort ?? required });
       else if (value.length > max) ctx.addIssue({ code: 'custom', message: tooLong });
     });
 }

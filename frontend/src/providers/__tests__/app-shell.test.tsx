@@ -30,7 +30,7 @@ jest.mock('@/services/realtime', () => {
     realtimeClient: createWebSocketRealtimeClient({
       url: 'ws://localhost:4000/v1/realtime',
       auth: sessionTokens,
-      openSocket: (url: string, handlers: unknown) => mockSockets.current!.openSocket(url, handlers as never),
+      openSocket: (url: string, protocols: string[], handlers: unknown) => mockSockets.current!.openSocket(url, protocols, handlers as never),
       appState: () => () => undefined,
     }),
   };
@@ -133,6 +133,10 @@ describe('app shell', () => {
     expect(env.log.to('/auth/logout', 'POST').map((request) => [request.body, request.status])).toEqual([[{ refreshToken }, 200]]);
     expect(env.log.to('/auth/logout')[0].headers.Authorization).toBeUndefined();
     await waitFor(() => expect(env.sockets.open()).toEqual([]), { timeout: 10_000 });
+    // The socket was closed before the server ended the session: its 4001 did not make the app
+    // spend the revoked refresh token, and signing out on purpose shows no "signed out" notice.
+    expect(env.log.to('/auth/refresh')).toEqual([]);
+    expect(screen.queryByText('You’ve been signed out')).toBeNull();
     expect(await expectApiError(env.as(null).auth.refresh({ refreshToken }))).toMatchObject({ status: 401 });
   });
 
@@ -232,6 +236,9 @@ describe('session tokens', () => {
     const app = await renderApp('/customer/home');
 
     await waitFor(() => expect(app.getPathname()).toBe('/sign-in'), { timeout: 10_000 });
+    // The user is told why (not a silent jump to the entry screen).
+    expect(await screen.findByText('You’ve been signed out')).toBeOnTheScreen();
+    expect(screen.getByText('Your session has ended. Please sign in again.')).toBeOnTheScreen();
     expect(sessionStore.getState().status).toBe('signedOut');
     expect(sessionStore.getTokens()).toBeNull();
     expect(env.log.to('/auth/refresh').map((request) => request.status)).toEqual([401]);

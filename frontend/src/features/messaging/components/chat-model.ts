@@ -8,6 +8,8 @@ import { differenceInCalendarDays, differenceInMinutes, isValid, parseISO, start
 import { getMessagePreview } from '@/features/messaging/message-rules';
 import type { Conversation, ConversationParticipant, Message } from '@/types/domain';
 
+import type { SendFailureReason } from './send-failure';
+
 // ─────────────────────────────── Conversations ───────────────────────────────
 
 /** The other participant of a two-party conversation (`null` when missing). */
@@ -56,12 +58,17 @@ export function getConversationActivityAt(conversation: Pick<Conversation, 'last
 
 // ─────────────────────────────── Chat rows ───────────────────────────────
 
-/** A message that could not be sent; kept locally so the user can retry it. */
-export interface FailedMessage {
+/** A message on its way to the server (before it is sent or fails). */
+export interface OutgoingMessage {
   clientMessageId: string;
   text: string;
   /** When the user first tried to send it. */
   createdAt: string;
+}
+
+/** A message that could not be sent; kept locally so the user can retry or delete it. */
+export interface FailedMessage extends OutgoingMessage {
+  reason: SendFailureReason;
 }
 
 export type MessageDeliveryState = 'sending' | 'failed' | 'sent' | 'read';

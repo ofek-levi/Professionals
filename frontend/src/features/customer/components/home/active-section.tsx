@@ -2,7 +2,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { CategoryIcon } from '@/components/categories';
-import { AppText, Card, Divider, Icon, SectionHeader, Skeleton } from '@/components/ui';
+import { AppText, Card, Divider, ErrorState, Icon, SectionHeader, Skeleton } from '@/components/ui';
 import type { StatusTone } from '@/constants/tones';
 import { useCategoryName } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
@@ -19,17 +19,23 @@ interface ActiveSectionProps {
   /** `undefined` while loading. */
   rows: HomeActiveRow[] | undefined;
   onOpenRow: (row: HomeActiveRow) => void;
+  /** Loading failed: shown under the section's header (with a retry) instead of the rows. */
+  error?: unknown;
+  onRetry?: () => void;
+  retrying?: boolean;
 }
 
 /** The Home tab's one "Active" section: up to three compact rows of what needs the customer. */
-export function ActiveSection({ rows, onOpenRow }: ActiveSectionProps) {
+export function ActiveSection({ rows, onOpenRow, error, onRetry, retrying = false }: ActiveSectionProps) {
   const styles = useStyles();
   const { t } = useTranslation('customer');
 
   return (
     <View testID="home-active">
       <SectionHeader title={t('home.active.title')} />
-      {rows === undefined ? (
+      {error ? (
+        <ErrorState compact error={error} onRetry={onRetry} retrying={retrying} />
+      ) : rows === undefined ? (
         <Card padding="none" style={styles.group}>
           <RowSkeleton />
           <Divider inset={ROW_DIVIDER_INSET} />

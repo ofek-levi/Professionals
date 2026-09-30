@@ -36,9 +36,13 @@ export type GoogleAuthResponse =
   | { status: 'signed_in'; session: AuthSession }
   | { status: 'registration_required'; profile: GoogleProfile };
 
+/**
+ * `GET /me`. `emailVerified`: the sign-in address was confirmed (verification link or Google);
+ * "Email updates" are only sent to confirmed addresses.
+ */
 export type CurrentUserResponse =
-  | { user: User & { role: 'customer' }; customerProfile: CustomerProfile; professionalProfile: null }
-  | { user: User & { role: 'professional' }; customerProfile: null; professionalProfile: OwnProfessionalProfile };
+  | { user: User & { role: 'customer' }; emailVerified: boolean; customerProfile: CustomerProfile; professionalProfile: null }
+  | { user: User & { role: 'professional' }; emailVerified: boolean; customerProfile: null; professionalProfile: OwnProfessionalProfile };
 
 export type RequestDetailsResponse =
   | { viewerRole: 'customer'; request: CustomerRequestView }
@@ -55,6 +59,12 @@ export interface UploadedImage {
   url: string;
   width: number | null;
   height: number | null;
+}
+
+/** `GET` and `PATCH /customer/profile` */
+export interface CustomerProfileResponse {
+  user: User;
+  profile: CustomerProfile;
 }
 
 export interface UnreadCountResponse {

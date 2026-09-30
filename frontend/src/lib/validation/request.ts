@@ -121,6 +121,8 @@ export const requestFormPhotoSchema = z.object({
   height: z.number(),
   mimeType: z.string().nullable(),
   fileName: z.string().nullable(),
+  /** Bytes, when the picker reports it (checked against the upload limit before the transfer). */
+  fileSize: z.number().nullable().optional(),
   /** Id returned by `POST /uploads/images` (photos of an edited draft are already uploaded). */
   uploadId: z.string().nullable().optional(),
 });

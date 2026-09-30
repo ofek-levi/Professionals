@@ -17,7 +17,7 @@ import { useConversationMessages, useConversations } from '@/hooks/queries/use-c
 import { useCustomerProfile } from '@/hooks/queries/use-customer-queries';
 import { useCustomerDashboard, useProfessionalDashboard } from '@/hooks/queries/use-dashboard-queries';
 import { queryKeys } from '@/hooks/queries/query-keys';
-import { useNotifications, useUnreadNotificationsCount } from '@/hooks/queries/use-notification-queries';
+import { useUnreadNotificationsCount, useUpdateNotifications } from '@/hooks/queries/use-notification-queries';
 import { useRequestOffers } from '@/hooks/queries/use-offer-queries';
 import { NEARBY_MAP_LIMIT, useNearbyRequestsForMap, useRequest } from '@/hooks/queries/use-request-queries';
 import { APP_CONFIG } from '@/constants/app-config';
@@ -255,7 +255,7 @@ describe('useMarkNotificationAsRead', () => {
     await signInAs(customer);
     const { wrapper } = createWrapper();
     const { result } = await renderHook(
-      () => ({ list: useNotifications(), unread: useUnreadNotificationsCount(), markRead: useMarkNotificationAsRead() }),
+      () => ({ list: useUpdateNotifications(), unread: useUnreadNotificationsCount(), markRead: useMarkNotificationAsRead() }),
       { wrapper },
     );
     await waitFor(() => {

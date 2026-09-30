@@ -3,6 +3,7 @@ import type {
   ProfessionalReviewsParams,
   SearchProfessionalsParams,
   UpdateProfessionalProfilePayload,
+  WireQueries,
 } from '@/types/api';
 import type {
   OwnProfessionalProfile,
@@ -25,7 +26,7 @@ export function createProfessionalsApi(client: ApiClient) {
     getProfessionalReviews: (professionalId: string, params: ProfessionalReviewsParams = {}, signal?: AbortSignal) =>
       client.get<Paginated<Review> & { breakdown: RatingBreakdown }>(`/professionals/${id(professionalId)}/reviews`, {
         signal,
-        query: { cursor: params.cursor, limit: params.limit },
+        query: { cursor: params.cursor, limit: params.limit } satisfies WireQueries['/professionals/:id/reviews'],
       }),
 
     /** `GET /professionals` */
@@ -38,7 +39,7 @@ export function createProfessionalsApi(client: ApiClient) {
           lng: params.near?.longitude,
           cursor: params.cursor,
           limit: params.limit,
-        },
+        } satisfies WireQueries['/professionals'],
       }),
 
     /** `GET /professional/profile` – the signed-in professional's own profile. */

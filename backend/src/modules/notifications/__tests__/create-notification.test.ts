@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearDatabase, createTestDeps } from '../../../../test/app.js';
-import { createCustomer, createDevice, createOffer, createProfessional, createRequest } from '../../../../test/factories.js';
+import { createCustomer, createDevice, createOffer, createProfessional, createRequest, createSession } from '../../../../test/factories.js';
+import { SessionModel } from '../../auth/session.model.js';
 import { withTransaction } from '../../../infra/mongo.js';
 import { newObjectId } from '../../../lib/ids.js';
 import { DeviceModel } from '../../users/device.model.js';
@@ -132,6 +133,41 @@ describe('createNotification', () => {
 
     expect(results.map((result) => result?.type ?? null)).toEqual(['request_cancelled', null]);
     expect(await DeviceModel.countDocuments({ user: customer._id })).toBe(0);
+  });
+
+  it('never pushes to a device whose session ended without a logout (TTL expiry, offline sign-out), and deletes it', async () => {
+    const { customer, input } = await offerReceivedFixture();
+    const live = await createDevice(customer);
+    // Its session expired (the TTL monitor has not deleted it yet).
+    await createDevice(customer, { session: (await createSession(customer, { expiresAt: new Date('2026-10-01T08:59:59.000Z') }))._id });
+    const deleted = await createDevice(customer);
+    await SessionModel.deleteOne({ _id: deleted.session }); // what the TTL monitor does
+
+    await createNotification(deps, customer._id, input);
+    await deps.background.drain();
+
+    expect(deps.push.sent.map((message) => message.to)).toEqual([live.token]);
+    expect((await DeviceModel.find({ user: customer._id }, { token: 1 }).lean()).map((device) => device.token)).toEqual([live.token]);
+  });
+
+  it('keeps a device that a new session registered again while the fan-out ran', async () => {
+    const { customer, input } = await offerReceivedFixture();
+    const device = await createDevice(customer);
+    await SessionModel.deleteOne({ _id: device.session });
+    const renewed = await createSession(customer);
+    const deleteMany = DeviceModel.deleteMany.bind(DeviceModel);
+    // The phone signs in again (same token, new session) after the fan-out read its devices.
+    const spy = vi.spyOn(DeviceModel, 'deleteMany').mockImplementationOnce(((filter: Parameters<typeof deleteMany>[0]) =>
+      DeviceModel.updateOne({ _id: device._id }, { $set: { session: renewed._id } }).then(() => deleteMany(filter))) as never);
+    try {
+      await createNotification(deps, customer._id, input);
+      await deps.background.drain();
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(deps.push.sent).toEqual([]);
+    expect(await DeviceModel.findById(device._id).lean()).toMatchObject({ session: renewed._id });
   });
 
   it('keeps devices and the other tickets when a request to Expo fails', async () => {

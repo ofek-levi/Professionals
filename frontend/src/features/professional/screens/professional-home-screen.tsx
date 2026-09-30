@@ -1,6 +1,7 @@
 /**
  * Professional tab "Home": greeting and business name, how many open jobs are nearby (→ Explore), two small counters
- * (→ Work tab) and at most two "Up next" jobs.
+ * (→ Work tab), "Complete your profile" while the photo, headline or bio is missing, and at most two
+ * "Up next" jobs.
  */
 import { useRouter } from 'expo-router';
 import { View } from 'react-native';
@@ -14,7 +15,8 @@ import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
 import { isolateText } from '@/utils/bidi';
 
-import { upNextJobs } from '../home-model';
+import { CompleteProfileCard } from '../components/complete-profile-card';
+import { profileGaps, upNextJobs } from '../home-model';
 
 export default function ProfessionalHomeScreen() {
   const styles = useStyles();
@@ -30,14 +32,10 @@ export default function ProfessionalHomeScreen() {
   const firstName = profile?.fullName.split(/\s+/)[0] ?? '';
   const upNext = upNextJobs(dashboard?.upcomingAppointments ?? []);
 
-  const refresh = () => {
-    void dashboardQuery.refetch();
-    void profileQuery.refetch();
-  };
+  const refresh = () => Promise.all([dashboardQuery.refetch(), profileQuery.refetch()]);
 
   return (
     <Screen
-      refreshing={dashboardQuery.isRefetching || profileQuery.isRefetching}
       onRefresh={refresh}
       contentContainerStyle={styles.content}
       testID="pro-home-screen"
@@ -53,6 +51,11 @@ export default function ProfessionalHomeScreen() {
               {profile.displayName}
             </AppText>
           </>
+        ) : profileQuery.isError ? (
+          // Not a skeleton that never resolves: the error below says what failed.
+          <AppText variant="largeTitle" accessibilityRole="header" numberOfLines={1} testID="pro-home-greeting-neutral">
+            {t('professional:home.helloNeutral')}
+          </AppText>
         ) : (
           <>
             <Skeleton width="45%" height={30} style={styles.greetingSkeleton} />
@@ -115,6 +118,8 @@ export default function ProfessionalHomeScreen() {
               />
             </View>
           </View>
+
+          {profile ? <CompleteProfileCard gaps={profileGaps(profile)} /> : null}
 
           <View style={styles.section} testID="pro-home-up-next">
             <SectionHeader title={t('professional:home.upNext')} style={styles.sectionHeader} />

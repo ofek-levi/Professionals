@@ -108,13 +108,16 @@ const displayNameSchema = requiredText({
   tooLong: vm('profile.nameTooLong'),
 });
 
+// Sign-up asks for neither a headline nor a bio: both may stay empty (the public profile hides them).
 const headlineSchema = requiredText({
+  optional: true,
   max: PROFILE_LIMITS.headlineMax,
   required: vm('profile.headlineRequired'),
   tooLong: vm('profile.headlineTooLong'),
 });
 
 const bioSchema = requiredText({
+  optional: true,
   min: PROFILE_LIMITS.bioMin,
   max: PROFILE_LIMITS.bioMax,
   required: vm('profile.bioTooShort'),

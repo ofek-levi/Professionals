@@ -5,12 +5,13 @@ import {
   adjustUnreadCount,
   applyMessageToConversation,
   createOptimisticMessage,
-  isNotificationUnread,
   isPendingMessage,
+  isUnreadUpdate,
   markAllNotificationsRead,
   markNotificationRead,
   mergeDefined,
   mergeRequestIntoDetail,
+  notificationListShows,
   prependNotification,
   removeMessageByClientId,
   upsertMessage,
@@ -45,8 +46,25 @@ describe('notification cache updates', () => {
     const next = markNotificationRead(data, 'n3', 'now');
     expect(next?.pages[1].items[0].readAt).toBe('now');
     expect(next?.pages[0]).toBe(data.pages[0]);
-    expect(isNotificationUnread(next, 'n3')).toBe(false);
-    expect(isNotificationUnread(next, 'n1')).toBe(true);
+    expect(isUnreadUpdate(next, 'n3')).toBe(false);
+    expect(isUnreadUpdate(next, 'n1')).toBe(true);
+  });
+
+  it('counts only unread updates (a chat notification counts under Messages)', () => {
+    const data = pages<AppNotification>([notification('n1'), { ...notification('chat'), type: 'new_message' }]);
+    expect(isUnreadUpdate(data, 'n1')).toBe(true);
+    expect(isUnreadUpdate(data, 'chat')).toBe(false);
+    expect(isUnreadUpdate(data, 'missing')).toBe(false);
+  });
+
+  it('knows which cached lists show a notification (their filters)', () => {
+    const update = notification('n1');
+    const chat = { ...notification('c1'), type: 'new_message' as const };
+    const key = (params: object) => ['u', 'u1', 'notifications', 'list', params];
+    expect(notificationListShows(key({ excludeTypes: ['new_message'] }), update)).toBe(true);
+    expect(notificationListShows(key({ excludeTypes: ['new_message'] }), chat)).toBe(false);
+    expect(notificationListShows(key({ unreadOnly: true }), { ...update, readAt: 'x' })).toBe(false);
+    expect(notificationListShows(['u', 'u1', 'notifications', 'list'], chat)).toBe(true);
   });
 
   it('returns the same reference when nothing changes', () => {

@@ -16,7 +16,7 @@ without seeing each other's cache, rate limits, locks, push tickets or realtime 
 | Email | Gmail SMTP (`SMTP_USER`/`SMTP_PASS`), else written to the log | Resend | Resend |
 | Image uploads without Cloudinary | 503 | — | — |
 | Google sign-in without client ids | 503 | — | — |
-| `CORS_ORIGINS` empty | allow every origin | allow none | allow none |
+| `CORS_ORIGINS` empty | allow every origin | allow none (warning at startup) | allow none (warning at startup) |
 | Default `LOG_LEVEL` | `debug` | `info` | `info` |
 
 Use separate MongoDB databases per environment (`MONGODB_DB_NAME` or the database in the URI) and
@@ -33,7 +33,7 @@ a list of every problem. Summary:
 | `APP_ENV` | always | — | `development`, `staging`, `production` |
 | `PORT` | | `4000` | HTTP and WebSocket |
 | `PUBLIC_API_URL` | staging, production | `http://localhost:<PORT>` | Public base URL (no `/v1`) used in email links |
-| `CORS_ORIGINS` | | see §1 | Comma-separated browser origins (the native app needs none; Expo web does) |
+| `CORS_ORIGINS` | | see §1 | Comma-separated browser origins: the web app's origin(s), e.g. `https://app.example.com` (the native apps need none). Empty when deployed = no browser can call the API, which the web app reports as "No connection"; startup logs a warning |
 | `TRUST_PROXY` | staging, production | `false` (development) | Express `trust proxy`: a hop count (`1`), or comma-separated proxy addresses/subnets (`10.0.0.0/8`, `loopback`, …); `false` only when clients connect directly. Deployed environments must set it and refuse `true` (it trusts any `X-Forwarded-For`, so a client could choose the IP every per-IP limit sees) |
 | `LOG_LEVEL` | | see §1 | `fatal`…`trace`, `silent` |
 | `MONGODB_URI` | always | — | Must point at a **replica set** (transactions) |
@@ -42,8 +42,8 @@ a list of every problem. Summary:
 | `REDIS_URL` | always | — | `redis://` or `rediss://` (TLS) |
 | `JWT_ACCESS_SECRET` | always | — | `openssl rand -base64 48`; one per environment. Development accepts ≥ 32 characters (the `.env.example` placeholder, with a warning); staging/production refuse placeholders (`change-me`, `example`, …), secrets under 43 characters (32 random bytes) and low-entropy ones. Also signs refresh tokens (derived key) |
 | `JWT_ISSUER` / `JWT_AUDIENCE` | | `professionals-api:<APP_ENV>` / `professionals-app:<APP_ENV>` | Access token `iss` / `aud`; the environment in the defaults makes one environment's tokens useless in another |
-| `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID` | staging, production | — | Accepted audiences of Google id tokens |
-| `GOOGLE_ANDROID_CLIENT_ID` | when Android signs in with Google | — | The Android build's id tokens carry this audience |
+| `GOOGLE_WEB_CLIENT_ID` | staging, production | — | Accepted audience of the web app's Google id tokens |
+| `GOOGLE_ANDROID_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID` | for each native app you ship | — | The Android / iOS build's id tokens carry this audience. Deployed without one, startup logs a warning: that app shows "Continue with Google" when it was built with its own id, and every attempt answers 401 `INVALID_GOOGLE_TOKEN`. The APKs of the Android workflow are the shipped native build, so set the Android id wherever they point |
 | `CLOUDINARY_URL` (or `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET`) | staging, production | — | Image storage |
 | `RESEND_API_KEY`, `EMAIL_FROM` | staging, production | — | `EMAIL_FROM` like `Professionals <no-reply@your-domain>` on a verified domain |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | | `smtp.gmail.com`, `465` | Development only (ignored elsewhere) |
@@ -147,7 +147,14 @@ Without Docker: `npm ci && npm run build && npm start` on Node ≥ 22.12.
 - Rate limits of signed-in traffic are per user, and the per-IP caps of the sign-in routes are sized
   for carrier NAT (many subscribers behind one IPv4); see API.md, Rate limits.
 - The WebSocket endpoint `/v1/realtime` shares the HTTP port: allow `Upgrade` and use an idle timeout
-  above 30 s (the server pings every 30 s). The HTTP keep-alive timeout is 65 s, above the usual 60 s
+  above 30 s (the server pings every 30 s).
+- **Access logs of the load balancer, proxy or CDN must not keep query strings of `/v1/realtime`, nor
+  its `Sec-WebSocket-Protocol` request header**: the current app sends the user's access token (a JWT
+  valid up to 30 min) as the `bearer.<token>` subprotocol, and app versions released before that put
+  it in the URL (`?token=<JWT>`); only the API's own log redacts it. Log the path without the query (nginx: a `log_format` with `$uri` instead
+  of `$request`/`$request_uri`; AWS ALB and Cloudflare record the full URL, so disable their access
+  logs for that path or drop the field before storing them), and keep crash/console capture in the
+  browser away from WebSocket URLs (a failing socket prints its URL to the console). The HTTP keep-alive timeout is 65 s, above the usual 60 s
   load-balancer idle timeout.
 - Health checks: liveness `GET /health` (process up, no dependencies), readiness `GET /ready` (MongoDB
   and Redis answer; 503 otherwise).
@@ -243,8 +250,10 @@ jobs (e.g. `orphan-uploads` while investigating storage).
 ### Google sign-in
 
 1. Google Cloud console → *APIs & Services* → *Credentials* (same project as the app's OAuth consent
-   screen). Create OAuth client ids: **Web application**, **iOS** (bundle id of the app) and, if the
-   Android build signs in with Google, **Android** (package name + signing certificate SHA-1).
+   screen). Create OAuth client ids: **Web application** (authorized JavaScript origin: the web app's
+   URL), **Android** for the APKs (package name + the SHA-1 of **that environment's** release
+   keystore, see `frontend/README.md`; never the public debug keystore's SHA-1 outside development)
+   and **iOS** (bundle id) if an iOS build ships.
 2. Give the same ids to the app (`EXPO_PUBLIC_GOOGLE_*_CLIENT_ID`) and to the API
    (`GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_ANDROID_CLIENT_ID`). The API accepts id
    tokens whose audience is any of them and whose email is verified.
@@ -280,7 +289,11 @@ unreachable the geo endpoints answer 503 and the app lets the user type the addr
 
 - JSON logs on stdout (pino), one line per request with method, path, status, duration and request id
   (`X-Request-Id`). Authorization headers, passwords, refresh tokens and `?token=` query values are
-  redacted; request/response bodies are not logged.
+  redacted, and other request headers (such as `Sec-WebSocket-Protocol`) are not logged; request/response bodies are not logged. This covers the API's own log only: logs of
+  anything in front of it record the realtime URL with its token unless configured not to (see §4,
+  load balancer).
+- Startup warnings (`warn`) in staging/production: an empty `CORS_ORIGINS` (the web app cannot reach
+  the API) and a missing native Google client id. Check them after each deploy.
 - Levels: 5xx `error`, 503/429 `warn`, other 4xx `info`; unhandled errors are logged once with their
   stack. Cron runs log `cron job finished` with their duration; failures log at `error`.
 - Suggested alerts: `/ready` failing, 5xx rate, `unhandled error` lines, `cron job failed`, push send

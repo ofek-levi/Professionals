@@ -118,7 +118,7 @@ export function TextField({
           ref={ref}
           accessibilityLabel={inputProps.accessibilityLabel ?? label ?? placeholder}
           accessibilityLabelledBy={Platform.OS === 'android' && label ? labelId : undefined}
-          accessibilityState={{ disabled }}
+          aria-disabled={disabled}
           aria-invalid={Boolean(error)}
           editable={!disabled}
           value={value}

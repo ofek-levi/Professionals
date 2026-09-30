@@ -1,5 +1,6 @@
 /**
- * The realtime endpoint of the test double (`/v1/realtime?token=<access token>`), plugged into the
+ * The realtime endpoint of the test double (`/v1/realtime`, the access token offered as the
+ * `bearer.<token>` subprotocol, `services/realtime/realtime-protocol.ts`), plugged into the
  * app's own WebSocket client through its `openSocket` option. Like the backend:
  * - a missing, invalid, expired or revoked token closes the socket with 4001 right after it opens;
  * - frames are the JSON `RealtimeEvent`s of the connected user, delivered asynchronously after the
@@ -8,6 +9,7 @@
  *   after the socket's token expired;
  * - `dropAll(1001)` simulates a server restart (or 1006 a lost network).
  */
+import { tokenFromProtocols } from '@/services/realtime/realtime-protocol';
 import type { RealtimeEvent } from '@/services/realtime/types';
 import type { OpenSocket } from '@/services/realtime/websocket-realtime-client';
 
@@ -44,8 +46,8 @@ const later = (callback: () => void) => {
 export function createMockSocketServer(server: InternalMockServer): MockSocketServer {
   const sockets: MockSocket[] = [];
 
-  const openSocket: OpenSocket = (url, handlers) => {
-    const token = new URL(url).searchParams.get('token') ?? '';
+  const openSocket: OpenSocket = (_url, protocols, handlers) => {
+    const token = tokenFromProtocols(protocols) ?? '';
     const { db, now } = server.internals;
     const session = sessionOfAccessToken(db, token, now());
     let closed = false;

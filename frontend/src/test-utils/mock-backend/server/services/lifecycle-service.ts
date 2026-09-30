@@ -6,7 +6,7 @@
  */
 import { APP_CONFIG } from '@/constants/app-config';
 import { validateOfferAgainstRequest } from '@/features/offers/offer-rules';
-import { computeRequestOfferStats } from '@/features/offers/offer-counters';
+import { computeRequestOfferStats } from '../offer-counters';
 import {
   assertOfferTransition,
   computeOfferExpiry,
@@ -14,7 +14,7 @@ import {
   isOfferExpired,
 } from '@/features/offers/offer-status-machine';
 import { assertJobTransition, requestStatusForJobStatus } from '@/features/jobs/job-status-machine';
-import { professionalCoversCategory, isWithinServiceArea } from '@/features/requests/request-matching';
+import { professionalCoversCategory, isWithinServiceArea } from '../request-matching';
 import {
   assertRequestTransition,
   requestAcceptsOffers,
@@ -176,8 +176,30 @@ function publish(ctx: ServerContext, request: ServiceRequest): ServiceRequest {
   return published;
 }
 
-/** `POST /requests` – creates a draft or a published request. */
+/** Requests created with a `clientRequestId`, per database: `${customerId}|${clientRequestId}` → request id. */
+const requestsByClientId = new WeakMap<ServerContext['db'], Map<string, string>>();
+
+function clientRequestKey(actor: CustomerActor, body: unknown): string | null {
+  const value = typeof body === 'object' && body !== null ? (body as { clientRequestId?: unknown }).clientRequestId : undefined;
+  return typeof value === 'string' && value.trim() ? `${actor.userId}|${value.trim()}` : null;
+}
+
+/** `POST /requests` – creates a draft or a published request; idempotent with a `clientRequestId`. */
 export function createRequest(ctx: ServerContext, actor: CustomerActor, body: unknown): ServiceRequest {
+  const key = clientRequestKey(actor, body);
+  const known = key ? requestsByClientId.get(ctx.db)?.get(key) : undefined;
+  const earlier = known ? ctx.db.requests.get(known) : undefined;
+  if (earlier) return earlier;
+  const created = createNewRequest(ctx, actor, body);
+  if (key) {
+    const byKey = requestsByClientId.get(ctx.db) ?? new Map<string, string>();
+    byKey.set(key, created.id);
+    requestsByClientId.set(ctx.db, byKey);
+  }
+  return created;
+}
+
+function createNewRequest(ctx: ServerContext, actor: CustomerActor, body: unknown): ServiceRequest {
   const payload = parseBody(createServiceRequestSchema, body);
   assertPreferredSchedule(ctx, payload.preferredSchedule, payload.urgency);
   const now = ctx.nowIso();
@@ -234,9 +256,10 @@ export function updateDraftRequest(ctx: ServerContext, actor: CustomerActor, req
   return updated;
 }
 
-/** `POST /requests/:id/publish` */
+/** `POST /requests/:id/publish` – idempotent: an already published (open) request is returned as is. */
 export function publishRequest(ctx: ServerContext, actor: CustomerActor, requestId: string): ServiceRequest {
-  return publish(ctx, requireOwnedRequest(ctx, actor, requestId));
+  const request = requireOwnedRequest(ctx, actor, requestId);
+  return request.status === 'open' ? request : publish(ctx, request);
 }
 
 /** `DELETE /requests/:id` – drafts only. */

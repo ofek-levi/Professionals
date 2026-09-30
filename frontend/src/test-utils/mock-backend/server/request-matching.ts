@@ -1,16 +1,16 @@
 /**
- * Matching between service requests and professionals, and the professional job-explorer
- * filters/sorting, as `GET /professional/requests/nearby` applies them on the backend (the test
- * double uses exactly these functions).
+ * The test double's version of the backend's request matching: which professionals a new request
+ * reaches, and the filters/sorting of `GET /professional/requests/nearby`. Approximate locations
+ * for not-yet-hired professionals are derived here too. The real rules live in the backend.
  */
 import { compareUrgency } from '@/constants/urgency-levels';
-import { hashString } from '@/features/shared/seeded-random';
+import { requestAcceptsOffers } from '@/features/requests/request-status-machine';
 import type { NearbyRequestSort, NearbyRequestsParams } from '@/types/api';
 import type { GeoCoordinates, ProfessionalProfile, ServiceArea, ServiceLocation, ServiceRequest } from '@/types/domain';
 import { haversineDistanceKm, offsetCoordinates, roundDistanceKm } from '@/utils/geo';
 import { compareIds } from '@/utils/id';
 
-import { requestAcceptsOffers } from './request-status-machine';
+import { hashString } from '../seeded-random';
 
 /** The parts of a professional profile that matching depends on. */
 export type MatchableProfessional = Pick<ProfessionalProfile, 'categoryIds' | 'serviceArea'>;

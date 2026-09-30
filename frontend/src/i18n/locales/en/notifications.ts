@@ -11,6 +11,11 @@ export const notifications = {
       messages: 'Messages',
     },
     emptyUpdates: 'No updates yet',
+    /** What will appear in Updates, per role. */
+    emptyUpdatesDescription: {
+      customer: 'Offers on your requests, job reminders and reviews will show up here.',
+      professional: 'New jobs near you, answers to your offers and job reminders will show up here.',
+    },
   },
   /** Android notification channel (shown in the system's app notification settings). */
   channel: {
@@ -24,6 +29,11 @@ export const notifications = {
   a11y: {
     unread: 'Unread',
     openHint: 'Opens the related details',
+  },
+  /** A notification type this app version does not know yet (sent by a newer server). */
+  unknownType: {
+    title: 'New update',
+    body: 'There’s something new in your account.',
   },
   fallbacks: {
     customer: 'A customer',

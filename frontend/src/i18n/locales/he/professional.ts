@@ -4,6 +4,7 @@ import type { LocaleNamespace } from '../../types';
 export const professional: LocaleNamespace<typeof enprofessional> = {
   home: {
     hello: 'היי, {{name}}',
+    helloNeutral: 'שלום',
     openJobs_one: 'עבודה פתוחה אחת בסביבה',
     openJobs_two: '{{count}} עבודות פתוחות בסביבה',
     openJobs_other: '{{count}} עבודות פתוחות בסביבה',
@@ -14,6 +15,16 @@ export const professional: LocaleNamespace<typeof enprofessional> = {
     activeJobs: 'הזמנות פעילות',
     upNext: 'הבא בתור',
     upNextEmpty: 'עדיין אין ביקורים מתוכננים.',
+    completeProfile: {
+      title: 'השלמת הפרופיל',
+      body: 'לקוחות משווים פרופילים לפני שהם בוחרים הצעה. עדיין חסר: {{missing}}.',
+      action: 'עריכת הפרופיל',
+      parts: {
+        photo: 'תמונה',
+        headline: 'כותרת',
+        bio: 'קצת עליך',
+      },
+    },
   },
   work: {
     tabs: {

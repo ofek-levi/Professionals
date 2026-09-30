@@ -118,8 +118,8 @@ describe('buildChatRows', () => {
       buildChatRows({
         messages,
         failed: [
-          { clientMessageId: 'f1', text: 'retry me', createdAt: at(27, 10) },
-          { clientMessageId: 'sent-ok', text: 'duplicate', createdAt: at(27, 9) },
+          { clientMessageId: 'f1', text: 'retry me', createdAt: at(27, 10), reason: 'offline' },
+          { clientMessageId: 'sent-ok', text: 'duplicate', createdAt: at(27, 9), reason: 'offline' },
         ],
         currentUserId: ME,
         now: NOW,

@@ -9,9 +9,9 @@ import { toOwnProfessionalProfile } from '../professionals/professional.views.js
 import { UserModel, type UserDoc } from './user.model.js';
 import { USER_VIEW_PROJECTION, toUserDto, type UserForView } from './user.views.js';
 
-type CurrentUser = UserForView & Pick<UserDoc, 'notificationPreferences' | 'defaultLocation' | 'updatedAt'>;
+type CurrentUser = UserForView & Pick<UserDoc, 'notificationPreferences' | 'defaultLocation' | 'updatedAt' | 'emailVerifiedAt'>;
 
-const CURRENT_USER_PROJECTION = { ...USER_VIEW_PROJECTION, notificationPreferences: 1, defaultLocation: 1, updatedAt: 1 } as const;
+const CURRENT_USER_PROJECTION = { ...USER_VIEW_PROJECTION, notificationPreferences: 1, defaultLocation: 1, updatedAt: 1, emailVerifiedAt: 1 } as const;
 
 function accountGone(): ApiError {
   // 401 (not 404): the token outlived its account, so the app signs out.
@@ -24,13 +24,19 @@ export async function getCurrentUser(auth: AuthContext): Promise<CurrentUserResp
   if (auth.role === 'customer') {
     const [user, stats] = await Promise.all([userQuery, loadCustomerStats(auth.userId)]);
     if (!user) throw accountGone();
-    return { user: { ...toUserDto(user), role: 'customer' }, customerProfile: toCustomerProfileDto(user, stats), professionalProfile: null };
+    return {
+      user: { ...toUserDto(user), role: 'customer' },
+      emailVerified: Boolean(user.emailVerifiedAt),
+      customerProfile: toCustomerProfileDto(user, stats),
+      professionalProfile: null,
+    };
   }
   const [user, professional] = await Promise.all([userQuery, ProfessionalModel.findById(auth.userId).lean<ProfessionalDoc>()]);
   if (!user) throw accountGone();
   if (!professional) throw ApiError.notFound('Professional profile');
   return {
     user: { ...toUserDto(user, professional.displayName), role: 'professional' },
+    emailVerified: Boolean(user.emailVerifiedAt),
     customerProfile: null,
     professionalProfile: toOwnProfessionalProfile(professional, user),
   };

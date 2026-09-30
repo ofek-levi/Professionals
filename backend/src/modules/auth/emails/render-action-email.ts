@@ -2,7 +2,8 @@
  * Renders a "click this button" email (verification, password reset) as HTML + plain text.
  * Email clients ignore <style> blocks and logical CSS, so the layout is a table with inline styles
  * and explicit left/right alignment; Hebrew mails are `dir="rtl"` with the (LTR) email address and
- * link isolated so they are not reordered.
+ * link kept in their own direction: `dir="ltr"` in the HTML; in the plain text the address is
+ * isolated inside its sentence and the link stands alone on its line, without invisible marks.
  */
 import type { MailMessage } from '../../../infra/mail/index.js';
 import { isolateText } from '../../../lib/text.js';
@@ -57,7 +58,10 @@ export function renderActionEmail(texts: ActionEmailTexts, input: ActionEmailInp
     texts.body(isolateText(input.to)),
     '',
     `${texts.action}:`,
-    isolateText(input.link),
+    // Bare, on a line of its own: a line is its own bidi paragraph, so the (LTR) link cannot be
+    // reordered, while isolation marks around it would be taken into the link by mail clients that
+    // linkify plain text and by copy-paste, breaking the token.
+    input.link,
     '',
     texts.expiry,
     texts.ignore,

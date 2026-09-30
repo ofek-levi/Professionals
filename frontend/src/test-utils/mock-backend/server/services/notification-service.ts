@@ -2,7 +2,7 @@
  * Creates and stores notifications (built by the shared notification factory), respects each
  * user's notification preferences and fans out realtime events to every affected user.
  */
-import { NOTIFICATION_TYPE_META } from '@/constants/notification-types';
+import { NOTIFICATION_TYPE_META, type NotificationType } from '@/constants/notification-types';
 import { buildNotification, type NotificationInput } from '../notification-factory';
 import { DomainError } from '@/features/shared/domain-error';
 import type { NotificationsParams, Paginated } from '@/types/api';
@@ -87,14 +87,18 @@ export function emitProfileUpdated(ctx: ServerContext, professionalId: string): 
 // ────────────────────────────── Notification inbox ──────────────────────────────
 
 export function listNotifications(ctx: ServerContext, userId: string, params: NotificationsParams): Paginated<AppNotification> {
+  const excluded = params.excludeTypes ?? [];
   const items = ctx.db.notifications.filter(
-    (notification) => notification.userId === userId && (!params.unreadOnly || notification.readAt === null),
+    (notification) =>
+      notification.userId === userId && (!params.unreadOnly || notification.readAt === null) && !excluded.includes(notification.type),
   );
   return paginateNewestFirst(items, params);
 }
 
-export function unreadNotificationCount(ctx: ServerContext, userId: string): number {
-  return ctx.db.notifications.count((notification) => notification.userId === userId && notification.readAt === null);
+export function unreadNotificationCount(ctx: ServerContext, userId: string, excludeTypes: readonly NotificationType[] = []): number {
+  return ctx.db.notifications.count(
+    (notification) => notification.userId === userId && notification.readAt === null && !excludeTypes.includes(notification.type),
+  );
 }
 
 export function recentNotifications(ctx: ServerContext, userId: string, limit: number): AppNotification[] {

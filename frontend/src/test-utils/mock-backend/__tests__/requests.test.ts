@@ -62,6 +62,18 @@ describe('service requests', () => {
     expect(yael.items.map((request) => request.id)).not.toContain(created.id);
   });
 
+  it('is idempotent with a clientRequestId and tells the customer how many pros were notified', async () => {
+    const api = env.as(NOA).requests;
+    const first = await api.createRequest(payload({ clientRequestId: 'form-1' }));
+    const retry = await api.createRequest(payload({ clientRequestId: 'form-1' }));
+    expect(retry.id).toBe(first.id);
+    expect(notificationsOf(env, PRO_IDS.avi, 'new_matching_request', first.id)).toHaveLength(1);
+    expect(first.matchedProfessionalCount).toBe(3);
+    const other = await api.createRequest(payload({ clientRequestId: 'form-2', publish: false }));
+    expect(other.id).not.toBe(first.id);
+    expect(other.matchedProfessionalCount).toBeNull();
+  });
+
   it('does not deliver requests outside a professional’s service area', async () => {
     // South Rehovot is ~22 km from Avi's base (radius 20 km) but inside Yossi's 35 km.
     const rehovot = await env.as(DANIEL).requests.createRequest(
@@ -90,7 +102,9 @@ describe('service requests', () => {
     expect(notificationsOf(env, PRO_IDS.avi, 'new_matching_request', draft.id)).toHaveLength(1);
     expect((await expectApiError(api.updateDraftRequest(draft.id, { urgency: 'normal' }))).code).toBe('CONFLICT');
     expect((await expectApiError(api.deleteDraftRequest(draft.id))).code).toBe('CONFLICT');
-    expect((await expectApiError(api.publishRequest(draft.id))).code).toBe('INVALID_STATE_TRANSITION');
+    // Publishing again (a retry after a lost response) returns the open request; nobody is notified twice.
+    await expect(api.publishRequest(draft.id)).resolves.toMatchObject({ id: draft.id, status: 'open' });
+    expect(notificationsOf(env, PRO_IDS.avi, 'new_matching_request', draft.id)).toHaveLength(1);
 
     const second = await api.createRequest(payload({ publish: false }));
     await expect(api.deleteDraftRequest(second.id)).resolves.toEqual({ success: true });

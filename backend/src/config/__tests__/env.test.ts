@@ -1,6 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { parseEnv as parseDotenv } from 'node:util';
+
 import { describe, expect, it } from 'vitest';
 
 import { EnvError, envWarnings, parseEnv } from '../env.js';
+
+/** `backend/.env.example`, read the way `--env-file` and `dotenv` read it. */
+const ENV_EXAMPLE = parseDotenv(readFileSync(new URL('../../../.env.example', import.meta.url), 'utf8'));
 
 const BASE = {
   MONGODB_URI: 'mongodb://localhost:27017/pro',
@@ -18,6 +24,7 @@ const DEPLOYED = {
   PUBLIC_API_URL: 'https://api.example.com/',
   GOOGLE_WEB_CLIENT_ID: 'web',
   GOOGLE_IOS_CLIENT_ID: 'ios',
+  GOOGLE_ANDROID_CLIENT_ID: 'android',
   CLOUDINARY_URL: 'cloudinary://key:secret@cloud',
   RESEND_API_KEY: 're_123',
   EMAIL_FROM: 'Professionals <no-reply@example.com>',
@@ -79,7 +86,7 @@ describe('parseEnv', () => {
     expect(error.issues).toEqual(
       expect.arrayContaining([
         'RESEND_API_KEY is required when APP_ENV=production',
-        'GOOGLE_IOS_CLIENT_ID is required when APP_ENV=production',
+        'GOOGLE_WEB_CLIENT_ID is required when APP_ENV=production',
         'CLOUDINARY_URL (or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET) is required when APP_ENV=production',
       ]),
     );
@@ -92,7 +99,7 @@ describe('parseEnv', () => {
       corsOrigins: ['https://app.example.com', 'https://admin.example.com'],
       trustProxy: 1,
       logLevel: 'info',
-      googleClientIds: ['web', 'ios'],
+      googleClientIds: ['web', 'ios', 'android'],
       cloudinary: { cloudName: 'cloud', apiKey: 'key', apiSecret: 'secret' },
       mail: { resendApiKey: 're_123', smtp: null },
       cron: { enabled: true, disabledJobs: ['push-receipts'] },
@@ -133,6 +140,31 @@ describe('parseEnv', () => {
     ]);
     expect(parseEnv({ ...DEPLOYED, APP_ENV: 'production', TRUST_PROXY: 'false' }).trustProxy).toBe(false);
     expect(parseEnv({ ...BASE, APP_ENV: 'development', TRUST_PROXY: 'true' }).trustProxy).toBe(true);
+  });
+
+  it('starts with .env.example as it is (quick start: cp .env.example .env)', () => {
+    const env = parseEnv(ENV_EXAMPLE);
+    expect(env).toMatchObject({ appEnv: 'development', port: 4000, logLevel: 'debug', corsOrigins: '*', googleClientIds: [], cloudinary: null });
+    expect(env.mail).toEqual({ from: 'Professionals <no-reply@localhost>', resendApiKey: null, smtp: null });
+  });
+
+  it('treats a blank variable as unset (default), not as an invalid value', () => {
+    const env = parseEnv({ ...BASE, APP_ENV: 'development', LOG_LEVEL: '', PORT: ' ', CRON_ENABLED: '', GEOCODER_URL: '', SMTP_PORT: '' });
+    expect(env).toMatchObject({ logLevel: 'debug', port: 4000, cron: { enabled: true }, geocoder: { url: 'https://nominatim.openstreetmap.org' } });
+    expect(errorOf({ ...BASE, APP_ENV: 'development', REDIS_URL: ' ' }).issues).toEqual(['REDIS_URL: REDIS_URL is required']);
+    expect(errorOf({ ...BASE, APP_ENV: 'development', LOG_LEVEL: 'loud' }).issues.join()).toContain('LOG_LEVEL');
+  });
+
+  it('warns at a deployed start when CORS_ORIGINS is empty or a native app has no Google client id', () => {
+    const { CORS_ORIGINS: _cors, GOOGLE_ANDROID_CLIENT_ID: _android, GOOGLE_IOS_CLIENT_ID: _ios, ...partial } = DEPLOYED;
+    const env = parseEnv({ ...partial, APP_ENV: 'production' });
+    expect(env.corsOrigins).toEqual([]);
+    const warnings = envWarnings(env);
+    expect(warnings).toHaveLength(3);
+    expect(warnings[0]).toContain('CORS_ORIGINS is empty');
+    expect(warnings[1]).toContain('GOOGLE_ANDROID_CLIENT_ID is not set');
+    expect(warnings[2]).toContain('GOOGLE_IOS_CLIENT_ID is not set');
+    expect(parseEnv({ ...DEPLOYED, APP_ENV: 'staging' }).googleClients).toEqual({ web: 'web', ios: 'ios', android: 'android' });
   });
 
   it('rejects a malformed CLOUDINARY_URL', () => {

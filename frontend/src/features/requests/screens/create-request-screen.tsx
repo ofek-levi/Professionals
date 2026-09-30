@@ -35,6 +35,7 @@ import {
   usePublishRequest,
   useRequest,
   useRouteParam,
+  useUpdateCustomerProfile,
   useUpdateDraftRequest,
   useUploadImage,
 } from '@/hooks';
@@ -72,6 +73,7 @@ import {
   type RequestFormField,
 } from '../components/create/request-form-model';
 import { ServiceField } from '../components/create/service-field';
+import { createSubmissionKeys } from '../components/create/submission-key';
 import { UrgencyOptions } from '../components/create/urgency-options';
 
 /** Map zoom around the customer's default address. */
@@ -154,7 +156,16 @@ export default function CreateRequestScreen() {
   const defaultValues = withDefaultUrgency(draft ? requestToFormValues(draft) : createEmptyRequestFormValues({ categoryId, location }));
   const initialRegion = defaultLocation ? regionForRadius(defaultLocation.coordinates, DEFAULT_ADDRESS_RADIUS_KM) : undefined;
 
-  return <RequestForm key={draft?.id ?? 'new'} draft={draft ?? null} defaultValues={defaultValues} initialRegion={initialRegion} />;
+  return (
+    <RequestForm
+      key={draft?.id ?? 'new'}
+      draft={draft ?? null}
+      defaultValues={defaultValues}
+      initialRegion={initialRegion}
+      // The first post of a customer without an address makes its address the default.
+      saveAddressAsDefault={profileQuery.data !== undefined && defaultLocation === null}
+    />
+  );
 }
 
 function FormShell({ children }: { children: ReactNode }) {
@@ -179,12 +190,14 @@ interface RequestFormProps {
   draft: CustomerRequestView | null;
   defaultValues: RequestFormValues;
   initialRegion?: MapRegion;
+  /** Save the posted request's address as the customer's default one (they have none yet). */
+  saveAddressAsDefault: boolean;
 }
 
 /** Where the form goes once it is done (the leave guard is lifted first). */
 type Completion = { kind: 'posted'; requestId: string } | { kind: 'deleted' };
 
-function RequestForm({ draft, defaultValues, initialRegion }: RequestFormProps) {
+function RequestForm({ draft, defaultValues, initialRegion, saveAddressAsDefault }: RequestFormProps) {
   const theme = useTheme();
   const styles = useStyles();
   const router = useRouter();
@@ -193,7 +206,7 @@ function RequestForm({ draft, defaultValues, initialRegion }: RequestFormProps) 
   const confirm = useConfirm();
   const toast = useToast();
   const showError = useErrorToast();
-  const showUploadError = useUploadErrorToast();
+  const showUploadError = useUploadErrorToast({ photosOptional: true });
   const translateError = useTranslatedError();
   const scrollRef = useRef<ScrollView>(null);
   const positions = useRef<Partial<Record<RequestFormField, number>>>({});
@@ -202,6 +215,8 @@ function RequestForm({ draft, defaultValues, initialRegion }: RequestFormProps) 
   const updateDraft = useUpdateDraftRequest();
   const publishRequest = usePublishRequest();
   const deleteDraft = useDeleteDraftRequest();
+  const updateProfile = useUpdateCustomerProfile();
+  const submissionKeys = useRef(createSubmissionKeys()).current;
 
   const form = useForm<RequestFormValues, unknown, RequestFormOutput>({
     resolver: zodResolver(requestFormSchema),
@@ -292,7 +307,8 @@ function RequestForm({ draft, defaultValues, initialRegion }: RequestFormProps) 
           return null;
         });
         if (!uploaded) {
-          // The photo itself or the upload limits: shown by the photos (uploaded ones are kept).
+          // Explained by the toast (the photo, the limits or the photo service); the form scrolls to the
+          // photos, and uploaded ones keep their id for the retry.
           scrollToField('photos');
           return;
         }
@@ -309,9 +325,14 @@ function RequestForm({ draft, defaultValues, initialRegion }: RequestFormProps) 
         await updateDraft.mutateAsync({ requestId: draft.id, payload: toUpdateDraftRequestPayload(formValues, photoIds) });
         saved = await publishRequest.mutateAsync(draft.id);
       } else {
-        saved = await createRequest.mutateAsync(toCreateRequestPayload(formValues, photoIds, true));
+        // Idempotent: a retry of the same form after a timeout returns the request already created.
+        const payload = toCreateRequestPayload(formValues, photoIds, true);
+        saved = await createRequest.mutateAsync({ ...payload, clientRequestId: submissionKeys.keyFor(payload) });
       }
-      toast.show({ title: t('requests:submit.posted'), tone: 'success' });
+      if (saveAddressAsDefault) updateProfile.mutate({ defaultLocation: saved.location });
+      // A new request lands on its page with the "posted" banner; a draft returns to its page as it
+      // was (no banner), so only it gets the toast.
+      if (draft) toast.show({ title: t('requests:submit.posted'), tone: 'success' });
       setCompletion({ kind: 'posted', requestId: saved.id });
     } catch (error) {
       applyServerErrors(error);

@@ -5,6 +5,7 @@ import type {
   SendMessagePayload,
   SuccessResponse,
   UnreadCountResponse,
+  WireQueries,
 } from '@/types/api';
 import type { Conversation, Message } from '@/types/domain';
 import type { ApiClient } from '../client';
@@ -15,7 +16,7 @@ export function createConversationsApi(client: ApiClient) {
   return {
     /** `GET /conversations` – most recent activity first, cursor paginated. */
     getConversations: (params: ConversationsParams = {}, signal?: AbortSignal) =>
-      client.get<Paginated<Conversation>>('/conversations', { signal, query: { cursor: params.cursor, limit: params.limit } }),
+      client.get<Paginated<Conversation>>('/conversations', { signal, query: { cursor: params.cursor, limit: params.limit } satisfies WireQueries['/conversations'] }),
     /** `GET /conversations/unread-count` – unread messages over all conversations (the inbox badge). */
     getUnreadMessagesCount: (signal?: AbortSignal) => client.get<UnreadCountResponse>('/conversations/unread-count', { signal }),
     /** `GET /conversations/:id` */
@@ -25,7 +26,7 @@ export function createConversationsApi(client: ApiClient) {
     getConversationMessages: (conversationId: string, params: ConversationMessagesParams = {}, signal?: AbortSignal) =>
       client.get<Paginated<Message>>(`/conversations/${id(conversationId)}/messages`, {
         signal,
-        query: { cursor: params.cursor, limit: params.limit },
+        query: { cursor: params.cursor, limit: params.limit } satisfies WireQueries['/conversations/:id/messages'],
       }),
     /** `POST /conversations/:id/messages` → 201. 409 once the chat closed, 429 over 60 per minute. */
     sendMessage: (conversationId: string, payload: SendMessagePayload) =>

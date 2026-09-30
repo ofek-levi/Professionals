@@ -40,7 +40,8 @@ export function SwitchRow({
       accessibilityRole="switch"
       accessibilityLabel={title}
       accessibilityHint={description}
-      accessibilityState={{ checked: value, disabled }}
+      aria-checked={value}
+      aria-disabled={disabled}
       disabled={disabled}
       onPress={toggle}
       style={({ pressed }) => [styles.row, pressed ? styles.pressed : null, disabled ? styles.disabled : null, style]}

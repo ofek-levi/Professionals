@@ -3,8 +3,11 @@
  * every refresh. Only token hashes are stored. Refresh tokens name their session and are signed
  * (`refresh-token.ts`), so presenting any earlier token of a live session is recognised as a
  * replay (two parties hold the session: theft) and revokes it. The one exception is the token the
- * last refresh rotated away, within a few seconds of that rotation: the same app refreshing twice
- * concurrently, or retrying after a lost response. It gets the same successor token again.
+ * last refresh rotated away while its successor was never used, within an access token's lifetime
+ * of that rotation: the same app refreshing twice concurrently, or retrying after a response that
+ * never arrived (a mobile network dropping mid-response, the app suspended or killed while the
+ * refresh was in flight, then offline for a while). It gets the same successor token again. Once
+ * the successor has been used, or later than that, a replay is theft.
  *
  * Races: rotation is one conditional update on the session document, so two refreshes with the
  * same token can never both rotate (the loser takes the grace path above); a revocation deletes
@@ -29,8 +32,14 @@ import { mintRefreshToken, parseRefreshToken, refreshTokenKey, successorToken, t
 import { SessionModel } from './session.model.js';
 
 const REFRESH_TOKEN_TTL_MS = API_LIMITS.refreshTokenTtlDays * 24 * 60 * 60_000;
-/** A replay of the previous token this soon after its rotation is a concurrent refresh, not theft. */
-const REFRESH_REUSE_GRACE_MS = 30_000;
+/**
+ * A replay of the previous token this soon after its rotation, with the successor still unused, is
+ * the same app retrying (concurrent refresh, lost response), not theft. An access token's lifetime:
+ * an active app uses its successor before then (the access token it came with expires).
+ */
+const REFRESH_REUSE_GRACE_MS = API_LIMITS.accessTokenTtlSeconds * 1000;
+/** Retries later than this are logged (a lost response, not a concurrent refresh). */
+const CONCURRENT_REFRESH_MS = 30_000;
 
 type SessionDeps = Pick<AppDeps, 'env' | 'clock'>;
 type RevokeDeps = Pick<AppDeps, 'redis' | 'keys'>;
@@ -100,9 +109,15 @@ async function concurrentRefreshUser(
     { user: 1, tokenHash: 1, previousTokenHash: 1, expiresAt: 1 },
   ).lean();
   if (!session) throw ApiError.unauthorized('The session has expired, please sign in again');
-  const rotatedAt = session.expiresAt.getTime() - REFRESH_TOKEN_TTL_MS;
-  const justRotated = session.previousTokenHash === presentedHash && session.tokenHash === nextHash;
-  if (justRotated && now.getTime() - rotatedAt < REFRESH_REUSE_GRACE_MS) return session.user;
+  const sinceRotation = now.getTime() - (session.expiresAt.getTime() - REFRESH_TOKEN_TTL_MS);
+  // Rotated away by the last refresh, and its successor never used since (it is still current).
+  const successorUnused = session.previousTokenHash === presentedHash && session.tokenHash === nextHash;
+  if (successorUnused && sinceRotation < REFRESH_REUSE_GRACE_MS) {
+    if (sinceRotation >= CONCURRENT_REFRESH_MS) {
+      deps.logger.info({ sessionId: session._id.toHexString(), sinceRotationMs: sinceRotation }, 'refresh retried after a lost response');
+    }
+    return session.user;
+  }
   if (presented.authentic) {
     await revokeSession(deps, session._id);
     deps.logger.warn({ userId: session.user.toHexString(), sessionId: session._id.toHexString() }, 'refresh token reuse: session revoked');

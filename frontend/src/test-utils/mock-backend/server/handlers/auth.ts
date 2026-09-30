@@ -40,15 +40,18 @@ const registerDeviceSchema = z.object({
 
 function currentUser(ctx: ServerContext, actor: Actor): CurrentUserResponse {
   const user = toUser(ctx.db.users.require(actor.userId, 'User'));
+  const emailVerified = ctx.db.credentials.find((credential) => credential.userId === actor.userId)?.emailVerified ?? false;
   if (actor.role === 'customer') {
     return {
       user: { ...user, role: 'customer' },
+      emailVerified,
       customerProfile: ctx.db.customerProfiles.require(actor.userId, 'Customer profile'),
       professionalProfile: null,
     };
   }
   return {
     user: { ...user, role: 'professional' },
+    emailVerified,
     customerProfile: null,
     professionalProfile: requireProfessional(ctx.db, actor.professional.id),
   };
@@ -88,6 +91,16 @@ export const authRoutes = [
     handler: ({ ctx, body, headers }) => logout(ctx, logoutSchema.safeParse(body ?? {}).data?.refreshToken, readBearerToken(headers)),
   }),
   route({ method: 'GET', path: '/me', auth: 'user', handler: ({ ctx, actor }) => currentUser(ctx, actor) }),
+  // The double sends no email: a resend only records that one was asked for.
+  route({
+    method: 'POST',
+    path: '/auth/verify-email/resend',
+    auth: 'user',
+    handler: ({ ctx, actor }) => {
+      ctx.db.users.require(actor.userId, 'User');
+      return SUCCESS;
+    },
+  }),
   route({
     method: 'PATCH',
     path: '/me',

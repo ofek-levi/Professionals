@@ -5,8 +5,8 @@
  * One refresh at a time: every caller that needs a token meanwhile waits for the same one.
  *
  * `POST /auth/refresh` rotates the refresh token; the new pair is stored before it is used. The
- * server answers a replay of the just-replaced token (within 30 s: two tabs, a lost response) with
- * the same new pair, so concurrent refreshes converge. When the refresh token is rejected (expired,
+ * server answers a replay of the just-replaced token (two tabs, a lost response; while the new
+ * one is unused, up to 30 min) with the same new pair, so concurrent refreshes converge. When the refresh token is rejected (expired,
  * revoked, reused) the session is over: the store signs out locally, which clears the cache, closes
  * realtime and shows the entry screen. Network failures keep the session.
  */
@@ -28,6 +28,8 @@ export interface TokenManagerDeps {
   store: TokenStore;
   /** `POST /auth/refresh` (anonymous). */
   refresh: (refreshToken: string) => Promise<SessionTokens>;
+  /** The server refused the refresh token and the session was signed out locally (tell the user). */
+  onSessionRejected?: () => void;
   now?: () => number;
   leewayMs?: number;
 }
@@ -44,7 +46,13 @@ function isSessionRejected(error: unknown): boolean {
   return isApiError(error) && (error.status === 401 || error.status === 400);
 }
 
-export function createTokenManager({ store, refresh, now = Date.now, leewayMs = REFRESH_LEEWAY_MS }: TokenManagerDeps): TokenManager {
+export function createTokenManager({
+  store,
+  refresh,
+  onSessionRejected,
+  now = Date.now,
+  leewayMs = REFRESH_LEEWAY_MS,
+}: TokenManagerDeps): TokenManager {
   let inFlight: Promise<string | null> | null = null;
 
   const expiresSoon = (tokens: SessionTokens) => {
@@ -69,6 +77,7 @@ export function createTokenManager({ store, refresh, now = Date.now, leewayMs = 
       if (replacedSince(current)) return store.getTokens()?.accessToken ?? null;
       if (isSessionRejected(error)) {
         await store.signOut();
+        onSessionRejected?.();
         return null;
       }
       throw error;

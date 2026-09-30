@@ -17,6 +17,7 @@ import { makeStyles, useTheme, type Theme } from '@/theme';
 
 import { KEYBOARD_DISMISS_MODE, useKeyboardVisible } from './keyboard';
 import { ScrollLockProvider, useScrollLockHost } from './scroll-lock';
+import { usePullToRefresh } from './use-pull-to-refresh';
 
 interface ScreenProps {
   children: ReactNode;
@@ -32,9 +33,11 @@ interface ScreenProps {
   padded?: boolean;
   /** Vertical gap between direct children (spacing token). */
   gap?: keyof Theme['spacing'];
-  /** Pull-to-refresh (scroll mode only). */
-  refreshing?: boolean;
-  onRefresh?: () => void;
+  /**
+   * Pull-to-refresh (scroll mode only): the spinner shows from the user's pull until the returned
+   * promise settles (never for background refetches).
+   */
+  onRefresh?: () => Promise<unknown>;
   /** Fixed content above the scroll area (search bar, segmented control…). */
   header?: ReactNode;
   /** Sticky bottom area for primary CTAs; respects the bottom inset. */
@@ -67,7 +70,6 @@ export function Screen({
   edges = DEFAULT_EDGES,
   padded = true,
   gap,
-  refreshing = false,
   onRefresh,
   header,
   footer,
@@ -86,6 +88,7 @@ export function Screen({
   const headerHeight = useContext(HeaderHeightContext) ?? 0;
   // A map in the content can hold the scroll while it is dragged (see scroll-lock.tsx).
   const scrollLock = useScrollLockHost();
+  const pull = usePullToRefresh(onRefresh);
   // The keyboard-avoiding view lifts the footer onto the keyboard, which covers the bottom inset.
   const keyboardVisible = useKeyboardVisible();
   const footerBottom = keyboardAvoiding && keyboardVisible ? theme.spacing.lg : Math.max(insets.bottom, theme.spacing.lg);
@@ -119,8 +122,8 @@ export function Screen({
       refreshControl={
         onRefresh ? (
           <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
             tintColor={theme.colors.primary}
             colors={[theme.colors.primary]}
             progressBackgroundColor={theme.colors.surface}

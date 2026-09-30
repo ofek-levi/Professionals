@@ -5,6 +5,7 @@
  */
 import { Types } from 'mongoose';
 
+import { SessionModel, type SessionDoc } from '../src/modules/auth/session.model.js';
 import { ensureConversationForJob } from '../src/modules/conversations/conversation-lifecycle.service.js';
 import { JobModel, type JobDoc } from '../src/modules/jobs/job.model.js';
 import { OfferModel, type OfferDoc } from '../src/modules/offers/offer.model.js';
@@ -159,10 +160,23 @@ export async function createJob(
   return doc.toObject<JobDoc>();
 }
 
+/** A live session of `user` (expires far in the future unless overridden). */
+export async function createSession(user: Pick<UserDoc, '_id'>, overrides: Overrides<SessionDoc> = {}): Promise<SessionDoc> {
+  const doc = await SessionModel.create({
+    user: user._id,
+    tokenHash: `hash-${next()}`,
+    expiresAt: new Date('2100-01-01T00:00:00.000Z'),
+    ...overrides,
+  });
+  return doc.toObject<SessionDoc>();
+}
+
+/** A push device registered by a new live session of `user` (or by `overrides.session`). */
 export async function createDevice(user: Pick<UserDoc, '_id'>, overrides: Overrides<DeviceDoc> = {}): Promise<DeviceDoc> {
+  const session = overrides.session ?? (await createSession(user))._id;
   const doc = await DeviceModel.create({
     user: user._id,
-    session: new Types.ObjectId(),
+    session,
     token: `ExponentPushToken[test-${next()}]`,
     ...overrides,
   });

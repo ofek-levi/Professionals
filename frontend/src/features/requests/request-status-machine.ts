@@ -2,11 +2,7 @@
  * Service request status machine (see docs/ARCHITECTURE.md → Status models).
  * The UI uses it to decide which actions to show; the backend enforces the same transitions.
  */
-import {
-  REQUEST_STATUS_META,
-  type CustomerRequestSection,
-  type RequestStatus,
-} from '@/constants/request-statuses';
+import { requestStatusMeta, type CustomerRequestSection, type RequestStatus } from '@/constants/request-statuses';
 import { assertTransition, canTransition, type TransitionTable } from '@/features/shared/state-machine';
 import type { ServiceRequest } from '@/types/domain';
 
@@ -36,7 +32,7 @@ function isRequestCancellable(status: RequestStatus): boolean {
 
 /** Whether professionals can still discover the request and send offers. */
 export function requestAcceptsOffers(status: RequestStatus): boolean {
-  return REQUEST_STATUS_META[status].acceptsOffers;
+  return requestStatusMeta(status).acceptsOffers;
 }
 
 interface CustomerRequestActions {

@@ -5,6 +5,7 @@ import type {
   ProfessionalOffersParams,
   RequestOffersParams,
   UpdateOfferPayload,
+  WireQueries,
 } from '@/types/api';
 import type { Offer, OfferWithProfessional, OfferWithRequest } from '@/types/domain';
 import type { ApiClient } from '../client';
@@ -17,7 +18,7 @@ export function createOffersApi(client: ApiClient) {
     getOffersForRequest: (requestId: string, params: RequestOffersParams = {}, signal?: AbortSignal) =>
       client.get<Paginated<OfferWithProfessional>>(`/requests/${id(requestId)}/offers`, {
         signal,
-        query: { sort: params.sort, statuses: params.statuses, cursor: params.cursor, limit: params.limit },
+        query: { sort: params.sort, statuses: params.statuses, cursor: params.cursor, limit: params.limit } satisfies WireQueries['/requests/:id/offers'],
       }),
 
     /** `GET /offers/:id` (customer owner of the request or the offering professional) */
@@ -41,7 +42,7 @@ export function createOffersApi(client: ApiClient) {
     getProfessionalOffers: (params: ProfessionalOffersParams = {}, signal?: AbortSignal) =>
       client.get<Paginated<OfferWithRequest>>('/professional/offers', {
         signal,
-        query: { statuses: params.statuses, cursor: params.cursor, limit: params.limit },
+        query: { statuses: params.statuses, cursor: params.cursor, limit: params.limit } satisfies WireQueries['/professional/offers'],
       }),
   };
 }

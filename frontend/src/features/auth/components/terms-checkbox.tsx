@@ -48,7 +48,7 @@ export function TermsCheckbox({ value, onChange, error, testID }: TermsCheckboxP
       <Pressable
         accessibilityRole="checkbox"
         accessibilityLabel={label}
-        accessibilityState={{ checked: value }}
+        aria-checked={value}
         aria-invalid={Boolean(error)}
         onPress={() => {
           haptics.selection();

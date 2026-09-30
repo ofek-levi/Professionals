@@ -3,7 +3,7 @@
  * data (and tests that need a valid quote).
  */
 import type { CategoryId } from '@/constants/professional-categories';
-import type { SeededRandom } from '@/features/shared/seeded-random';
+import type { SeededRandom } from '../seeded-random';
 
 interface CategoryPriceRange {
   min: number;

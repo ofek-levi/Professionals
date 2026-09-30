@@ -4,8 +4,8 @@
  * history. Deterministic (seeded PRNG) and relative to the seed "now".
  */
 import { validateOfferAgainstRequest } from '@/features/offers/offer-rules';
-import { isWithinServiceArea } from '@/features/requests/request-matching';
-import { createSeededRandom } from '@/features/shared/seeded-random';
+import { isWithinServiceArea } from '../server/request-matching';
+import { createSeededRandom } from '../seeded-random';
 import type { UrgencyLevel } from '@/types/domain';
 
 import { customerShortName } from '../server/queries';

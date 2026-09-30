@@ -1,7 +1,7 @@
 import type { StyleProp, ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { OFFER_STATUS_META, type OfferStatus } from '@/constants/offer-statuses';
+import { offerStatusMeta, type OfferStatus } from '@/constants/offer-statuses';
 
 import { Badge, type BadgeSize } from '../ui/badge';
 
@@ -15,6 +15,6 @@ interface OfferStatusBadgeProps {
 export function OfferStatusBadge({ status, size = 'md', style }: OfferStatusBadgeProps) {
   const { t } = useTranslation('common');
   return (
-    <Badge label={t(`offerStatus.${status}`)} tone={OFFER_STATUS_META[status].tone} size={size} style={style} testID={`offer-status-${status}`} />
+    <Badge label={t(`offerStatus.${status}`)} tone={offerStatusMeta(status).tone} size={size} style={style} testID={`offer-status-${status}`} />
   );
 }

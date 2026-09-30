@@ -1,6 +1,6 @@
 import { requestStatusForJobStatus } from '@/features/jobs/job-status-machine';
 import { validateOfferAgainstRequest } from '@/features/offers/offer-rules';
-import { computeRequestOfferStats } from '@/features/offers/offer-counters';
+import { computeRequestOfferStats } from '../server/offer-counters';
 import { requestStatusForPendingOffers } from '@/features/requests/request-status-machine';
 
 import { PLACES } from '../data/places';

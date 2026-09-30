@@ -8,6 +8,7 @@ import { newObjectId } from '../../../lib/ids.js';
 import type { AppNotification } from '../../../shared/contract/index.js';
 import type { UserDoc } from '../../users/user.model.js';
 import { createNotification } from '../create-notification.service.js';
+import { NotificationModel } from '../notification.model.js';
 import { listRecentNotifications } from '../notifications.service.js';
 
 // One app per file: the model clock (createdAt) is process-wide.
@@ -32,6 +33,20 @@ async function notify(user: Pick<UserDoc, '_id'>, count: number): Promise<AppNot
 }
 
 const ids = (items: { id: string }[]) => items.map((item) => item.id);
+
+/** A `new_message` notification of a new chat (read or not), one minute after the previous one. */
+async function chatNotification(user: Pick<UserDoc, '_id'>, read: boolean): Promise<void> {
+  const created = await createNotification(deps, user._id, {
+    type: 'new_message',
+    conversationId: newObjectId(),
+    senderRole: 'professional',
+    senderName: 'Avi Fix',
+    messageText: 'On my way',
+    replacesUnread: false,
+  });
+  if (read && created) await NotificationModel.updateOne({ _id: created.id }, { $set: { readAt: deps.clock.now() } });
+  deps.clock.advanceMinutes(1);
+}
 
 describe('GET /v1/notifications', () => {
   it('lists the caller’s notifications newest first with keyset pages', async () => {
@@ -63,10 +78,31 @@ describe('GET /v1/notifications', () => {
     expect(all.body.totalCount).toBe(2);
   });
 
+  it('leaves out excluded types on every page, however many of them come in between', async () => {
+    const customer = await signInCustomer(deps);
+    const [older] = await notify(customer.user, 1);
+    // Newer: 3 chat notifications (read ones pile up, one per burst of messages) above one update.
+    for (let i = 0; i < 3; i += 1) await chatNotification(customer.user, true);
+    const [newer] = await notify(customer.user, 1);
+    await chatNotification(customer.user, false);
+
+    const first = await request(app).get('/v1/notifications?limit=1&excludeTypes=new_message').set(customer.headers).expect(200);
+    expect(first.body).toMatchObject({ items: [newer], totalCount: 2 });
+    const second = await request(app)
+      .get(`/v1/notifications?limit=1&excludeTypes=new_message&cursor=${first.body.nextCursor as string}`)
+      .set(customer.headers)
+      .expect(200);
+    expect(second.body).toMatchObject({ items: [older], nextCursor: null });
+    const unreadUpdates = await request(app).get('/v1/notifications?unreadOnly=true&excludeTypes=new_message').set(customer.headers).expect(200);
+    expect(ids(unreadUpdates.body.items)).toEqual(ids([newer, older].filter((item) => item !== undefined)));
+    const everything = await request(app).get('/v1/notifications').set(customer.headers).expect(200);
+    expect(everything.body.totalCount).toBe(6);
+  });
+
   it('validates the query and requires a session', async () => {
     const customer = await signInCustomer(deps);
-    const res = await request(app).get('/v1/notifications?unreadOnly=maybe&limit=101').set(customer.headers).expect(400);
-    expect(res.body.fieldErrors).toEqual({ unreadOnly: ['validation:invalid'], limit: ['validation:invalid'] });
+    const res = await request(app).get('/v1/notifications?unreadOnly=maybe&limit=101&excludeTypes=new_message,bogus').set(customer.headers).expect(400);
+    expect(res.body.fieldErrors).toEqual({ unreadOnly: ['validation:invalid'], limit: ['validation:invalid'], 'excludeTypes.1': ['validation:invalid'] });
     await request(app).get('/v1/notifications').expect(401);
   });
 });
@@ -78,6 +114,19 @@ describe('GET /v1/notifications/unread-count', () => {
     await notify(customer.user, 3);
     await notify((await signInCustomer(deps)).user, 2);
     expect((await request(app).get('/v1/notifications/unread-count').set(customer.headers).expect(200)).body).toEqual({ count: 3 });
+  });
+
+  it('leaves out excluded types (the app counts chats under Messages), however many unread updates are newer', async () => {
+    const customer = await signInCustomer(deps);
+    await chatNotification(customer.user, false);
+    await chatNotification(customer.user, true);
+    await notify(customer.user, 25);
+    const count = (query: string) => request(app).get(`/v1/notifications/unread-count${query}`).set(customer.headers).expect(200);
+    expect((await count('')).body).toEqual({ count: 26 });
+    expect((await count('?excludeTypes=new_message')).body).toEqual({ count: 25 });
+    expect((await count('?excludeTypes=new_message,offer_received')).body).toEqual({ count: 0 });
+    const invalid = await request(app).get('/v1/notifications/unread-count?excludeTypes=nope').set(customer.headers).expect(400);
+    expect(invalid.body.fieldErrors).toEqual({ 'excludeTypes.0': ['validation:invalid'] });
   });
 });
 

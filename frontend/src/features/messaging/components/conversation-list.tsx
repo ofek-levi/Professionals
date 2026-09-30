@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { EmptyState, ErrorState, useNow } from '@/components/ui';
+import { EmptyState, ErrorState, useNow, usePullToRefresh } from '@/components/ui';
 import { useSession } from '@/features/auth';
 import { useConversations, useRefetchOnFocus } from '@/hooks';
 import { routes } from '@/lib/routes';
@@ -16,9 +16,10 @@ export function ConversationList() {
   const styles = useStyles();
   const router = useRouter();
   const { t } = useTranslation('messaging');
-  const { userId } = useSession();
+  const { userId, role } = useSession();
   const now = useNow(60_000);
   const query = useConversations();
+  const pull = usePullToRefresh(() => query.refetch());
   useRefetchOnFocus(query.refetch);
 
   if (query.data === undefined) {
@@ -49,7 +50,15 @@ export function ConversationList() {
         />
       )}
       contentContainerStyle={[styles.content, conversations.length === 0 ? styles.emptyContent : null]}
-      ListEmptyComponent={<EmptyState compact icon="message-text-outline" title={t('conversations.empty')} />}
+      ListEmptyComponent={
+        <EmptyState
+          compact
+          icon="message-text-outline"
+          title={t('conversations.empty')}
+          description={role ? t(`conversations.emptyDescription.${role}`) : undefined}
+          testID="conversations-empty"
+        />
+      }
       ListFooterComponent={query.isFetchingNextPage ? <ActivityIndicator color={theme.colors.primary} style={styles.footerSpinner} /> : null}
       onEndReachedThreshold={0.4}
       onEndReached={() => {
@@ -57,8 +66,8 @@ export function ConversationList() {
       }}
       refreshControl={
         <RefreshControl
-          refreshing={query.isRefetching && !query.isFetchingNextPage}
-          onRefresh={() => void query.refetch()}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           tintColor={theme.colors.primary}
           colors={[theme.colors.primary]}
         />

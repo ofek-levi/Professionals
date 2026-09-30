@@ -126,6 +126,27 @@ describe('sign in', () => {
     expect(sessionStore.getState()).toMatchObject({ status: 'signedIn', role: 'customer' });
   });
 
+  it('after too many failed attempts says when to try again and offers a password reset (429 + Retry-After)', async () => {
+    apiClient.setTransport(async (request) =>
+      request.path === '/auth/login'
+        ? { status: 429, data: { code: 'RATE_LIMITED', message: 'Too many failed sign-in attempts' }, headers: { 'retry-after': '879' } }
+        : env.transport(request),
+    );
+    try {
+      const app = await renderApp('/auth/login');
+      await screen.findByTestId('login-screen', {}, TIMEOUT);
+      await type('login-email', 'Noa.Levi@Example.com');
+      await type('login-password', SEED_PASSWORD);
+      await press('login-submit');
+      const alert = await screen.findByTestId('login-paused', {}, TIMEOUT);
+      expect(alert).toHaveTextContent(/paused for 15 minutes\. Reset your password to sign in right away\./);
+      await fireEvent.press(within(alert).getByText('Reset password'));
+      await waitFor(() => expect(app.getPathname()).toBe('/auth/forgot-password'), TIMEOUT);
+    } finally {
+      apiClient.setTransport(env.transport);
+    }
+  });
+
   it('sends a password reset link without revealing whether the account exists', async () => {
     await renderApp('/auth/forgot-password');
     await press('forgot-password-submit');

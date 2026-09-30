@@ -1,6 +1,8 @@
 export const professional = {
   home: {
     hello: 'Hi, {{name}}',
+    /** When the profile could not be loaded (offline, server down). */
+    helloNeutral: 'Hi there',
     openJobs_one: '{{count}} open job near you',
     openJobs_other: '{{count}} open jobs near you',
     noOpenJobs: 'No open jobs near you right now',
@@ -10,6 +12,16 @@ export const professional = {
     activeJobs: 'Active jobs',
     upNext: 'Up next',
     upNextEmpty: 'Nothing scheduled yet.',
+    completeProfile: {
+      title: 'Complete your profile',
+      body: 'Customers compare profiles before they pick an offer. Still missing: {{missing}}.',
+      action: 'Complete profile',
+      parts: {
+        photo: 'photo',
+        headline: 'headline',
+        bio: 'about you',
+      },
+    },
   },
   work: {
     tabs: {

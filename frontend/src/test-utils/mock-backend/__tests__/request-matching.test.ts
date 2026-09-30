@@ -10,7 +10,7 @@ import {
   professionalCoversCategory,
   sortNearbyRequests,
   type MatchableProfessional,
-} from '../request-matching';
+} from '../server/request-matching';
 
 const CENTER = { latitude: 32.0853, longitude: 34.7818 };
 const pro: MatchableProfessional = {

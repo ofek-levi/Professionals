@@ -23,3 +23,11 @@ export const JOB_STATUS_META: Record<JobStatus, JobStatusMeta> = {
   completed: { tone: 'success', isActive: false, requestStatus: 'completed' },
   cancelled: { tone: 'danger', isActive: false, requestStatus: 'cancelled' },
 };
+
+/**
+ * Display rules of `status`; a status a newer server adds (installed apps cannot be forced to
+ * update) renders neutral and inactive instead of crashing the screen.
+ */
+export function jobStatusMeta(status: JobStatus): Pick<JobStatusMeta, 'tone' | 'isActive'> {
+  return (JOB_STATUS_META as Partial<Record<string, JobStatusMeta>>)[status] ?? { tone: 'neutral', isActive: false };
+}

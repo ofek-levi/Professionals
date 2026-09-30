@@ -31,7 +31,7 @@ export function TimeSlotPicker({ value, onChange, startTime = '07:00', endTime =
             <Pressable
               accessibilityRole="radio"
               accessibilityLabel={time}
-              accessibilityState={{ checked: selected }}
+              aria-checked={selected}
               onPress={() => {
                 haptics.selection();
                 onChange(time);

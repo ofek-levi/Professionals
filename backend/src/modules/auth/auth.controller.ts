@@ -3,10 +3,11 @@ import type { Request } from 'express';
 
 import type { AppDeps } from '../../deps.js';
 import { validateRequest } from '../../lib/validate.js';
-import { bearerClaims } from '../../middleware/auth.js';
+import { authOf, bearerClaims } from '../../middleware/auth.js';
 import { clientIpKey } from '../../middleware/rate-limit.js';
 import type { SuccessResponse } from '../../shared/contract/index.js';
 import { googleBody, loginBody, logoutBody, passwordResetBody, refreshBody, registerBody, resetPasswordBody } from './auth.schemas.js';
+import { resendVerificationEmail } from './email-verification.service.js';
 import { signInWithGoogle } from './google-auth.service.js';
 import { login } from './login.service.js';
 import { requestPasswordReset, resetPassword } from './password-reset.service.js';
@@ -42,6 +43,12 @@ export const signOut = (deps: AppDeps) => async (req: Request) => {
   return SUCCESS;
 };
 
+/** `POST /auth/verify-email/resend` (signed in): a new verification link, unless already verified. */
+export const resendVerification = (deps: AppDeps) => async (req: Request) => {
+  await resendVerificationEmail(deps, authOf(req));
+  return SUCCESS;
+};
+
 export const passwordReset = (deps: AppDeps) => (req: Request) => {
   const { body } = validateRequest(req, { body: passwordResetBody });
   requestPasswordReset(deps, body.email);
@@ -51,6 +58,6 @@ export const passwordReset = (deps: AppDeps) => (req: Request) => {
 /** `POST /auth/reset-password` as JSON (the HTML form is handled by `auth-pages.controller`). */
 export const resetPasswordJson = (deps: AppDeps) => async (req: Request) => {
   const { body } = validateRequest(req, { body: resetPasswordBody });
-  await resetPassword(deps, body);
+  await resetPassword(deps, body, clientIpKey(req));
   return SUCCESS;
 };

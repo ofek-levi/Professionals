@@ -65,6 +65,19 @@ describe('session store (iOS/Android)', () => {
     expect(__secureStore.items.get(KEY)).not.toContain('noa.levi@example.com');
   });
 
+  it('stores the access-token expiry on the device clock (a clock running ahead never sees fresh tokens as expired)', async () => {
+    const encode = (value: object) => btoa(JSON.stringify(value)).replace(/=+$/, '');
+    const iat = Math.floor(Date.now() / 1000) - 45 * 60; // the server is 45 minutes behind this device
+    const jwt = `${encode({ alg: 'HS256' })}.${encode({ iat, exp: iat + 1800 })}.sig`;
+    const store = launch();
+    await store.hydrate();
+    const before = Date.now();
+    await store.signIn({ ...session, accessToken: jwt, accessTokenExpiresAt: new Date((iat + 1800) * 1000).toISOString() });
+    const expiresAt = Date.parse(store.getTokens()!.accessTokenExpiresAt);
+    expect(expiresAt).toBeGreaterThanOrEqual(before + 30 * 60_000);
+    expect(expiresAt).toBeLessThanOrEqual(Date.now() + 30 * 60_000);
+  });
+
   it('restores the session after a relaunch, hydrating once', async () => {
     await launch().signIn(session);
     const relaunched = launch();

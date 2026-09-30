@@ -4,7 +4,7 @@
  */
 import type { CategoryId } from '@/constants/professional-categories';
 import { getCategoryById } from '@/constants/professional-categories';
-import type { SeededRandom } from '@/features/shared/seeded-random';
+import type { SeededRandom } from '../seeded-random';
 import type { AppLanguage, Rating } from '@/types/domain';
 
 // ────────────────────────────── Request descriptions (history) ──────────────────────────────

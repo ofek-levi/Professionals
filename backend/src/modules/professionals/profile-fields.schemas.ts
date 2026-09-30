@@ -27,16 +27,19 @@ interface TextRule {
   required: ValidationMessage;
   tooShort?: ValidationMessage;
   tooLong: ValidationMessage;
+  /** An empty value is accepted (a field the user has not written yet, e.g. a new pro's bio). */
+  optional?: boolean;
 }
 
 /** Trimmed text with one message per rule (never two messages for one value). */
-export function profileText({ min = 1, max, required, tooShort, tooLong }: TextRule) {
+export function profileText({ min = 1, max, required, tooShort, tooLong, optional = false }: TextRule) {
   return z
     .string({ error: required })
     .trim()
     .superRefine((value, ctx) => {
-      if (value.length === 0) ctx.addIssue({ code: 'custom', message: required });
-      else if (value.length < min) ctx.addIssue({ code: 'custom', message: tooShort ?? required });
+      if (value.length === 0) {
+        if (!optional) ctx.addIssue({ code: 'custom', message: required });
+      } else if (value.length < min) ctx.addIssue({ code: 'custom', message: tooShort ?? required });
       else if (value.length > max) ctx.addIssue({ code: 'custom', message: tooLong });
     });
 }

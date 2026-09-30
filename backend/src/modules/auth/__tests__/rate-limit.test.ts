@@ -33,6 +33,10 @@ describe('auth rate limits cannot lock the owner out', () => {
     for (let i = 0; i < LOGIN_THROTTLE.failuresPerAccountAndIp; i += 1) await login(attacker, email, 'Wrong-password-1').expect(401);
     const limited = await login(attacker, email.toUpperCase(), STRONG_PASSWORD).expect(429);
     expect(limited.body).toEqual({ code: 'RATE_LIMITED', message: expect.any(String) });
+    // Says when: the rest of the 15-minute window of the blocking counter.
+    const retryAfter = Number(limited.headers['retry-after']);
+    expect(retryAfter).toBeGreaterThan(LOGIN_THROTTLE.windowMs / 1000 - 60);
+    expect(retryAfter).toBeLessThanOrEqual(LOGIN_THROTTLE.windowMs / 1000);
 
     const home = newIp();
     await login(home, email, 'Typo-password-2').expect(401);
@@ -54,7 +58,8 @@ describe('auth rate limits cannot lock the owner out', () => {
     for (let n = 0; n < LOGIN_THROTTLE.failuresPerAccount; n += 1) {
       await recordLoginFailure(deps, { email, ip: `ip:198.51.100.${n % 5}` });
     }
-    await login(newIp(), email, STRONG_PASSWORD).expect(429);
+    const blocked = await login(newIp(), email, STRONG_PASSWORD).expect(429);
+    expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
     // The owner's usual IP still gets in.
     await login(home, email, STRONG_PASSWORD).expect(200);
 
@@ -63,6 +68,29 @@ describe('auth rate limits cannot lock the owner out', () => {
     const { token } = await linkSentTo(deps, email);
     await request(app).post('/v1/auth/reset-password').send({ token, password: 'Brand-New-Pass-7' }).expect(200);
     await login(newIp(), email, 'Brand-New-Pass-7').expect(200);
+  });
+
+  it('the owner blocked on their own phone resets the password there and signs in right away', async () => {
+    const email = await owner('target5@example.com');
+    const phone = newIp();
+    for (let i = 0; i < LOGIN_THROTTLE.failuresPerAccountAndIp; i += 1) await login(phone, email, 'Forgotten-pass-1').expect(401);
+    await login(phone, email, STRONG_PASSWORD).expect(429);
+
+    // What the paused sign-in screen offers: reset the password (the link opens on the same phone).
+    await request(app).post('/v1/auth/password-reset').set('X-Forwarded-For', phone).send({ email }).expect(200);
+    const { token } = await linkSentTo(deps, email);
+    await request(app).post('/v1/auth/reset-password').set('X-Forwarded-For', phone).send({ token, password: 'Brand-New-Pass-9' }).expect(200);
+    await login(phone, email, 'Brand-New-Pass-9').expect(200);
+  });
+
+  it('a reset from elsewhere leaves another IP’s block on this account in place', async () => {
+    const email = await owner('target6@example.com');
+    const attacker = newIp();
+    for (let i = 0; i < LOGIN_THROTTLE.failuresPerAccountAndIp; i += 1) await login(attacker, email, 'Wrong-password-1').expect(401);
+    await request(app).post('/v1/auth/password-reset').set('X-Forwarded-For', newIp()).send({ email }).expect(200);
+    const { token } = await linkSentTo(deps, email);
+    await request(app).post('/v1/auth/reset-password').set('X-Forwarded-For', newIp()).send({ token, password: 'Brand-New-Pass-9' }).expect(200);
+    await login(attacker, email, 'Brand-New-Pass-9').expect(429);
   });
 
   it('limits failed sign-ins per IP across accounts (password spraying)', async () => {

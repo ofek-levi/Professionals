@@ -33,6 +33,7 @@ describe('/v1/me', () => {
         preferredLanguage: 'he',
         createdAt: '2026-10-01T09:00:00.000Z',
       },
+      emailVerified: false,
       customerProfile: {
         userId: customer.user._id.toHexString(),
         defaultLocation: expect.objectContaining({ city: 'Tel Aviv-Yafo', isApproximate: false }),
@@ -49,7 +50,10 @@ describe('/v1/me', () => {
     const pro = await signInProfessional(deps, { professional: { displayName: 'Avi Fix Ltd' } });
     const res = await request(app).get('/v1/me').set(pro.headers).expect(200);
     expect(res.body.user).toMatchObject({ role: 'professional', displayName: 'Avi Fix Ltd' });
+    expect(res.body.emailVerified).toBe(false);
     expect(res.body.customerProfile).toBeNull();
+    await UserModel.updateOne({ _id: pro.user._id }, { $set: { emailVerifiedAt: deps.clock.now() } });
+    expect((await request(app).get('/v1/me').set(pro.headers).expect(200)).body.emailVerified).toBe(true);
     expect(res.body.professionalProfile).toMatchObject({
       id: pro.user._id.toHexString(),
       displayName: 'Avi Fix Ltd',

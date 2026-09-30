@@ -118,7 +118,8 @@ export function RatingInput({ value, onChange, size = 40, disabled = false, styl
               key={position}
               accessibilityRole="radio"
               accessibilityLabel={`${t('rating.stars', { count: position })}, ${t(`rating.labels.${RATING_LABEL_KEYS[position]}`)}`}
-              accessibilityState={{ checked: value === position, disabled }}
+              aria-checked={value === position}
+              aria-disabled={disabled}
               disabled={disabled}
               onPress={() => {
                 haptics.selection();

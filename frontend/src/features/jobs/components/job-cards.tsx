@@ -188,7 +188,7 @@ export function TextAction({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled }}
+      aria-disabled={disabled}
       disabled={disabled}
       onPress={onPress}
       hitSlop={8}

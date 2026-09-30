@@ -22,6 +22,7 @@ import {
   ScreenHeader,
   SectionHeader,
   SegmentedControl,
+  usePullToRefresh,
   type SegmentedOption,
 } from '@/components/ui';
 import type { OfferStatus } from '@/constants/offer-statuses';
@@ -82,11 +83,7 @@ function OffersSegment() {
 
   return (
     <Segment
-      refreshing={pending.isRefetching || past.isRefetching}
-      onRefresh={() => {
-        void pending.refetch();
-        void past.refetch();
-      }}
+      onRefresh={() => Promise.all([pending.refetch(), past.refetch()])}
       testID="work-offers"
     >
       {failed ? (
@@ -153,12 +150,7 @@ function JobsSegment() {
 
   return (
     <Segment
-      refreshing={upcoming.isRefetching || completed.isRefetching}
-      onRefresh={() => {
-        void upcoming.refetch();
-        void completed.refetch();
-        void dashboard.refetch();
-      }}
+      onRefresh={() => Promise.all([upcoming.refetch(), completed.refetch(), dashboard.refetch()])}
       testID="work-jobs"
     >
       {failed ? (
@@ -218,10 +210,11 @@ function JobsSegment() {
   );
 }
 
-/** Scrollable body of one segment (pull to refresh). */
-function Segment({ children, refreshing, onRefresh, testID }: { children: ReactNode; refreshing: boolean; onRefresh: () => void; testID: string }) {
+/** Scrollable body of one segment (pull to refresh: the spinner shows for the user's pull only). */
+function Segment({ children, onRefresh, testID }: { children: ReactNode; onRefresh: () => Promise<unknown>; testID: string }) {
   const styles = useStyles();
   const theme = useTheme();
+  const pull = usePullToRefresh(onRefresh);
   return (
     <ScrollView
       style={styles.flex}
@@ -229,8 +222,8 @@ function Segment({ children, refreshing, onRefresh, testID }: { children: ReactN
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           tintColor={theme.colors.primary}
           colors={[theme.colors.primary]}
           progressBackgroundColor={theme.colors.surface}

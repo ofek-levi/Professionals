@@ -50,13 +50,15 @@ describe('sessions: refresh, reuse detection, logout', () => {
     const session = await signUp();
     const next = await rotate(session.refreshToken);
     deps.clock.advanceMinutes(5);
+    // The owner keeps refreshing; a copy of the first token shows up later.
+    const newest = await rotate(next.refreshToken);
 
     const replay = await refresh(session.refreshToken).expect(401);
     expect(replay.body.code).toBe('UNAUTHORIZED');
     expect(await SessionModel.countDocuments()).toBe(0);
     // The legitimate holder of the newest token is signed out too, access token included.
-    await refresh(next.refreshToken).expect(401);
-    await request(app).get('/v1/me').set(bearer(next.accessToken)).expect(401);
+    await refresh(newest.refreshToken).expect(401);
+    await request(app).get('/v1/me').set(bearer(newest.accessToken)).expect(401);
   });
 
   it('revokes the session when a token older than the previous one is replayed (thief rotated twice)', async () => {
@@ -91,7 +93,7 @@ describe('sessions: refresh, reuse detection, logout', () => {
     await rotate(next ?? '');
   });
 
-  it('answers a retry after a lost response within 30 s, and treats a later replay as theft', async () => {
+  it('answers a retry after a lost response while its successor is unused, up to an access token lifetime', async () => {
     const session = await signUp();
     const lost = await rotate(session.refreshToken);
     deps.clock.advance(10_000);
@@ -99,8 +101,26 @@ describe('sessions: refresh, reuse detection, logout', () => {
     expect(retried.refreshToken).toBe(lost.refreshToken);
     await request(app).get('/v1/me').set(bearer(retried.accessToken)).expect(200);
 
-    deps.clock.advance(25_000);
-    await refresh(session.refreshToken).expect(401);
+    // Offline for 20 minutes after the lost response (the finding: 31 s used to revoke the session).
+    deps.clock.advanceMinutes(20);
+    const later = await rotate(session.refreshToken);
+    expect(later.refreshToken).toBe(lost.refreshToken);
+    expect(await SessionModel.countDocuments()).toBe(1);
+    // The never-used successor still works.
+    await rotate(lost.refreshToken);
+  });
+
+  it('treats a replay as theft once the successor was used, or after an access token lifetime', async () => {
+    const used = await signUp();
+    const next = await rotate(used.refreshToken);
+    await rotate(next.refreshToken);
+    await refresh(used.refreshToken).expect(401);
+    expect(await SessionModel.countDocuments()).toBe(0);
+
+    const stale = await signUp();
+    await rotate(stale.refreshToken);
+    deps.clock.advanceMinutes(31);
+    await refresh(stale.refreshToken).expect(401);
     expect(await SessionModel.countDocuments()).toBe(0);
   });
 

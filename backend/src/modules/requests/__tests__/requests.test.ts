@@ -29,8 +29,60 @@ describe('requests', () => {
       const published = await request(app).post(`/v1/requests/${draft.id}/publish`).set(customer.headers).expect(200);
       expect(published.body).toMatchObject({ status: 'open', publishedAt: deps.clock.now().toISOString() });
       expect(notificationTypes(deps, pro.user._id.toHexString())).toEqual(['new_matching_request']);
-      const again = await request(app).post(`/v1/requests/${draft.id}/publish`).set(customer.headers).expect(409);
-      expect(again.body.code).toBe('INVALID_STATE_TRANSITION');
+      // Idempotent: a retry after a lost response gets the published request, nobody is notified twice.
+      const again = await request(app).post(`/v1/requests/${draft.id}/publish`).set(customer.headers).expect(200);
+      expect(again.body).toMatchObject({ id: draft.id, status: 'open', publishedAt: published.body.publishedAt });
+      expect(notificationTypes(deps, pro.user._id.toHexString())).toEqual(['new_matching_request']);
+      await request(app).post(`/v1/requests/${draft.id}/cancel`).set(customer.headers).send({ reason: 'no_longer_needed' }).expect(200);
+      const cancelled = await request(app).post(`/v1/requests/${draft.id}/publish`).set(customer.headers).expect(409);
+      expect(cancelled.body.code).toBe('INVALID_STATE_TRANSITION');
+    });
+
+    it('tells the customer how many professionals were notified (0 when none covers the area yet)', async () => {
+      const customer = await signInCustomer(deps);
+      await signInProfessional(deps);
+      await signInProfessional(deps);
+      const draft = await postRequest(app, customer, { publish: false });
+      expect(draft.matchedProfessionalCount).toBeNull();
+      deps.realtime.clear();
+      await request(app).post(`/v1/requests/${draft.id}/publish`).set(customer.headers).expect(200);
+      await deps.background.drain();
+      // The app refetches on this event and shows the count.
+      expect(eventTypes(deps, customer.user._id.toHexString())).toContain('request.updated');
+      const details = await request(app).get(`/v1/requests/${draft.id}`).set(customer.headers).expect(200);
+      expect(details.body.request.matchedProfessionalCount).toBe(2);
+
+      const far = await postRequest(app, customer, {}, HAIFA);
+      await deps.background.drain();
+      const farDetails = await request(app).get(`/v1/requests/${far.id}`).set(customer.headers).expect(200);
+      expect(farDetails.body.request.matchedProfessionalCount).toBe(0);
+    });
+
+    it('is idempotent with a clientRequestId: a retry returns the first request, photos included', async () => {
+      const customer = await signInCustomer(deps);
+      const pro = await signInProfessional(deps);
+      const photo = await createUpload(customer.user);
+      const body = requestBody({ clientRequestId: 'form-1', photoIds: [photo._id.toHexString()] });
+
+      const first = await request(app).post('/v1/requests').set(customer.headers).send(body).expect(201);
+      await deps.background.drain();
+      // The response was lost: the app posts the same form again (its photo is attached by now).
+      const retry = await request(app).post('/v1/requests').set(customer.headers).send(body).expect(201);
+      expect(retry.body).toMatchObject({ id: first.body.id, photos: [{ id: photo._id.toHexString() }] });
+      await deps.background.drain();
+      expect(await RequestModel.countDocuments({})).toBe(1);
+      expect(notificationTypes(deps, pro.user._id.toHexString())).toEqual(['new_matching_request']);
+
+      // Concurrent double submit: one request.
+      const twice = await Promise.all([1, 2].map(() => request(app).post('/v1/requests').set(customer.headers).send(requestBody({ clientRequestId: 'form-2' }))));
+      expect(twice.map((res) => res.status)).toEqual([201, 201]);
+      expect(twice[0]?.body.id).toBe(twice[1]?.body.id);
+      // Another form (or another customer with the same id) creates its own request.
+      await request(app).post('/v1/requests').set(customer.headers).send(requestBody({ clientRequestId: 'form-3' })).expect(201);
+      await request(app).post('/v1/requests').set((await signInCustomer(deps)).headers).send(requestBody({ clientRequestId: 'form-1' })).expect(201);
+      expect(await RequestModel.countDocuments({})).toBe(4);
+      const invalid = await request(app).post('/v1/requests').set(customer.headers).send(requestBody({ clientRequestId: ' ' })).expect(400);
+      expect(invalid.body.fieldErrors).toEqual({ clientRequestId: ['validation:invalid'] });
     });
 
     it('reports every invalid field with the app’s message keys', async () => {

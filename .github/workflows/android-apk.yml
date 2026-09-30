@@ -14,13 +14,19 @@
 #   secret     GOOGLE_SERVICES_JSON_BASE64
 #                                      optional, base64 of Firebase google-services.json (FCM, needed
 #                                      for push on Android): `base64 -w0 google-services.json`
+#   secrets    ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
+#                                      the environment's private release keystore (see
+#                                      frontend/README.md "Signing"): required for production,
+#                                      optional for staging (falls back to the public debug key)
 # They become the app's EXPO_PUBLIC_* build variables (see frontend/.env.example).
 #
 # What it does (in frontend/): npm ci -> expo prebuild (android) -> ./gradlew assembleRelease
 #   - release variant: __DEV__ = false, JS compiled to Hermes bytecode, New Architecture on
-#   - signed with the React Native template's public debug keystore (fine for sideloading and
-#     testing, NOT for the Play Store; every build uses the same key, so a new APK installs over
-#     the previous one without uninstalling)
+#   - signed with the environment's own release keystore. A staging run without one uses the React
+#     Native template's PUBLIC debug keystore (testing only: anyone can sign an APK with it that
+#     installs over this one); a production run without one fails.
+#   - the build job can only read the repository (npm install scripts and Gradle plugins run
+#     there); a separate job with write access publishes the finished APK as a pre-release.
 name: Android APK
 
 on:
@@ -48,8 +54,9 @@ on:
         type: boolean
         default: true
 
+# Read-only by default; only the publish job (which runs no third-party build code) may write.
 permissions:
-  contents: write # create the tag + release and upload the APK
+  contents: read
 
 concurrency:
   group: android-apk-${{ github.ref }}-${{ inputs.environment }}
@@ -66,6 +73,13 @@ jobs:
     name: Build release APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    permissions:
+      contents: read
+    outputs:
+      apk_name: ${{ steps.apk.outputs.apk_name }}
+      apk_size: ${{ steps.apk.outputs.apk_size }}
+      app_version: ${{ steps.apk.outputs.app_version }}
+      signing: ${{ steps.apk.outputs.signing }}
     # Environment variables and secrets (vars.* / secrets.*) come from this GitHub Environment.
     environment: ${{ inputs.environment }}
     env:
@@ -84,6 +98,9 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v5
+        with:
+          # Keep the job token out of .git/config, where install scripts and Gradle plugins could read it.
+          persist-credentials: false
 
       - name: Check the environment's configuration
         # Fails in seconds instead of after a 20-minute build: a staging/production app refuses to
@@ -182,6 +199,55 @@ jobs:
       - name: Generate the native Android project
         run: npx expo prebuild --platform android --no-install
 
+      - name: Configure release signing
+        # The environment's private keystore signs the APK. Without one the template's public debug
+        # keystore would sign it: anyone could then build an APK that installs over this one (and
+        # keeps its data), so production refuses to build.
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "${ANDROID_KEYSTORE_BASE64}" ]; then
+            if [ "${EXPO_PUBLIC_APP_ENV}" = "production" ]; then
+              echo "::error title=Release keystore missing::Set ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD in Settings -> Environments -> production (frontend/README.md, Signing)."
+              exit 1
+            fi
+            echo "::warning::No release keystore for ${EXPO_PUBLIC_APP_ENV}: signed with the PUBLIC debug key (testing only)."
+            echo "SIGNING=debug" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          for name in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then echo "::error::${name} is missing next to ANDROID_KEYSTORE_BASE64."; exit 1; fi
+          done
+          KEYSTORE="${RUNNER_TEMP}/release.keystore"
+          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > "$KEYSTORE"
+          GRADLE_FILE=android/app/build.gradle
+          test -f "$GRADLE_FILE"
+          # Gradle reads the passwords from the environment of the build step, never from a file.
+          cat >> "$GRADLE_FILE" <<'GRADLE'
+
+          // Added by .github/workflows/android-apk.yml: sign release builds with the environment's keystore.
+          android {
+              signingConfigs {
+                  environmentRelease {
+                      storeFile file(System.getenv("ANDROID_KEYSTORE_FILE"))
+                      storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                      keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                      keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.environmentRelease
+                  }
+              }
+          }
+          GRADLE
+          echo "ANDROID_KEYSTORE_FILE=$KEYSTORE" >> "$GITHUB_ENV"
+          echo "SIGNING=release" >> "$GITHUB_ENV"
+
       - name: Tune Gradle memory for this runner
         # 2 vCPU / 7 GB (private repos) vs 4 vCPU / 16 GB (public repos). The Kotlin daemon would
         # otherwise inherit the Gradle heap and the two together can exceed 7 GB.
@@ -197,9 +263,14 @@ jobs:
 
       - name: Build release APK
         working-directory: frontend/android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew assembleRelease -PreactNativeArchitectures="$ABIS" --stacktrace --console=plain
 
       - name: Verify and rename APK
+        id: apk
         run: |
           SRC=android/app/build/outputs/apk/release/app-release.apk
           test -f "$SRC"
@@ -217,6 +288,12 @@ jobs:
           (cd dist && sha256sum "$NAME" > "$NAME.sha256")
           echo "APK_NAME=$NAME" >> "$GITHUB_ENV"
           echo "APK_SIZE=$(du -h "dist/$NAME" | cut -f1)" >> "$GITHUB_ENV"
+          {
+            echo "apk_name=$NAME"
+            echo "apk_size=$(du -h "dist/$NAME" | cut -f1)"
+            echo "app_version=${APP_VERSION}"
+            echo "signing=${SIGNING}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
@@ -226,26 +303,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Publish GitHub pre-release
-        if: ${{ inputs.publish_release }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="android-v${APP_VERSION}-${VERSION_CODE}-${EXPO_PUBLIC_APP_ENV}"
-          if [ "${GITHUB_RUN_ATTEMPT}" != "1" ]; then TAG="${TAG}.${GITHUB_RUN_ATTEMPT}"; fi
-          NOTES=$(printf '%s\n' \
-            "Release APK for **${EXPO_PUBLIC_APP_ENV}** (${EXPO_PUBLIC_API_BASE_URL}) built from \`${GITHUB_SHA::7}\` (${GITHUB_REF_NAME}), ABIs: ${ABIS}, ${APK_SIZE}." \
-            "" \
-            "Install: open this page on the phone, download **${APK_NAME}**, allow installs from the browser when asked." \
-            "Signed with the public debug key: for testing only, not for the Play Store.")
-          gh release create "$TAG" "dist/${APK_NAME}" "dist/${APK_NAME}.sha256" \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --title "Android ${APP_VERSION} (build ${VERSION_CODE}, ${EXPO_PUBLIC_APP_ENV})" \
-            --notes "$NOTES" \
-            --prerelease
-          echo "RELEASE_URL=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url)" >> "$GITHUB_ENV"
-
       - name: Summary
         if: ${{ always() && env.APK_NAME != '' }}
         run: |
@@ -254,6 +311,60 @@ jobs:
             echo ""
             echo "- Environment: \`${EXPO_PUBLIC_APP_ENV}\`, API \`${EXPO_PUBLIC_API_BASE_URL}\`"
             echo "- File: \`${APK_NAME}\` (${APK_SIZE}), ABIs: \`${ABIS}\`, versionCode ${VERSION_CODE}"
-            if [ -n "${RELEASE_URL:-}" ]; then echo "- Download on the phone: ${RELEASE_URL}"; fi
-            echo "- Also attached to this run as an artifact (zipped)."
+            echo "- Signing: ${SIGNING}"
+            echo "- Attached to this run as an artifact (zipped)."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish pre-release
+    needs: build
+    if: ${{ inputs.publish_release }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The only job that can write: it runs no dependency or build code, only downloads the APK.
+    permissions:
+      contents: write # create the tag + release and upload the APK
+    env:
+      APK_NAME: ${{ needs.build.outputs.apk_name }}
+      APK_SIZE: ${{ needs.build.outputs.apk_size }}
+      APP_VERSION: ${{ needs.build.outputs.app_version }}
+      SIGNING: ${{ needs.build.outputs.signing }}
+      APP_ENV: ${{ inputs.environment }}
+      API_BASE_URL: ${{ vars.API_BASE_URL }}
+      ABIS: ${{ inputs.abis }}
+      VERSION_CODE: ${{ github.run_number }}
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Download the APK
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.apk_name }}
+          path: dist
+
+      - name: Publish GitHub pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="android-v${APP_VERSION}-${VERSION_CODE}-${APP_ENV}"
+          if [ "${GITHUB_RUN_ATTEMPT}" != "1" ]; then TAG="${TAG}.${GITHUB_RUN_ATTEMPT}"; fi
+          if [ "${SIGNING}" = "release" ]; then
+            SIGNED="Signed with the ${APP_ENV} release key."
+          else
+            SIGNED="Signed with the PUBLIC debug key: for testing only, not for the Play Store."
+          fi
+          NOTES=$(printf '%s\n' \
+            "Release APK for **${APP_ENV}** (${API_BASE_URL}) built from \`${GITHUB_SHA::7}\` (${GITHUB_REF_NAME}), ABIs: ${ABIS}, ${APK_SIZE}." \
+            "" \
+            "Install: open this page on the phone, download **${APK_NAME}**, allow installs from the browser when asked." \
+            "${SIGNED}")
+          gh release create "$TAG" "dist/${APK_NAME}" "dist/${APK_NAME}.sha256" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Android ${APP_VERSION} (build ${VERSION_CODE}, ${APP_ENV})" \
+            --notes "$NOTES" \
+            --prerelease
+          URL=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url)
+          echo "- Download on the phone: ${URL}" >> "$GITHUB_STEP_SUMMARY"

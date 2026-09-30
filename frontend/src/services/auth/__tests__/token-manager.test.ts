@@ -152,13 +152,18 @@ describe('reactive refresh (after a 401)', () => {
   it('signs out (once) when the refresh token is rejected, and every waiting request gets null', async () => {
     const store = createStore(tokens(1));
     const { refresh, calls } = deferredRefresh();
-    const manager = createTokenManager({ store, refresh, now: () => NOW });
+    const onSessionRejected = jest.fn(() => {
+      // Reported after the local sign-out, so the notice appears on the entry screen.
+      expect(store.signedOut).toBe(true);
+    });
+    const manager = createTokenManager({ store, refresh, onSessionRejected, now: () => NOW });
     const retries = [manager.handleUnauthorized('access-1'), manager.handleUnauthorized('access-1'), manager.getAccessToken()];
     await flush();
     calls[0].reject(unauthorized());
     await expect(Promise.all(retries)).resolves.toEqual([null, null, null]);
     expect(store.signOut).toHaveBeenCalledTimes(1);
     expect(store.signedOut).toBe(true);
+    expect(onSessionRejected).toHaveBeenCalledTimes(1);
   });
 
   it('also signs out on 400 (malformed refresh token)', async () => {
@@ -172,9 +177,11 @@ describe('reactive refresh (after a 401)', () => {
   it('rethrows a network failure without signing out', async () => {
     const store = createStore(tokens(1));
     const offline = new ApiError(0, { code: 'NETWORK_ERROR', message: 'offline' });
-    const manager = createTokenManager({ store, refresh: async () => Promise.reject(offline), now: () => NOW });
+    const onSessionRejected = jest.fn();
+    const manager = createTokenManager({ store, refresh: async () => Promise.reject(offline), onSessionRejected, now: () => NOW });
     await expect(manager.handleUnauthorized('access-1')).rejects.toBe(offline);
     expect(store.signOut).not.toHaveBeenCalled();
+    expect(onSessionRejected).not.toHaveBeenCalled();
     expect(store.tokens).toEqual(tokens(1));
   });
 });
@@ -204,12 +211,14 @@ describe('concurrent changes', () => {
   it('does not sign out a newer session when the old session’s refresh is rejected', async () => {
     const store = createStore(tokens(1));
     const { refresh, calls } = deferredRefresh();
-    const manager = createTokenManager({ store, refresh, now: () => NOW });
+    const onSessionRejected = jest.fn();
+    const manager = createTokenManager({ store, refresh, onSessionRejected, now: () => NOW });
     const retry = manager.handleUnauthorized('access-1');
     await flush();
     store.tokens = tokens(9); // someone signed in again meanwhile
     calls[0].reject(unauthorized());
     await expect(retry).resolves.toBe('access-9');
     expect(store.signOut).not.toHaveBeenCalled();
+    expect(onSessionRejected).not.toHaveBeenCalled();
   });
 });

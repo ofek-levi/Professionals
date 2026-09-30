@@ -10,7 +10,7 @@ import { WebSocket } from 'ws';
 import { createApp } from '../src/app.js';
 import { KEY_SPACES } from '../src/infra/keys.js';
 import { RedisRealtimePublisher, attachRealtimeServer, type RealtimeServer } from '../src/infra/realtime/index.js';
-import type { RealtimeServerOptions } from '../src/infra/realtime/realtime-server.js';
+import { REALTIME_PROTOCOL, type RealtimeServerOptions } from '../src/infra/realtime/realtime-server.js';
 import { isSessionDenied, sessionRevokedChannel } from '../src/infra/session-denylist.js';
 import type { RealtimeEvent } from '../src/shared/contract/index.js';
 import type { TestDeps } from './app.js';
@@ -66,8 +66,10 @@ export interface TestSocket {
   nextEvent(timeoutMs?: number): Promise<RealtimeEvent>;
 }
 
-export function connectSocket(url: string, token: string): TestSocket {
-  const socket = new WebSocket(`${url}?token=${encodeURIComponent(token)}`);
+/** Connects like the app (token as the `bearer.` subprotocol), or like older apps (`?token=`). */
+export function connectSocket(url: string, token: string, { via = 'protocol' }: { via?: 'protocol' | 'query' } = {}): TestSocket {
+  const socket =
+    via === 'protocol' ? new WebSocket(url, [REALTIME_PROTOCOL, `bearer.${token}`]) : new WebSocket(`${url}?token=${encodeURIComponent(token)}`);
   const events: RealtimeEvent[] = [];
   let read = 0;
   const waiters: (() => void)[] = [];

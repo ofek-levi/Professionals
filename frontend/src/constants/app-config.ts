@@ -15,6 +15,8 @@ export const APP_CONFIG = {
   /** Distance filter presets on the job explorer, km (the only `maxDistanceKm` values the API accepts). */
   distanceFilterOptionsKm: [5, 10, 20, 40] as const,
   maxRequestPhotos: 6,
+  /** Largest photo the API accepts (8 MiB): bigger ones are shrunk (web) or refused before the upload. */
+  maxUploadBytes: 8 * 1024 * 1024,
   descriptionMinLength: 15,
   descriptionMaxLength: 1000,
   notesMaxLength: 500,

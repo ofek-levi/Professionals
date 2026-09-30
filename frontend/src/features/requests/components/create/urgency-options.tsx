@@ -27,7 +27,7 @@ export function UrgencyOptions({ value, onChange }: UrgencyOptionsProps) {
             key={level}
             accessibilityRole="radio"
             accessibilityLabel={`${label}, ${hint}`}
-            accessibilityState={{ checked: selected }}
+            aria-checked={selected}
             onPress={() => {
               haptics.selection();
               onChange(level);

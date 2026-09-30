@@ -8,7 +8,7 @@ import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native'
 import { useTranslation } from 'react-i18next';
 
 import { RequestCard, RequestCardSkeleton } from '@/components/requests';
-import { EmptyState, ErrorState, IconButton, Screen, ScreenHeader, SegmentedControl, type SegmentedOption } from '@/components/ui';
+import { EmptyState, ErrorState, IconButton, Screen, ScreenHeader, SegmentedControl, usePullToRefresh, type SegmentedOption } from '@/components/ui';
 import { APP_CONFIG } from '@/constants/app-config';
 import { useCustomerDashboard, useCustomerRequests, useJobs, useRefetchOnFocus, useRouteParam } from '@/hooks';
 import { routes, TAB_PARAM } from '@/lib/routes';
@@ -35,6 +35,7 @@ export default function CustomerRequestsScreen() {
   const jobsQuery = useJobs('active', { pageSize: APP_CONFIG.maxPageSize });
   // Completed jobs still waiting for a review read "Rate CoolAir HVAC", like on Home.
   const dashboardQuery = useCustomerDashboard();
+  const pull = usePullToRefresh(() => Promise.all([query.refetch(), jobsQuery.refetch(), dashboardQuery.refetch()]));
   const seenOffers = useSeenOffers();
   useRefetchOnFocus(query.refetch);
 
@@ -125,12 +126,8 @@ export default function CustomerRequestsScreen() {
         }}
         refreshControl={
           <RefreshControl
-            refreshing={query.isRefetching && !query.isFetchingNextPage}
-            onRefresh={() => {
-              void query.refetch();
-              void jobsQuery.refetch();
-              void dashboardQuery.refetch();
-            }}
+            refreshing={pull.refreshing}
+            onRefresh={pull.onRefresh}
             tintColor={theme.colors.primary}
             colors={[theme.colors.primary]}
           />

@@ -6,7 +6,7 @@ import { connectSocket, startRealtimeServer, type RealtimeTestServer } from '../
 import { signAccessToken } from '../../../lib/access-token.js';
 import { newObjectId } from '../../../lib/ids.js';
 import { denySessions } from '../../session-denylist.js';
-import { CLOSE_UNAUTHORIZED } from '../realtime-server.js';
+import { CLOSE_UNAUTHORIZED, REALTIME_PROTOCOL } from '../realtime-server.js';
 
 describe('realtime WebSocket endpoint', () => {
   const deps = createTestDeps();
@@ -39,6 +39,22 @@ describe('realtime WebSocket endpoint', () => {
     bobSocket.socket.close();
   });
 
+  it('takes the token from the bearer subprotocol, or from ?token= (older apps)', async () => {
+    const server = await start();
+    const viaProtocol = connectSocket(server.url, accessTokenFor(deps, alice));
+    const viaQuery = connectSocket(server.url, accessTokenFor(deps, bob), { via: 'query' });
+    await Promise.all([viaProtocol.opened, viaQuery.opened]);
+    // The server answers with the app protocol only: the token is never echoed back.
+    expect(viaProtocol.socket.protocol).toBe(REALTIME_PROTOCOL);
+    expect(viaQuery.socket.protocol).toBe('');
+
+    await server.publisher.publish([alice._id.toHexString(), bob._id.toHexString()], { type: 'request.updated', requestId: 'r1' });
+    expect(await viaProtocol.nextEvent()).toEqual({ type: 'request.updated', requestId: 'r1' });
+    expect(await viaQuery.nextEvent()).toEqual({ type: 'request.updated', requestId: 'r1' });
+    viaProtocol.socket.close();
+    viaQuery.socket.close();
+  });
+
   it('fans out across API instances through Redis', async () => {
     const [first, second] = await Promise.all([start(), start()]);
     const onFirst = connectSocket(first.url, accessTokenFor(deps, alice));
@@ -57,6 +73,7 @@ describe('realtime WebSocket endpoint', () => {
     const server = await start();
     expect((await connectSocket(server.url, 'garbage').closed).code).toBe(CLOSE_UNAUTHORIZED);
     expect((await connectSocket(server.url, '').closed).code).toBe(CLOSE_UNAUTHORIZED);
+    expect((await connectSocket(server.url, 'garbage', { via: 'query' }).closed).code).toBe(CLOSE_UNAUTHORIZED);
   });
 
   it('refuses the token of a revoked session with 4001', async () => {

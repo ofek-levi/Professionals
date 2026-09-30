@@ -34,5 +34,10 @@ export const settings: LocaleNamespace<typeof ensettings> = {
     reminders: 'תזכורות לביקורים',
     emailEnabled: 'עדכונים במייל',
     saveFailed: 'העדפות ההתראות לא נשמרו',
+    verifyEmail: {
+      message: 'כדי לקבל עדכונים במייל צריך לאמת את הכתובת {{email}}. ייתכן שהקישור ששלחנו בהרשמה כבר לא בתוקף.',
+      resend: 'שליחת קישור חדש',
+      sent: 'שלחנו קישור חדש אל {{email}}',
+    },
   },
 };

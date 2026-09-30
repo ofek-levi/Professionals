@@ -86,6 +86,7 @@ export const queryKeys = {
     /** Prefix of every notification list (all filters). */
     lists: (userId: Scope) => ['u', userId, 'notifications', 'list'] as const,
     list: (userId: Scope, params: NotificationsParams = {}) => ['u', userId, 'notifications', 'list', params] as const,
+    /** Unread notifications under Updates (chat notifications excluded, see `useUnreadNotificationsCount`). */
     unreadCount: (userId: Scope) => ['u', userId, 'notifications', 'unread-count'] as const,
   },
 
@@ -101,8 +102,9 @@ export const queryKeys = {
       ['u', userId, 'conversations', 'messages', conversationId] as const,
   },
 
+  /** The server localizes addresses (`Accept-Language`): the language is part of every key. */
   geo: {
-    search: (query: string) => ['public', 'geo', 'search', query] as const,
-    reverse: (latitude: number, longitude: number) => ['public', 'geo', 'reverse', latitude, longitude] as const,
+    search: (query: string, limit: number, language: string) => ['public', 'geo', 'search', language, limit, query] as const,
+    reverse: (latitude: number, longitude: number, language: string) => ['public', 'geo', 'reverse', language, latitude, longitude] as const,
   },
 } as const;

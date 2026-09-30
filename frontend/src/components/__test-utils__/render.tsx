@@ -17,7 +17,8 @@ const SAFE_AREA_METRICS = {
 /** Renders `ui` inside the app providers (light theme; `isRTL` mirrors the layout). */
 export function renderWithProviders(ui: ReactElement, { isRTL = false }: { isRTL?: boolean } = {}) {
   const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false } },
+    // Infinite gcTime: no garbage-collection timers keep Jest alive after the tests.
+    defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } },
   });
   return render(ui, {
     wrapper: ({ children }: { children: ReactNode }) => (

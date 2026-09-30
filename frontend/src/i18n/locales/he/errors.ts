@@ -80,6 +80,11 @@ export const errors: LocaleNamespace<typeof enErrors> = {
       description: 'אירעה שגיאה לא צפויה. נסו שוב.',
     },
   },
+  crash: {
+    title: 'משהו השתבש',
+    message: 'לא הצלחנו להציג את המסך. נסו שוב, ואם זה חוזר על עצמו, הפעילו מחדש את האפליקציה.',
+    retry: 'ניסיון נוסף',
+  },
   retryAfter: {
     seconds_one: 'נסו שוב בעוד שנייה.',
     seconds_two: 'נסו שוב בעוד שתי שניות.',
@@ -96,6 +101,11 @@ export const errors: LocaleNamespace<typeof enErrors> = {
     rateLimited: {
       title: 'יותר מדי תמונות כרגע',
       description: 'העליתם הרבה תמונות לאחרונה. נסו שוב מאוחר יותר.',
+    },
+    unavailable: {
+      title: 'אי אפשר להעלות תמונות כרגע',
+      description: 'נסו שוב בעוד כמה דקות.',
+      optionalDescription: 'נסו שוב בעוד כמה דקות, או הסירו את התמונות כדי להמשיך בלעדיהן.',
     },
   },
 };

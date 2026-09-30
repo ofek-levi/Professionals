@@ -44,7 +44,7 @@ export function SegmentedControl<T extends string>({ options, value, onChange, s
             key={option.value}
             accessibilityRole="tab"
             accessibilityLabel={typeof option.count === 'number' ? `${option.label}, ${option.count}` : option.label}
-            accessibilityState={{ selected }}
+            aria-selected={selected}
             hitSlop={hitSlop}
             onPress={() => {
               if (selected) return;

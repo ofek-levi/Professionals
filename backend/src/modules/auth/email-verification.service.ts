@@ -5,8 +5,11 @@
  * trust the account (see `google-auth.service.ts`).
  */
 import type { AppDeps } from '../../deps.js';
+import type { AuthContext } from '../../middleware/auth.js';
+import { ApiError } from '../../lib/errors.js';
 import type { AppLanguage } from '../../shared/domain.js';
 import { UserModel } from '../users/user.model.js';
+import { MAIL_RECIPIENT_PROJECTION, sendVerificationEmail, type MailRecipient } from './auth-mail.service.js';
 import { consumeEmailToken, findEmailTokenUser } from './email-token.service.js';
 
 type LinkAccount = { email: string; language: AppLanguage };
@@ -16,6 +19,20 @@ export async function verifyLinkAccount(deps: Pick<AppDeps, 'clock'>, token: str
   const userId = await findEmailTokenUser(token, 'verify_email', deps.clock.now());
   if (!userId) return null;
   return UserModel.findById(userId, { _id: 0, email: 1, language: 1 }).lean<LinkAccount>();
+}
+
+/**
+ * `POST /auth/verify-email/resend`: a new verification link for the caller's address (the one from
+ * sign-up expires after 48 h). Nothing is sent for an address already verified; either way the
+ * answer is the same (`{ success: true }`), and the app refetches `/me`.
+ */
+export async function resendVerificationEmail(deps: Pick<AppDeps, 'env' | 'clock' | 'mailer'>, auth: AuthContext): Promise<void> {
+  const user = await UserModel.findById(auth.userId, { ...MAIL_RECIPIENT_PROJECTION, emailVerifiedAt: 1 }).lean<
+    MailRecipient & { emailVerifiedAt?: Date | null }
+  >();
+  if (!user) throw ApiError.unauthorized('The account no longer exists');
+  if (user.emailVerifiedAt) return;
+  await sendVerificationEmail(deps, user);
 }
 
 /** Uses the link up and marks the address verified; the account's language, or `null` for a bad link. */

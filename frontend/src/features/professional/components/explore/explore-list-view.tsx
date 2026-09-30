@@ -7,7 +7,7 @@ import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native'
 import { useTranslation } from 'react-i18next';
 
 import { RequestCard, RequestCardSkeleton } from '@/components/requests';
-import { EmptyState, ErrorState } from '@/components/ui';
+import { EmptyState, ErrorState, usePullToRefresh } from '@/components/ui';
 import { useNearbyOpenRequests, useRefetchOnFocus } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
@@ -27,6 +27,7 @@ export function ExploreListView({ params, hasFilters, onAdjustFilters, onClearFi
   const router = useRouter();
   const { t } = useTranslation(['explore', 'common']);
   const query = useNearbyOpenRequests(params);
+  const pull = usePullToRefresh(() => query.refetch());
   useRefetchOnFocus(query.refetch);
 
   const items = query.data?.items ?? [];
@@ -66,7 +67,7 @@ export function ExploreListView({ params, hasFilters, onAdjustFilters, onClearFi
         <EmptyState
           title={hasFilters ? t('explore:empty.filteredTitle') : t('explore:empty.areaTitle')}
           actionLabel={hasFilters ? t('explore:empty.clearFilters') : t('explore:empty.expandArea')}
-          onAction={hasFilters ? onClearFilters : () => router.push(routes.editProfile)}
+          onAction={hasFilters ? onClearFilters : () => router.push(routes.editServiceArea)}
           secondaryActionLabel={hasFilters ? t('explore:empty.adjustFilters') : undefined}
           onSecondaryAction={hasFilters ? onAdjustFilters : undefined}
         />
@@ -78,8 +79,8 @@ export function ExploreListView({ params, hasFilters, onAdjustFilters, onClearFi
       onEndReachedThreshold={0.4}
       refreshControl={
         <RefreshControl
-          refreshing={query.isRefetching && !query.isFetchingNextPage}
-          onRefresh={() => void query.refetch()}
+          refreshing={pull.refreshing}
+          onRefresh={pull.onRefresh}
           tintColor={theme.colors.primary}
           colors={[theme.colors.primary]}
         />

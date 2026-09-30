@@ -6,6 +6,8 @@ export interface UploadImagePayload {
   width: number | null;
   height: number | null;
   fileName: string | null;
+  /** Size in bytes when the picker reports it (iOS/Android): a photo over the limit is refused before the transfer. */
+  fileSize?: number | null;
 }
 
 export interface UploadedImage {

@@ -1,27 +1,35 @@
 /**
- * The realtime WebSocket client: token in the URL, frame parsing, 4001 → refresh → reconnect
+ * The realtime WebSocket client: token as a subprotocol (not in the URL), frame parsing, 4001 → refresh → reconnect
  * (stopping when the session is over), capped exponential backoff with jitter for other drops,
  * foreground/background handling, `onReconnect`, and `disconnect()`.
  */
 import type { AppStateStatus } from 'react-native';
 
 import { parseRealtimeFrame, reconnectDelayMs } from '../realtime-frames';
+import { REALTIME_PROTOCOL, tokenFromProtocols } from '../realtime-protocol';
 import type { RealtimeEvent } from '../types';
-import { CLOSE_UNAUTHORIZED, createWebSocketRealtimeClient, type OpenSocket, type RealtimeAuth } from '../websocket-realtime-client';
+import {
+  CLOSE_TOO_MANY_CONNECTIONS,
+  CLOSE_UNAUTHORIZED,
+  createWebSocketRealtimeClient,
+  type OpenSocket,
+  type RealtimeAuth,
+} from '../websocket-realtime-client';
 
 const URL = 'wss://api.example.com/v1/realtime';
 
 interface FakeSocket {
   url: string;
+  protocols: string[];
   token: string;
-  handlers: Parameters<OpenSocket>[1];
+  handlers: Parameters<OpenSocket>[2];
   close: jest.Mock;
 }
 
 function setup(options: { auth?: Partial<RealtimeAuth>; random?: number; closeInBackground?: boolean } = {}) {
   const sockets: FakeSocket[] = [];
-  const openSocket: OpenSocket = (url, handlers) => {
-    const socket: FakeSocket = { url, token: new globalThis.URL(url).searchParams.get('token') ?? '', handlers, close: jest.fn() };
+  const openSocket: OpenSocket = (url, protocols, handlers) => {
+    const socket: FakeSocket = { url, protocols, token: tokenFromProtocols(protocols) ?? '', handlers, close: jest.fn() };
     sockets.push(socket);
     return socket;
   };
@@ -80,13 +88,14 @@ afterEach(() => {
 });
 
 describe('connecting', () => {
-  it('opens one socket with the URL-encoded access token and delivers valid frames', async () => {
-    const t = setup({ auth: { getAccessToken: async () => 'a+b/c=' } });
+  it('opens one socket, the access token offered as a subprotocol (never in the URL), and delivers valid frames', async () => {
+    const t = setup({ auth: { getAccessToken: async () => 'header.payload.signature' } });
     t.client.connect();
     t.client.connect(); // idempotent
     await run();
     expect(t.sockets).toHaveLength(1);
-    expect(t.last().url).toBe(`${URL}?token=a%2Bb%2Fc%3D`);
+    expect(t.last().url).toBe(URL);
+    expect(t.last().protocols).toEqual([REALTIME_PROTOCOL, 'bearer.header.payload.signature']);
 
     t.last().handlers.onOpen();
     t.last().handlers.onMessage(JSON.stringify(event));
@@ -199,10 +208,64 @@ describe('other drops (1001 server restart, network loss)', () => {
     expect(delays).toEqual([500, 1000, 2000, 4000, 8000, 15_000, 15_000]);
     t.last().handlers.onOpen();
     expect(t.reconnected).toHaveBeenCalledTimes(1);
-    // A successful open resets the backoff.
+    // A connection that lasted resets the backoff.
+    await run(5_000);
     t.last().handlers.onClose(1001);
     await run(500);
     expect(t.sockets).toHaveLength(9);
+  });
+
+  it('refetches when the first connection only succeeds after failed attempts (app started while the server was down)', async () => {
+    const t = setup({ random: 0 });
+    t.client.connect();
+    await run();
+    t.last().handlers.onClose(1006); // never opened: the server is unreachable
+    await run(500);
+    t.last().handlers.onClose(1006);
+    await run(1000);
+    expect(t.reconnected).not.toHaveBeenCalled();
+    t.last().handlers.onOpen();
+    // The screens that failed meanwhile refetch on their own.
+    expect(t.reconnected).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not loop on a server that accepts and closes at once (1008 too many connections)', async () => {
+    const t = setup({ random: 0 });
+    t.client.connect();
+    await run();
+    // Every socket opens, then the server closes it right away with 1008.
+    const refused = new Set<FakeSocket>();
+    for (let second = 0; second < 60; second += 1) {
+      const socket = t.last();
+      if (!refused.has(socket)) {
+        refused.add(socket);
+        socket.handlers.onOpen();
+        socket.handlers.onClose(CLOSE_TOO_MANY_CONNECTIONS);
+      }
+      await run(1_000);
+    }
+    // 60 s: the first socket plus a retry every 15-30 s (was about one per second).
+    expect(t.sockets.length).toBeLessThanOrEqual(5);
+    expect(t.sockets.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('keeps growing the backoff for sockets that close right after opening', async () => {
+    const t = setup({ random: 0 });
+    t.client.connect();
+    await run();
+    const delays: number[] = [];
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const before = t.sockets.length;
+      t.last().handlers.onOpen();
+      t.last().handlers.onClose(1011);
+      let waited = 0;
+      while (t.sockets.length === before) {
+        await run(100);
+        waited += 100;
+      }
+      delays.push(waited);
+    }
+    expect(delays).toEqual([500, 1000, 2000, 4000]);
   });
 
   it('spreads reconnects with jitter between half and all of the capped delay', () => {

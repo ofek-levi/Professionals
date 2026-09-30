@@ -7,6 +7,11 @@ export const messaging = {
     unread_one: '{{count}} unread message',
     unread_other: '{{count}} unread messages',
     empty: 'No conversations yet',
+    /** When a chat appears, per role. */
+    emptyDescription: {
+      customer: 'A chat with the pro opens when you accept an offer.',
+      professional: 'A chat with the customer opens when they accept your offer.',
+    },
     a11y: {
       openHint: 'Opens the chat',
     },
@@ -17,8 +22,18 @@ export const messaging = {
     sending: 'Sending…',
     sent: 'Sent',
     read: 'Read',
-    failed: 'Not sent · Tap to retry',
-    failedA11y: 'Not sent. Double-tap to try again.',
+    /** Why a message was not sent (shown under it). */
+    failedReason: {
+      offline: 'Not sent: no connection',
+      rateLimited: 'Not sent: too many messages, wait a minute',
+      closed: 'Not sent: this chat is closed',
+      rejected: 'Not sent: the message was refused',
+    },
+    tapToRetry: 'Tap to retry',
+    retry: 'Send again',
+    retryHint: 'Sends the message again',
+    delete: 'Delete',
+    deleteA11y: 'Delete the unsent message',
     discardTitle: 'Delete this message?',
     discardMessage: 'It wasn’t sent and will be removed from this chat.',
     closedMessage: 'This chat was closed because the job was cancelled.',

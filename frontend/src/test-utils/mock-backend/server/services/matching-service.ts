@@ -8,7 +8,7 @@ import {
   isRequestMatchForProfessional,
   sortNearbyRequests,
   type WithDistance,
-} from '@/features/requests/request-matching';
+} from '../request-matching';
 import type { NearbyRequestsParams } from '@/types/api';
 import type { OwnProfessionalProfile, ServiceRequest } from '@/types/domain';
 import { compareIds } from '@/utils/id';

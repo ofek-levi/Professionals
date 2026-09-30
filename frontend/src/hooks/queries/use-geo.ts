@@ -4,6 +4,7 @@
 import { keepPreviousData, skipToken, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
+import { useAppLanguage } from '@/i18n/hooks';
 import { api } from '@/services/api';
 import type { GeoCoordinates } from '@/types/domain';
 
@@ -38,9 +39,11 @@ export function usePlaceSearch(query: string, options: UsePlaceSearchOptions = {
   const trimmed = query.trim();
   const debounced = useDebouncedValue(trimmed, SEARCH_DEBOUNCE_MS);
   const canSearch = enabled && debounced.length >= MIN_QUERY_LENGTH;
+  // Answers are in the app's language (Accept-Language): another language is another result.
+  const language = useAppLanguage();
 
   const result = useQuery({
-    queryKey: queryKeys.geo.search(debounced),
+    queryKey: queryKeys.geo.search(debounced, limit, language),
     queryFn: canSearch ? ({ signal }) => api.geo.searchPlaces({ query: debounced, limit }, signal) : skipToken,
     staleTime: GEO_STALE_TIME_MS,
     placeholderData: keepPreviousData,
@@ -68,8 +71,10 @@ export function useReverseGeocode(coordinates: GeoCoordinates | null) {
     ? { latitude: roundCoordinate(coordinates.latitude), longitude: roundCoordinate(coordinates.longitude) }
     : null;
 
+  const language = useAppLanguage();
+
   return useQuery({
-    queryKey: queryKeys.geo.reverse(rounded?.latitude ?? 0, rounded?.longitude ?? 0),
+    queryKey: queryKeys.geo.reverse(rounded?.latitude ?? 0, rounded?.longitude ?? 0, language),
     queryFn: rounded ? ({ signal }) => api.geo.reverseGeocode(rounded, signal) : skipToken,
     staleTime: GEO_STALE_TIME_MS,
   });

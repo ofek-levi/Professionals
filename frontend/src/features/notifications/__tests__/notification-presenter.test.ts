@@ -123,6 +123,17 @@ describe('getNotificationContent', () => {
     expect(getNotificationContent(review(1), t('he'), lookups).title).toBe('ביקורת חדשה: כוכב אחד');
   });
 
+  it('renders a type a newer server added as a generic update instead of crashing', () => {
+    const future = { type: 'payment_received' as NotificationType, params: {} };
+    expect(getNotificationContent(future, i18n.getFixedT('en', 'notifications'), lookups)).toEqual({
+      title: 'New update',
+      body: 'There’s something new in your account.',
+      icon: 'bell-outline',
+      tone: 'neutral',
+    });
+    expect(getNotificationContent(future, i18n.getFixedT('he', 'notifications'), lookups).title).toBe('עדכון חדש');
+  });
+
   it('falls back gracefully when optional params are missing', () => {
     const content = getNotificationContent(
       { type: 'new_matching_request', params: {} },

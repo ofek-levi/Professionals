@@ -1,4 +1,4 @@
-import type { CreateReviewPayload, JobsParams, Paginated } from '@/types/api';
+import type { CreateReviewPayload, JobsParams, Paginated, WireQueries } from '@/types/api';
 import type { Job, JobDetails, JobSummary, Review } from '@/types/domain';
 import type { ApiClient } from '../client';
 
@@ -8,7 +8,7 @@ export function createJobsApi(client: ApiClient) {
   return {
     /** `GET /jobs?scope=` – jobs of the current user (customer or professional), cursor paginated. */
     getJobs: (params: JobsParams = {}, signal?: AbortSignal) =>
-      client.get<Paginated<JobSummary>>('/jobs', { signal, query: { scope: params.scope, cursor: params.cursor, limit: params.limit } }),
+      client.get<Paginated<JobSummary>>('/jobs', { signal, query: { scope: params.scope, cursor: params.cursor, limit: params.limit } satisfies WireQueries['/jobs'] }),
 
     /** `GET /jobs/:id` */
     getJobById: (jobId: string, signal?: AbortSignal) => client.get<JobDetails>(`/jobs/${id(jobId)}`, { signal }),
