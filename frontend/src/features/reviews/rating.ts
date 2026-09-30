@@ -1,4 +1,4 @@
-/** Rating aggregation shared by the reviews UI, offer ranking and the mock backend's stats. */
+/** Rating aggregation shared by the reviews UI and offer ranking (the backend uses the same prior). */
 import { RATING_VALUES, type Rating, type RatingBreakdown, type Review } from '@/types/domain';
 
 /**

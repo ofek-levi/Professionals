@@ -3,7 +3,7 @@ import { i18n, initI18n } from '@/i18n';
 import type { AppLanguage } from '@/types/domain';
 import { isolateText } from '@/utils/bidi';
 
-import { buildNotification, type NotificationInput } from '../notification-factory';
+import { buildNotification, type NotificationInput } from '@/test-utils/mock-backend/server/notification-factory';
 import { getNotificationContent, type NotificationLookups } from '../notification-presenter';
 
 /** The text without directional isolate marks. */

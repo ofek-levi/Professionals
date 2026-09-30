@@ -18,7 +18,7 @@ export const OFFER_SORTS = ['recommended', 'lowest_price', 'earliest_availabilit
 export type OfferSort = (typeof OFFER_SORTS)[number];
 
 /** `GET /requests/:id/offers` */
-export interface RequestOffersParams {
+export interface RequestOffersParams extends PaginationParams {
   sort?: OfferSort;
   statuses?: OfferStatus[];
 }

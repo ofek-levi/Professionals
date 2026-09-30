@@ -1,30 +1,6 @@
-import { summarizeCompletedJobs, upNextJobs } from '../home-model';
-
-const local = (day: number, hour: number, minute = 0, month = 8) => new Date(2026, month, day, hour, minute);
+import { upNextJobs } from '../home-model';
 
 describe('professional home model', () => {
-  it('sums this month’s earnings of completed jobs', () => {
-    const now = local(27, 12);
-    const job = (status: 'completed' | 'scheduled', price: number, completedAt: string | null, currency = 'ILS') => ({
-      status,
-      agreedPrice: price,
-      currency: currency as 'ILS',
-      completedAt,
-      updatedAt: completedAt ?? now.toISOString(),
-    });
-    const summary = summarizeCompletedJobs(
-      [
-        job('completed', 300, local(20, 10).toISOString()),
-        job('completed', 450.5, local(2, 10).toISOString()),
-        job('completed', 1000, local(20, 10, 0, 7).toISOString()),
-        job('scheduled', 999, null),
-      ],
-      now,
-    );
-    expect(summary).toEqual({ thisMonthTotals: [{ currency: 'ILS', amount: 750.5 }] });
-    expect(summarizeCompletedJobs([], now)).toEqual({ thisMonthTotals: [] });
-  });
-
   it('lists jobs awaiting confirmation soonest first', () => {
     const jobs = [
       { id: 'a', status: 'scheduled' as const, scheduledStartAt: '2026-09-28T08:00:00.000Z' },

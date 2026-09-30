@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /**
- * Realtime → banner → navigation: a `notification.created` event shows an in-app banner through
- * the simulated push provider; tapping it marks the notification read and opens its target.
+ * Realtime → banner → navigation: a `notification.created` event shows an in-app banner; tapping
+ * it marks the notification read and opens its target.
  */
 import { Slot } from 'expo-router';
 import { act, fireEvent, renderRouter, screen, waitFor } from 'expo-router/testing-library';
@@ -10,18 +10,18 @@ import { Text } from 'react-native';
 import { getNotificationHref } from '@/features/notifications/notification-routing';
 import { initI18n } from '@/i18n';
 import { queryClient } from '@/lib/query-client';
-import { createAccessToken } from '@/mocks/server/auth';
-import { createTestEnvironment, type TestEnvironment } from '@/mocks/testing/test-server';
-import { createMockTransport } from '@/mocks/transport';
+import { MAIN_CUSTOMER_IDS } from '@/test-utils/mock-backend/data/seed';
+import { createTestEnvironment, type TestEnvironment } from '@/test-utils/mock-backend/testing/test-server';
 import { AppProviders } from '@/providers/app-providers';
 import { apiClient } from '@/services/api';
 import { sessionStore } from '@/services/auth/session-store';
 import type { RealtimeEvent } from '@/services/realtime/types';
-import type { AppNotification, DemoAccount } from '@/types/domain';
+import type { AppNotification } from '@/types/domain';
 
 jest.mock('react-native-worklets', () => require('react-native-worklets/src/mock'));
 
 const mockRealtimeListeners = new Set<(event: RealtimeEvent) => void>();
+const mockReconnectListeners = new Set<() => void>();
 jest.mock('@/services/realtime', () => ({
   realtimeClient: {
     connect: jest.fn(),
@@ -30,17 +30,20 @@ jest.mock('@/services/realtime', () => ({
       mockRealtimeListeners.add(listener);
       return () => mockRealtimeListeners.delete(listener);
     },
+    onReconnect: (listener: () => void) => {
+      mockReconnectListeners.add(listener);
+      return () => mockReconnectListeners.delete(listener);
+    },
   },
 }));
 
 let env: TestEnvironment;
-let customer: DemoAccount;
+const customer = { userId: MAIN_CUSTOMER_IDS.noa };
 
 beforeAll(async () => {
   await initI18n('en');
-  env = await createTestEnvironment();
-  apiClient.setTransport(createMockTransport(env.server, { minLatencyMs: 0, maxLatencyMs: 0, failureRate: 0 }).transport);
-  customer = (await env.as(null).auth.getDemoAccounts()).find((account) => account.role === 'customer')!;
+  env = createTestEnvironment({ now: new Date() });
+  apiClient.setTransport(env.transport);
 });
 
 afterEach(async () => {
@@ -71,7 +74,7 @@ function renderShell() {
 
 describe('RealtimeProvider', () => {
   it('shows a banner for new notifications and opens the target on tap', async () => {
-    await sessionStore.signIn(createAccessToken(customer.userId), { id: customer.userId, role: 'customer' });
+    await sessionStore.signIn(env.signIn(customer.userId));
     const customerApi = env.as(customer.userId);
     const { items } = await customerApi.notifications.getNotifications({ unreadOnly: true });
     const notification: AppNotification = items[0];
@@ -97,7 +100,7 @@ describe('RealtimeProvider', () => {
   });
 
   it('does not show banners when the user turned them off', async () => {
-    await sessionStore.signIn(createAccessToken(customer.userId), { id: customer.userId, role: 'customer' });
+    await sessionStore.signIn(env.signIn(customer.userId));
     const customerApi = env.as(customer.userId);
     const { profile } = await customerApi.customers.getCustomerProfile();
     await customerApi.customers.updateCustomerProfile({
@@ -125,5 +128,22 @@ describe('RealtimeProvider', () => {
     expect(screen.queryByRole('button', { name: /\./ })).toBeNull();
 
     await customerApi.customers.updateCustomerProfile({ notificationPreferences: profile.notificationPreferences });
+  });
+
+  it('refetches what the user sees after the connection came back (events may have been missed)', async () => {
+    await sessionStore.signIn(env.signIn(customer.userId));
+    const app = renderShell();
+    await app;
+    expect(await screen.findByText('Home')).toBeOnTheScreen();
+    await waitFor(() =>
+      expect(queryClient.getQueryCache().findAll({ queryKey: ['u', customer.userId, 'me'] })[0]?.state.status).toBe('success'),
+    );
+    expect(mockReconnectListeners.size).toBe(1);
+    env.log.clear();
+
+    await act(async () => {
+      mockReconnectListeners.forEach((listener) => listener());
+    });
+    await waitFor(() => expect(env.log.to('/me', 'GET')).toHaveLength(1));
   });
 });

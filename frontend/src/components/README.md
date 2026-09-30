@@ -94,7 +94,7 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 | `InlineAlert` | `<InlineAlert tone="warning" title={t('…')} message={t('…')} actionLabel={t('…')} onAction={…} onDismiss={…} />` |
 | `Sheet` | `<Sheet visible={open} onClose={close} title={t('…')} footer={<Button … />}>{…}</Sheet>` (`fullHeight` for searchable lists). It rises above the keyboard and shrinks when needed. Start anything that presents its own screen (image picker, camera) from `onClosed`, once the sheet is gone: iOS can't present it over a sheet being dismissed |
 | `useConfirm` | `const confirm = useConfirm(); if (await confirm({ title, message, confirmLabel, destructive: true })) …` (buttons stack vertically when a label is too long for half the dialog, so natural labels like "Confirm appointment" are fine) |
-| `useToast` | `const toast = useToast(); toast.show({ title, message, tone: 'success', icon, onPress, durationMs, id })` (top banner; also used as the simulated push notification) |
+| `useToast` | `const toast = useToast(); toast.show({ title, message, tone: 'success', icon, onPress, durationMs, id })` (top banner; also shows realtime notifications while the app is open) |
 | `RatingStars` | `<RatingStars value={4.5} />` (five stars) / `<RatingStars value={4.8} count={32} variant="compact" />` → ★ 4.8 (32) |
 | `RatingInput` | `<RatingInput value={rating} onChange={setRating} />` |
 | `PriceText` | `<PriceText amount={offer.price} currency={offer.currency} variant="title" />` |

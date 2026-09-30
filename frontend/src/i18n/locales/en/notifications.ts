@@ -12,6 +12,10 @@ export const notifications = {
     },
     emptyUpdates: 'No updates yet',
   },
+  /** Android notification channel (shown in the system's app notification settings). */
+  channel: {
+    name: 'Notifications',
+  },
   markAllRead: 'Mark all as read',
   markAllReadShort: 'Mark all read',
   groups: {

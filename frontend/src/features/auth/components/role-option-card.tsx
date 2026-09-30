@@ -5,8 +5,8 @@ import { AppText, haptics, Icon, type IconName } from '@/components/ui';
 import { makeStyles, useTheme } from '@/theme';
 import type { UserRole } from '@/types/domain';
 
-/** The glyph of each role (role switch on the entry screen, role cards of the sign-up flow). */
-export const ROLE_ICONS: Record<UserRole, IconName> = {
+/** The glyph of each role on its sign-up card. */
+const ROLE_ICONS: Record<UserRole, IconName> = {
   customer: 'account-outline',
   professional: 'hammer-wrench',
 };

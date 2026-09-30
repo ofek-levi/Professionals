@@ -1,6 +1,7 @@
 /**
  * Offer status machine: `pending → accepted | rejected | withdrawn | expired` (all terminal).
- * Shared by the mock backend (enforcement) and the UI (available actions for both roles).
+ * The UI uses it for the available actions of both roles; the backend enforces the same machine
+ * (`backend/src/modules/offers/offer-rules.ts`).
  */
 import { OFFER_STATUS_META, type OfferStatus } from '@/constants/offer-statuses';
 import type { RequestStatus } from '@/constants/request-statuses';

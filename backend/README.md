@@ -21,6 +21,7 @@ Requirements: Node ≥ 22.12, Docker (for MongoDB and Redis).
 
 ```bash
 # 1. MongoDB as a single-member replica set (transactions need a replica set) + Redis
+#    (or, from the repository root: docker compose up -d --wait)
 docker run -d --name pro-mongo -p 27017:27017 mongo:7 --replSet rs0 --bind_ip_all
 docker exec pro-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
 docker run -d --name pro-redis -p 6379:6379 redis:7
@@ -34,8 +35,9 @@ npm run dev                 # http://localhost:4000 (restarts on changes)
 
 Check it: `curl localhost:4000/ready` → `{"status":"ready",…}`; the API is under
 `http://localhost:4000/v1` and the WebSocket at `ws://localhost:4000/v1/realtime?token=<access token>`.
-Point the app at it with `EXPO_PUBLIC_API_MODE=http` and `EXPO_PUBLIC_API_BASE_URL=http://<your LAN IP>:4000/v1`
-(a phone cannot reach `localhost` of your computer).
+The app targets `http://localhost:4000/v1` by default; on a phone set
+`EXPO_PUBLIC_API_BASE_URL=http://<your LAN IP>:4000/v1` (a phone cannot reach `localhost` of your
+computer; see [`frontend/README.md`](../frontend/README.md#quick-start)).
 
 `APP_ENV=development` runs without provider credentials, printing a warning for each:
 

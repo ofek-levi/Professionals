@@ -34,10 +34,6 @@ export const common: LocaleNamespace<typeof enCommon> = {
     inbox: 'הודעות',
     profile: 'פרופיל',
   },
-  roles: {
-    customer: 'לקוח',
-    professional: 'בעל מקצוע',
-  },
   urgency: {
     emergency: {
       label: 'חירום',
@@ -222,7 +218,6 @@ export const common: LocaleNamespace<typeof enCommon> = {
     jobsDone_one: 'עבודה אחת הושלמה',
     jobsDone_two: 'שתי עבודות הושלמו',
     jobsDone_other: '{{count}} עבודות הושלמו',
-    moreCategories: '+{{count}}',
   },
   job: {
     completedAt: 'הושלמה {{date}}',

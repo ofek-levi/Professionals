@@ -1,5 +1,6 @@
 import { useCurrentUser } from '@/hooks/queries/use-auth-queries';
 import { useUpdateCustomerProfile, useUpdateProfessionalProfile } from '@/hooks/mutations/use-profile-mutations';
+import { pushProvider, pushRegistration } from '@/services/push';
 import type { NotificationPreferences, UserRole } from '@/types/domain';
 
 export type NotificationPreferenceKey = keyof NotificationPreferences;
@@ -17,7 +18,26 @@ interface NotificationPreferencesState {
   error: unknown;
   refetch: () => void;
   /** Saves one toggle (optimistic; rolls back and calls `onError` on failure). */
-  setPreference: (key: NotificationPreferenceKey, value: boolean, onError?: (error: unknown) => void) => void;
+  setPreference: (key: NotificationPreferenceKey, value: boolean, callbacks?: PreferenceCallbacks) => void;
+}
+
+interface PreferenceCallbacks {
+  onError?: (error: unknown) => void;
+  /** Push was turned on but the OS blocks notifications for the app (phone settings). */
+  onPushBlocked?: () => void;
+}
+
+/**
+ * Turning push off also removes this device from the account (`DELETE /me/devices/:token`);
+ * turning it on registers it again (`PushNotifications`, which asks for permission if needed).
+ */
+async function applyPushToggle(enabled: boolean, onPushBlocked?: () => void): Promise<void> {
+  if (!pushProvider.isSupported) return;
+  if (!enabled) {
+    await pushRegistration.unregister();
+    return;
+  }
+  if ((await pushProvider.getPermissionStatus()) === 'denied') onPushBlocked?.();
 }
 
 /**
@@ -33,11 +53,13 @@ export function useNotificationPreferences(): NotificationPreferencesState {
   const role = data?.user.role ?? null;
   const preferences = data?.customerProfile?.notificationPreferences ?? data?.professionalProfile?.notificationPreferences ?? null;
 
-  const setPreference: NotificationPreferencesState['setPreference'] = (key, value, onError) => {
+  const setPreference: NotificationPreferencesState['setPreference'] = (key, value, callbacks = {}) => {
     if (!preferences || !role) return;
     const payload = { notificationPreferences: { ...preferences, [key]: value } };
-    if (role === 'customer') updateCustomer.mutate(payload, { onError });
-    else updateProfessional.mutate(payload, { onError });
+    const options = { onError: callbacks.onError };
+    if (role === 'customer') updateCustomer.mutate(payload, options);
+    else updateProfessional.mutate(payload, options);
+    if (key === 'pushEnabled') void applyPushToggle(value, callbacks.onPushBlocked);
   };
 
   return {

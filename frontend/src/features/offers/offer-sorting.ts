@@ -1,6 +1,6 @@
 /**
  * Ranking of the offers on a request (the customer's sort control on the request screen).
- * The mock backend sorts `GET /requests/:id/offers` with the same function.
+ * `GET /requests/:id/offers` ranks with the same weights on the backend.
  */
 import type { OfferSort } from '@/types/api';
 import type { EntityId, OfferStatus, OfferWithProfessional } from '@/types/domain';

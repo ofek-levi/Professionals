@@ -30,10 +30,6 @@ export const common = {
     inbox: 'Inbox',
     profile: 'Profile',
   },
-  roles: {
-    customer: 'Customer',
-    professional: 'Professional',
-  },
   urgency: {
     emergency: {
       label: 'Emergency',
@@ -213,7 +209,6 @@ export const common = {
   pro: {
     jobsDone_one: '{{count}} job completed',
     jobsDone_other: '{{count}} jobs completed',
-    moreCategories: '+{{count}}',
   },
   job: {
     completedAt: 'Completed {{date}}',

@@ -1,6 +1,6 @@
 /**
  * Deterministic hashing and pseudo-random numbers. Used where the same input must always produce
- * the same "random" output (approximate locations, seed data, simulated offers).
+ * the same "random" output (approximate locations; the test double's fixtures).
  */
 
 /** 32-bit FNV-1a hash of a string (unsigned). */

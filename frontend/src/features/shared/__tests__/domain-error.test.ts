@@ -17,7 +17,10 @@ describe('DomainError', () => {
 
   it('serializes validation errors with field errors', () => {
     const error = DomainError.validation({ description: ['validation:request.descriptionTooShort'] });
-    expect(error.status).toBe(422);
+    // The backend answers 400 for payload errors and 422 for the domain codes.
+    expect(error.status).toBe(400);
+    expect(DomainError.validation({}, 'x', 'UNSUPPORTED_CATEGORY').status).toBe(422);
+    expect(DomainError.validation({}, 'x', 'OUTSIDE_SERVICE_AREA').status).toBe(422);
     expect(error.toBody()).toEqual({
       code: 'VALIDATION_ERROR',
       message: expect.any(String),

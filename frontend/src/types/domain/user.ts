@@ -1,4 +1,4 @@
-import type { AppLanguage, EntityId, ISODateTimeString, LocalizedText } from './common';
+import type { AppLanguage, EntityId, ISODateTimeString } from './common';
 import type { SavedLocation, ServiceLocation } from './location';
 
 export const USER_ROLES = ['customer', 'professional'] as const;
@@ -49,17 +49,4 @@ export interface CustomerSummary {
   city: string | null;
   memberSince: ISODateTimeString;
   completedJobsCount: number;
-}
-
-/** Demo accounts are the mock replacement for real registration/login. */
-export interface DemoAccount {
-  userId: EntityId;
-  role: UserRole;
-  displayName: string;
-  avatarUrl: string | null;
-  /** Short explanation of what can be tested with the account (product copy, so localized). */
-  description: LocalizedText;
-  /** Category ids for professionals, empty for customers. */
-  categoryIds: string[];
-  city: string;
 }

@@ -2,8 +2,8 @@
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { pickImagesFromLibrary } from '@/components/forms';
-import { Avatar, Button, useConfirm, useErrorToast, useToast } from '@/components/ui';
+import { pickImagesFromLibrary, useUploadErrorToast } from '@/components/forms';
+import { Avatar, Button, useConfirm, useToast } from '@/components/ui';
 import { useUploadImage } from '@/hooks';
 import { makeStyles } from '@/theme';
 
@@ -19,7 +19,7 @@ export function AvatarField({ name, value, verified, onChange }: AvatarFieldProp
   const { t } = useTranslation(['professional', 'common']);
   const confirm = useConfirm();
   const toast = useToast();
-  const showError = useErrorToast();
+  const showUploadError = useUploadErrorToast();
   const upload = useUploadImage();
 
   const pick = async () => {
@@ -38,7 +38,7 @@ export function AvatarField({ name, value, verified, onChange }: AvatarFieldProp
       });
       onChange(uploaded.url);
     } catch (error) {
-      showError(error);
+      showUploadError(error);
     }
   };
 

@@ -60,7 +60,7 @@ const TONE_ICONS: Record<StatusTone, IconName> = {
 };
 
 /**
- * Hosts in-app toasts / simulated push banners at the top of the screen. Mount once near the root,
+ * Hosts in-app toasts and notification banners at the top of the screen. Mount once near the root,
  * inside `SafeAreaProvider`, the theme and i18n providers and `OverlayHostProvider`. The toasts show
  * at the root, or inside the top-most open `Sheet` (above its backdrop).
  */

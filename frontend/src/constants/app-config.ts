@@ -12,7 +12,7 @@ export const APP_CONFIG = {
   passwordMaxLength: 64,
   personNameMinLength: 2,
   personNameMaxLength: 40,
-  /** Distance filter presets on the job explorer, km. */
+  /** Distance filter presets on the job explorer, km (the only `maxDistanceKm` values the API accepts). */
   distanceFilterOptionsKm: [5, 10, 20, 40] as const,
   maxRequestPhotos: 6,
   descriptionMinLength: 15,
@@ -30,6 +30,6 @@ export const APP_CONFIG = {
   appointmentReminderLeadMinutes: 120,
   /** Default page size of cursor-paginated lists. */
   pageSize: 20,
-  /** Largest `limit` a paginated endpoint accepts (larger values are rejected with 422). */
+  /** Largest `limit` a paginated endpoint accepts (larger values are rejected with 400). */
   maxPageSize: 100,
 } as const;

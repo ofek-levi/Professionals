@@ -34,7 +34,7 @@ export function LanguageSwitch({ appearance = 'default', style }: LanguageSwitch
   return (
     <View
       accessibilityRole="radiogroup"
-      accessibilityLabel={t('auth:signIn.languageLabel')}
+      accessibilityLabel={t('auth:language.label')}
       style={[styles.track, { backgroundColor: trackColor }, style]}
     >
       {onColor ? <Icon name="translate" size={16} color={theme.colors.onPrimary} style={styles.icon} /> : null}

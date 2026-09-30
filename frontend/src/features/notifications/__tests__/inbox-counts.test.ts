@@ -11,7 +11,7 @@ describe('Inbox tab badge (countInboxUnread().total)', () => {
           { type: 'offer_received', readAt: null },
           { type: 'job_confirmed', readAt: null },
         ],
-        conversations: [{ unreadCount: 3 }, { unreadCount: 0 }],
+        unreadMessages: 3,
       }),
     ).toBe(5);
   });
@@ -24,15 +24,15 @@ describe('Inbox tab badge (countInboxUnread().total)', () => {
           { type: 'new_message', readAt: null },
           { type: 'offer_received', readAt: null },
         ],
-        conversations: [{ unreadCount: 2 }],
+        unreadMessages: 2,
       }),
     ).toBe(3);
   });
 
   it('ignores notifications already marked read and never goes negative', () => {
-    expect(countInboxBadge({ unreadNotifications: 0, unreadList: [{ type: 'new_message', readAt: null }], conversations: [] })).toBe(0);
+    expect(countInboxBadge({ unreadNotifications: 0, unreadList: [{ type: 'new_message', readAt: null }], unreadMessages: 0 })).toBe(0);
     expect(
-      countInboxBadge({ unreadNotifications: 1, unreadList: [{ type: 'new_message', readAt: '2026-09-27T07:00:00.000Z' }], conversations: [] }),
+      countInboxBadge({ unreadNotifications: 1, unreadList: [{ type: 'new_message', readAt: '2026-09-27T07:00:00.000Z' }], unreadMessages: 0 }),
     ).toBe(1);
   });
 });
@@ -47,7 +47,7 @@ describe('countInboxUnread', () => {
           { type: 'offer_received', readAt: null },
           { type: 'job_confirmed', readAt: null },
         ],
-        conversations: [{ unreadCount: 2 }, { unreadCount: 1 }],
+        unreadMessages: 3,
       }),
     ).toEqual({ updates: 2, messages: 3, total: 5 });
   });

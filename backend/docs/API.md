@@ -601,7 +601,7 @@ Module owners: `src/modules/requests` (+ matching, explorer), `src/modules/offer
 `src/modules/jobs`, `src/modules/reviews`, `src/modules/dashboard`. Every route needs
 `Authorization: Bearer`; the role column says who may call it (the other role gets 403 `FORBIDDEN`).
 Rules, errors, notifications and realtime events are those of the app's mock backend
-(`frontend/src/mocks/server/services/lifecycle-service.ts`, `views.ts`); malformed ids answer 404.
+(`frontend/src/test-utils/mock-backend/server/services/lifecycle-service.ts`, `views.ts`); malformed ids answer 404.
 Lists are keyset-paginated (`?cursor=&limit=`, default 20, max 100; bad values → 400
 `fieldErrors.cursor` / `fieldErrors.limit`).
 

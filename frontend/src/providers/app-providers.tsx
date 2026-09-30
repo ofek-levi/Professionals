@@ -1,7 +1,7 @@
 /**
  * The app's provider tree (outermost first):
  * gestures → safe area → React Query → design theme → navigation theme/direction → web layout
- * direction root → session → overlay hosts (open sheets) → dialogs → toasts → realtime.
+ * direction root → session → overlay hosts (open sheets) → dialogs → toasts → realtime (+ push).
  */
 import { QueryClientProvider } from '@tanstack/react-query';
 import { LocaleProvider, ThemeProvider as NavigationThemeProvider } from 'expo-router';
@@ -22,6 +22,7 @@ import { AppThemeProvider, useTheme } from '@/theme';
 
 import { LayoutDirectionRoot } from './layout-direction';
 import { buildNavigationTheme } from './navigation-theme';
+import { PushNotifications } from './push-notifications';
 import { RealtimeProvider } from './realtime-provider';
 
 /** Resolves the effective scheme from the user preference and the device setting. */
@@ -81,7 +82,10 @@ export function AppProviders({ children }: { children: ReactNode }) {
                 <OverlayHostProvider>
                   <DialogProvider>
                     <ToastProvider>
-                      <RealtimeProvider>{children}</RealtimeProvider>
+                      <RealtimeProvider>
+                        {children}
+                        <PushNotifications />
+                      </RealtimeProvider>
                     </ToastProvider>
                   </DialogProvider>
                 </OverlayHostProvider>

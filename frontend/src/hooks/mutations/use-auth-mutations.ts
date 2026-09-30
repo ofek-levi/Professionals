@@ -1,8 +1,8 @@
 /**
  * Account mutations: email sign-in, sign-up, Google sign-in and password reset.
  *
- * A successful sign-in goes through `establishSession()` – the same path as the demo sign-in – so
- * the session lifecycle clears the cache and connects realtime, and the `Stack.Protected` guards
+ * A successful sign-in goes through `establishSession()`, which stores the tokens (secure storage),
+ * so the session lifecycle clears the cache and connects realtime, and the `Stack.Protected` guards
  * replace the auth screens with the role's home. The calling screen unmounts right after: read
  * the result from `mutateAsync()` (or hook-level callbacks) rather than per-call `mutate` callbacks.
  */
@@ -29,7 +29,7 @@ export function useLogin() {
 
 /**
  * `POST /auth/register` → account created and signed in. Fails with 409
- * `EMAIL_ALREADY_REGISTERED` or 422 `VALIDATION_ERROR` (map `fieldErrors` with
+ * `EMAIL_ALREADY_REGISTERED` or 400 `VALIDATION_ERROR` (map `fieldErrors` with
  * `registerFieldErrorsToForm`).
  */
 export function useRegister() {
@@ -40,7 +40,7 @@ export function useRegister() {
 }
 
 /**
- * `POST /auth/google` with an id token (real or simulated).
+ * `POST /auth/google` with Google's id token.
  * - `signed_in`: the session is established (existing account).
  * - `registration_required`: nothing is signed in; the identity is kept as the pending Google
  *   sign-up (`usePendingGoogleSignUp()`) for the sign-up flow.

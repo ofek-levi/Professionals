@@ -1,5 +1,5 @@
 /**
- * Pure date/time helpers shared by validation, business rules and the mock backend.
+ * Pure date/time helpers shared by validation and business rules.
  *
  * Conventions:
  * - Instants are ISO-8601 strings in UTC (`ISODateTimeString`) or `Date` objects.

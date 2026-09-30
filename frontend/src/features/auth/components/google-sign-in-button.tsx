@@ -1,34 +1,24 @@
 /**
- * "Continue with Google": a neutral outline button that produces a Google id token for
- * `useGoogleAuth()`.
- * - Real mode (a Google client id is configured for this platform): opens Google's sign-in through
- *   expo-auth-session and passes on Google's `id_token`.
- * - Simulated mode (demo): opens our own "Continue with Google (demo)" sheet and passes on a demo
- *   token of the chosen sample identity.
+ * "Continue with Google": a neutral outline button that opens Google's sign-in (expo-auth-session)
+ * and passes Google's `id_token` on to `useGoogleAuth()`. Rendered only where Google sign-in is
+ * configured (`useGoogleSignInAvailable()`); there is no stand-in elsewhere.
  */
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button, useToast } from '@/components/ui';
-import { useDemoTools } from '@/features/settings/use-demo-tools';
 import { googleAuthConfig } from '@/services/auth/google-auth';
 import { useRealGoogleIdToken } from '@/services/auth/use-real-google-id-token';
 
 import { GoogleLogo } from './google-logo';
-import { SimulatedGoogleSheet } from './simulated-google-sheet';
 
-/**
- * Whether "Continue with Google" can be offered: real Google sign-in is configured, or the app runs
- * on the in-app mock backend (which accepts demo tokens). A real backend without Google client ids
- * would reject the demo tokens, so the button is hidden there.
- */
+/** Whether "Continue with Google" can be offered: a Google client id is set for this platform. */
 export function useGoogleSignInAvailable(): boolean {
-  const { isAvailable: mockBackend } = useDemoTools();
-  return googleAuthConfig.mode === 'google' || mockBackend;
+  return googleAuthConfig.available;
 }
 
 interface GoogleSignInButtonProps {
-  /** Receives Google's id token (real mode) or a demo id token (simulated mode). */
+  /** Receives Google's id token. */
   onIdToken: (idToken: string) => void;
   /** The token is being exchanged with the backend. */
   loading?: boolean;
@@ -40,7 +30,6 @@ export function GoogleSignInButton({ onIdToken, loading = false, disabled = fals
   const { t } = useTranslation('auth');
   const toast = useToast();
   const google = useRealGoogleIdToken();
-  const [sheetOpen, setSheetOpen] = useState(false);
   const [prompting, setPrompting] = useState(false);
   // Synchronous: a double tap must not open Google's sign-in twice.
   const promptOpen = useRef(false);
@@ -63,24 +52,18 @@ export function GoogleSignInButton({ onIdToken, loading = false, disabled = fals
     }
   };
 
+  if (!google.isAvailable) return null;
+
   return (
-    <>
-      <Button
-        label={t('google.continue')}
-        variant="outline"
-        leftElement={<GoogleLogo />}
-        fullWidth
-        loading={loading || prompting}
-        disabled={disabled || (google.isAvailable && !google.isReady)}
-        onPress={() => {
-          if (google.isAvailable) void promptGoogle();
-          else setSheetOpen(true);
-        }}
-        testID={testID}
-      />
-      {google.isAvailable ? null : (
-        <SimulatedGoogleSheet visible={sheetOpen} onClose={() => setSheetOpen(false)} onIdToken={onIdToken} />
-      )}
-    </>
+    <Button
+      label={t('google.continue')}
+      variant="outline"
+      leftElement={<GoogleLogo />}
+      fullWidth
+      loading={loading || prompting}
+      disabled={disabled || !google.isReady}
+      onPress={() => void promptGoogle()}
+      testID={testID}
+    />
   );
 }

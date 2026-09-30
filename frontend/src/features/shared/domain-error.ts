@@ -1,11 +1,11 @@
 /**
- * Error raised by business rules (state machines, matching, validation) and by the mock backend.
- * It carries the API error `code` and HTTP `status`, so the mock server can serialize it directly
- * into an `ApiErrorBody` (it is the backend's HTTP error type).
+ * Error raised by business rules (state machines, matching, validation). It carries the API error
+ * `code` and the HTTP `status` the backend answers with, so the backend test double
+ * (`src/test-utils/mock-backend`) serializes it directly into an `ApiErrorBody`.
  */
 import type { ApiErrorBody, ApiErrorCode } from '@/types/api';
 
-/** Default HTTP status for every API error code. */
+/** HTTP status of every API error code, as the backend sends it (backend/docs/API.md → Errors). */
 const ERROR_STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   NETWORK_ERROR: 0,
   TIMEOUT: 408,
@@ -14,7 +14,7 @@ const ERROR_STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   INVALID_GOOGLE_TOKEN: 401,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
-  VALIDATION_ERROR: 422,
+  VALIDATION_ERROR: 400,
   CONFLICT: 409,
   EMAIL_ALREADY_REGISTERED: 409,
   INVALID_STATE_TRANSITION: 409,
@@ -96,7 +96,8 @@ export class DomainError extends Error {
   }
 
   /**
-   * 422 with field-level messages. Field messages are i18n keys of the `validation` namespace
+   * 400 `VALIDATION_ERROR` (422 for the domain codes `UNSUPPORTED_CATEGORY` / `OUTSIDE_SERVICE_AREA`)
+   * with field-level messages: i18n keys of the `validation` namespace
    * (e.g. `validation:request.descriptionTooShort`).
    */
   static validation(fieldErrors: FieldErrors, message = 'The request payload is invalid', code: ValidationCode = 'VALIDATION_ERROR'): DomainError {

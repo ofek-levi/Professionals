@@ -1,5 +1,6 @@
 /**
- * Validation schemas (zod v4) shared by forms and the mock backend.
+ * Validation schemas (zod v4) of the forms, matching the backend's rules (the test double
+ * validates with them too).
  * Messages are `validation:*` i18n keys – translate them with `t(message)`.
  */
 export * from './messages';
@@ -11,5 +12,4 @@ export * from './profile';
 export * from './review';
 export * from './message';
 export * from './cancel';
-export * from './upload';
 export * from './auth';

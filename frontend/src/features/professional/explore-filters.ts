@@ -3,9 +3,8 @@
  * `GET /professional/requests/nearby` params. The filter UI works with friendly values ("whole
  * service area", …); this module converts them into the REST params. Pure.
  */
-import { APP_CONFIG } from '@/constants/app-config';
 import { URGENCY_LEVELS, type UrgencyLevel } from '@/constants/urgency-levels';
-import type { NearbyRequestsParams } from '@/types/api';
+import { DISTANCE_FILTERS_KM, type DistanceFilterKm, type NearbyRequestsParams } from '@/types/api';
 import type { CategoryId } from '@/types/domain';
 
 export const EXPLORE_VIEW_MODES = ['map', 'list'] as const;
@@ -14,8 +13,8 @@ export type ExploreViewMode = (typeof EXPLORE_VIEW_MODES)[number];
 export interface ExploreFilters {
   /** Subset of the professional's own categories; empty = all of them. */
   categoryIds: CategoryId[];
-  /** `null` = the whole service area. */
-  maxDistanceKm: number | null;
+  /** A preset (the API accepts only those); `null` = the whole service area. */
+  maxDistanceKm: DistanceFilterKm | null;
   /** Empty = every urgency. */
   urgencies: UrgencyLevel[];
 }
@@ -48,8 +47,8 @@ export function filtersToParams(filters: ExploreFilters): NearbyFilterParams {
  * Distance presets that make sense for a service radius: presets smaller than the radius
  * (a preset equal to or above the radius is the same as "whole service area").
  */
-export function distanceOptionsForRadius(radiusKm: number | null | undefined): number[] {
-  const options = [...APP_CONFIG.distanceFilterOptionsKm];
+export function distanceOptionsForRadius(radiusKm: number | null | undefined): DistanceFilterKm[] {
+  const options = [...DISTANCE_FILTERS_KM];
   if (!radiusKm || radiusKm <= 0) return options;
   return options.filter((km) => km < radiusKm);
 }

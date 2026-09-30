@@ -35,7 +35,7 @@ export interface SavedLocation {
   location: ServiceLocation;
 }
 
-/** Result item of the (mock) geocoding / place search API. */
+/** Result item of the place search API (`GET /geo/search`, `GET /geo/reverse`). */
 export interface PlaceSuggestion {
   id: EntityId;
   addressLine: string;

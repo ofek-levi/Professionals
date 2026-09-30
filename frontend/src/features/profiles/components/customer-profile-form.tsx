@@ -11,7 +11,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
 
-import { FormSection, FormTextField, pickImagesFromLibrary, useTranslatedError } from '@/components/forms';
+import { FormSection, FormTextField, pickImagesFromLibrary, useTranslatedError, useUploadErrorToast } from '@/components/forms';
 import { LocationPicker } from '@/components/location';
 import {
   AppText,
@@ -95,6 +95,7 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
   const confirm = useConfirm();
   const toast = useToast();
   const showError = useErrorToast();
+  const showUploadError = useUploadErrorToast();
   const upload = useUploadImage();
   const update = useUpdateCustomerProfile();
   const { control, handleSubmit, setError, formState } = useForm<CustomerProfileFormValues, unknown, CustomerProfileFormOutput>({
@@ -144,7 +145,7 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
       });
       setAvatarUrl(uploaded.url);
     } catch (error) {
-      showError(error);
+      showUploadError(error);
     }
   };
 

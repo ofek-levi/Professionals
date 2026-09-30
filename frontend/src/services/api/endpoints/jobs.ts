@@ -1,4 +1,4 @@
-import type { CreateReviewPayload, JobsParams } from '@/types/api';
+import type { CreateReviewPayload, JobsParams, Paginated } from '@/types/api';
 import type { Job, JobDetails, JobSummary, Review } from '@/types/domain';
 import type { ApiClient } from '../client';
 
@@ -6,12 +6,9 @@ const id = (value: string) => encodeURIComponent(value);
 
 export function createJobsApi(client: ApiClient) {
   return {
-    /** `GET /jobs?scope=` – jobs of the current user (customer or professional). */
+    /** `GET /jobs?scope=` – jobs of the current user (customer or professional), cursor paginated. */
     getJobs: (params: JobsParams = {}, signal?: AbortSignal) =>
-      client.get<JobSummary[]>('/jobs', { signal, query: { scope: params.scope } }),
-
-    /** Convenience for `GET /jobs?scope=active`. */
-    getActiveJobs: (signal?: AbortSignal) => client.get<JobSummary[]>('/jobs', { signal, query: { scope: 'active' } }),
+      client.get<Paginated<JobSummary>>('/jobs', { signal, query: { scope: params.scope, cursor: params.cursor, limit: params.limit } }),
 
     /** `GET /jobs/:id` */
     getJobById: (jobId: string, signal?: AbortSignal) => client.get<JobDetails>(`/jobs/${id(jobId)}`, { signal }),

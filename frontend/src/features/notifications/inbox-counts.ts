@@ -6,15 +6,16 @@
  * leave them out, so one message never counts twice and the tab badge always equals the sum of
  * the two segment counts.
  */
-import { useConversations, useNotifications, useUnreadNotificationsCount } from '@/hooks';
-import type { AppNotification, Conversation } from '@/types/domain';
+import { useNotifications, useUnreadMessagesCount, useUnreadNotificationsCount } from '@/hooks';
+import type { AppNotification } from '@/types/domain';
 
 interface InboxBadgeInput {
   /** Server-side unread notifications count (all types). */
   unreadNotifications: number;
   /** Loaded unread notifications (to find the `new_message` ones). */
   unreadList: readonly Pick<AppNotification, 'type' | 'readAt'>[];
-  conversations: readonly Pick<Conversation, 'unreadCount'>[];
+  /** Server-side unread chat messages over all conversations (`GET /conversations/unread-count`). */
+  unreadMessages: number;
 }
 
 interface InboxCounts {
@@ -31,17 +32,20 @@ export function isUpdateNotification(notification: Pick<AppNotification, 'type'>
   return notification.type !== 'new_message';
 }
 
-export function countInboxUnread({ unreadNotifications, unreadList, conversations }: InboxBadgeInput): InboxCounts {
+export function countInboxUnread({ unreadNotifications, unreadList, unreadMessages }: InboxBadgeInput): InboxCounts {
   const messageNotifications = unreadList.filter((notification) => !isUpdateNotification(notification) && notification.readAt === null).length;
   const updates = Math.max(0, unreadNotifications - messageNotifications);
-  const messages = conversations.reduce((sum, conversation) => sum + Math.max(0, conversation.unreadCount), 0);
+  const messages = Math.max(0, unreadMessages);
   return { updates, messages, total: updates + messages };
 }
 
-/** Live unread counts of the Inbox (segments and tab badge), kept fresh by realtime events. */
+/**
+ * Live unread counts of the Inbox (segments and tab badge), kept fresh by realtime events: both
+ * counts come from the server (`message.created` / `conversation.read` refetch the messages one).
+ */
 export function useInboxCounts(): InboxCounts {
   const unreadNotifications = useUnreadNotificationsCount().data ?? 0;
   const unreadList = useNotifications({ unreadOnly: true }).data?.items ?? [];
-  const conversations = useConversations().data ?? [];
-  return countInboxUnread({ unreadNotifications, unreadList, conversations });
+  const unreadMessages = useUnreadMessagesCount().data ?? 0;
+  return countInboxUnread({ unreadNotifications, unreadList, unreadMessages });
 }

@@ -32,7 +32,7 @@ function allKeys(userId: string) {
     proOffers: queryKeys.offers.professionalList(userId, { limit: 20 }),
     jobDetail: queryKeys.jobs.detail(userId, 'job_1'),
     otherJob: queryKeys.jobs.detail(userId, 'job_2'),
-    jobsActive: queryKeys.jobs.list(userId, 'active'),
+    jobsActive: queryKeys.jobs.list(userId, 'active', 20),
     conversations: queryKeys.conversations.list(userId),
     conversation: queryKeys.conversations.detail(userId, 'conv_1'),
     messages: queryKeys.conversations.messages(userId, 'conv_1'),

@@ -1,6 +1,6 @@
 /**
  * The Google OAuth client ids of the app (web, iOS, Android), from `EXPO_PUBLIC_GOOGLE_*_CLIENT_ID`.
- * Used by the app to start Google sign-in (`google-auth.ts`) and by the in-app mock backend as the
+ * Used by the app to start Google sign-in (`google-auth.ts`) and by the test backend double as the
  * accepted `aud` of Google id tokens. Dependency-free.
  */
 

@@ -1,37 +1,14 @@
-/** Entry screen (create account / sign in / demo accounts), sign-in, sign-up and password reset. */
+/** Entry screen (create account / sign in), sign-in, sign-up and password reset. */
 export const auth = {
   entry: {
     createAccount: 'Create account',
     signIn: 'Sign in',
   },
-  /** Language button (sign-in header) and the sheet it opens. */
+  /** Language switch (entry screen), language button (sign-in header) and the sheet it opens. */
   language: {
+    label: 'Language',
     button: 'Language: {{language}}',
     sheetTitle: 'Choose language',
-  },
-  /** Demo account picker on the entry screen. */
-  signIn: {
-    languageLabel: 'Language',
-    title: 'Or try a demo account',
-    subtitle: 'Explore the marketplace as a customer or as a professional.',
-    roleDescriptions: {
-      customer: 'Post requests, compare offers and hire the right pro.',
-      professional: 'Discover nearby jobs, send offers and manage your work.',
-    },
-    demoNote: 'Tap an account to sign in right away. All data is simulated on this device and can be reset anytime in Settings.',
-    signingIn: 'Signing in…',
-    accountA11yLabel: '{{name}}, {{role}}, {{city}}',
-    accountA11yHint: 'Signs in with this demo account',
-    moreCategories_one: '+{{count}} more service',
-    moreCategories_other: '+{{count}} more services',
-    empty: {
-      customer: 'There are no customer demo accounts right now.',
-      professional: 'There are no professional demo accounts right now.',
-      title: 'No demo accounts',
-    },
-    errors: {
-      signInFailed: 'We couldn’t sign you in',
-    },
   },
   fields: {
     email: 'Email',
@@ -50,8 +27,6 @@ export const auth = {
     submit: 'Sign in',
     noAccount: 'New here?',
     createAccount: 'Create account',
-    demoHint: 'Demo account: {{email}} / {{password}}',
-    fillDemo: 'Fill in',
     welcomeBack: 'Welcome back, {{name}}',
   },
   forgotPassword: {
@@ -61,7 +36,6 @@ export const auth = {
     sentTitle: 'Check your email',
     sentMessage: 'If an account exists for {{email}}, we’ve sent a reset link.',
     backToSignIn: 'Back to sign in',
-    demoNote: 'Demo: no email is actually sent.',
   },
   signUp: {
     progress: 'Step {{step}} of {{total}}',
@@ -120,21 +94,9 @@ export const auth = {
     continue: 'Continue with Google',
     promptFailedTitle: 'Google sign-in didn’t open',
     promptFailedMessage: 'Check your connection and that pop-ups are allowed, then try again.',
-    demoSheet: {
-      title: 'Continue with Google (demo)',
-      subtitle: 'Demo only: no real Google account is used. Pick a sample identity.',
-      newUser: 'Sample new user',
-      existingUser: 'Demo account',
-      another: 'Use another account',
-      anotherSubtitle:
-        'Demo only: no real Google account is used. Enter any name and email. An email that already has an account signs in to it directly, without its password.',
-      backToAccounts: 'Back to sample accounts',
-      continue: 'Continue',
-    },
   },
   legal: {
     openHint: 'Opens the document',
-    demoNote: 'This demo keeps all data on this device; you can reset it in Settings.',
     terms: {
       title: 'Terms of Service',
       sections: {

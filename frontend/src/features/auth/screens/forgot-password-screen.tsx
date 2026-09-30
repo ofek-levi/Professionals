@@ -1,8 +1,7 @@
 /**
  * `/auth/forgot-password` – asks for the account email (prefilled with the one typed on the sign-in
  * screen) and requests a reset link. The answer never reveals whether an account exists: the
- * success state reads "If an account exists for …". With the mock backend nothing is sent, and the
- * success state says so.
+ * success state reads "If an account exists for …".
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useRouter } from 'expo-router';
@@ -14,7 +13,6 @@ import type { z } from 'zod';
 
 import { FormTextField } from '@/components/forms';
 import { AppText, Button, Icon, Screen, useErrorToast } from '@/components/ui';
-import { useDemoTools } from '@/features/settings/use-demo-tools';
 import { useRequestPasswordReset } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { forgotPasswordSchema, toPasswordResetRequest, type ForgotPasswordFormValues } from '@/lib/validation/auth';
@@ -34,7 +32,6 @@ export default function ForgotPasswordScreen() {
   const { t } = useTranslation('auth');
   const showError = useErrorToast();
   const resetPassword = useRequestPasswordReset();
-  const { isAvailable: demo } = useDemoTools();
   const flight = useSingleFlight();
   const [sentTo, setSentTo] = useState<string | null>(null);
 
@@ -81,11 +78,6 @@ export default function ForgotPasswordScreen() {
             <AppText variant="body" color="secondary" align="center">
               {t('forgotPassword.sentMessage', { email: isolateText(sentTo) })}
             </AppText>
-            {demo ? (
-              <AppText variant="caption" color="muted" align="center" testID="forgot-password-demo-note">
-                {t('forgotPassword.demoNote')}
-              </AppText>
-            ) : null}
           </View>
           <Button label={t('forgotPassword.backToSignIn')} fullWidth onPress={backToSignIn} testID="forgot-password-back" />
         </View>

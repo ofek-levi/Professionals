@@ -3,7 +3,7 @@
  * deep links (notifications, push payloads) and screens agree on the URL structure.
  *
  * URL map (Expo Router, files under src/app):
- *   /sign-in                              entry: create account / sign in + demo account picker
+ *   /sign-in                              entry: create account / sign in
  *   /auth/login                           email + password (or Google) sign-in
  *   /auth/sign-up?role=customer|professional  create account (step flow; role optional)
  *   /auth/forgot-password                 request a password reset link
@@ -21,7 +21,7 @@
  *   /jobs/:jobId/review                   leave a review (customer)
  *   /conversations/:conversationId        chat
  *   /profile/edit                         edit own profile (role aware)
- *   /settings                             language, theme, notifications, demo tools
+ *   /settings                             language, theme, notifications
  */
 import type { Href } from 'expo-router';
 

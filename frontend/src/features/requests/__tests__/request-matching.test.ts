@@ -84,9 +84,9 @@ describe('request matching', () => {
     expect(filterNearbyRequests(all, pro, { categoryIds: ['water_heater'] }).map((r) => r.id)).toEqual([heater.id]);
     // Categories outside the professional's own are ignored – nothing matches.
     expect(filterNearbyRequests(all, pro, { categoryIds: ['electrical'] })).toEqual([]);
-    expect(filterNearbyRequests(all, pro, { maxDistanceKm: 4 }).map((r) => r.id)).toEqual([plumbing.id]);
+    expect(filterNearbyRequests(all, pro, { maxDistanceKm: 5 }).map((r) => r.id)).toEqual([plumbing.id]);
     // maxDistanceKm is capped by the service radius.
-    expect(filterNearbyRequests(all, pro, { maxDistanceKm: 50 }).map((r) => r.id)).toEqual([plumbing.id, heater.id]);
+    expect(filterNearbyRequests(all, pro, { maxDistanceKm: 40 }).map((r) => r.id)).toEqual([plumbing.id, heater.id]);
   });
 
   it('measures distance to the real location', () => {

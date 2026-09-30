@@ -11,11 +11,13 @@ import { createOffersApi } from './endpoints/offers';
 import { createProfessionalsApi } from './endpoints/professionals';
 import { createRequestsApi } from './endpoints/requests';
 import { createUploadsApi } from './endpoints/uploads';
+import { createUsersApi } from './endpoints/users';
 
 /** Builds the full typed API surface on top of an `ApiClient` (dependency injection friendly). */
 export function createMarketplaceApi(client: ApiClient) {
   return {
     auth: createAuthApi(client),
+    users: createUsersApi(client),
     catalog: createCatalogApi(client),
     requests: createRequestsApi(client),
     offers: createOffersApi(client),

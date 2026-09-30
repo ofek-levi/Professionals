@@ -1,8 +1,8 @@
 import type { AppNotification, Message } from '@/types/domain';
 
 /**
- * Server → client push events. Today they are emitted in-process by the mock backend; later the
- * same events can arrive over a WebSocket/SSE connection or a push-notification payload.
+ * Server → client events, delivered as JSON frames over the realtime WebSocket
+ * (`GET /v1/realtime`) after the change that caused them was committed.
  */
 export type RealtimeEvent =
   | { type: 'notification.created'; notification: AppNotification }
@@ -19,10 +19,28 @@ export type RealtimeEvent =
 
 export type RealtimeListener = (event: RealtimeEvent) => void;
 
+export const REALTIME_EVENT_TYPES = [
+  'notification.created',
+  'message.created',
+  'conversation.read',
+  'request.updated',
+  'offer.updated',
+  'job.updated',
+  'profile.updated',
+] as const satisfies readonly RealtimeEvent['type'][];
+
 export interface RealtimeClient {
-  /** Opens the connection for the given access token. Safe to call repeatedly. */
-  connect(accessToken: string): void;
+  /**
+   * Keeps a connection open for the signed-in session until `disconnect()`: it reconnects on its
+   * own (and refreshes the access token when the server asks for it). Safe to call repeatedly.
+   */
+  connect(): void;
   disconnect(): void;
   /** Returns an unsubscribe function. */
   subscribe(listener: RealtimeListener): () => void;
+  /**
+   * The connection came back after a drop: events may have been missed meanwhile, so listeners
+   * refetch what they show. Returns an unsubscribe function.
+   */
+  onReconnect(listener: () => void): () => void;
 }

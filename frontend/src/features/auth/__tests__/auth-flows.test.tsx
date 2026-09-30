@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /**
- * The account screens with the real route tree (`src/app`) against a zero-latency in-app mock
- * backend: the entry screen, email sign-in, the sign-up steps (validation per step, back
- * navigation, customer and professional), the simulated Google sign-in and the password reset.
+ * The account screens with the real route tree (`src/app`) against the zero-latency test double:
+ * the entry screen, email sign-in, the sign-up steps (validation per step, back navigation,
+ * customer and professional), finishing a Google sign-up and the password reset.
  */
 import { cleanup, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
 
@@ -10,8 +10,9 @@ import { emitMapMessage, getMapWebView } from '@/components/__test-utils__/map-b
 import { pendingGoogleSignUpStore } from '@/features/auth/pending-google-sign-up';
 import { i18n } from '@/i18n';
 import { queryClient } from '@/lib/query-client';
-import { createTestEnvironment, type TestEnvironment } from '@/mocks/testing/test-server';
-import { createMockTransport } from '@/mocks/transport';
+import { buildMockGoogleIdToken } from '@/test-utils/mock-backend/server/google-id-token';
+import { SEED_PASSWORD, SEED_CUSTOMER_EMAIL } from '@/test-utils/mock-backend/server/passwords';
+import { createTestEnvironment, type TestEnvironment } from '@/test-utils/mock-backend/testing/test-server';
 import { apiClient } from '@/services/api';
 import { sessionStore } from '@/services/auth/session-store';
 
@@ -29,13 +30,14 @@ beforeAll(async () => {
   const reanimated = require('react-native-reanimated') as Record<string, unknown>;
   reanimated.useReducedMotion ??= () => false;
 
-  env = await createTestEnvironment();
-  apiClient.setTransport(createMockTransport(env.server, { minLatencyMs: 0, maxLatencyMs: 0, failureRate: 0 }).transport);
+  env = createTestEnvironment({ now: new Date() });
+  apiClient.setTransport(env.transport);
 });
 
 afterEach(async () => {
   // Unmount first so signing out doesn't update a tree outside of `act`.
   await cleanup();
+  env.log.clear();
   pendingGoogleSignUpStore.clear();
   await sessionStore.signOut();
   queryClient.clear();
@@ -68,17 +70,29 @@ async function fillCustomerAccount(email: string) {
 }
 
 describe('entry screen', () => {
-  it('offers create account and sign in above the demo accounts', async () => {
+  it('offers exactly create account and sign in', async () => {
     const app = await renderApp('/sign-in');
     expect(await screen.findByTestId('entry-create-account', {}, TIMEOUT)).toHaveTextContent('Create account');
     expect(screen.getByTestId('entry-sign-in')).toHaveTextContent('Sign in');
     // Decorative: hidden from screen readers, so the query has to include hidden elements.
     expect(screen.getByTestId('entry-brand-mark', { includeHiddenElements: true })).toBeOnTheScreen();
-    expect(screen.getByText('Or try a demo account')).toBeOnTheScreen();
-    expect((await screen.findAllByTestId(/^demo-account-/, {}, TIMEOUT)).length).toBeGreaterThan(0);
+    // Nothing else to pick: no demo accounts, no role switch, no Google shortcut.
+    expect(screen.queryByText(/demo/i)).toBeNull();
+    expect(screen.queryByRole('tab')).toBeNull();
+    expect(screen.queryByText(/google/i)).toBeNull();
+    // Signed out, the entry screen asks the backend for nothing but public data (no accounts list).
+    expect(env.log.requests.filter((request) => request.path !== '/catalog/categories')).toEqual([]);
+    expect(env.log.requests.every((request) => !request.headers.Authorization)).toBe(true);
 
     await press('entry-sign-in');
     await waitFor(() => expect(app.getPathname()).toBe('/auth/login'), TIMEOUT);
+  });
+
+  it('opens the sign-up flow', async () => {
+    const app = await renderApp('/sign-in');
+    await screen.findByTestId('entry-create-account', {}, TIMEOUT);
+    await press('entry-create-account');
+    await waitFor(() => expect(app.getPathname()).toBe('/auth/sign-up'), TIMEOUT);
   });
 });
 
@@ -87,7 +101,8 @@ describe('sign in', () => {
     const app = await renderApp('/auth/login');
     await screen.findByTestId('login-screen', {}, TIMEOUT);
     expect(screen.getByTestId('auth-brand-mark', { includeHiddenElements: true })).toBeOnTheScreen();
-    expect(screen.getByTestId('login-demo-hint')).toHaveTextContent(/noa\.levi@example\.com.*Demo1234/);
+    // No Google client id is configured for tests: no Google button.
+    expect(screen.queryByTestId('login-google')).toBeNull();
 
     await press('login-submit');
     expect(await screen.findByText('Enter your email address')).toBeOnTheScreen();
@@ -103,22 +118,12 @@ describe('sign in', () => {
     expect(await screen.findByTestId('login-invalid-credentials', {}, TIMEOUT)).toHaveTextContent(/Wrong email or password/);
 
     // Editing the credentials hides the alert.
-    await type('login-password', 'Demo1234');
+    await type('login-password', SEED_PASSWORD);
     expect(screen.queryByTestId('login-invalid-credentials')).toBeNull();
 
     await press('login-submit');
     await waitFor(() => expect(app.getPathname()).toBe('/customer/home'), TIMEOUT);
     expect(sessionStore.getState()).toMatchObject({ status: 'signedIn', role: 'customer' });
-  });
-
-  it('fills in the suggested demo account', async () => {
-    const app = await renderApp('/auth/login');
-    await screen.findByTestId('login-screen', {}, TIMEOUT);
-    await press('login-fill-demo');
-    expect(screen.getByTestId('login-email').props.value).toBe('noa.levi@example.com');
-    expect(screen.getByTestId('login-password').props.value).toBe('Demo1234');
-    await press('login-submit');
-    await waitFor(() => expect(app.getPathname()).toBe('/customer/home'), TIMEOUT);
   });
 
   it('sends a password reset link without revealing whether the account exists', async () => {
@@ -130,8 +135,6 @@ describe('sign in', () => {
     await press('forgot-password-submit');
     expect(await screen.findByTestId('forgot-password-sent', {}, TIMEOUT)).toBeOnTheScreen();
     expect(screen.getByText(/If an account exists for .*nobody@example\.com.*, we’ve sent a reset link\./)).toBeOnTheScreen();
-    // The mock backend sends nothing, and says so.
-    expect(screen.getByTestId('forgot-password-demo-note')).toHaveTextContent('Demo: no email is actually sent.');
   });
 });
 
@@ -193,7 +196,7 @@ describe('sign up', () => {
     await screen.findByTestId('sign-up-step-account', {}, TIMEOUT);
 
     // A registered email comes back as a field error from the server.
-    await fillCustomerAccount('noa.levi@example.com');
+    await fillCustomerAccount(SEED_CUSTOMER_EMAIL);
     await press('sign-up-continue');
     expect(await screen.findByText('An account with this email already exists', {}, TIMEOUT)).toBeOnTheScreen();
 
@@ -270,17 +273,13 @@ describe('sign up', () => {
   });
 });
 
-describe('Continue with Google (demo)', () => {
-  it('signs in an existing account and continues sign-up for a new identity', async () => {
-    const app = await renderApp('/auth/login');
-    await screen.findByTestId('login-google', {}, TIMEOUT);
-    await press('login-google');
-    const sheet = await screen.findByTestId('google-demo-sheet', {}, TIMEOUT);
-    expect(within(sheet).getByText('Continue with Google (demo)')).toBeOnTheScreen();
+describe('Google sign-up', () => {
+  it('finishes the account of a new Google identity (after `registration_required`)', async () => {
+    const profile = { email: 'maya.katz@gmail.com', firstName: 'Maya', lastName: 'Katz', avatarUrl: null };
+    // What "Continue with Google" leaves behind when the backend doesn't know the identity yet.
+    pendingGoogleSignUpStore.set({ idToken: buildMockGoogleIdToken(profile), profile });
+    const app = await renderApp('/auth/sign-up');
 
-    // A new identity: the sign-up flow continues with the name and a locked email, no password.
-    await press('google-demo-account-maya-katz');
-    await waitFor(() => expect(app.getPathname()).toBe('/auth/sign-up'), TIMEOUT);
     // Already on the role step it says the Google account was picked up.
     expect(await screen.findByTestId('sign-up-google-identity', {}, TIMEOUT)).toHaveTextContent(/maya\.katz@gmail\.com/);
     await press('sign-up-role-customer');
@@ -300,12 +299,9 @@ describe('Continue with Google (demo)', () => {
     expect(pendingGoogleSignUpStore.get()).toBeNull();
   });
 
-  it('signs a demo account straight in', async () => {
-    const app = await renderApp('/auth/login');
-    await screen.findByTestId('login-google', {}, TIMEOUT);
-    await press('login-google');
-    await screen.findByTestId('google-demo-sheet', {}, TIMEOUT);
-    await press('google-demo-account-avi-mizrahi');
-    await waitFor(() => expect(app.getPathname()).toBe('/professional/home'), TIMEOUT);
+  it('offers no Google button without a client id for the platform', async () => {
+    await renderApp('/auth/sign-up?role=customer');
+    await screen.findByTestId('sign-up-step-account', {}, TIMEOUT);
+    expect(screen.queryByTestId('sign-up-google')).toBeNull();
   });
 });

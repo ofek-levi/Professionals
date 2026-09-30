@@ -13,13 +13,16 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: ApiErrorCode;
   readonly fieldErrors: Record<string, string[]> | undefined;
+  /** From `Retry-After` on a 429: seconds to wait before trying again (`null` when not sent). */
+  readonly retryAfterSeconds: number | null;
 
-  constructor(status: number, body: ApiErrorBody) {
+  constructor(status: number, body: ApiErrorBody, retryAfterSeconds: number | null = null) {
     super(body.message);
     this.name = 'ApiError';
     this.status = status;
     this.code = body.code;
     this.fieldErrors = body.fieldErrors;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 
   /** Transient failures that are safe to retry automatically. */
@@ -34,6 +37,18 @@ export function isApiError(error: unknown): error is ApiError {
 
 function isApiErrorCode(value: unknown): value is ApiErrorCode {
   return typeof value === 'string' && (API_ERROR_CODES as readonly string[]).includes(value);
+}
+
+/**
+ * `Retry-After` in seconds: delay-seconds, or an HTTP date relative to `now`. `null` when absent or
+ * unreadable.
+ */
+export function parseRetryAfter(value: string | undefined, now: number = Date.now()): number | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Number(trimmed);
+  const date = Date.parse(trimmed);
+  return Number.isNaN(date) ? null : Math.max(0, Math.ceil((date - now) / 1000));
 }
 
 /** Parses an unknown response body into an `ApiErrorBody`. */
@@ -58,7 +73,7 @@ function codeFromStatus(status: number): ApiErrorCode {
   if (status === 404) return 'NOT_FOUND';
   if (status === 408) return 'TIMEOUT';
   if (status === 409) return 'CONFLICT';
-  if (status === 422 || status === 400) return 'VALIDATION_ERROR';
+  if (status === 400 || status === 413 || status === 422) return 'VALIDATION_ERROR';
   if (status === 429) return 'RATE_LIMITED';
   if (status >= 500) return 'SERVER_ERROR';
   return 'UNKNOWN';

@@ -16,7 +16,6 @@ import {
   signUpServicesSchema,
   signUpStepForField,
   signUpStepsFor,
-  simulatedGoogleAccountSchema,
   toLoginRequest,
   toPasswordResetRequest,
   toRegisterRequest,
@@ -84,7 +83,7 @@ describe('login', () => {
 });
 
 describe('new password rules', () => {
-  it('rejects the most common passwords and the published demo password', () => {
+  it('rejects the most common passwords', () => {
     expect(newPasswordIssue('Demo1234')).toBe('validation:auth.passwordTooCommon');
     expect(newPasswordIssue('PASSWORD1')).toBe('validation:auth.passwordTooCommon');
     expect(newPasswordIssue('12345678a')).toBe('validation:auth.passwordTooCommon');
@@ -334,13 +333,3 @@ describe('registerRequestSchema (server)', () => {
   });
 });
 
-describe('simulated Google account', () => {
-  it('validates the "use another account" fields', () => {
-    expect(simulatedGoogleAccountSchema.parse({ firstName: 'Maya', lastName: 'Katz', email: 'Maya@Gmail.com' }).email).toBe('maya@gmail.com');
-    expect(Object.keys(errorsOf(simulatedGoogleAccountSchema, { firstName: '', lastName: '', email: 'x' })).sort()).toEqual([
-      'email',
-      'firstName',
-      'lastName',
-    ]);
-  });
-});

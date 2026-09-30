@@ -1,7 +1,8 @@
 /**
  * Auth validation: sign-in, sign-up (per step and as a whole), password reset and the matching REST
- * payloads (`POST /auth/login|register|google|password-reset`, `POST /auth/demo-login`,
- * `POST /me/devices`). The mock backend validates with the same schemas.
+ * payloads (`POST /auth/login|register|google|password-reset`). The backend
+ * applies the same rules (`backend/src/modules/auth`, parity-tested); the test double validates
+ * with these schemas.
  */
 import { z } from 'zod';
 
@@ -14,17 +15,6 @@ import { categoryIdSchema, isValidEmail, normalizePhone, nullableText, optionalT
 import { vm, type ValidationMessageKey } from './messages';
 import { PROFILE_LIMITS } from './profile';
 import { requestFormLocationSchema, type RequestFormLocation } from './request';
-
-// ────────────────────────────── Demo sign-in & devices ──────────────────────────────
-
-export const demoLoginSchema = z.object({
-  userId: z.string({ error: vm('required') }).trim().min(1, vm('required')),
-});
-
-export const registerDeviceSchema = z.object({
-  pushToken: z.string({ error: vm('required') }).trim().min(1, vm('required')),
-  platform: z.enum(['ios', 'android', 'web'], { error: vm('invalid') }),
-});
 
 // ────────────────────────────── Building blocks ──────────────────────────────
 
@@ -80,9 +70,9 @@ const personNameSchema = (required: 'auth.firstNameRequired' | 'auth.lastNameReq
     .transform((value) => value.trim().replace(/\s+/g, ' '));
 
 /**
- * Passwords that pass the length and letter + number rules but are among the first ones guessed,
- * plus the published demo password. Compared case-insensitively. A real backend additionally checks
- * new passwords against a breached-password list (docs/BACKEND_INTEGRATION.md §3).
+ * Passwords that pass the length and letter + number rules but are among the first ones guessed.
+ * Compared case-insensitively; the same list as the backend's `password-rules.ts`, which also
+ * checks new passwords against the Pwned Passwords breach list.
  */
 const COMMON_PASSWORDS: ReadonlySet<string> = new Set([
   'demo1234',
@@ -196,15 +186,6 @@ export function toPasswordResetRequest(values: ForgotPasswordFormValues): Passwo
 }
 
 // ────────────────────────────── Google ──────────────────────────────
-
-/** "Use another account" fields of the simulated (demo) Google sheet. */
-export const simulatedGoogleAccountSchema = z.object({
-  firstName: personNameSchema('auth.firstNameRequired'),
-  lastName: personNameSchema('auth.lastNameRequired'),
-  email: authEmailSchema,
-});
-
-export type SimulatedGoogleAccountFormValues = z.input<typeof simulatedGoogleAccountSchema>;
 
 /** `POST /auth/google` payload. */
 export const googleAuthRequestSchema = z.object({

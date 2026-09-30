@@ -1,7 +1,20 @@
-# Builds a release APK of the Expo app and publishes it as a GitHub pre-release so it can be
-# downloaded and installed straight from a phone.
+# Builds a release APK of the Expo app for one backend environment (staging or production) and
+# publishes it as a GitHub pre-release so it can be downloaded and installed straight from a phone.
 #
 # Manual only (Actions tab -> "Android APK" -> Run workflow). Nothing runs on push/PR.
+#
+# Configuration comes from the GitHub Environment named by the `environment` input
+# (Settings -> Environments -> staging | production):
+#   variables  API_BASE_URL            required, https://…/v1 (the app talks to this backend only)
+#              EAS_PROJECT_ID          optional, Expo push tokens (unset -> push notifications off)
+#              GOOGLE_WEB_CLIENT_ID, GOOGLE_IOS_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID
+#                                      optional, "Continue with Google" (hidden without the Android id)
+#              MAP_TILE_URL, MAP_TILE_ATTRIBUTION
+#                                      optional, custom map tiles (unset -> OpenStreetMap)
+#   secret     GOOGLE_SERVICES_JSON_BASE64
+#                                      optional, base64 of Firebase google-services.json (FCM, needed
+#                                      for push on Android): `base64 -w0 google-services.json`
+# They become the app's EXPO_PUBLIC_* build variables (see frontend/.env.example).
 #
 # What it does (in frontend/): npm ci -> expo prebuild (android) -> ./gradlew assembleRelease
 #   - release variant: __DEV__ = false, JS compiled to Hermes bytecode, New Architecture on
@@ -13,6 +26,13 @@ name: Android APK
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: Backend environment (GitHub Environment with its API_BASE_URL and other variables)
+        type: choice
+        default: staging
+        options:
+          - staging
+          - production
       abis:
         description: >-
           CPU architectures. arm64-v8a = every modern phone (fastest build, smallest APK).
@@ -32,7 +52,7 @@ permissions:
   contents: write # create the tag + release and upload the APK
 
 concurrency:
-  group: android-apk-${{ github.ref }}
+  group: android-apk-${{ github.ref }}-${{ inputs.environment }}
   cancel-in-progress: false # never cancel a build halfway through publishing a release
 
 defaults:
@@ -46,13 +66,48 @@ jobs:
     name: Build release APK
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Environment variables and secrets (vars.* / secrets.*) come from this GitHub Environment.
+    environment: ${{ inputs.environment }}
     env:
       EXPO_NO_TELEMETRY: 1
       ABIS: ${{ inputs.abis }}
       VERSION_CODE: ${{ github.run_number }}
+      # Inlined into the JS bundle by Expo when Gradle bundles it (public values, not secrets).
+      EXPO_PUBLIC_APP_ENV: ${{ inputs.environment }}
+      EXPO_PUBLIC_API_BASE_URL: ${{ vars.API_BASE_URL }}
+      EXPO_PUBLIC_EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: ${{ vars.GOOGLE_IOS_CLIENT_ID }}
+      EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.GOOGLE_ANDROID_CLIENT_ID }}
+      EXPO_PUBLIC_MAP_TILE_URL: ${{ vars.MAP_TILE_URL }}
+      EXPO_PUBLIC_MAP_TILE_ATTRIBUTION: ${{ vars.MAP_TILE_ATTRIBUTION }}
     steps:
       - name: Check out
         uses: actions/checkout@v5
+
+      - name: Check the environment's configuration
+        # Fails in seconds instead of after a 20-minute build: a staging/production app refuses to
+        # start without an https API URL.
+        run: |
+          echo "Environment: ${EXPO_PUBLIC_APP_ENV}"
+          if [ -z "${EXPO_PUBLIC_API_BASE_URL}" ]; then
+            echo "::error title=API_BASE_URL is missing::Set the variable API_BASE_URL (https://…/v1) in Settings -> Environments -> ${EXPO_PUBLIC_APP_ENV}."
+            exit 1
+          fi
+          case "${EXPO_PUBLIC_API_BASE_URL}" in
+            https://*) ;;
+            *)
+              echo "::error title=API_BASE_URL must be https::${EXPO_PUBLIC_APP_ENV} builds need an https URL (got ${EXPO_PUBLIC_API_BASE_URL})."
+              exit 1
+              ;;
+          esac
+          case "${EXPO_PUBLIC_API_BASE_URL%/}" in
+            */v1) ;;
+            *) echo "::warning::API_BASE_URL usually ends in /v1 (got ${EXPO_PUBLIC_API_BASE_URL})." ;;
+          esac
+          echo "API: ${EXPO_PUBLIC_API_BASE_URL}"
+          if [ -z "${EXPO_PUBLIC_EAS_PROJECT_ID}" ]; then echo "::warning::EAS_PROJECT_ID is not set: push notifications are off in this build."; fi
+          if [ -z "${EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID}" ]; then echo "::warning::GOOGLE_ANDROID_CLIENT_ID is not set: no \"Continue with Google\" in this build."; fi
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v5
@@ -103,6 +158,27 @@ jobs:
           '
           echo "APP_VERSION=$(node -p 'require("./app.json").expo.version')" >> "$GITHUB_ENV"
 
+      - name: Write google-services.json (Firebase Cloud Messaging)
+        # app.config.ts adds it to the native project when GOOGLE_SERVICES_FILE points to it.
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          if [ -z "${GOOGLE_SERVICES_JSON_BASE64}" ]; then
+            echo "::warning::GOOGLE_SERVICES_JSON_BASE64 is not set: push notifications are off on Android in this build."
+            exit 0
+          fi
+          printf '%s' "${GOOGLE_SERVICES_JSON_BASE64}" | base64 --decode > google-services.json
+          node -e '
+            const config = JSON.parse(require("fs").readFileSync("google-services.json", "utf8"));
+            const app = require("./app.json").expo.android.package;
+            const packages = (config.client ?? []).map((client) => client.client_info?.android_client_info?.package_name);
+            if (!packages.includes(app)) {
+              console.error("google-services.json has no Android app " + app + " (found: " + (packages.join(", ") || "none") + ").");
+              process.exit(1);
+            }
+          '
+          echo "GOOGLE_SERVICES_FILE=./google-services.json" >> "$GITHUB_ENV"
+
       - name: Generate the native Android project
         run: npx expo prebuild --platform android --no-install
 
@@ -128,7 +204,7 @@ jobs:
           SRC=android/app/build/outputs/apk/release/app-release.apk
           test -f "$SRC"
           if [ "$ABIS" = "arm64-v8a" ]; then ABI_LABEL=arm64; else ABI_LABEL=$(echo "$ABIS" | tr ',' '-'); fi
-          NAME="Professionals-v${APP_VERSION}-${VERSION_CODE}-${ABI_LABEL}.apk"
+          NAME="Professionals-v${APP_VERSION}-${VERSION_CODE}-${EXPO_PUBLIC_APP_ENV}-${ABI_LABEL}.apk"
           mkdir -p dist && cp "$SRC" "dist/$NAME"
           BT="$ANDROID_HOME/build-tools/$BUILD_TOOLS"
           "$BT/apksigner" verify --print-certs "dist/$NAME"
@@ -155,17 +231,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="android-v${APP_VERSION}-${VERSION_CODE}"
+          TAG="android-v${APP_VERSION}-${VERSION_CODE}-${EXPO_PUBLIC_APP_ENV}"
           if [ "${GITHUB_RUN_ATTEMPT}" != "1" ]; then TAG="${TAG}.${GITHUB_RUN_ATTEMPT}"; fi
           NOTES=$(printf '%s\n' \
-            "Release APK built from \`${GITHUB_SHA::7}\` (${GITHUB_REF_NAME}), ABIs: ${ABIS}, ${APK_SIZE}." \
+            "Release APK for **${EXPO_PUBLIC_APP_ENV}** (${EXPO_PUBLIC_API_BASE_URL}) built from \`${GITHUB_SHA::7}\` (${GITHUB_REF_NAME}), ABIs: ${ABIS}, ${APK_SIZE}." \
             "" \
             "Install: open this page on the phone, download **${APK_NAME}**, allow installs from the browser when asked." \
             "Signed with the public debug key: for testing only, not for the Play Store.")
           gh release create "$TAG" "dist/${APK_NAME}" "dist/${APK_NAME}.sha256" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Android ${APP_VERSION} (build ${VERSION_CODE})" \
+            --title "Android ${APP_VERSION} (build ${VERSION_CODE}, ${EXPO_PUBLIC_APP_ENV})" \
             --notes "$NOTES" \
             --prerelease
           echo "RELEASE_URL=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json url --jq .url)" >> "$GITHUB_ENV"
@@ -176,6 +252,7 @@ jobs:
           {
             echo "### Android APK"
             echo ""
+            echo "- Environment: \`${EXPO_PUBLIC_APP_ENV}\`, API \`${EXPO_PUBLIC_API_BASE_URL}\`"
             echo "- File: \`${APK_NAME}\` (${APK_SIZE}), ABIs: \`${ABIS}\`, versionCode ${VERSION_CODE}"
             if [ -n "${RELEASE_URL:-}" ]; then echo "- Download on the phone: ${RELEASE_URL}"; fi
             echo "- Also attached to this run as an artifact (zipped)."

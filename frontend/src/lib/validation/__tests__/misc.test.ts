@@ -6,7 +6,6 @@ import { zodIssuesToFieldErrors } from '../field-errors';
 import { sendMessageSchema } from '../message';
 import { vm } from '../messages';
 import { createReviewSchema, reviewFormSchema, toCreateReviewPayload } from '../review';
-import { uploadImageSchema } from '../upload';
 
 const errorsOf = (result: { success: boolean; error?: Parameters<typeof zodIssuesToFieldErrors>[0] }) =>
   result.success || !result.error ? {} : zodIssuesToFieldErrors(result.error);
@@ -51,19 +50,6 @@ describe('message, cancel and upload schemas', () => {
   it('validates cancellations', () => {
     expect(cancelRequestSchema.parse({ reason: 'found_elsewhere' })).toEqual({ reason: 'found_elsewhere', comment: null });
     expect(errorsOf(cancelRequestSchema.safeParse({ reason: 'bored' }))).toEqual({ reason: [vm('cancel.reasonRequired')] });
-  });
-
-  it('validates uploads', () => {
-    expect(uploadImageSchema.parse({ uri: 'file:///a.jpg' })).toEqual({
-      uri: 'file:///a.jpg',
-      mimeType: null,
-      width: null,
-      height: null,
-      fileName: null,
-    });
-    expect(errorsOf(uploadImageSchema.safeParse({ uri: 'file:///a.pdf', mimeType: 'application/pdf' }))).toEqual({
-      mimeType: [vm('upload.invalid')],
-    });
   });
 });
 

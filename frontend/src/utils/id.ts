@@ -1,5 +1,5 @@
 /**
- * Id generation for client-side and mock-backend entities.
+ * Id generation for client-side entities (e.g. optimistic chat messages) and the test double.
  *
  * Ids look like `req_0mf3k2x1a0001q7zk`: a prefix, a base-36 timestamp (so ids created later sort
  * after earlier ones), a per-process counter (unique within the same millisecond) and random
@@ -25,7 +25,7 @@ function randomChars(length: number): string {
 /**
  * Creates a unique, roughly time-sortable id.
  * @param prefix short entity prefix, e.g. `req`, `off`, `job`.
- * @param now optional clock value (the mock backend passes its injected clock).
+ * @param now optional clock value (the test double passes its injected clock).
  */
 export function createId(prefix: string, now: Date = new Date()): string {
   counter = (counter + 1) % COUNTER_MODULO;

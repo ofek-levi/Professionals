@@ -9,6 +9,7 @@ import { NOTIFICATION_TYPE_META } from '@/constants/notification-types';
 import {
   adjustUnreadCount,
   applyMessageToConversation,
+  mapPaginatedItems,
   markConversationRead,
   markMessagesReadBy,
   prependNotification,
@@ -51,9 +52,13 @@ export function applyRealtimeEvent(qc: CacheClient, userId: string, event: Realt
       qc.setQueryData<PaginatedInfiniteData<Message>>(queryKeys.conversations.messages(userId, message.conversationId), (data) =>
         upsertMessage(data, message),
       );
-      qc.setQueryData<Conversation[]>(queryKeys.conversations.list(userId), (list) =>
-        list?.map((conversation) => applyMessageToConversation(conversation, message, userId)),
+      qc.setQueryData<PaginatedInfiniteData<Conversation>>(queryKeys.conversations.list(userId), (data) =>
+        mapPaginatedItems(data, (conversation) => applyMessageToConversation(conversation, message, userId)),
       );
+      // The badge counts right away; the refetch below settles it (and reorders the list).
+      if (message.senderId !== userId) {
+        qc.setQueryData<UnreadCountResponse>(queryKeys.conversations.unreadCount(userId), (data) => adjustUnreadCount(data, 1));
+      }
       void invalidateConversation(qc, userId, message.conversationId);
       return;
     }
@@ -64,8 +69,8 @@ export function applyRealtimeEvent(qc: CacheClient, userId: string, event: Realt
         markMessagesReadBy(data, readerId, readAt),
       );
       if (readerId === userId) {
-        qc.setQueryData<Conversation[]>(queryKeys.conversations.list(userId), (list) =>
-          list?.map((conversation) => (conversation.id === conversationId ? markConversationRead(conversation) : conversation)),
+        qc.setQueryData<PaginatedInfiniteData<Conversation>>(queryKeys.conversations.list(userId), (data) =>
+          mapPaginatedItems(data, (conversation) => (conversation.id === conversationId ? markConversationRead(conversation) : conversation)),
         );
       }
       void invalidateConversation(qc, userId, conversationId);

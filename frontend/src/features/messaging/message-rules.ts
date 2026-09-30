@@ -1,4 +1,4 @@
-/** Chat rules shared by the composer UI and the mock backend. */
+/** Chat rules of the composer UI (the backend applies the same limits). */
 import { APP_CONFIG } from '@/constants/app-config';
 import type { Conversation } from '@/types/domain';
 

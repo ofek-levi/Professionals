@@ -11,3 +11,4 @@ export {
 export { PriceInput, parsePriceInput } from './price-input';
 export { TimeSlotPicker } from './time-slot-picker';
 export { useTranslatedError } from './use-translated-error';
+export { useUploadErrorToast } from './use-upload-error-toast';

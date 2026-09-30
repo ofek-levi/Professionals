@@ -13,11 +13,11 @@ const id = (value: string) => encodeURIComponent(value);
 
 export function createOffersApi(client: ApiClient) {
   return {
-    /** `GET /requests/:id/offers` (customer who owns the request) */
+    /** `GET /requests/:id/offers` (customer who owns the request) – ranked, cursor paginated. */
     getOffersForRequest: (requestId: string, params: RequestOffersParams = {}, signal?: AbortSignal) =>
-      client.get<OfferWithProfessional[]>(`/requests/${id(requestId)}/offers`, {
+      client.get<Paginated<OfferWithProfessional>>(`/requests/${id(requestId)}/offers`, {
         signal,
-        query: { sort: params.sort, statuses: params.statuses },
+        query: { sort: params.sort, statuses: params.statuses, cursor: params.cursor, limit: params.limit },
       }),
 
     /** `GET /offers/:id` (customer owner of the request or the offering professional) */

@@ -2,8 +2,7 @@
  * `/auth/login` – sign in with email and password, or "Continue with Google". Wrong credentials
  * show one inline alert above the button (the same for an unknown email and a wrong password). A
  * Google identity without an account continues in the sign-up flow (prefilled, in memory only).
- * On success the protected routes replace the auth screens with the role's home. With the mock
- * backend a demo account (email + password) is suggested and can be filled in with one tap.
+ * On success the protected routes replace the auth screens with the role's home.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
@@ -15,13 +14,11 @@ import type { z } from 'zod';
 
 import { FormTextField } from '@/components/forms';
 import { AppText, Button, InlineAlert, Screen, useErrorToast } from '@/components/ui';
-import { useDemoTools } from '@/features/settings/use-demo-tools';
 import { useGoogleAuth, useLogin } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { createEmptyLoginFormValues, loginSchema, toLoginRequest, type LoginFormValues } from '@/lib/validation/auth';
 import { toApiError } from '@/services/api/errors';
 import { makeStyles, spacing } from '@/theme';
-import { isolateLtr } from '@/utils/bidi';
 
 import { authEmailHint, useAuthEmailHint } from '../auth-email-hint';
 import { AuthIntro } from '../components/auth-intro';
@@ -49,7 +46,6 @@ export default function LoginScreen() {
   const login = useLogin();
   const googleAuth = useGoogleAuth();
   const googleAvailable = useGoogleSignInAvailable();
-  const { demoSignIn } = useDemoTools();
   const flight = useSingleFlight();
 
   const form = useForm<LoginFormValues, unknown, LoginFormOutput>({
@@ -120,12 +116,6 @@ export default function LoginScreen() {
         if (flight.isMounted()) showError(error);
       }
     });
-
-  const fillDemoAccount = () => {
-    if (!demoSignIn) return;
-    reset({ email: demoSignIn.email, password: demoSignIn.password });
-    setRejected(null);
-  };
 
   return (
     <>
@@ -212,24 +202,6 @@ export default function LoginScreen() {
               onPress={() => router.push(routes.auth.signUp())}
               testID="login-create-account"
             />
-            {demoSignIn ? (
-              <View style={styles.demoHint}>
-                <AppText variant="caption" color="muted" align="center" testID="login-demo-hint">
-                  {t('auth:login.demoHint', { email: isolateLtr(demoSignIn.email), password: isolateLtr(demoSignIn.password) })}
-                </AppText>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={fillDemoAccount}
-                  hitSlop={12}
-                  style={({ pressed }) => (pressed ? styles.pressed : null)}
-                  testID="login-fill-demo"
-                >
-                  <AppText variant="captionStrong" color="primary">
-                    {t('auth:login.fillDemo')}
-                  </AppText>
-                </Pressable>
-              </View>
-            ) : null}
           </View>
         </View>
       </Screen>
@@ -265,14 +237,5 @@ const useStyles = makeStyles((t) => ({
   // Sits at the bottom of the screen when the form is short.
   footer: {
     marginTop: 'auto',
-    gap: t.spacing.xs,
-  },
-  demoHint: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'center',
-    columnGap: t.spacing.sm,
-    rowGap: t.spacing.xxs,
   },
 }));

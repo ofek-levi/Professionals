@@ -3,8 +3,8 @@
  * invalidations always agree. Keys are hierarchical: invalidating `queryKeys.jobs.all`
  * invalidates every job related query.
  *
- * All keys are scoped by the signed-in user id (first element) so switching demo accounts can
- * never show another user's cached data.
+ * All user data keys start with `['u', userId]` so switching accounts can never show another
+ * user's cached data.
  */
 import type {
   CustomerRequestsParams,
@@ -18,8 +18,10 @@ import type {
 type Scope = string | null;
 
 export const queryKeys = {
+  /** Prefix of every query of one user (refetched after a realtime reconnect). */
+  user: (userId: Scope) => ['u', userId] as const,
+
   auth: {
-    demoAccounts: () => ['public', 'demo-accounts'] as const,
     me: (userId: Scope) => ['u', userId, 'me'] as const,
   },
 
@@ -59,7 +61,8 @@ export const queryKeys = {
     all: (userId: Scope) => ['u', userId, 'jobs'] as const,
     /** Prefix of every job list (all scopes). */
     lists: (userId: Scope) => ['u', userId, 'jobs', 'list'] as const,
-    list: (userId: Scope, scope: JobScope) => ['u', userId, 'jobs', 'list', scope] as const,
+    /** Infinite list of one scope; pages differ by size, so the page size is part of the key. */
+    list: (userId: Scope, scope: JobScope, pageSize: number) => ['u', userId, 'jobs', 'list', scope, pageSize] as const,
     detail: (userId: Scope, jobId: string) => ['u', userId, 'jobs', 'detail', jobId] as const,
   },
 
@@ -87,7 +90,10 @@ export const queryKeys = {
   },
 
   conversations: {
+    /** Infinite list, most recent activity first. */
     list: (userId: Scope) => ['u', userId, 'conversations', 'list'] as const,
+    /** Unread messages over all conversations (the inbox badge). */
+    unreadCount: (userId: Scope) => ['u', userId, 'conversations', 'unread-count'] as const,
     /** Prefix of every conversation detail (not their messages). */
     details: (userId: Scope) => ['u', userId, 'conversations', 'detail'] as const,
     detail: (userId: Scope, conversationId: string) => ['u', userId, 'conversations', 'detail', conversationId] as const,

@@ -1,8 +1,7 @@
 /**
- * Push notification abstraction. The app talks to a `PushProvider`; today it is the simulated
- * in-app provider, later an `expo-notifications` based one (see `expo-push-provider.ts`).
+ * Push notification abstraction: the app talks to a `PushProvider` (expo-notifications on
+ * iOS/Android, an inert one on the web, which has no push).
  */
-import type { StatusTone } from '@/constants/tones';
 import type { NotificationTarget, NotificationType } from '@/types/domain';
 
 export type PushPermissionStatus = 'granted' | 'denied' | 'undetermined';
@@ -10,33 +9,26 @@ export type PushPermissionStatus = 'granted' | 'denied' | 'undetermined';
 /** Platform value sent to `POST /me/devices`. */
 export type PushPlatform = 'ios' | 'android' | 'web';
 
-/** A push message as the app sees it (already localized for display). */
-export interface PushMessage {
-  /** Stable id – the server notification id when there is one. */
-  id: string;
-  title: string;
-  body?: string;
-  /** MaterialCommunityIcons glyph for in-app banners. */
-  icon?: string;
-  tone?: StatusTone;
-  /** Where tapping the notification should navigate. */
+/** A tapped push notification: the server's `data` (`{ notificationId, notificationType, target }`). */
+export interface PushTap {
+  notificationId: string | null;
+  notificationType: NotificationType | null;
   target: NotificationTarget;
-  /** Server notification id and type (used to mark it as read and route precisely on tap). */
-  notificationId?: string;
-  notificationType?: NotificationType;
 }
 
-export type PushListener = (message: PushMessage) => void;
+export type PushTapListener = (tap: PushTap) => void;
 
 export interface PushProvider {
-  readonly kind: 'simulated' | 'expo';
+  /** Push can work here (iOS/Android with an EAS project id); `false` on the web. */
+  readonly isSupported: boolean;
+  readonly platform: PushPlatform;
   getPermissionStatus(): Promise<PushPermissionStatus>;
-  /** Asks the OS for permission (no-op for the simulated provider). */
+  /** Asks the OS for permission (the system dialog, once). */
   requestPermission(): Promise<PushPermissionStatus>;
-  /** Device push token to register with the backend, or `null` when unavailable. */
-  getDeviceToken(): Promise<string | null>;
-  /** A notification arrived while the app is running. */
-  onNotification(listener: PushListener): () => void;
-  /** The user tapped a notification (system tray or in-app banner). */
-  onNotificationResponse(listener: PushListener): () => void;
+  /** The Expo push token (`ExponentPushToken[…]`) to register, `null` when unavailable. */
+  getPushToken(): Promise<string | null>;
+  /** The OS issued a new device token (register again). Returns an unsubscribe function. */
+  onTokenChange(listener: () => void): () => void;
+  /** The user tapped a notification, including the one that launched the app. */
+  onTap(listener: PushTapListener): () => void;
 }

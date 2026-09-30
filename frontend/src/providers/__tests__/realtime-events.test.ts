@@ -36,6 +36,11 @@ function createClient() {
   return new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
 }
 
+/** The cached conversation list (first page). */
+function conversationsOf(qc: QueryClient): Conversation[] {
+  return qc.getQueryData<PaginatedInfiniteData<Conversation>>(queryKeys.conversations.list(USER))?.pages[0].items ?? [];
+}
+
 describe('applyRealtimeEvent', () => {
   it('adds a new notification to cached lists and bumps the unread count', () => {
     const qc = createClient();
@@ -69,17 +74,23 @@ describe('applyRealtimeEvent', () => {
       clientMessageId: null,
     };
     qc.setQueryData(queryKeys.conversations.messages(USER, 'conv_1'), page<Message>([]));
-    qc.setQueryData<Conversation[]>(queryKeys.conversations.list(USER), [
-      { id: 'conv_1', lastMessage: null, unreadCount: 0, updatedAt: '2026-09-27T07:00:00.000Z' } as Conversation,
-    ]);
+    qc.setQueryData(
+      queryKeys.conversations.list(USER),
+      page<Conversation>([{ id: 'conv_1', lastMessage: null, unreadCount: 0, updatedAt: '2026-09-27T07:00:00.000Z' } as Conversation]),
+    );
+    qc.setQueryData<UnreadCountResponse>(queryKeys.conversations.unreadCount(USER), { count: 4 });
 
     applyRealtimeEvent(qc, USER, { type: 'message.created', message });
 
     const messages = qc.getQueryData<PaginatedInfiniteData<Message>>(queryKeys.conversations.messages(USER, 'conv_1'));
     expect(messages?.pages[0].items).toEqual([message]);
-    const [conversation] = qc.getQueryData<Conversation[]>(queryKeys.conversations.list(USER)) ?? [];
+    const [conversation] = conversationsOf(qc);
     expect(conversation.unreadCount).toBe(1);
     expect(conversation.lastMessage?.id).toBe('msg_2');
+    // The inbox badge counts it at once and is refetched (so is the list: its order changed).
+    expect(qc.getQueryData<UnreadCountResponse>(queryKeys.conversations.unreadCount(USER))).toEqual({ count: 5 });
+    expect(qc.getQueryState(queryKeys.conversations.unreadCount(USER))?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(queryKeys.conversations.list(USER))?.isInvalidated).toBe(true);
   });
 
   describe('conversation.read receipts', () => {
@@ -106,7 +117,7 @@ describe('applyRealtimeEvent', () => {
           theirs,
         ]),
       );
-      qc.setQueryData<Conversation[]>(queryKeys.conversations.list(USER), [{ id: 'conv_1', unreadCount: 2 } as Conversation]);
+      qc.setQueryData(queryKeys.conversations.list(USER), page<Conversation>([{ id: 'conv_1', unreadCount: 2 } as Conversation]));
 
       applyRealtimeEvent(qc, USER, { type: 'conversation.read', conversationId: 'conv_1', readerId: 'other', readAt });
 
@@ -114,15 +125,17 @@ describe('applyRealtimeEvent', () => {
       const readById = Object.fromEntries(items.map((item) => [item.id, item.readAt]));
       expect(readById).toEqual({ 'optimistic:c_new': null, after: null, before: readAt, their: null });
       // Someone else reading does not touch my unread badge.
-      expect(qc.getQueryData<Conversation[]>(queryKeys.conversations.list(USER))?.[0].unreadCount).toBe(2);
+      expect(conversationsOf(qc)[0].unreadCount).toBe(2);
       expect(qc.getQueryState(queryKeys.conversations.list(USER))?.isInvalidated).toBe(true);
     });
 
     it('clears my unread badge when I read the chat on another device', () => {
       const qc = createClient();
-      qc.setQueryData<Conversation[]>(queryKeys.conversations.list(USER), [{ id: 'conv_1', unreadCount: 2 } as Conversation]);
+      qc.setQueryData(queryKeys.conversations.list(USER), page<Conversation>([{ id: 'conv_1', unreadCount: 2 } as Conversation]));
+      qc.setQueryData<UnreadCountResponse>(queryKeys.conversations.unreadCount(USER), { count: 2 });
       applyRealtimeEvent(qc, USER, { type: 'conversation.read', conversationId: 'conv_1', readerId: USER, readAt });
-      expect(qc.getQueryData<Conversation[]>(queryKeys.conversations.list(USER))?.[0].unreadCount).toBe(0);
+      expect(conversationsOf(qc)[0].unreadCount).toBe(0);
+      expect(qc.getQueryState(queryKeys.conversations.unreadCount(USER))?.isInvalidated).toBe(true);
     });
   });
 

@@ -6,9 +6,14 @@ import { api } from '@/services/api';
 import type { Conversation, Message } from '@/types/domain';
 import { createClientMessageId } from '@/utils/id';
 
+import type { UnreadCountResponse } from '@/types/api';
+
 import {
+  adjustUnreadCount,
   applyMessageToConversation,
   createOptimisticMessage,
+  findPaginatedItem,
+  mapPaginatedItems,
   markConversationRead,
   removeMessageByClientId,
   upsertMessage,
@@ -53,8 +58,8 @@ export function useSendMessage(conversationId: string) {
     },
     onSuccess: (message) => {
       qc.setQueryData<PaginatedInfiniteData<Message>>(messagesKey, (data) => upsertMessage(data, message));
-      qc.setQueryData<Conversation[]>(queryKeys.conversations.list(userId), (list) =>
-        list?.map((conversation) => applyMessageToConversation(conversation, message, userId)),
+      qc.setQueryData<PaginatedInfiniteData<Conversation>>(queryKeys.conversations.list(userId), (data) =>
+        mapPaginatedItems(data, (conversation) => applyMessageToConversation(conversation, message, userId)),
       );
     },
     onSettled: () => {
@@ -68,9 +73,9 @@ export function useSendMessage(conversationId: string) {
 }
 
 /**
- * `POST /conversations/:id/read` – optimistic: clears the conversation's unread counter (rolled
- * back on error); the server also marks its message notifications read, so notifications are
- * refreshed afterwards.
+ * `POST /conversations/:id/read` – optimistic: clears the conversation's unread counter and takes
+ * it off the inbox badge (rolled back on error); the server also marks its message notifications
+ * read, so notifications are refreshed afterwards.
  */
 export function useMarkConversationAsRead() {
   const qc = useQueryClient();
@@ -80,23 +85,28 @@ export function useMarkConversationAsRead() {
     onMutate: async (conversationId) => {
       const listKey = queryKeys.conversations.list(userId);
       const detailKey = queryKeys.conversations.detail(userId, conversationId);
+      const countKey = queryKeys.conversations.unreadCount(userId);
       // A refetch already in flight (e.g. after a realtime message) must not land after the
       // optimistic update and bring the old unread badge back.
-      await Promise.all([qc.cancelQueries({ queryKey: listKey }), qc.cancelQueries({ queryKey: detailKey })]);
+      await Promise.all([listKey, detailKey, countKey].map((queryKey) => qc.cancelQueries({ queryKey })));
       const snapshot = {
-        list: qc.getQueryData<Conversation[]>(listKey),
+        list: qc.getQueryData<PaginatedInfiniteData<Conversation>>(listKey),
         detail: qc.getQueryData<Conversation>(detailKey),
+        count: qc.getQueryData<UnreadCountResponse>(countKey),
       };
-      qc.setQueryData<Conversation[]>(listKey, (list) =>
-        list?.map((conversation) => (conversation.id === conversationId ? markConversationRead(conversation) : conversation)),
+      const unread = (snapshot.detail ?? findPaginatedItem(snapshot.list, (item) => item.id === conversationId))?.unreadCount ?? 0;
+      qc.setQueryData<PaginatedInfiniteData<Conversation>>(listKey, (data) =>
+        mapPaginatedItems(data, (conversation) => (conversation.id === conversationId ? markConversationRead(conversation) : conversation)),
       );
       qc.setQueryData<Conversation>(detailKey, (conversation) => (conversation ? markConversationRead(conversation) : conversation));
+      if (unread > 0) qc.setQueryData<UnreadCountResponse>(countKey, (data) => adjustUnreadCount(data, -unread));
       return snapshot;
     },
     onError: (_error, conversationId, snapshot) => {
       if (!snapshot) return;
       qc.setQueryData(queryKeys.conversations.list(userId), snapshot.list);
       qc.setQueryData(queryKeys.conversations.detail(userId, conversationId), snapshot.detail);
+      qc.setQueryData(queryKeys.conversations.unreadCount(userId), snapshot.count);
     },
     onSettled: (_result, _error, conversationId) => {
       void invalidateConversation(qc, userId, conversationId);

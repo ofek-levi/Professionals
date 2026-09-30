@@ -1,7 +1,7 @@
 /**
- * Real Google sign-in (expo-auth-session) returning Google's `id_token`. Only active in the
- * `google` mode of `googleAuthConfig`; otherwise the hook is an inert stand-in (the Google request
- * hook would throw without a client id), so the button can call it unconditionally.
+ * Google sign-in (expo-auth-session) returning Google's `id_token`. Only active when
+ * `googleAuthConfig.available`; otherwise the hook is an inert stand-in (the Google request hook
+ * would throw without a client id), so the button can call it unconditionally.
  */
 import * as Google from 'expo-auth-session/providers/google';
 import type { AuthSessionResult } from 'expo-auth-session';
@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { googleAuthConfig } from './google-auth';
 
 export interface RealGoogleIdToken {
-  /** Real Google sign-in is configured for this platform (otherwise use the simulated sheet). */
+  /** Google sign-in is configured for this platform (otherwise the button is hidden). */
   isAvailable: boolean;
   /** The auth request is loaded and `prompt()` can be called. */
   isReady: boolean;
@@ -101,8 +101,9 @@ function useUnavailableGoogleIdToken(): RealGoogleIdToken {
 }
 
 /**
- * Real Google sign-in when configured; an inert stand-in otherwise. The implementation is chosen
- * once at module load (the configuration never changes at runtime), so hook order is stable.
+ * Google sign-in when configured; an inert stand-in otherwise. The implementation is chosen once
+ * at module load (the configuration never changes at runtime), so hook order is stable.
  */
-export const useRealGoogleIdToken: () => RealGoogleIdToken =
-  googleAuthConfig.mode === 'google' ? useConfiguredGoogleIdToken : useUnavailableGoogleIdToken;
+export const useRealGoogleIdToken: () => RealGoogleIdToken = googleAuthConfig.available
+  ? useConfiguredGoogleIdToken
+  : useUnavailableGoogleIdToken;

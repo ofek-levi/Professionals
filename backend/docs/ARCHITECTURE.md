@@ -19,7 +19,7 @@ How the API is put together and why. Endpoint details are in [API.md](API.md), o
 - The REST contract is the one the app already speaks (`frontend/src/types`, `services/api/endpoints`),
   checked at compile time by `test/contract/frontend-contract.check.ts`; the few deliberate changes are
   listed in [API.md → Contract changes](API.md#contract-changes-vs-the-apps-types).
-- The app's in-app mock server (`frontend/src/mocks/server`) is the behavioural reference: lifecycle,
+- The app's backend test double (`frontend/src/test-utils/mock-backend/server`, Jest only) is the behavioural reference: lifecycle,
   matching, privacy views and authorization rules were ported from it to MongoDB.
 
 ## 2. Layers

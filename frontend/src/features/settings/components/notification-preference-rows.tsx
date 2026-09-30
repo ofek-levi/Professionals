@@ -21,7 +21,10 @@ export function useNotificationPreferenceRows() {
   }
 
   const onToggle = (key: NotificationPreferenceKey, value: boolean) =>
-    setPreference(key, value, () => toast.show({ title: t('notifications.saveFailed'), tone: 'danger' }));
+    setPreference(key, value, {
+      onError: () => toast.show({ title: t('notifications.saveFailed'), tone: 'danger' }),
+      onPushBlocked: () => toast.show({ title: t('notifications.pushBlocked'), tone: 'warning', icon: 'bell-off-outline' }),
+    });
 
   return keys.map((key) => (
     <SwitchRow

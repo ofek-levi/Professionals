@@ -1,37 +1,122 @@
 /**
- * Placeholder for the production push provider built on `expo-notifications`.
+ * Push notifications on iOS/Android with `expo-notifications` (Expo push service → APNs / FCM).
  *
- * `expo-notifications` is intentionally NOT installed yet, so this module must not import it.
- * It documents the contract a real implementation fulfils and returns an inert provider, so the
- * rest of the app can already be written against `PushProvider`.
- *
- * Enabling real push notifications:
- *  1. `npx expo install expo-notifications expo-device` and add `"expo-notifications"` to the
- *     `plugins` in app.json (icon/color for Android). Configure APNs/FCM credentials with EAS.
- *  2. Implement the methods below:
- *     - `getPermissionStatus` / `requestPermission` → `Notifications.getPermissionsAsync()` /
- *       `Notifications.requestPermissionsAsync()` (map `status` to `PushPermissionStatus`).
- *     - `getDeviceToken` → `Notifications.getExpoPushTokenAsync({ projectId })` (only on a physical
- *       device, `Device.isDevice`), or `getDevicePushTokenAsync()` for direct FCM/APNs delivery.
- *     - `onNotification` → `Notifications.addNotificationReceivedListener`.
- *     - `onNotificationResponse` → `Notifications.addNotificationResponseReceivedListener` (also
- *       check `getLastNotificationResponseAsync()` on launch for cold starts).
- *     Map `notification.request.content` to `PushMessage`; the backend should put
- *     `{ notificationId, target }` (a `NotificationTarget`) into the payload's `data`.
- *  3. Call `Notifications.setNotificationHandler` so foreground pushes are not shown twice (the
- *     in-app banner already covers the foreground case).
- *  4. Use this provider as `pushProvider` in ./index.ts when `apiConfig.mode === 'http'`.
+ * - Foreground: the OS banner is suppressed (the realtime connection already shows the in-app
+ *   banner); the notification still lands in the notification list.
+ * - Android: one "default" channel (high importance). It is the manifest's default channel
+ *   (app.json plugin option), which FCM uses since the server sends no channel id.
+ * - The Expo push token is issued for the EAS project id (`EXPO_PUBLIC_EAS_PROJECT_ID`, or
+ *   `extra.eas.projectId` from app.config.ts). Without it push is off (a warning in development).
+ * - Taps: `data` is `{ notificationId, notificationType, target }` (see push-data.ts); the tap that
+ *   launched the app is delivered once, when the first listener subscribes.
  */
-import type { PushProvider } from './types';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
-export function createExpoPushProvider(): PushProvider {
-  const noop = () => () => undefined;
+import { env } from '@/config/env';
+import { i18n } from '@/i18n';
+
+import { parsePushTap } from './push-data';
+import type { PushPermissionStatus, PushPlatform, PushProvider, PushTapListener } from './types';
+
+export const ANDROID_CHANNEL_ID = 'default';
+
+function resolveProjectId(): string | null {
+  if (env.easProjectId) return env.easProjectId;
+  const fromConfig: unknown = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+  return typeof fromConfig === 'string' && fromConfig.length > 0 ? fromConfig : null;
+}
+
+function toStatus(permission: Notifications.NotificationPermissionsStatus): PushPermissionStatus {
+  if (permission.granted) return 'granted';
+  if (permission.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) return 'granted';
+  return permission.status === 'undetermined' ? 'undetermined' : 'denied';
+}
+
+async function ensureAndroidChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+    name: i18n.t('notifications:channel.name'),
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+  });
+}
+
+/** The notification tap that launched the app (consumed), `null` when there is none. */
+function readLaunchTap(): Notifications.NotificationResponse | null {
+  try {
+    const response = Notifications.getLastNotificationResponse();
+    if (!response?.notification) return null;
+    Notifications.clearLastNotificationResponse();
+    return response;
+  } catch {
+    return null; // Not available (e.g. a build without the native module).
+  }
+}
+
+export function createExpoPushProvider(platform: Exclude<PushPlatform, 'web'>): PushProvider {
+  const projectId = resolveProjectId();
+  if (!projectId && __DEV__) {
+    console.warn('[push] EXPO_PUBLIC_EAS_PROJECT_ID is not set: push notifications are off.');
+  }
+
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: false,
+      shouldShowList: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    }),
+  });
+
+  /** Taps already delivered (the launch tap can also arrive through the listener). */
+  const handledTaps = new Set<string>();
+
   return {
-    kind: 'expo',
-    getPermissionStatus: async () => 'undetermined',
-    requestPermission: async () => 'denied',
-    getDeviceToken: async () => null,
-    onNotification: noop,
-    onNotificationResponse: noop,
+    isSupported: projectId !== null,
+    platform,
+    async getPermissionStatus() {
+      return toStatus(await Notifications.getPermissionsAsync());
+    },
+    async requestPermission() {
+      // Android 13+ shows the permission dialog only once a channel exists.
+      await ensureAndroidChannel();
+      return toStatus(await Notifications.requestPermissionsAsync());
+    },
+    async getPushToken() {
+      if (!projectId) return null;
+      if (!Device.isDevice) {
+        if (__DEV__) console.warn('[push] push tokens need a physical device.');
+        return null;
+      }
+      try {
+        await ensureAndroidChannel();
+        return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      } catch (error) {
+        // Missing FCM configuration (google-services.json), no network.
+        if (__DEV__) console.warn('[push] no Expo push token', error);
+        return null;
+      }
+    },
+    onTokenChange(listener) {
+      const subscription = Notifications.addPushTokenListener(() => listener());
+      return () => subscription.remove();
+    },
+    onTap(listener: PushTapListener) {
+      const handle = (response: Notifications.NotificationResponse) => {
+        if (response.actionIdentifier !== Notifications.DEFAULT_ACTION_IDENTIFIER) return;
+        const id = response.notification.request.identifier;
+        if (handledTaps.has(id)) return;
+        handledTaps.add(id);
+        const tap = parsePushTap(response.notification.request.content.data);
+        if (tap) listener(tap);
+      };
+      const subscription = Notifications.addNotificationResponseReceivedListener(handle);
+      const launchTap = readLaunchTap();
+      if (launchTap) handle(launchTap);
+      return () => subscription.remove();
+    },
   };
 }

@@ -1,6 +1,6 @@
 /**
  * Service request status machine (see docs/ARCHITECTURE.md → Status models).
- * Used by the mock backend to enforce transitions and by the UI to decide which actions to show.
+ * The UI uses it to decide which actions to show; the backend enforces the same transitions.
  */
 import {
   REQUEST_STATUS_META,

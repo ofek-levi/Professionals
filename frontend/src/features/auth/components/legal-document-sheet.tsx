@@ -7,7 +7,6 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { AppText, Button, Sheet } from '@/components/ui';
-import { useDemoTools } from '@/features/settings/use-demo-tools';
 import { makeStyles } from '@/theme';
 
 export type LegalDocument = 'terms' | 'privacy';
@@ -26,7 +25,6 @@ interface LegalDocumentSheetProps {
 export function LegalDocumentSheet({ document, onClose }: LegalDocumentSheetProps) {
   const styles = useStyles();
   const { t } = useTranslation(['auth', 'common']);
-  const { isAvailable: demo } = useDemoTools();
 
   return (
     <Sheet
@@ -43,11 +41,6 @@ export function LegalDocumentSheet({ document, onClose }: LegalDocumentSheetProp
             : SECTIONS.privacy.map((section) => (
                 <Section key={section} title={t(`auth:legal.privacy.sections.${section}.title`)} text={t(`auth:legal.privacy.sections.${section}.text`)} />
               ))}
-          {demo ? (
-            <AppText variant="caption" color="muted">
-              {t('auth:legal.demoNote')}
-            </AppText>
-          ) : null}
         </View>
       ) : null}
     </Sheet>

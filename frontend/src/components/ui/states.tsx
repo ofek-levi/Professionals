@@ -116,7 +116,8 @@ export function ErrorState({ error, onRetry, retrying = false, description, comp
   const theme = useTheme();
   const styles = useStyles();
   const { t } = useTranslation(['errors', 'common']);
-  const code = toApiError(error).code;
+  const errorText = useErrorText();
+  const { code, title, description: mappedDescription } = errorText(error);
   const tone = theme.colors.tones[code === 'NETWORK_ERROR' || code === 'TIMEOUT' ? 'warning' : 'danger'];
   const canRetry = Boolean(onRetry) && !NON_RETRYABLE.has(code);
 
@@ -125,10 +126,10 @@ export function ErrorState({ error, onRetry, retrying = false, description, comp
       <Icon name={ERROR_ICONS[code] ?? 'alert-circle-outline'} size={compact ? 28 : 36} color={tone.fg} />
       <View style={styles.texts}>
         <AppText variant={compact ? 'bodyStrong' : 'subheading'} align="center" accessibilityRole="header">
-          {t(`errors:codes.${code}.title`)}
+          {title}
         </AppText>
         <AppText variant={compact ? 'caption' : 'body'} color="secondary" align="center">
-          {description ?? t(`errors:codes.${code}.description`)}
+          {description ?? mappedDescription}
         </AppText>
       </View>
       {canRetry ? (
@@ -145,12 +146,24 @@ export function ErrorState({ error, onRetry, retrying = false, description, comp
   );
 }
 
-/** Localized `{ title, description }` for any thrown error – e.g. for inline error messages. */
+/** Up to this many seconds `Retry-After` is said in seconds, beyond in minutes. */
+const RETRY_AFTER_SECONDS_LIMIT = 90;
+
+/**
+ * Localized `{ title, description }` for any thrown error – e.g. for inline error messages. A 429
+ * with `Retry-After` says when to try again.
+ */
 export function useErrorText(): (error: unknown) => { code: ApiErrorCode; title: string; description: string } {
   const { t } = useTranslation('errors');
   return (error) => {
-    const code = toApiError(error).code;
-    return { code, title: t(`codes.${code}.title`), description: t(`codes.${code}.description`) };
+    const { code, retryAfterSeconds } = toApiError(error);
+    const description =
+      code === 'RATE_LIMITED' && retryAfterSeconds !== null
+        ? retryAfterSeconds <= RETRY_AFTER_SECONDS_LIMIT
+          ? t('retryAfter.seconds', { count: Math.max(1, retryAfterSeconds) })
+          : t('retryAfter.minutes', { count: Math.ceil(retryAfterSeconds / 60) })
+        : t(`codes.${code}.description`);
+    return { code, title: t(`codes.${code}.title`), description };
   };
 }
 

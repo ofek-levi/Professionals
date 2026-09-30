@@ -10,7 +10,7 @@ import type { AppNotification, Conversation, Message, ServiceRequest } from '@/t
 // ─────────────────────────────── Generic ───────────────────────────────
 
 /** Maps every item of an infinite, cursor-paginated cache entry. */
-function mapPaginatedItems<T>(
+export function mapPaginatedItems<T>(
   data: PaginatedInfiniteData<T> | undefined,
   update: (item: T) => T,
 ): PaginatedInfiniteData<T> | undefined {
@@ -28,6 +28,15 @@ function mapPaginatedItems<T>(
     return { ...page, items };
   });
   return changed ? { ...data, pages } : data;
+}
+
+/** The first loaded item matching `predicate` in an infinite, cursor-paginated cache entry. */
+export function findPaginatedItem<T>(data: PaginatedInfiniteData<T> | undefined, predicate: (item: T) => boolean): T | undefined {
+  for (const page of data?.pages ?? []) {
+    const found = page.items.find(predicate);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 /** Shallow merge that ignores `undefined` values (a PATCH payload never clears with `undefined`). */

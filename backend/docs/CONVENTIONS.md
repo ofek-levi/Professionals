@@ -140,7 +140,7 @@ becomes a generic 409 — map the ones you expect (e.g. `DUPLICATE_OFFER`) expli
   `AppDeps` or a `Pick<AppDeps, ...>` of what is used.
 - **Time comes from `deps.clock.now()`** — never `new Date()`/`Date.now()` in services (tests drive
   time with `FakeClock`). Mongoose `createdAt/updatedAt` already follow the same clock.
-- Authorization exactly like `frontend/src/mocks/server/auth.ts` + the handlers (ownership checks
+- Authorization exactly like `frontend/src/test-utils/mock-backend/server/auth.ts` + the handlers (ownership checks
   return 403, missing → 404; a professional asking for a draft request gets 404, as the mock).
 - Multi-document changes run in a transaction:
 
@@ -206,7 +206,7 @@ return { ...page, items: await toOfferWithRequestList(page.items) };
   `src/shared/contract` (ported from `frontend/src/types`), plus async batch loaders
   `loadXs(ids): Promise<Map<string, X>>` that do the `$in` queries. ISO strings for dates, hex
   strings for ids, `null` (never `undefined`) for absent values.
-- Privacy exactly like `frontend/src/mocks/server/views.ts`: professionals get
+- Privacy exactly like `frontend/src/test-utils/mock-backend/server/views.ts`: professionals get
   `approximateLocation(location, requestId)` (`src/lib/geo.ts`) and no notes until hired;
   contacts only for customers who hired the professional; public vs own profile.
 - Shared, ready-made views (use them, don't duplicate):

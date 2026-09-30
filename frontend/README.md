@@ -7,18 +7,42 @@ price and an appointment time, and the customer accepts the best offer. After th
 track the job, chat and leave reviews.
 
 Built with **Expo SDK 57** (React Native 0.86, React 19.2, TypeScript 6, Expo Router, React
-Compiler). The app is client-only: an in-app **mock backend** implements the full REST contract
-behind a swappable transport, so a real server can replace it without touching the UI.
-English and Hebrew (RTL) are supported, in light and dark themes.
+Compiler). The app talks to the API in [`../backend`](../backend) (REST + WebSocket; contract in
+[`backend/docs/API.md`](../backend/docs/API.md)); there is no offline or demo mode. English and
+Hebrew (RTL) are supported, in light and dark themes.
 
 ---
 
 ## Quick start
 
+The app needs the backend running. From the repository root (details in
+[`backend/README.md`](../backend/README.md)):
+
 ```bash
-npm install
-npx expo start           # press i / a / w, or scan the QR code with Expo Go
+docker compose up -d --wait                  # MongoDB (replica set) + Redis for local development
+cd backend && cp .env.example .env && npm install && npm run dev   # API on http://localhost:4000
 ```
+
+Then the app, in a second terminal from the repository root:
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local   # optional: the defaults target http://localhost:4000/v1
+npx expo start               # w = web, i = iOS simulator, a = Android emulator
+```
+
+Where the app finds the API (`EXPO_PUBLIC_API_BASE_URL`, restart Expo with `--clear` after a change):
+
+| Running on | API base URL |
+|---|---|
+| Web browser, iOS simulator | `http://localhost:4000/v1` (default) |
+| Android emulator | `http://10.0.2.2:4000/v1` |
+| A phone on the same Wi-Fi | `http://<your computer's LAN IP>:4000/v1` |
+
+The first time, create accounts in the app (**Create account**): e.g. one customer and one
+professional whose services and service area cover the customer's address. The development
+backend writes verification and password-reset emails to its log unless SMTP is configured.
 
 | Command | What it does |
 |---|---|
@@ -26,24 +50,66 @@ npx expo start           # press i / a / w, or scan the QR code with Expo Go
 | `npm run ios` / `npm run android` / `npm run web` | Open on a simulator/emulator or in the browser |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint (`eslint-config-expo`, React Compiler rules) |
-| `npm test` | Jest (`jest-expo`) unit + integration tests |
+| `npm test` | Jest (`jest-expo`) unit + integration tests (no backend needed) |
 | `npm run verify` | typecheck + lint + tests |
+
+### Environment variables
+
+All are read at build time and documented in [`.env.example`](.env.example). `EXPO_PUBLIC_*` values
+end up in the JavaScript bundle: never put secrets in them.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `EXPO_PUBLIC_APP_ENV` | `development` | `development`, `staging` or `production` |
+| `EXPO_PUBLIC_API_BASE_URL` | `http://localhost:4000/v1` (development only) | API root ending in `/v1`; the WebSocket URL is derived from it. Staging and production builds require an `https://` URL and refuse to start without one |
+| `EXPO_PUBLIC_EAS_PROJECT_ID` | – | EAS project id the Expo push tokens are issued for; unset → push notifications off |
+| `GOOGLE_SERVICES_FILE` | – | Build-time path to Firebase `google-services.json` (FCM, required for push on Android); read by `app.config.ts` |
+| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | – | Google OAuth client id for the web |
+| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | – | Google OAuth client id for iOS builds |
+| `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | – | Google OAuth client id for Android builds |
+| `EXPO_PUBLIC_MAP_TILE_URL` | OpenStreetMap | Map tile URL template (`https://…/{z}/{x}/{y}.png`, CORS-enabled for the web); use a tile provider or your own server in production |
+| `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION` | `© OpenStreetMap contributors` | Plain-text credit shown on the map for the custom tile URL (ignored without one) |
+
+### What needs real credentials
+
+Everything runs locally without accounts anywhere; these features need real credentials:
+
+| Feature | App | Backend (see [OPERATIONS.md](../backend/docs/OPERATIONS.md)) | Without them |
+|---|---|---|---|
+| Continue with Google | `EXPO_PUBLIC_GOOGLE_*_CLIENT_ID` for the platform | the same ids (`GOOGLE_*_CLIENT_ID`) | the button is hidden (and the backend answers 503) |
+| Push notifications (iOS/Android) | `EXPO_PUBLIC_EAS_PROJECT_ID`, Android also `google-services.json`; a development or release build | FCM / APNs credentials in Expo (`eas credentials`), optionally `EXPO_ACCESS_TOKEN` | no push; realtime still updates the open app |
+| Photos (requests, avatars) | – | Cloudinary | uploads fail (503 in development) |
+| Emails (verification, password reset) | – | Resend (staging/production) or Gmail SMTP (development) | development writes them to the log |
+| Address search and reverse geocoding | – | network access to Nominatim (or `GEOCODER_URL`) | address search is unavailable (503) |
+| Production map tiles | `EXPO_PUBLIC_MAP_TILE_URL` (+ attribution) | – | public OpenStreetMap tiles (light use only) |
 
 ### Android APK (GitHub Actions)
 
 `.github/workflows/android-apk.yml` builds an installable release APK on GitHub. It never runs
-by itself: open **Actions → Android APK → Run workflow**, pick the CPU architectures
-(`arm64-v8a` covers modern phones and builds fastest) and whether to publish a release. After
-about 15–30 minutes the APK is on a GitHub **pre-release** (open it on the phone, download,
-allow installs from the browser) and attached to the run as an artifact.
+by itself: open **Actions → Android APK → Run workflow**, pick the **environment** (`staging` or
+`production`), the CPU architectures (`arm64-v8a` covers modern phones and builds fastest) and
+whether to publish a release. After about 15–30 minutes the APK is on a GitHub **pre-release** (open
+it on the phone, download, allow installs from the browser) and attached to the run as an artifact.
+
+Configure each environment once under **Settings → Environments → staging | production**:
+
+| Kind | Name | Used for |
+|---|---|---|
+| Variable | `API_BASE_URL` | **required**: `https://…/v1` of that environment's backend (the run fails in its first step without it) |
+| Variable | `EAS_PROJECT_ID` | push notifications |
+| Variable | `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID`, `GOOGLE_ANDROID_CLIENT_ID` | "Continue with Google" (the APK needs the Android id) |
+| Variable | `MAP_TILE_URL`, `MAP_TILE_ATTRIBUTION` | custom map tiles |
+| Secret | `GOOGLE_SERVICES_JSON_BASE64` | `base64 -w0 google-services.json` (FCM for push on Android; checked against the app's package name) |
+
+They become the `EXPO_PUBLIC_*` variables of the build (`EXPO_PUBLIC_APP_ENV` is the chosen
+environment). A missing optional value only turns its feature off, with a warning in the run.
 
 - Steps: `npm ci` → `expo prebuild --platform android` → `./gradlew assembleRelease`. The native
   `android/` folder is generated on the runner and never committed.
 - Signed with React Native's public debug key: fine for testing and sideloading, **not** for the
   Play Store (that needs your own upload key, e.g. with EAS Build). Every build uses the same key,
-  and `versionCode` is the run number, so a new APK installs over the previous one.
-- The demo runs fully on the phone (mock backend, simulated Google sign-in, OSM map tiles); no
-  secrets or `EXPO_PUBLIC_*` variables are needed.
+  and `versionCode` is the run number, so a new APK installs over the previous one. The APK name
+  and the release tag include the environment.
 
 ### App icon & logo
 
@@ -84,7 +150,7 @@ development builds** made before the switch from `react-native-maps` (they lack 
 are meant for light use: the [OSM Tile Usage Policy](https://operations.osmfoundation.org/policies/tiles/)
 requires the attribution, a `Referer` from web pages and a User-Agent that identifies an app (both
 are sent as described above), forbids heavy or bulk use (prefetching, offline downloads, scraping)
-and can block apps that cause too much traffic. They are fine for development and demos. **For
+and can block apps that cause too much traffic. They are fine for development and testing. **For
 production**, point `EXPO_PUBLIC_MAP_TILE_URL` at a tile provider (many have a free tier) or at your
 own tile server, and set `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION` to the credit that provider requires
 (it is used only together with a custom URL; OpenStreetMap tiles always keep the OSM credit). The
@@ -96,126 +162,53 @@ put API keys into it as literal text.
 result). Run it after upgrading either package or adding a category icon; a Jest test fails until
 you do.
 
-### Environment variables
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `EXPO_PUBLIC_API_MODE` | `mock` | `mock` uses the in-app backend; `http` uses a real backend |
-| `EXPO_PUBLIC_API_BASE_URL` | `https://api.example.com/v1` | Real API base URL (http mode) |
-| `EXPO_PUBLIC_MOCK_FAILURE_RATE` | `0` | Probability (0–1) of simulated network failures |
-| `EXPO_PUBLIC_MOCK_PERSIST` | `true` | Persist the mock database across launches |
-| `EXPO_PUBLIC_MAP_TILE_URL` | OpenStreetMap | Map tile URL template (`https://…/{z}/{x}/{y}.png`, CORS-enabled for the web); use a tile provider or your own server in production |
-| `EXPO_PUBLIC_MAP_TILE_ATTRIBUTION` | `© OpenStreetMap contributors` | Plain-text credit shown on the map for the custom tile URL (ignored without one) |
-| `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` | – | Google OAuth client id for the web (unset → simulated Google sign-in) |
-| `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID` | – | Google OAuth client id for iOS builds |
-| `EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID` | – | Google OAuth client id for Android builds |
-
 ### Google sign-in
 
-"Continue with Google" works in two modes (`src/services/auth/google-auth.ts`):
+"Continue with Google" uses Google's real sign-in (`expo-auth-session`,
+`src/services/auth/google-auth.ts`). It is shown only when the client id of the running platform
+is set, and not in Expo Go on iOS/Android. To set it up, create OAuth client ids in the Google Cloud
+console (APIs & Services → Credentials → *OAuth client ID*), set the variables above and give the
+backend the same ids:
 
-- **Simulated (default, no setup):** when no client id is set for the current platform, the button
-  opens our own "Continue with Google (demo)" sheet with sample identities (a sample new user and
-  the emails of demo accounts) or "Use another account". It produces a mock id token
-  (`mock-google.<base64url JSON>`) that only the in-app mock backend accepts.
-- **Real Google:** create OAuth client ids in the Google Cloud console (APIs & Services →
-  Credentials → *OAuth client ID*) and set the variables above:
-  - **Web** client: add your web origin (e.g. `http://localhost:8081`) to *Authorized JavaScript
-    origins* and *Authorized redirect URIs*. The popup redirects back to the app, which completes it
-    (`completeGoogleAuthRedirect()` in the root layout).
-  - **iOS** client with the bundle id `com.professionals.marketplace`, **Android** client with the
-    package `com.professionals.marketplace` and your signing certificate's SHA-1. A release APK made
-    with `npx expo prebuild` and `./gradlew assembleRelease` is signed with the template's debug
-    keystore, SHA-1 `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
-  - iOS/Android need a **development or production build** (`npx expo run:ios|android`,
-    `eas build`): Expo Go can't receive Google's native redirect, so it stays in simulated mode.
-    The app scheme is `professionals`; native Google redirects use `<applicationId>:/oauthredirect`
-    (Android gets an intent filter for that scheme from `app.json`, and `src/app/+native-intent.tsx`
-    keeps the router from treating the redirect as a screen).
+- **Web** client: add your web origin (e.g. `http://localhost:8081`) to *Authorized JavaScript
+  origins* and *Authorized redirect URIs*. The popup redirects back to the app, which completes it
+  (`completeGoogleAuthRedirect()` in the root layout).
+- **iOS** client with the bundle id `com.professionals.marketplace`, **Android** client with the
+  package `com.professionals.marketplace` and your signing certificate's SHA-1. A release APK made
+  with `npx expo prebuild` and `./gradlew assembleRelease` (as the GitHub action does) is signed
+  with the template's debug keystore, SHA-1 `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`.
+- iOS/Android need a **development or release build** (`npx expo run:ios|android`, `eas build`):
+  Expo Go can't receive Google's native redirect, so the button stays hidden there. The app scheme
+  is `professionals`; native Google redirects use `<applicationId>:/oauthredirect` (Android gets an
+  intent filter for that scheme from `app.json`, and `src/app/+native-intent.tsx` keeps the router
+  from treating the redirect as a screen).
 
-  The app sends Google's `id_token` to `POST /auth/google`; the backend must verify it (see
-  [docs/BACKEND_INTEGRATION.md](docs/BACKEND_INTEGRATION.md)). The mock backend decodes real Google
-  JWTs issued for the configured client ids without checking the signature, so real Google sign-in
-  can be tried against demo data.
+The app sends Google's `id_token` to `POST /auth/google`, which verifies it (signature, audience =
+one of the client ids, verified email). A Google identity without an account continues in the
+sign-up flow with its name and email filled in.
 
 ---
 
-## Demo accounts & walkthrough
+## Walkthrough (two accounts)
 
-The first screen lists demo accounts (switch **Customer / Professional**) for one-tap sign-in,
-next to **Create account** and **Sign in**. Every demo account can also sign in with its email and
-the password **`Demo1234`** (e.g. `noa.levi@example.com`, `avi@aquafix.example.com`). New accounts
-(email + password or Google; customers in 2 steps, professionals in 4 with services and service
-area) are stored in the mock backend with salted password hashes. You can switch accounts at any
-time from **Profile → Switch account**. All data lives in the mock backend and is shared between
-accounts, so actions by one role show up for the other. With `EXPO_PUBLIC_API_MODE=http` the demo
-accounts are hidden (they only exist in the mock backend).
+1. **Create account → I need a service** (a customer): name, email, phone, a password (8+
+   characters with a letter and a number, not a common one like `Password1`) and the terms.
+2. On the customer's Home tap **Request a service**: pick the service, describe the problem, choose
+   the urgency, set the address (search, map pin or current location) and optionally add photos.
+   **Post request**.
+3. Sign out (Profile → **Sign out**) and **Create account → I offer services** (a professional):
+   services that include the request's, and a service area (base address + radius) that covers its
+   address. The request shows up in **Explore** (map and list) and, as *new matching request*, in
+   the **Inbox**. Open it (the address stays approximate until you are hired) and **Send offer**
+   with a price, a date and a time.
+4. Sign in as the customer (or use a second browser/device, where updates arrive live): the offer
+   appears on the request. **Accept** it: a job and a chat are created.
+5. Professional: **Confirm appointment** → **Start job**; chat from the job screen (messages
+   arrive live). Customer: **Mark as completed** → **Leave a review**.
 
-| Account | Role | Good for testing |
-|---|---|---|
-| Noa Levi (Florentin, Tel Aviv) | Customer | Review 3 offers on a leak, chat with her electrician, review a finished job, continue a draft |
-| Daniel Cohen (Ramat Gan) | Customer | Choose a mover, follow an in-progress Wi-Fi job, publish a request and watch offers arrive live |
-| Avi Mizrahi — AquaFix Plumbing | Professional | Plumbing & leak jobs on the map, pending offer on Noa's leak, reviews |
-| Yael Ben-David — BrightSpark Electric | Professional | Confirm → start → complete Noa's electrical job, chat |
-| Moshe Katz — CoolAir HVAC | Professional | AC / appliance offers, expired offers |
-| Dana Shapiro — Handy Dana | Professional | New 5★ review, handyman / assembly / TV mounting jobs |
-| Rami Haddad — Swift Moving | Professional | Compete for Daniel's move, junk removal & heavy lifting |
-| Lior Azulay — FixIT Home Tech | Professional | Finish Daniel's in-progress Wi-Fi job |
-
-### Create an account, sign in, Google
-
-- **Create account** (first screen) → **I need a service** or **I offer services** → first and last
-  name, email, phone, a password (8+ characters with a letter and a number, not a common one like
-  `Password1`, entered twice) and the terms (**Terms of Service** and **Privacy Policy** open right
-  there). Customers are done after these 2 steps. Professionals continue with their **services**
-  (1–10 from the catalog, optional business name) and **service area** (base address by search,
-  current location or the map, plus a 5 / 10 / 20 / 40 / 80 km radius). Their matching open
-  requests show up in **Explore** right away. Each step checks its fields before moving on (errors
-  appear under the fields); the header back arrow – and on the web the browser's back button –
-  returns to the previous step. An email that already has an account shows an error with **Sign in
-  with this email** right under it.
-- **Sign in** with that email and password, or with a demo account: the screen suggests
-  `noa.levi@example.com` / **`Demo1234`** and **Fill in** enters both (every demo account uses that
-  password). A wrong email or password shows the same message. **Forgot password?** asks for the
-  email and always confirms, without revealing whether the account exists (the mock backend sends
-  nothing, and says so).
-- **Continue with Google** (on Sign in and on the account step): without Google client ids it opens
-  our own **Continue with Google (demo)** sheet. *Maya Katz* (sample new user) has no account: the
-  sign-up flow says "Signing up with Google" from the first step and continues with her name and a
-  locked email and no password fields, asking only for what is missing (role, phone, terms and, for
-  a professional, services and area). *Noa Levi* and *Avi Mizrahi* are demo accounts and sign
-  straight in; **Use another account** takes any name and email (in this demo an email that already
-  has an account signs straight in). With client ids set, the same button opens Google's real
-  sign-in (see *Google sign-in*).
-- You land on your role's home with a welcome message. **Sign out** (Profile) returns to the first
-  screen, demo accounts included.
-
-### End-to-end scenario (≈5 minutes)
-
-1. **Customer: Daniel Cohen** → Home → **Request a service** (or tap a popular service). On the one
-   request screen pick the service, describe the problem, choose how urgent it is (Normal is
-   preselected), check the address (his default address; **Change** opens the location picker with
-   search, map pin and current location) and optionally add photos. Tap **Post request**.
-2. The request screen opens. With **Simulated activity** on (Settings → Demo tools, on by default),
-   other plumbers send offers within ~30 seconds. Each one shows a banner (a simulated push
-   notification) and appears under **Offers**, sortable by Recommended / Lowest price / Earliest.
-   Tap **View profile** to see a pro's rating and reviews.
-3. **Switch to Avi Mizrahi (professional)**. A *new matching request* update waits in the **Inbox**.
-   **Explore** shows the request on the map (colored by urgency) and in the list; **Filters**
-   (service, distance, urgency) apply to both. Open it: the address is approximate until you are
-   hired. Tap **Send offer**, enter a price, pick a date and a time, optionally add a message, and
-   send.
-4. **Switch back to Daniel**. Open the request and **Accept** Avi's offer. The request becomes
-   *Booked*, the other offers are marked *not selected*, and a job and a chat are created.
-5. **Avi**: *Offer accepted* in the Inbox → the job shows the full address → **Confirm
-   appointment** → **Start job**. Chat with the customer from the job screen.
-6. **Daniel**: **Mark as completed** → **Leave a review**.
-7. **Avi**: *Review received*; the rating and review count update on the public profile.
-
-Other things to try: cancel a request that has offers (the professionals are notified), edit or
-withdraw a pending offer from the request screen, edit a professional's services, service area and
-weekly hours, switch to Hebrew (the whole UI mirrors to RTL), dark mode, and **Unreliable network**
-in Demo tools (error states with retry).
+Also try: cancel a request that has offers, edit or withdraw a pending offer, switch to Hebrew (the
+whole UI mirrors to RTL), dark mode, and **Forgot password?** (without SMTP the link is in the
+backend log).
 
 ---
 
@@ -227,11 +220,12 @@ Bottom tabs are the main navigation, one entry point per feature:
 - **Professional:** Home · Explore · Work · Inbox · Profile
 
 **Accounts**
-- **First screen:** **Create account** and **Sign in**, then the demo accounts (mock backend only).
+- **First screen:** the brand, a language switch, **Create account** and **Sign in**.
 - **Create account:** one step per screen with a progress bar – role, account (or **Continue with
   Google**), and for professionals services and service area – validated step by step.
-- **Sign in:** email + password or **Continue with Google**; **Forgot password?** requests a reset
-  link.
+- **Sign in:** email + password or **Continue with Google** (when configured); **Forgot password?**
+  requests a reset link. The session survives restarts (secure storage on phones) and is refreshed
+  in the background; **Sign out** (with confirmation) ends it on the server too.
 
 **Customer**
 - **Home:** a greeting, a "What do you need help with?" card with **Request a service** and a row
@@ -274,115 +268,100 @@ Bottom tabs are the main navigation, one entry point per feature:
 
 **Both roles**
 - **Inbox:** **Updates | Messages** – notifications grouped by day with unread dots and "Mark all
-  read", and the chats list. The tab badge counts unread updates plus unread messages. In-app
-  banners act as simulated push notifications and deep-link like the notification list.
+  read", and the chats list. The tab badge counts unread updates plus unread messages. Everything
+  updates live over the realtime connection; while the app is open a new notification shows as an
+  in-app banner, otherwise as a push notification (iOS/Android). Both deep-link like the list.
 - **Job details:** the status, a slim progress indicator and the single next action (Confirm
   appointment / Start job / Mark as completed / Leave a review) with a chat button, plus the
   appointment, price, address and the other party.
 - **Chat** with optimistic sending, retry, read receipts and day separators.
-- **Profile tab:** Edit profile, (professionals) View public profile, Settings, Switch account, Sign
-  out.
-- **Settings:** language (English / עברית with RTL), appearance (system / light / dark),
-  notification preferences, and demo tools (simulated activity, unreliable network, reset demo
-  data).
+- **Profile tab:** Edit profile, (professionals) View public profile, Settings, Sign out.
+- **Settings:** language (English / עברית with RTL, saved to the account), appearance (system /
+  light / dark) and notification preferences (push notifications, per-type switches, email
+  updates).
 
 ---
 
 ## Architecture
 
-See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the layering rules, domain and status
-models, and the REST contract. **[docs/BACKEND_INTEGRATION.md](docs/BACKEND_INTEGRATION.md)** lists
-what a real backend must implement.
+See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the layering rules, how the app talks to
+the backend (API client, token refresh, realtime, push, uploads), the domain and status models and
+the UI conventions. The API itself is documented in [`backend/docs/API.md`](../backend/docs/API.md).
 
 ```
-Screen/component ──> React Query hooks ──> api.* endpoint functions ──> ApiClient ──> Transport
- (src/app, src/features)  (src/hooks)        (src/services/api/endpoints)               ├─ HTTP (fetch)
-                                                                                         └─ Mock server (src/mocks)
+Screen/component ──> React Query hooks ──> api.* endpoint functions ──> ApiClient ──> HTTP ──> backend /v1
+ (src/app, src/features)  (src/hooks)        (src/services/api/endpoints)   (bearer token, refresh on 401)
+Realtime (WebSocket /v1/realtime) ──> providers/realtime-events.ts ──> React Query cache
 ```
 
 ```
 src/
   app/            Expo Router routes (thin; render screens from src/features)
+  config/         build-time environment (EXPO_PUBLIC_APP_ENV, API base URL, EAS project id)
   features/       feature screens + components + pure business logic (state machines, matching,
-                  sorting, notification factory, availability, view models)
-  providers/      app providers, navigation theme/tab bar options, realtime wiring, bootstrap
+                  sorting, availability, view models)
+  providers/      app providers, navigation theme/tab bar options, realtime wiring, push, bootstrap
   components/     design system (ui/) + shared domain components (categories, requests, offers,
                   professionals, jobs, location, map, forms)
   hooks/          React Query queries/mutations, centralized query keys and invalidation
-  services/       api (client, transports, endpoints), auth (session store, Google sign-in), realtime,
-                  push, location
+  services/       api (client, HTTP transport, endpoints, uploads), auth (session store, token
+                  refresh, Google sign-in), realtime (WebSocket), push (expo-notifications), location
   types/          domain entities and API DTOs
   constants/      category catalog, urgency levels, status models, notification types, app config
   lib/            query client, routes, zod validation schemas
-  mocks/          mock backend: seed data, factories, router, handlers, services, scheduler, simulator
+  test-utils/     Jest only: the backend test double (mock-backend/) and native module stand-ins
   i18n/           i18next setup, RTL handling, typed en/he resources
   theme/          design tokens, theme provider, makeStyles
-  utils/          geo, dates, formatting, ids, encoding, SHA-256
+  utils/          geo, dates, formatting, ids, bidi
 ```
 
 Key decisions:
 - **Expo Router** with role-specific tab navigators (`/customer/*`, `/professional/*`) guarded by
   `Stack.Protected`, plus shared stack screens and deep links (`professionals://requests/<id>`).
 - **TanStack Query** for all server state. Query keys live in one place and are scoped per user, so
-  switching accounts never leaks cached data. Invalidation helpers are centralized and also used
-  by realtime events. Updates are optimistic for notifications, chat and profiles. Lists that can
-  grow (requests, offers, notifications, chat messages, reviews) use cursor pagination with infinite
-  queries.
-- **Transport abstraction:** the mock backend receives the same `{ method, path, query, body }`
-  requests a server would, with simulated latency, failures and JSON serialization.
-- **Shared business rules:** the state machines and rules in `src/features/*/*.ts` are used by both
-  the UI (which actions to show) and the mock server (what is allowed), so the two never disagree.
+  switching accounts never leaks cached data (the cache is cleared on every identity change).
+  Invalidation helpers are centralized and also used by realtime events. Updates are optimistic for
+  notifications, chat and profiles. Lists that can grow use cursor pagination with infinite queries.
+- **Sessions:** short-lived access tokens refreshed proactively and after a 401 (one refresh at a
+  time), refresh tokens in `expo-secure-store` on phones (`localStorage` on the web).
+- **Shared business rules:** the state machines and rules in `src/features/*/*.ts` decide which
+  actions the UI offers; the backend enforces the same rules (drift-tested copies).
 - **Strict category catalog** (`src/constants/professional-categories.ts`): 52 categories in 4
   groups with stable ids, localized names, icons and search keywords. Both registration and
   request creation use it, and it is also served by `GET /catalog/categories`.
 - **Localization:** i18next with typed keys; Hebrew resources must match English at compile time,
   including the dual plural form. RTL is forced natively (with a single reload) and applied live
   on web.
-- **Forms:** react-hook-form + zod. The schemas are shared with the mock server, and their error
-  messages are translation keys.
+- **Forms:** react-hook-form + zod; error messages are translation keys, and server `fieldErrors`
+  (same keys) land on the same fields.
 
 ---
 
 ## Testing
 
-`npm test` runs 97 Jest suites (642 tests). They cover the category catalog, sign-in/sign-up,
-request/offer/profile validation, the auth endpoints (registration of both roles, credentials,
-Google sign-in, password reset), status transitions, request filtering by category and service area, offer creation
-and duplicate prevention, offer acceptance (including preventing two accepted offers),
-cancellation cascades, offer expiry and reminders, notification generation for every scenario,
-role separation and address privacy, seed data integrity, the React Query hooks against the mock
-backend, the navigation shell and role guards, the account screens (sign-in errors, the sign-up
-steps for both roles, Google demo sign-in, password reset), realtime handling, the map (bridge
-protocol, the Leaflet page in jsdom, the WebView and iframe hosts, the web tile loader, the explore
-map and the location picker), and
-view models and components of the main screens.
-
----
-
-## What a real backend must implement
-
-Authentication (password hashing, tokens, Google id-token verification, reset emails; demo login
-is mock-only), authoritative lifecycle rules and atomic offer
-acceptance, geo-matching, notification fan-out with real push (APNs/FCM via `expo-notifications`),
-realtime events over WebSocket, image uploads (pre-signed URLs), geocoding, and scheduled jobs
-(offer expiry, reminders). Details are in [docs/BACKEND_INTEGRATION.md](docs/BACKEND_INTEGRATION.md).
+`npm test` runs the Jest suites without a backend: the real hooks, endpoint modules, API client,
+token manager, WebSocket client and screens run against an in-process test double of the API
+(`src/test-utils/mock-backend`, the backend contract of `backend/docs/API.md`; ESLint forbids
+importing it from app code, so it is never bundled). They cover the category catalog,
+sign-in/sign-up, sessions (secure storage, proactive and single-flight token refresh, sign-out when
+the refresh token is rejected, logout), realtime (4001 → refresh, backoff, foreground), push
+(registration, token changes, taps), multipart uploads, request/offer/profile validation, status
+transitions, request filtering by category and service area, offers and their acceptance,
+cancellation cascades, notifications, role separation and address privacy, the React Query hooks,
+the navigation shell and role guards, the account screens, the map (bridge protocol, the Leaflet
+page in jsdom, the WebView and iframe hosts, the web tile loader) and the view models and components
+of the main screens. The backend has its own suite (`backend/`, `npm test`).
 
 ## Known limitations
 
-- The mock backend runs on the device, so data is per device. "Other users" are simulated by
-  switching demo accounts, and live activity comes from the demo simulator.
-- Push notifications are simulated with in-app banners; nothing is delivered while the app is
-  closed.
 - Switching to or from Hebrew on iOS/Android reloads the app once, because React Native applies
   RTL only at startup.
-- Simulated offers are scheduled in memory, so reloading the app within ~30 seconds of publishing
-  a request cancels the ones not yet sent. Automatic chat replies are written as the counterpart,
-  who may be another demo account.
-- Saved demo data older than 12 hours is replaced with a fresh seed at launch, so the showcase
-  offers never expire under you.
+- Push notifications need a development or release build with the credentials above (Expo Go on
+  Android has no remote push); the web has no push, only live updates while a tab is open.
+- On the web the session (including the refresh token) is kept in `localStorage`, readable by any
+  script on the page; phones use the OS keychain/keystore.
 - Map markers of nearby requests can overlap at the default zoom (no clustering yet).
 - Map tiles need a network connection, and the default OpenStreetMap servers are for light use only
   (see [Maps](#maps)).
-- Native iOS/Android were verified by type-checking and building the Hermes bundles; interactive
-  testing was done on the web build (no simulators were available in the build environment).
+- The APK built by the GitHub action is signed with the public debug key (testing only).
 - No payments, identity verification or moderation.

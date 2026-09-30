@@ -1,34 +1,36 @@
 /**
- * Connects server push events to the app while signed in:
+ * Connects server events to the app while signed in:
  * - every realtime event refreshes the affected queries (via `applyRealtimeEvent`);
- * - `notification.created` bumps the unread badge and is shown as an in-app banner through the
- *   push provider (respecting the user's notification preferences); tapping the banner marks the
- *   notification as read and opens its target.
+ * - `notification.created` bumps the unread badge and is shown as an in-app banner (respecting
+ *   the user's notification preferences); tapping the banner marks the notification as read and
+ *   opens its target;
+ * - after the connection came back (network loss, server restart, back from the background) every
+ *   query of the user is refetched: events may have been missed meanwhile.
  *
  * Mount inside the session, React Query, toast and navigation contexts.
  */
 import { useQueryClient } from '@tanstack/react-query';
-import { usePathname, useRouter } from 'expo-router';
+import { usePathname } from 'expo-router';
 import { useEffect, useEffectEvent, useRef, type ReactNode } from 'react';
 
 import { useToast } from '@/components/ui';
 import { useSession } from '@/features/auth/session-provider';
-import { notificationTargetToHref } from '@/features/notifications/notification-routing';
 import { useCurrentUser } from '@/hooks/queries/use-auth-queries';
+import { queryKeys } from '@/hooks/queries/query-keys';
 import { useNotificationPresenter } from '@/hooks/use-notification-presenter';
 import { useOpenNotification } from '@/hooks/use-open-notification';
-import { pushProvider, type PushMessage } from '@/services/push';
 import { realtimeClient, type RealtimeEvent } from '@/services/realtime';
 import type { AppNotification, NotificationPreferences } from '@/types/domain';
 
 import { applyRealtimeEvent, getActiveConversationId, shouldPresentBanner } from './realtime-events';
+
+const BANNER_DURATION_MS = 6000;
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { userId } = useSession();
   const toast = useToast();
   const pathname = usePathname();
-  const router = useRouter();
   const currentUser = useCurrentUser();
   const present = useNotificationPresenter();
   const openNotification = useOpenNotification();
@@ -42,15 +44,14 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     const context = { preferences, activeConversationId: getActiveConversationId(pathname) };
     if (!shouldPresentBanner(notification, context)) return;
     const content = present(notification);
-    pushProvider.deliver({
-      id: notification.id,
-      notificationId: notification.id,
-      notificationType: notification.type,
+    toast.show({
+      id: `notification:${notification.id}`,
       title: content.title,
-      body: content.body,
-      icon: content.icon,
+      message: content.body,
       tone: content.tone,
-      target: notification.target,
+      icon: content.icon,
+      onPress: () => openNotification(notification),
+      durationMs: BANNER_DURATION_MS,
     });
   };
 
@@ -62,37 +63,20 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     }
   });
 
-  const onBannerPressed = useEffectEvent((message: PushMessage) => {
-    const { notificationId, notificationType } = message;
-    if (notificationId && notificationType) {
-      openNotification({ id: notificationId, type: notificationType, target: message.target, readAt: null });
-      return;
-    }
-    const href = notificationTargetToHref(message.target);
-    if (href) router.push(href);
-  });
-
-  const showBanner = useEffectEvent((message: PushMessage, onPress: () => void) => {
-    toast.show({
-      id: `push:${message.id}`,
-      title: message.title,
-      message: message.body,
-      tone: message.tone,
-      icon: message.icon,
-      onPress,
-      durationMs: 6000,
-    });
+  const onReconnected = useEffectEvent(() => {
+    if (userId) void queryClient.invalidateQueries({ queryKey: queryKeys.user(userId) });
   });
 
   // Realtime subscription for the signed-in user (the session lifecycle owns the connection).
   useEffect(() => {
     if (!userId) return undefined;
-    return realtimeClient.subscribe((event) => onRealtimeEvent(event));
+    const unsubscribeEvents = realtimeClient.subscribe((event) => onRealtimeEvent(event));
+    const unsubscribeReconnect = realtimeClient.onReconnect(() => onReconnected());
+    return () => {
+      unsubscribeEvents();
+      unsubscribeReconnect();
+    };
   }, [userId]);
-
-  // In-app banners for the simulated push provider.
-  useEffect(() => pushProvider.setBannerPresenter((message, onPress) => showBanner(message, onPress)), []);
-  useEffect(() => pushProvider.onNotificationResponse((message) => onBannerPressed(message)), []);
 
   // Banners of a previous account must not survive an account switch.
   const previousUserId = useRef(userId);

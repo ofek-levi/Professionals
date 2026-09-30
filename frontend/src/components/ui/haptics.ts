@@ -2,7 +2,7 @@
  * Fire-and-forget haptic feedback. No-ops on web and never throws (haptics are a nicety).
  *
  * Android uses the system haptic constants (`performAndroidHapticsAsync`): they are subtle and
- * follow the "touch feedback" setting, while the iOS-style calls are simulated there with the
+ * follow the "touch feedback" setting, while the iOS-style calls are emulated there with the
  * vibration motor. Constants the device's Android version lacks are skipped silently.
  */
 import * as Haptics from 'expo-haptics';

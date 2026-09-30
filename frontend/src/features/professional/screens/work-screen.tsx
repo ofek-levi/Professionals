@@ -4,7 +4,8 @@
  *   (rejected, withdrawn, expired, or accepted and then cancelled). Won offers live under Jobs.
  *   Tap → the request, where the offer can be edited or withdrawn.
  * - Jobs: "Upcoming" (awaiting confirmation, scheduled, in progress), then "Completed" with this
- *   month's total. Tap → the job.
+ *   month's earnings (`ProfessionalDashboard.earningsThisMonth`, over every job completed this
+ *   month, not only the loaded pages). Tap → the job. Both lists load more on demand.
  */
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
@@ -21,18 +22,16 @@ import {
   ScreenHeader,
   SectionHeader,
   SegmentedControl,
-  useNow,
   type SegmentedOption,
 } from '@/components/ui';
 import type { OfferStatus } from '@/constants/offer-statuses';
 import { getProfessionalOfferOutcome } from '@/features/offers/offer-status-machine';
-import { useJobs, useProfessionalOffers, useRefetchOnFocus } from '@/hooks';
+import { useJobs, useProfessionalDashboard, useProfessionalOffers, useRefetchOnFocus } from '@/hooks';
 import { useFormatters } from '@/i18n/hooks';
 import { parseWorkTab, routes, TAB_PARAM, type WorkTab } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
 
 import { WorkOfferCard } from '../components/work/work-offer-card';
-import { summarizeCompletedJobs } from '../home-model';
 
 // `accepted` is fetched only to catch jobs the customer cancelled later; won offers that became a
 // job are filtered out below (they are listed under Jobs).
@@ -139,17 +138,18 @@ function JobsSegment() {
   const router = useRouter();
   const { t } = useTranslation('professional');
   const format = useFormatters();
-  const now = useNow(60_000);
   const upcoming = useJobs('active');
   const completed = useJobs('completed');
+  const dashboard = useProfessionalDashboard();
   useRefetchOnFocus(upcoming.refetch);
   useRefetchOnFocus(completed.refetch);
+  useRefetchOnFocus(dashboard.refetch);
 
   const failed = upcoming.isError && !upcoming.data ? upcoming : completed.isError && !completed.data ? completed : null;
-  const completedJobs = completed.data ?? [];
-  const month = summarizeCompletedJobs(completedJobs, now).thisMonthTotals;
+  const completedJobs = completed.data?.items ?? [];
+  const earnings = dashboard.data?.earningsThisMonth;
   // Nothing earned yet this month: no "₪0" line, the list speaks for itself.
-  const monthTotal = month.length === 0 ? null : month.map((total) => format.currency(total.amount, total.currency)).join(' · ');
+  const monthTotal = earnings && earnings.amount > 0 ? format.currency(earnings.amount, earnings.currency) : null;
 
   return (
     <Segment
@@ -157,6 +157,7 @@ function JobsSegment() {
       onRefresh={() => {
         void upcoming.refetch();
         void completed.refetch();
+        void dashboard.refetch();
       }}
       testID="work-jobs"
     >
@@ -168,10 +169,10 @@ function JobsSegment() {
         <>
           <View style={styles.section} testID="work-jobs-upcoming">
             <SectionHeader title={t('work.jobs.upcoming')} style={styles.sectionHeader} />
-            {upcoming.data.length === 0 ? (
+            {upcoming.data.items.length === 0 ? (
               <EmptyLine text={t('work.jobs.upcomingEmpty')} />
             ) : (
-              upcoming.data.map((job) => (
+              upcoming.data.items.map((job) => (
                 <JobCard
                   key={job.id}
                   job={job}
@@ -181,6 +182,7 @@ function JobsSegment() {
                 />
               ))
             )}
+            <MoreButton visible={upcoming.hasNextPage} loading={upcoming.isFetchingNextPage} onPress={() => void upcoming.fetchNextPage()} />
           </View>
 
           {completedJobs.length > 0 ? (
@@ -207,6 +209,7 @@ function JobsSegment() {
                   testID={`work-job-${job.id}`}
                 />
               ))}
+              <MoreButton visible={completed.hasNextPage} loading={completed.isFetchingNextPage} onPress={() => void completed.fetchNextPage()} />
             </View>
           ) : null}
         </>

@@ -1,5 +1,8 @@
 import type { PaginationParams } from './common';
 
+/** `GET /conversations` – most recent activity first. */
+export type ConversationsParams = PaginationParams;
+
 /** `GET /conversations/:id/messages` – newest first. */
 export type ConversationMessagesParams = PaginationParams;
 

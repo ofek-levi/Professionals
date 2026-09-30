@@ -7,8 +7,9 @@ export const settings: LocaleNamespace<typeof ensettings> = {
   account: {
     editProfile: 'עריכת פרופיל',
     viewPublicProfile: 'צפייה בפרופיל הציבורי',
-    switchAccount: 'החלפת חשבון',
     signOut: 'התנתקות',
+    signOutConfirmTitle: 'להתנתק?',
+    signOutConfirmMessage: 'עד שתתחברו שוב, התראות החשבון לא יגיעו למכשיר הזה.',
     signOutFailed: 'לא הצלחנו לנתק אתכם. נסו שוב.',
   },
   language: {
@@ -25,31 +26,13 @@ export const settings: LocaleNamespace<typeof ensettings> = {
   },
   notifications: {
     sectionTitle: 'התראות',
-    pushEnabled: 'באנרים בתוך האפליקציה',
+    pushEnabled: 'התראות פוש',
+    pushBlocked: 'ההתראות של האפליקציה כבויות בהגדרות הטלפון',
     jobUpdates: 'הצעות ועדכוני עבודות',
     newRequests: 'בקשות חדשות באזור',
     messages: 'הודעות',
     reminders: 'תזכורות לביקורים',
     emailEnabled: 'עדכונים במייל',
     saveFailed: 'העדפות ההתראות לא נשמרו',
-  },
-  demo: {
-    sectionTitle: 'כלי הדגמה',
-    simulation: {
-      title: 'פעילות מדומה',
-      description: 'בעלי מקצוע שולחים הצעות והצ׳אטים עונים אוטומטית',
-    },
-    networkFailures: {
-      title: 'רשת לא יציבה',
-      description: 'בערך אחת מכל חמש פניות נכשלת',
-    },
-    reset: {
-      title: 'איפוס נתוני ההדגמה',
-      confirmTitle: 'לאפס את כל נתוני ההדגמה?',
-      confirmMessage: 'כל השינויים שבוצעו במכשיר הזה יימחקו. אי אפשר לבטל את הפעולה.',
-      confirmLabel: 'איפוס הנתונים',
-      success: 'נתוני ההדגמה אופסו',
-      failed: 'לא הצלחנו לאפס את נתוני ההדגמה',
-    },
   },
 };

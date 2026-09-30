@@ -9,6 +9,7 @@ import type {
   ServiceLocation,
   UrgencyLevel,
 } from '../domain';
+import { APP_CONFIG } from '@/constants/app-config';
 import type { CustomerRequestSection } from '@/constants/request-statuses';
 import type { PaginationParams } from './common';
 
@@ -48,12 +49,16 @@ export type NearbyRequestSort = (typeof NEARBY_REQUEST_SORTS)[number];
 export const OFFER_PRESENCE_FILTERS = ['any', 'no_offers', 'has_offers'] as const;
 export type OfferPresenceFilter = (typeof OFFER_PRESENCE_FILTERS)[number];
 
+/** The explorer's distance presets, km: the only `maxDistanceKm` values the API accepts. */
+export const DISTANCE_FILTERS_KM = APP_CONFIG.distanceFilterOptionsKm;
+export type DistanceFilterKm = (typeof DISTANCE_FILTERS_KM)[number];
+
 /** `GET /professional/requests/nearby` */
 export interface NearbyRequestsParams extends PaginationParams {
   /** Subset of the professional's own categories. Empty/undefined = all of them. */
   categoryIds?: CategoryId[];
-  /** Max distance from the professional's service-area center, capped by the service radius. */
-  maxDistanceKm?: number;
+  /** Max distance from the professional's service-area center (a preset), capped by the service radius. */
+  maxDistanceKm?: DistanceFilterKm;
   urgencies?: UrgencyLevel[];
   /** Preferred-date window (inclusive). Requests without a preferred date are included unless `requirePreferredDate`. */
   preferredDateFrom?: ISODateString;

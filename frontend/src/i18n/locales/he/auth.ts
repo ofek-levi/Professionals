@@ -7,32 +7,9 @@ export const auth: LocaleNamespace<typeof enauth> = {
     signIn: 'התחברות',
   },
   language: {
+    label: 'שפה',
     button: 'שפה: {{language}}',
     sheetTitle: 'בחירת שפה',
-  },
-  signIn: {
-    languageLabel: 'שפה',
-    title: 'או נסו חשבון הדגמה',
-    subtitle: 'גלו את המערכת כלקוחות או כבעלי מקצוע.',
-    roleDescriptions: {
-      customer: 'פרסום בקשות, השוואת הצעות ובחירת בעל המקצוע המתאים.',
-      professional: 'איתור עבודות בסביבה, שליחת הצעות וניהול העבודה.',
-    },
-    demoNote: 'הקישו על חשבון כדי להתחבר מיד. כל הנתונים מדומים ונשמרים במכשיר הזה, ואפשר לאפס אותם בכל עת בהגדרות.',
-    signingIn: 'מתחברים…',
-    accountA11yLabel: '{{name}}, {{role}}, {{city}}',
-    accountA11yHint: 'התחברות עם חשבון ההדגמה הזה',
-    moreCategories_one: 'ועוד שירות אחד',
-    moreCategories_two: 'ועוד שני שירותים',
-    moreCategories_other: 'ועוד {{count}} שירותים',
-    empty: {
-      customer: 'כרגע אין חשבונות הדגמה של לקוחות.',
-      professional: 'כרגע אין חשבונות הדגמה של בעלי מקצוע.',
-      title: 'אין חשבונות הדגמה',
-    },
-    errors: {
-      signInFailed: 'לא הצלחנו לחבר אתכם',
-    },
   },
   fields: {
     email: 'אימייל',
@@ -50,8 +27,6 @@ export const auth: LocaleNamespace<typeof enauth> = {
     submit: 'התחברות',
     noAccount: 'חדשים כאן?',
     createAccount: 'יצירת חשבון',
-    demoHint: 'חשבון הדגמה: {{email}} / {{password}}',
-    fillDemo: 'מילוי הפרטים',
     welcomeBack: 'ברוכים השבים, {{name}}',
   },
   forgotPassword: {
@@ -61,7 +36,6 @@ export const auth: LocaleNamespace<typeof enauth> = {
     sentTitle: 'בדקו את תיבת הדואר',
     sentMessage: 'אם קיים חשבון עם הכתובת {{email}}, שלחנו אליה קישור לאיפוס הסיסמה.',
     backToSignIn: 'חזרה להתחברות',
-    demoNote: 'הדגמה: בפועל לא נשלח אימייל.',
   },
   signUp: {
     progress: 'שלב {{step}} מתוך {{total}}',
@@ -120,21 +94,9 @@ export const auth: LocaleNamespace<typeof enauth> = {
     continue: 'המשך עם Google',
     promptFailedTitle: 'לא הצלחנו לפתוח את ההתחברות עם Google',
     promptFailedMessage: 'בדקו את החיבור לאינטרנט ושחלונות קופצים מותרים, ונסו שוב.',
-    demoSheet: {
-      title: 'המשך עם Google (הדגמה)',
-      subtitle: 'הדגמה בלבד: לא נעשה שימוש בחשבון Google אמיתי. בחרו זהות לדוגמה.',
-      newUser: 'משתמש חדש לדוגמה',
-      existingUser: 'חשבון הדגמה',
-      another: 'שימוש בחשבון אחר',
-      anotherSubtitle:
-        'הדגמה בלבד: לא נעשה שימוש בחשבון Google אמיתי. הזינו שם ואימייל כלשהם. אימייל של חשבון קיים מתחבר אליו ישירות, בלי סיסמה.',
-      backToAccounts: 'חזרה לחשבונות לדוגמה',
-      continue: 'המשך',
-    },
   },
   legal: {
     openHint: 'פותח את המסמך',
-    demoNote: 'בגרסת ההדגמה כל הנתונים נשמרים במכשיר הזה, ואפשר לאפס אותם בהגדרות.',
     terms: {
       title: 'תנאי השימוש',
       sections: {

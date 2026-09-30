@@ -2,8 +2,10 @@
 
 Two-sided local services marketplace (customers ⇄ professionals) built with **Expo SDK 57**
 (React Native 0.86, React 19.2, TypeScript 6, Expo Router 57, React Compiler enabled).
-There is **no real backend**: an in-app mock backend implements the REST contract so that a real
-server can replace it by switching the API transport.
+The app talks only to the **backend in [`../backend`](../../backend)** (Express, MongoDB, Redis): REST
+over HTTP and realtime events over a WebSocket. The contract is
+[`backend/docs/API.md`](../../backend/docs/API.md). There is no mock mode:
+`src/test-utils/mock-backend` is a test double that only Jest uses.
 
 ---
 
@@ -17,22 +19,23 @@ React Query hooks (src/hooks/queries, src/hooks/mutations)       ← server stat
    │  api.* functions
    ▼
 Typed endpoint modules (src/services/api/endpoints)               ← REST paths + DTO types
-   │  ApiClient.get/post/patch/delete
+   │  ApiClient.get/post/patch/delete                              ← bearer token, refresh on 401
    ▼
-Transport (src/services/api/transport.ts)
-   ├─ HTTP transport (fetch)            EXPO_PUBLIC_API_MODE=http
-   └─ Mock transport → Mock server       EXPO_PUBLIC_API_MODE=mock (default)
-                        (src/mocks)       in-memory DB + AsyncStorage persistence
+HTTP transport (fetch) ──────────────▶ backend  EXPO_PUBLIC_API_BASE_URL (…/v1)
+Realtime client (WebSocket) ◀────────── backend  ws(s)://…/v1/realtime → cache (providers/realtime-events.ts)
+Push (expo-notifications)   ◀────────── Expo push service (iOS/Android)
 ```
 
 Hard rules
 
-1. **UI never imports from `src/mocks`**, and never calls `api.*` directly. Screens/components use
-   hooks from `src/hooks`. (Exceptions: `src/services/api/index.ts` and `src/services/realtime/index.ts`
-   are the only modules allowed to import `src/mocks`.)
+1. **App code never imports `src/test-utils`** (ESLint `no-restricted-imports`; only tests and
+   test helpers may), and screens/components never call `api.*` directly: they use hooks from
+   `src/hooks`.
 2. **No business rules in screens.** Status transitions, allowed actions, matching, sorting and
-   validation live in `src/features/<feature>/*.ts` (pure functions) and `src/lib/validation`.
-   The mock server uses the exact same functions, so client affordances and server rules agree.
+   validation live in `src/features/<feature>/*.ts` (pure functions) and `src/lib/validation`. The
+   backend enforces the same rules (its copies of the constants, status models, limits and sign-up
+   validation are drift- and parity-tested against `frontend/`), so client affordances and server
+   answers agree.
 3. **No hard-coded user facing strings.** Everything goes through i18next (`useTranslation`).
 4. **No hard-coded colors/sizes/fonts.** Use theme tokens via `useTheme()` / `makeStyles()`.
 5. Use stable ids (`CategoryId`, entity ids) for logic, never display names.
@@ -43,32 +46,37 @@ Hard rules
 ```
 src/
   app/                      Expo Router routes – thin files that render screens from src/features
+  config/env.ts             EXPO_PUBLIC_APP_ENV / API_BASE_URL / EAS_PROJECT_ID, validated at startup
   components/
     ui/                     design system primitives (AppText, Button, Card, Badge, TextField, …)
     categories/ requests/ offers/ professionals/ jobs/ location/ map/ forms/
   features/
-    auth/                   session provider, role guards, sign-in / sign-up screens, demo accounts
+    auth/                   session provider + lifecycle, role guards, entry / sign-in / sign-up screens
     customer/ professional/ requests/ offers/ jobs/ notifications/ messaging/ reviews/ profiles/ settings/
       *.ts                  pure business logic (state machines, selectors, sorting, matching)
       screens/*.tsx         screen components rendered by src/app routes
       components/*.tsx      feature-private components
   services/
-    api/                    client.ts, transport.ts, http-transport.ts, endpoints/*, config.ts, index.ts
-    auth/session-store.ts   persisted access token + identity
-    auth/google-*.ts        Google sign-in config, mock id tokens, real sign-in hook (expo-auth-session)
-    realtime/               RealtimeClient (mock event bus today, WebSocket later)
+    api/                    client.ts, transport.ts, http-transport.ts, upload-form.ts, endpoints/*,
+                            config.ts, index.ts (the app's `api` and `sessionTokens`)
+    auth/session-store.ts   the session (identity + tokens) and where it is stored
+    auth/token-manager.ts   proactive / reactive access-token refresh (single flight)
+    auth/google-*.ts        Google sign-in config and the real sign-in hook (expo-auth-session)
+    realtime/               WebSocket realtime client (reconnect, 4001 → refresh)
+    push/                   expo-notifications provider (native), inert provider (web), registration
     location/               device location permission & position (expo-location), isolated
-    push/                   push provider abstraction (simulated today)
   hooks/
     queries/                useXxx query hooks + query-keys.ts (ALL keys live there)
     mutations/              useXxx mutation hooks + invalidation.ts
-  providers/                AppProviders, navigation theme + tab bar options, realtime wiring, bootstrap
+  providers/                AppProviders, navigation theme + tab bar options, realtime wiring,
+                            push notifications, bootstrap
   types/
     domain/                 entities (User, ServiceRequest, Offer, Job, Review, …)
     api/                    request/response DTOs, pagination, error codes
   constants/                category catalog, urgency levels, status models, notification types, app config
   lib/                      query-client.ts, routes.ts, validation/ (zod schemas)
-  mocks/                    mock backend: data/ (seed), factories/, server/ (db, router, handlers, services)
+  test-utils/               Jest only (never bundled): mock-backend/ (the backend test double),
+                            native/ (SecureStore, expo-notifications, WebSocket stand-ins)
   i18n/                     i18next setup, RTL handling, locales/{en,he}/<namespace>.ts
   theme/                    design tokens + ThemeProvider + makeStyles
   utils/                    geo.ts (distance), format.ts (dates, money, distance), id.ts
@@ -123,103 +131,151 @@ Who can do what:
 | complete job               | both         | job scheduled or in_progress                       |
 | review                     | customer     | job completed and not reviewed yet                 |
 
-## 4. Mock backend (src/mocks)
+## 4. Talking to the backend
 
-- `createMockServer(options)` returns a `MockServer` (`src/mocks/server/types.ts`); `getMockServer()`
-  is the app singleton. Requests go through `handle(TransportRequest)` which: awaits `ready()`,
-  authenticates the bearer token, runs scheduled tasks (offer expiry, appointment reminders), routes
-  to a handler, deep-clones the JSON response (simulates serialization) and maps thrown
-  `DomainError`s (`src/features/shared/domain-error.ts`) to `{ status, data: ApiErrorBody }`.
-- Access tokens are `demo-token:<userId>`.
-- Accounts: the `credentials` table (keyed by the lower-cased email) holds salted SHA-256 password
-  hashes (`src/mocks/server/passwords.ts`, pure JS; never plaintext) and the linked Google account id.
-  Every seeded user signs in with its email and `Demo1234`. `services/account-service.ts` implements
-  login, registration (user + customer or professional profile + credential, in one transaction),
-  Google sign-in and password reset. Newly registered professionals match open requests right away
-  because matching is computed from the profile (categories + service area). Changing a
-  professional's contact email moves the credential (409 if another account uses it).
-- `MOCK_DB_SCHEMA_VERSION` (db.ts) is bumped whenever stored rows change shape; persisted data of
-  another version is re-seeded.
-- The in-memory DB is seeded from `src/mocks/data` (timestamps relative to "now"), persisted to
-  AsyncStorage (debounced) and can be reset (`demoTools.resetDemoData()`).
-- All mutations go through the **lifecycle service** (`src/mocks/server/services/lifecycle-service.ts`)
-  which uses the shared state machines (`src/features/*/…-status-machine.ts`) and the
-  **notification service** (`…/services/notification-service.ts`) that builds notifications with
-  `src/features/notifications/notification-factory.ts` and emits realtime events.
-- Demo simulator (optional, on by default in the app, off in tests): other professionals send offers
-  a few seconds after a customer publishes a request; the counterpart auto-replies to chat messages.
+### Configuration (src/config/env.ts)
+
+`EXPO_PUBLIC_APP_ENV` (`development` default, `staging`, `production`) and
+`EXPO_PUBLIC_API_BASE_URL` (the API root ending in `/v1`; development defaults to
+`http://localhost:4000/v1`) are inlined at build time and validated once at startup: a staging or
+production build without an `https://` base URL throws `EnvConfigError` with a clear message
+instead of talking to the wrong server. The realtime URL is derived from the base URL
+(`ws(s)://…/v1/realtime`). Every variable is documented in `frontend/.env.example`.
+
+### API client (src/services/api)
+
+- `ApiClient` (client.ts) sends JSON through the HTTP transport (`fetch`, 15 s default time limit,
+  `Accept-Language` from i18n) and throws every non-2xx answer as an `ApiError`
+  (`{ status, code, message, fieldErrors?, retryAfterSeconds? }`, errors.ts).
+- Authenticated requests carry `Authorization: Bearer <access token>` from the token manager. A 401
+  triggers **one** refresh, shared by every request that failed with the same token, and a single
+  retry with the new token; if the session cannot be refreshed the request fails with the 401.
+- The public auth endpoints (login, register, Google, refresh, logout, password reset) are sent
+  with `anonymous: true`: no bearer token, and their 401 is the answer itself (wrong password, dead
+  refresh token), never a reason to refresh.
+- Uploads (`POST /uploads/images`) are `multipart/form-data` with a `file` part (upload-form.ts: a
+  `{ uri, name, type }` part on iOS/Android, a `Blob` on the web) and a 90 s limit; the transport
+  sends `FormData` untouched so `fetch` sets the boundary. Request photos are uploaded before the
+  request is created and referenced by id.
+- Errors the UI explains: `VALIDATION_ERROR` (400) maps `fieldErrors` onto the form fields whatever
+  the status; `RATE_LIMITED` (429) says when to try again (`Retry-After`); a refused photo (400/413)
+  or the upload quota (429) get their own message (`components/forms/use-upload-error-toast.ts`).
+
+### Session and tokens (src/services/auth)
+
+- `session-store.ts` is the only module that knows where the session lives: `expo-secure-store` on
+  iOS/Android (Keychain / Keystore, this device only), `localStorage` on the web (a documented
+  trade-off of a bearer-token SPA; other tabs follow sign-out and refreshes through the `storage`
+  event). React reads only the identity (`useSession()` → `{ status, userId, role }`), so a token
+  refresh never re-renders or clears anything.
+- `token-manager.ts` (`sessionTokens` in `services/api/index.ts`) keeps the access token valid for
+  the API client and the WebSocket: **proactively** 60 s before `accessTokenExpiresAt` and
+  **reactively** after a 401, one `POST /auth/refresh` at a time (everyone waits for the same one).
+  The rotated refresh token is stored before it is used; the server answers a replay of the
+  just-replaced token within 30 s with the same new pair, so concurrent refreshes converge. A
+  rejected refresh token (401/400) ends the session locally; a network error keeps it.
+- Sign-in paths (email, register, Google) all go through `establishSession()`
+  (`features/auth/session-provider.tsx`), which also syncs the account language
+  (`PATCH /me { preferredLanguage }`, also sent when the language changes while signed in).
+- Sign-out: `POST /auth/logout { refreshToken }` (best effort, at most 5 s; the server revokes the
+  session and removes its push devices), then the local session is cleared.
+- `features/auth/session-lifecycle.ts` reacts to every identity change (sign in/out, restored
+  session, another tab, failed refresh) synchronously inside the store: it clears the query cache
+  and disconnects/connects realtime, so no screen can see another user's data. The
+  `Stack.Protected` guards then show the entry screen or the role's home.
+
+### Realtime (src/services/realtime)
+
+`websocket-realtime-client.ts` connects to `ws(s)://…/v1/realtime?token=<access token>` while
+signed in and parses `RealtimeEvent` frames (`realtime-frames.ts`, `types.ts`):
+
+- close **4001** (expired or revoked token): refresh through the token manager and reconnect with
+  the new token; stop when the refresh fails (the session is over);
+- any other close (1001 server restart, network loss): reconnect with capped exponential backoff
+  (1 s … 30 s) plus jitter;
+- back in the foreground: reconnect immediately; iOS/Android close the socket in the background
+  (pushes cover that time);
+- after a reconnect, `onReconnect` listeners refetch the user's queries (events may have been missed).
+
+Events (pushed to the affected users): `notification.created`, `message.created`,
+`conversation.read` (read receipt: `readerId` read the other participant's messages up to
+`readAt`), `request.updated`, `offer.updated`, `job.updated`, `profile.updated`.
+`src/providers/realtime-events.ts` applies them to the cache with the same invalidation helpers as
+the mutations; infinite lists whose order changes reload from the first page. While the app is
+open, `notification.created` also shows an in-app banner (`src/providers/realtime-provider.tsx`).
+
+### Push notifications (src/services/push, src/providers/push-notifications.tsx)
+
+- iOS/Android use `expo-notifications` (`expo-push-provider.ts`): an Android "default" channel,
+  OS banners suppressed while the app is open (the in-app banner shows instead), Expo push tokens
+  issued for the EAS project id (`EXPO_PUBLIC_EAS_PROJECT_ID` / `extra.eas.projectId` from
+  `app.config.ts`; without it push is off with a development warning). Android also needs
+  Firebase: `GOOGLE_SERVICES_FILE` → `android.googleServicesFile` (app.config.ts). The web build
+  gets an inert provider and never bundles `expo-notifications`.
+- `PushNotifications` registers the device (`POST /me/devices { pushToken, platform }`) while the
+  account has push enabled, asking for permission 1.5 s after the signed-in home appears (never on
+  the entry screens), and again when the OS rotates the token. Turning push off in Settings calls
+  `DELETE /me/devices/:token`; signing out needs nothing (the server's logout removes the devices).
+- A tapped notification (including the one that launched the app) is marked read and opens
+  `notificationTargetToHref(data.target)`, like a tap in the inbox.
+
+### Google sign-in (src/services/auth/google-*.ts)
+
+Real Google only (`expo-auth-session`), with the client id of the running platform
+(`EXPO_PUBLIC_GOOGLE_WEB|IOS|ANDROID_CLIENT_ID`). Without that id, or in Expo Go on iOS/Android,
+the "Continue with Google" button is not rendered. The id token goes to `POST /auth/google`; a new
+identity (`registration_required`) continues in the sign-up flow.
 
 ### REST contract
 
-| Method & path | Role | Response |
-|---|---|---|
-| GET /auth/demo-accounts | public | `DemoAccount[]` |
-| POST /auth/demo-login | public | `AuthSession` |
-| POST /auth/login | public | `AuthSession` (401 `INVALID_CREDENTIALS`) |
-| POST /auth/register | public | `AuthSession` (409 `EMAIL_ALREADY_REGISTERED`, 422, 401 `INVALID_GOOGLE_TOKEN`) |
-| POST /auth/google | public | `GoogleAuthResponse`: `signed_in` + session, or `registration_required` + profile (401 `INVALID_GOOGLE_TOKEN`) |
-| POST /auth/password-reset | public | `SuccessResponse` (always, for a valid email) |
-| POST /auth/logout | any | `SuccessResponse` |
-| GET /me | any | `CurrentUserResponse` |
-| POST /me/devices | any | `SuccessResponse` |
-| GET /catalog/categories | public | `CategoryCatalog` |
-| GET /geo/search?q&limit · GET /geo/reverse?lat&lng | public (a professional picks the base address while signing up) | `PlaceSuggestion[]` · `PlaceSuggestion` |
-| POST /uploads/images | any | `UploadedImage` |
-| GET /customer/dashboard | customer | `CustomerDashboard` |
-| GET /customer/requests?section&statuses&cursor&limit | customer | `Paginated<CustomerRequestView>` |
-| GET/PATCH /customer/profile | customer | `{ user, profile }` |
-| POST /requests | customer | `CustomerRequestView` |
-| GET /requests/:id | owner customer / matching or offering professional | `RequestDetailsResponse` |
-| PATCH /requests/:id · DELETE /requests/:id | owner (draft) | `CustomerRequestView` · `SuccessResponse` |
-| POST /requests/:id/publish · /cancel | owner | `CustomerRequestView` |
-| GET /requests/:id/offers?sort&statuses | owner | `OfferWithProfessional[]` |
-| POST /requests/:id/offers | professional | `Offer` |
-| GET /offers/:id | request owner / offer owner | offer + professional + request |
-| PATCH /offers/:id · POST /offers/:id/withdraw | offer owner | `Offer` |
-| POST /offers/:id/accept | request owner | `AcceptOfferResponse` |
-| GET /professional/dashboard | professional | `ProfessionalDashboard` |
-| GET /professional/requests/nearby?… | professional | `Paginated<ProfessionalRequestView>` |
-| GET /professional/offers?statuses&cursor&limit | professional | `Paginated<OfferWithRequest>` |
-| GET/PATCH /professional/profile | professional | `OwnProfessionalProfile` |
-| GET /professionals?categoryId&lat&lng · /professionals/:id · /professionals/:id/reviews | any | … (`/professionals/:id`: approximate base and area center; `contact` only for customers who hired the pro, otherwise `null`) |
-| GET /jobs?scope · GET /jobs/:id | party | `JobSummary[]` · `JobDetails` |
-| POST /jobs/:id/confirm · /start | professional | `Job` |
-| POST /jobs/:id/complete | party | `Job` |
-| POST /jobs/:id/review | customer | `Review` |
-| GET /notifications · /notifications/unread-count | any | … |
-| POST /notifications/:id/read · /notifications/read-all | owner | … |
-| GET /conversations · /conversations/:id · /conversations/:id/messages | participant | … |
-| POST /conversations/:id/messages · /conversations/:id/read | participant | `Message` · `SuccessResponse` |
+The backend's [`docs/API.md`](../../backend/docs/API.md) is the source of truth for every endpoint,
+role, payload, error and limit; `src/types/api` mirrors it (the backend's `npm run typecheck`
+compiles a contract check against these types). The conventions the client relies on:
 
-Realtime events (`src/services/realtime/types.ts`, pushed to the affected users):
-`notification.created`, `message.created`, `conversation.read` (read receipt: `readerId` read the
-other participant's messages up to `readAt`; emitted to both participants when
-`POST /conversations/:id/read` or a reply marks messages read), `request.updated`, `offer.updated`,
-`job.updated`, `profile.updated`. `src/providers/realtime-events.ts` applies them to the cache.
+- Paths are relative to the base URL (`/requests/:id`, `/me`, …); JSON in and out.
+- Lists that can grow are keyset-paginated: `cursor` (opaque) + `limit` (default
+  `APP_CONFIG.pageSize` = 20, at most 100) → `Paginated<T> { items, nextCursor, totalCount }`. The
+  app uses infinite queries for them (`GET /conversations`, `/jobs`, notifications, messages,
+  reviews, requests, offers) and one page of 100 where a screen needs everything (the offers of a
+  request).
+- Errors are `ApiErrorBody { code, message, fieldErrors? }`: 400 `VALIDATION_ERROR` (+ `fieldErrors`
+  keyed by field path with `validation:*` message keys), 401 `UNAUTHORIZED` / `INVALID_CREDENTIALS`
+  / `INVALID_GOOGLE_TOKEN`, 403 `FORBIDDEN`, 404 `NOT_FOUND`, 409 conflicts (`EMAIL_ALREADY_REGISTERED`,
+  `INVALID_STATE_TRANSITION`, `DUPLICATE_OFFER`, `OFFER_EXPIRED`, `REQUEST_NOT_ACCEPTING_OFFERS`, …),
+  422 `UNSUPPORTED_CATEGORY` / `OUTSIDE_SERVICE_AREA`, 429 `RATE_LIMITED` (`Retry-After`), and on the
+  client side `NETWORK_ERROR` / `TIMEOUT`. `ErrorState` / `useErrorText` map `code` to
+  `errors:codes.<CODE>`.
 
-Pagination: list endpoints take `cursor` (opaque) and `limit` (default `APP_CONFIG.pageSize` = 20,
-at most `APP_CONFIG.maxPageSize` = 100; larger values are rejected with 422 `VALIDATION_ERROR`) and
-return `Paginated<T> { items, nextCursor, totalCount }`.
+### Test double (src/test-utils/mock-backend)
 
-Errors: `ApiErrorBody { code, message, fieldErrors? }` with HTTP status: 400/422 `VALIDATION_ERROR`
-(`UNSUPPORTED_CATEGORY`, `OUTSIDE_SERVICE_AREA`), 401 `UNAUTHORIZED` / `INVALID_CREDENTIALS` /
-`INVALID_GOOGLE_TOKEN`, 403 `FORBIDDEN`, 404 `NOT_FOUND`, 409 `CONFLICT` / `EMAIL_ALREADY_REGISTERED` /
-`INVALID_STATE_TRANSITION` / `DUPLICATE_OFFER` / `OFFER_EXPIRED` / `REQUEST_NOT_ACCEPTING_OFFERS`,
-0 `NETWORK_ERROR` (simulated). A 401 signs the user out (`sessionStore.handleUnauthorized`) except
-for requests sent with `skipUnauthorizedHandler` – the public sign-in endpoints of
-`endpoints/auth.ts`, where it means failed credentials.
+Jest suites run the real hooks, endpoint modules, API client, token manager, WebSocket client and
+screens against an in-process implementation of the backend contract
+(`createTestEnvironment()` in `testing/test-server.ts`: in-memory database seeded from `data/`,
+controllable clock, the shared state machines). It follows `backend/docs/API.md`: sessions with
+30-minute access tokens and rotating refresh tokens (30 s replay window, reuse revokes the session
+and its devices), `POST /auth/refresh|logout`, `PATCH /me`, Expo-only `POST /me/devices` and
+`DELETE /me/devices/:token`, `VALIDATION_ERROR` as 400, register 201, paginated lists,
+`/conversations/unread-count`, multipart `POST /uploads/images` (field `file`) and own-upload
+avatars. `env.transport` (with a request log) replaces the app's HTTP transport
+(`apiClient.setTransport`); `env.sockets.openSocket` is the realtime endpoint for the app's
+WebSocket client (4001 for bad, expired or revoked tokens, `dropAll(1001)` for a restart). App code
+cannot import it (ESLint), so it is never bundled. `jest.setup.ts` also installs in-memory
+`expo-secure-store` and `expo-notifications`, React Native's `FormData` and a WebSocket that never
+connects (`src/test-utils/native`).
 
 ## 5. React Query conventions
 
 - Keys: only from `src/hooks/queries/query-keys.ts`, always scoped by the signed-in user id.
 - One hook per endpoint the UI uses (`useRequest`, `useNearbyOpenRequests`, `useAcceptOffer`, …).
   Screens never build keys or call `queryClient` themselves. Endpoints no screen needs yet (e.g.
-  `GET /professionals` search) keep their typed function in `src/services/api/endpoints` and their
-  mock handler, but get no hook until a screen uses them.
+  `GET /professionals` search) keep their typed function in `src/services/api/endpoints`, but get
+  no hook until a screen uses them.
 - Mutations invalidate through helpers in `src/hooks/mutations/invalidation.ts` (e.g.
   `invalidateRequestGraph`). Realtime events reuse the same helpers.
 - Optimistic updates: marking notifications read, sending chat messages, editing profile.
-- Lists that can grow use `useInfiniteQuery` with cursor pagination.
+- Lists that can grow use `useInfiniteQuery` with cursor pagination. Badges read the dedicated
+  counters (`/notifications/unread-count`, `/conversations/unread-count`), kept in step by realtime
+  events and optimistic mark-read updates.
 - Errors are `ApiError` (`src/services/api/errors.ts`); render with `<ErrorState error={…} onRetry />`
   which maps `error.code` to `errors:codes.<CODE>`.
 
@@ -238,7 +294,7 @@ for requests sent with `skipUnauthorizedHandler` – the public sign-in endpoint
 - Touch targets ≥ 44pt, `accessibilityRole`/`accessibilityLabel` on interactive elements.
 - Every data screen handles loading (skeleton), error (retry), empty and success states.
 - Only irreversible/important actions ask for confirmation via `useConfirm()` (accept an offer,
-  cancel a request, withdraw an offer, mark a job completed, delete a draft, reset demo data); results
+  cancel a request, withdraw an offer, mark a job completed, delete a draft, sign out); results
   are surfaced with `useToast()`. One primary (full-width, usually sticky) action per screen.
 - Navigation: the bottom tabs are the single entry point per feature – customer: Home · Requests ·
   Inbox · Profile; professional: Home · Explore · Work (`?tab=offers|jobs`) · Inbox
@@ -263,7 +319,7 @@ home. Build every link with `routes` (`src/lib/routes.ts`).
 
 | Route | Who | Screen |
 |---|---|---|
-| `/sign-in` | signed out | entry: **Create account**, **Sign in**, then the demo account picker (hidden in `http` mode) |
+| `/sign-in` | signed out | entry: brand hero with the language switch, **Create account** and **Sign in** |
 | `/auth/login` | signed out | email + password, "Continue with Google", links to reset and sign-up |
 | `/auth/sign-up?role=customer\|professional` | signed out | step flow: role → account → services → service area (customers stop after the account); `role` skips the first step |
 | `/auth/forgot-password` | signed out | request a reset link (same answer whether or not the account exists) |
@@ -295,8 +351,8 @@ home. Build every link with `routes` (`src/lib/routes.ts`).
   that arrive after the screen unmounted are dropped.
 - A new Google identity (`registration_required`) is kept in memory in
   `pending-google-sign-up.ts` (never in the URL) and cleared when the sign-up screen unmounts or a
-  session starts. `GoogleSignInButton` hides itself when neither real Google sign-in nor the mock
-  backend is available (`useGoogleSignInAvailable`).
+  session starts. `GoogleSignInButton` is not rendered without a Google client id for the running
+  platform, or in Expo Go on iOS/Android (`useGoogleSignInAvailable`).
 - An email typed on one auth screen is handed to the next one in memory (`auth-email-hint.ts`,
   never in the URL): "Sign in with this email" (sign-up → sign in) and "Forgot password?"
   (sign in → reset) prefill it.

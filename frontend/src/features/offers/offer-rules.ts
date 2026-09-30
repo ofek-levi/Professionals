@@ -1,7 +1,7 @@
 /**
  * Business rules for the proposed appointment time of an offer. Violations block submission (the
- * offer form reports them on its date/time fields; the mock backend rejects them with 422 on
- * `proposedStartAt`).
+ * offer form reports them on its date/time fields; the backend rejects them with 400
+ * `VALIDATION_ERROR` on `proposedStartAt`).
  */
 import { APP_CONFIG } from '@/constants/app-config';
 import { vm, type ValidationMessageKey } from '@/lib/validation/messages';

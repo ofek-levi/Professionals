@@ -80,4 +80,22 @@ export const errors: LocaleNamespace<typeof enErrors> = {
       description: 'אירעה שגיאה לא צפויה. נסו שוב.',
     },
   },
+  retryAfter: {
+    seconds_one: 'נסו שוב בעוד שנייה.',
+    seconds_two: 'נסו שוב בעוד שתי שניות.',
+    seconds_other: 'נסו שוב בעוד {{count}} שניות.',
+    minutes_one: 'נסו שוב בעוד דקה.',
+    minutes_two: 'נסו שוב בעוד שתי דקות.',
+    minutes_other: 'נסו שוב בעוד {{count}} דקות.',
+  },
+  upload: {
+    invalid: {
+      title: 'אי אפשר להשתמש בתמונה הזו',
+      description: 'בחרו תמונה מסוג JPEG‏, PNG‏, WebP או HEIC בגודל של עד 8MB.',
+    },
+    rateLimited: {
+      title: 'יותר מדי תמונות כרגע',
+      description: 'העליתם הרבה תמונות לאחרונה. נסו שוב מאוחר יותר.',
+    },
+  },
 };

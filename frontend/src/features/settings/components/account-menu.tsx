@@ -1,14 +1,14 @@
 /**
  * Building blocks of the Profile tab (both roles): the identity header and the account menu
- * (profile shortcuts, Settings, Switch account, Sign out). Signing out needs no confirmation: the
- * demo accounts are one tap away on the sign-in screen.
+ * (profile shortcuts, Settings, Sign out). Signing out asks first: signing back in takes the
+ * password, and the server stops this device's notifications meanwhile.
  */
 import { useRouter } from 'expo-router';
 import { Fragment, useState, type ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { AppText, Avatar, Card, ListItem, Skeleton, useToast } from '@/components/ui';
+import { AppText, Avatar, Card, ListItem, Skeleton, useConfirm, useToast } from '@/components/ui';
 import { useAuthActions } from '@/features/auth';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
@@ -61,17 +61,25 @@ export interface AccountMenuItem {
   onPress: () => void;
 }
 
-/** Profile shortcuts (role specific) followed by Settings, Switch account and Sign out. */
+/** Profile shortcuts (role specific) followed by Settings and Sign out. */
 export function AccountMenu({ items }: { items: readonly AccountMenuItem[] }) {
   const styles = useStyles();
   const router = useRouter();
+  const confirm = useConfirm();
   const toast = useToast();
   const { t } = useTranslation('settings');
   const { signOut } = useAuthActions();
   const [leaving, setLeaving] = useState(false);
 
-  // Signing out resets the stack; the sign-in screen lists the demo accounts to switch to.
+  // Signing out resets the stack to the entry screen.
   const leave = async () => {
+    const confirmed = await confirm({
+      title: t('account.signOutConfirmTitle'),
+      message: t('account.signOutConfirmMessage'),
+      confirmLabel: t('account.signOut'),
+      destructive: true,
+    });
+    if (!confirmed) return;
     setLeaving(true);
     try {
       await signOut();
@@ -94,8 +102,6 @@ export function AccountMenu({ items }: { items: readonly AccountMenuItem[] }) {
         ))}
       </Card>
       <Card padding="none" style={styles.group}>
-        <ListItem title={t('account.switchAccount')} onPress={() => void leave()} disabled={leaving} testID="account-switch" />
-        <View style={styles.divider} />
         <ListItem
           title={t('account.signOut')}
           destructive

@@ -1,7 +1,7 @@
 /**
  * Matching between service requests and professionals, and the professional job-explorer
- * filters/sorting. The mock backend uses exactly these functions for
- * `GET /professional/requests/nearby`, so the filter UI and the server always agree.
+ * filters/sorting, as `GET /professional/requests/nearby` applies them on the backend (the test
+ * double uses exactly these functions).
  */
 import { compareUrgency } from '@/constants/urgency-levels';
 import { hashString } from '@/features/shared/seeded-random';

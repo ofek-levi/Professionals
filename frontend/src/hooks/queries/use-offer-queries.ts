@@ -1,7 +1,8 @@
 import { keepPreviousData, skipToken, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
+import { APP_CONFIG } from '@/constants/app-config';
 import { api } from '@/services/api';
-import type { ProfessionalOffersParams, RequestOffersParams } from '@/types/api';
+import type { Paginated, ProfessionalOffersParams, RequestOffersParams } from '@/types/api';
 import type { OfferWithProfessional, OfferWithRequest } from '@/types/domain';
 
 import { queryKeys } from './query-keys';
@@ -18,15 +19,24 @@ export type OfferDetails = OfferWithProfessional & Pick<OfferWithRequest, 'reque
 
 type ProfessionalOffersQueryParams = Omit<ProfessionalOffersParams, 'cursor'>;
 
+type RequestOffersQueryParams = Omit<RequestOffersParams, 'cursor' | 'limit'>;
+
+const selectItems = <T,>(page: Paginated<T>): T[] => page.items;
+
 /**
- * `GET /requests/:id/offers` – offers on the customer's request, sorted server-side. Keeps the
- * previous list while a new sort/filter loads.
+ * `GET /requests/:id/offers` – offers on the customer's request, ranked server-side (`data` is the
+ * array). One page of the largest size: a request rarely gets that many offers. Keeps the previous
+ * list while a new sort/filter loads.
  */
-export function useRequestOffers(requestId: string | null | undefined, params: RequestOffersParams = {}) {
+export function useRequestOffers(requestId: string | null | undefined, params: RequestOffersQueryParams = {}) {
   const { userId, enabled } = useQueryScope('customer');
   return useQuery({
     queryKey: queryKeys.offers.forRequest(userId, requestId ?? '', params),
-    queryFn: enabled && requestId ? ({ signal }) => api.offers.getOffersForRequest(requestId, params, signal) : skipToken,
+    queryFn:
+      enabled && requestId
+        ? ({ signal }) => api.offers.getOffersForRequest(requestId, { ...params, limit: APP_CONFIG.maxPageSize }, signal)
+        : skipToken,
+    select: selectItems<OfferWithProfessional>,
     placeholderData: keepPreviousData,
   });
 }

@@ -21,31 +21,31 @@ import { useNotifications, useUnreadNotificationsCount } from '@/hooks/queries/u
 import { useRequestOffers } from '@/hooks/queries/use-offer-queries';
 import { NEARBY_MAP_LIMIT, useNearbyRequestsForMap, useRequest } from '@/hooks/queries/use-request-queries';
 import { APP_CONFIG } from '@/constants/app-config';
-import { createAccessToken } from '@/mocks/server/auth';
-import { createTestEnvironment, type TestEnvironment } from '@/mocks/testing/test-server';
-import { createMockTransport } from '@/mocks/transport';
+import { MAIN_CUSTOMER_IDS, PRO_IDS } from '@/test-utils/mock-backend/data/seed';
+import { createTestEnvironment, type TestEnvironment } from '@/test-utils/mock-backend/testing/test-server';
 import { apiClient } from '@/services/api';
 import { sessionStore } from '@/services/auth/session-store';
-import type { DemoAccount } from '@/types/domain';
+
+interface Account {
+  userId: string;
+}
 
 let env: TestEnvironment;
-let customer: DemoAccount;
-let professional: DemoAccount;
+const customer: Account = { userId: MAIN_CUSTOMER_IDS.noa };
+const professional: Account = { userId: PRO_IDS.avi };
 
-beforeAll(async () => {
-  env = await createTestEnvironment();
-  apiClient.setTransport(createMockTransport(env.server, { minLatencyMs: 0, maxLatencyMs: 0, failureRate: 0 }).transport);
-  const accounts = await env.as(null).auth.getDemoAccounts();
-  customer = accounts.find((account) => account.role === 'customer')!;
-  professional = accounts.find((account) => account.role === 'professional')!;
+beforeAll(() => {
+  // The app's token manager reads the device clock: the server clock starts there too.
+  env = createTestEnvironment({ now: new Date() });
+  apiClient.setTransport(env.transport);
 });
 
 afterEach(async () => {
   await sessionStore.signOut();
 });
 
-async function signInAs(account: DemoAccount) {
-  await sessionStore.signIn(createAccessToken(account.userId), { id: account.userId, role: account.role });
+async function signInAs(account: Account) {
+  await sessionStore.signIn(env.signIn(account.userId));
 }
 
 function createWrapper() {
@@ -106,7 +106,7 @@ describe('useAcceptOffer', () => {
     const customerApi = env.as(customer.userId);
     const { items } = await customerApi.requests.getCustomerRequests({ section: 'has_offers' });
     const request = items.find((item) => item.pendingOfferCount > 0)!;
-    const offers = await customerApi.offers.getOffersForRequest(request.id);
+    const { items: offers } = await customerApi.offers.getOffersForRequest(request.id);
     const offer = offers.find((item) => item.status === 'pending')!;
     const { wrapper } = createWrapper();
     const { result } = await renderHook(
@@ -144,7 +144,7 @@ describe('useAcceptOffer', () => {
 describe('useSendMessage', () => {
   it('shows the message optimistically and reconciles it with the server copy', async () => {
     await signInAs(customer);
-    const conversations = await env.as(customer.userId).conversations.getConversations();
+    const { items: conversations } = await env.as(customer.userId).conversations.getConversations();
     const conversation = conversations.find((item) => item.isOpen)!;
 
     const { wrapper } = createWrapper();
@@ -167,7 +167,7 @@ describe('useSendMessage', () => {
 
   it('rolls the optimistic message back when sending fails', async () => {
     await signInAs(customer);
-    const conversations = await env.as(customer.userId).conversations.getConversations();
+    const { items: conversations } = await env.as(customer.userId).conversations.getConversations();
     const conversation = conversations.find((item) => item.isOpen)!;
     const { wrapper } = createWrapper();
     const { result } = await renderHook(
@@ -190,19 +190,19 @@ describe('useSendMessage', () => {
 describe('useMarkConversationAsRead', () => {
   it('clears the unread counter optimistically and restores it when the request fails', async () => {
     await signInAs(customer);
-    const [conversation] = (await env.as(customer.userId).conversations.getConversations()).filter((item) => item.isOpen);
+    const [conversation] = (await env.as(customer.userId).conversations.getConversations()).items.filter((item) => item.isOpen);
     const counterpart = conversation.participants.find((participant) => participant.userId !== customer.userId)!;
     await env.as(counterpart.userId).conversations.sendMessage(conversation.id, { text: 'Are you home?', clientMessageId: 'unread-1' });
 
     const { wrapper } = createWrapper();
     const { result } = await renderHook(() => ({ list: useConversations(), markRead: useMarkConversationAsRead() }), { wrapper });
     await waitFor(() => expect(result.current.list.isSuccess).toBe(true));
-    const unreadOf = () => result.current.list.data!.find((item) => item.id === conversation.id)?.unreadCount;
+    const unreadOf = () => result.current.list.data!.items.find((item) => item.id === conversation.id)?.unreadCount;
     const before = unreadOf();
     expect(before).toBeGreaterThan(0);
 
-    // Every request fails (simulated network error) → the optimistic update is rolled back.
-    apiClient.setTransport(createMockTransport(env.server, { minLatencyMs: 0, maxLatencyMs: 0, failureRate: 1 }).transport);
+    // Offline: every request fails with a network error → the optimistic update is rolled back.
+    apiClient.setTransport(async () => ({ status: 0, data: { code: 'NETWORK_ERROR', message: 'offline' } }));
     try {
       await act(async () => {
         await result.current.markRead.mutateAsync(conversation.id).catch(() => undefined);
@@ -210,7 +210,7 @@ describe('useMarkConversationAsRead', () => {
       expect(result.current.markRead.isError).toBe(true);
       expect(unreadOf()).toBe(before);
     } finally {
-      apiClient.setTransport(createMockTransport(env.server, { minLatencyMs: 0, maxLatencyMs: 0, failureRate: 0 }).transport);
+      apiClient.setTransport(env.transport);
     }
   });
 });

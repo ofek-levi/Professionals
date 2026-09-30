@@ -1,45 +1,40 @@
 import type {
   AuthSession,
-  CurrentUserResponse,
-  DemoLoginRequest,
   GoogleAuthRequest,
   GoogleAuthResponse,
   LoginRequest,
+  LogoutRequest,
   PasswordResetRequest,
-  RegisterDeviceRequest,
+  RefreshSessionRequest,
   RegisterRequest,
+  SessionTokens,
   SuccessResponse,
 } from '@/types/api';
-import type { DemoAccount } from '@/types/domain';
 import type { ApiClient, RequestOptions } from '../client';
 
 /**
- * The public sign-in endpoints: the caller is signed out, and a 401 is an expected answer (wrong
- * password, unverifiable Google token) that must not trigger the client's global sign-out. Any
- * other endpoint – including future authenticated `/auth/*` ones (refresh, change password…) –
- * keeps it.
+ * The public auth endpoints: sent without a bearer token, and a 401 is an expected answer (wrong
+ * password, unverifiable Google token, dead refresh token), never a reason to refresh the session.
  */
-const PUBLIC_AUTH: RequestOptions = { skipUnauthorizedHandler: true };
+const ANONYMOUS: RequestOptions = { anonymous: true };
 
 export function createAuthApi(client: ApiClient) {
   return {
-    /** `GET /auth/demo-accounts` – demo accounts of the mock backend (one-tap sign-in). */
-    getDemoAccounts: () => client.get<DemoAccount[]>('/auth/demo-accounts', PUBLIC_AUTH),
-    /** `POST /auth/demo-login` */
-    demoLogin: (payload: DemoLoginRequest) => client.post<AuthSession>('/auth/demo-login', payload, PUBLIC_AUTH),
     /** `POST /auth/login` – 401 `INVALID_CREDENTIALS` for an unknown email or a wrong password. */
-    login: (payload: LoginRequest) => client.post<AuthSession>('/auth/login', payload, PUBLIC_AUTH),
-    /** `POST /auth/register` – 409 `EMAIL_ALREADY_REGISTERED`, 422 `VALIDATION_ERROR`. */
-    register: (payload: RegisterRequest) => client.post<AuthSession>('/auth/register', payload, PUBLIC_AUTH),
+    login: (payload: LoginRequest) => client.post<AuthSession>('/auth/login', payload, ANONYMOUS),
+    /** `POST /auth/register` → 201. 409 `EMAIL_ALREADY_REGISTERED`, 400 `VALIDATION_ERROR`. */
+    register: (payload: RegisterRequest) => client.post<AuthSession>('/auth/register', payload, ANONYMOUS),
     /** `POST /auth/google` – 401 `INVALID_GOOGLE_TOKEN` when the id token can't be verified. */
-    signInWithGoogle: (payload: GoogleAuthRequest) => client.post<GoogleAuthResponse>('/auth/google', payload, PUBLIC_AUTH),
+    signInWithGoogle: (payload: GoogleAuthRequest) => client.post<GoogleAuthResponse>('/auth/google', payload, ANONYMOUS),
+    /** `POST /auth/refresh` – rotates the refresh token; 401 when the session is over. */
+    refresh: (payload: RefreshSessionRequest) => client.post<SessionTokens>('/auth/refresh', payload, ANONYMOUS),
     /** `POST /auth/password-reset` – always succeeds for a valid email address. */
-    requestPasswordReset: (payload: PasswordResetRequest) => client.post<SuccessResponse>('/auth/password-reset', payload, PUBLIC_AUTH),
-    /** `POST /auth/logout` – the session is ending anyway: an expired token is no reason to sign out twice. */
-    logout: () => client.post<SuccessResponse>('/auth/logout', undefined, PUBLIC_AUTH),
-    /** `GET /me` */
-    getCurrentUser: () => client.get<CurrentUserResponse>('/me'),
-    /** `POST /me/devices` – register a push token (simulated for now). */
-    registerDevice: (payload: RegisterDeviceRequest) => client.post<SuccessResponse>('/me/devices', payload),
+    requestPasswordReset: (payload: PasswordResetRequest) => client.post<SuccessResponse>('/auth/password-reset', payload, ANONYMOUS),
+    /**
+     * `POST /auth/logout` – ends the session of that refresh token (and removes its push devices).
+     * Idempotent; `signal` bounds how long signing out may wait for it.
+     */
+    logout: (payload: LogoutRequest, signal?: AbortSignal) =>
+      client.post<SuccessResponse>('/auth/logout', payload, { ...ANONYMOUS, signal }),
   };
 }

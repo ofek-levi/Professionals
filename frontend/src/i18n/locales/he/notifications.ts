@@ -10,6 +10,9 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
     },
     emptyUpdates: 'אין עדכונים עדיין',
   },
+  channel: {
+    name: 'התראות',
+  },
   markAllRead: 'סימון הכול כנקרא',
   markAllReadShort: 'סימון הכול כנקרא',
   groups: {

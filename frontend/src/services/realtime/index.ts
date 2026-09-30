@@ -1,17 +1,16 @@
 /**
- * Realtime (server push) client. In mock mode events come straight from the in-app mock backend;
- * in HTTP mode a WebSocket connection is used (see websocket-realtime-client.ts).
+ * The app's realtime connection (WebSocket to the backend, see websocket-realtime-client.ts). The
+ * session lifecycle connects it while signed in; the access token comes from `sessionTokens`.
  */
-import { getMockServer } from '@/mocks/server';
-import { createMockRealtimeClient } from '@/mocks/realtime';
 import { apiConfig } from '@/services/api/config';
+import { sessionTokens } from '@/services/api';
 
 import type { RealtimeClient } from './types';
 import { createWebSocketRealtimeClient } from './websocket-realtime-client';
 
-export const realtimeClient: RealtimeClient =
-  apiConfig.mode === 'mock'
-    ? createMockRealtimeClient(getMockServer())
-    : createWebSocketRealtimeClient(apiConfig.baseUrl.replace(/^http/, 'ws') + '/realtime');
+export const realtimeClient: RealtimeClient = createWebSocketRealtimeClient({
+  url: apiConfig.realtimeUrl,
+  auth: sessionTokens,
+});
 
 export type { RealtimeClient, RealtimeEvent, RealtimeListener } from './types';

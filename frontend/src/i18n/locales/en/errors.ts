@@ -81,4 +81,22 @@ export const errors = {
       description: 'An unexpected error occurred. Please try again.',
     },
   },
+  /** `Retry-After` of a 429, appended to the RATE_LIMITED text. */
+  retryAfter: {
+    seconds_one: 'Please try again in {{count}} second.',
+    seconds_other: 'Please try again in {{count}} seconds.',
+    minutes_one: 'Please try again in {{count}} minute.',
+    minutes_other: 'Please try again in {{count}} minutes.',
+  },
+  /** `POST /uploads/images` failures. */
+  upload: {
+    invalid: {
+      title: 'This photo can’t be used',
+      description: 'Choose a JPEG, PNG, WebP or HEIC photo of up to 8 MB.',
+    },
+    rateLimited: {
+      title: 'Too many photos for now',
+      description: 'You’ve uploaded a lot of photos recently. Please try again later.',
+    },
+  },
 } as const;

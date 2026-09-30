@@ -84,8 +84,9 @@ export function invalidateNotifications(qc: Invalidator, userId: UserScope): Pro
 }
 
 /**
- * The conversation list and one conversation (unread counts, last message). Messages are only
- * refetched with `includeMessages` – new messages are normally appended to the cache instead.
+ * The conversation list (reloaded from the first page: activity reorders it), the unread messages
+ * count and one conversation (unread count, last message). Messages are only refetched with
+ * `includeMessages` – new messages are normally appended to the cache instead.
  */
 export function invalidateConversation(
   qc: Invalidator,
@@ -95,6 +96,7 @@ export function invalidateConversation(
 ): Promise<void> {
   return invalidateAll(qc, [
     queryKeys.conversations.list(userId),
+    queryKeys.conversations.unreadCount(userId),
     conversationId ? queryKeys.conversations.detail(userId, conversationId) : null,
     conversationId && options.includeMessages ? queryKeys.conversations.messages(userId, conversationId) : null,
   ]);

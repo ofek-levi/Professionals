@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { FlatList, RefreshControl, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { EmptyState, ErrorState, useNow } from '@/components/ui';
@@ -10,7 +10,7 @@ import { makeStyles, useTheme } from '@/theme';
 
 import { ConversationRow, ConversationRowSkeleton } from './conversation-row';
 
-/** Inbox "Messages": the signed-in user's job chats, most recent activity first. */
+/** Inbox "Messages": the signed-in user's job chats, most recent activity first (more on scroll). */
 export function ConversationList() {
   const theme = useTheme();
   const styles = useStyles();
@@ -33,7 +33,7 @@ export function ConversationList() {
     );
   }
 
-  const conversations = query.data;
+  const conversations = query.data.items;
 
   return (
     <FlatList
@@ -50,9 +50,14 @@ export function ConversationList() {
       )}
       contentContainerStyle={[styles.content, conversations.length === 0 ? styles.emptyContent : null]}
       ListEmptyComponent={<EmptyState compact icon="message-text-outline" title={t('conversations.empty')} />}
+      ListFooterComponent={query.isFetchingNextPage ? <ActivityIndicator color={theme.colors.primary} style={styles.footerSpinner} /> : null}
+      onEndReachedThreshold={0.4}
+      onEndReached={() => {
+        if (query.hasNextPage && !query.isFetchingNextPage) void query.fetchNextPage();
+      }}
       refreshControl={
         <RefreshControl
-          refreshing={query.isRefetching}
+          refreshing={query.isRefetching && !query.isFetchingNextPage}
           onRefresh={() => void query.refetch()}
           tintColor={theme.colors.primary}
           colors={[theme.colors.primary]}
@@ -77,5 +82,8 @@ const useStyles = makeStyles((t) => ({
   skeletons: {
     paddingHorizontal: t.spacing.screen,
     paddingTop: t.spacing.sm,
+  },
+  footerSpinner: {
+    paddingVertical: t.spacing.lg,
   },
 }));

@@ -11,7 +11,7 @@ import { Controller, useForm, useWatch, type FieldErrors } from 'react-hook-form
 import { ScrollView, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { FormTextField, useTranslatedError } from '@/components/forms';
+import { FormTextField, useTranslatedError, useUploadErrorToast } from '@/components/forms';
 import {
   AppText,
   Button,
@@ -193,6 +193,7 @@ function RequestForm({ draft, defaultValues, initialRegion }: RequestFormProps) 
   const confirm = useConfirm();
   const toast = useToast();
   const showError = useErrorToast();
+  const showUploadError = useUploadErrorToast();
   const translateError = useTranslatedError();
   const scrollRef = useRef<ScrollView>(null);
   const positions = useRef<Partial<Record<RequestFormField, number>>>({});
@@ -286,7 +287,15 @@ function RequestForm({ draft, defaultValues, initialRegion }: RequestFormProps) 
       const pending = photosToUpload(photos);
       if (pending.length > 0) setUploading(true);
       for (const photo of pending) {
-        const uploaded = await upload.mutateAsync(toUploadPayload(photo));
+        const uploaded = await upload.mutateAsync(toUploadPayload(photo)).catch((error: unknown) => {
+          showUploadError(error);
+          return null;
+        });
+        if (!uploaded) {
+          // The photo itself or the upload limits: shown by the photos (uploaded ones are kept).
+          scrollToField('photos');
+          return;
+        }
         photos = photos.map((item) => (item.uri === photo.uri ? { ...item, uploadId: uploaded.id } : item));
         setValue('photos', photos);
       }

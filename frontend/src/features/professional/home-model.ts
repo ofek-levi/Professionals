@@ -1,35 +1,7 @@
 /**
- * Small view-model helpers of the professional Home and Work tabs. Pure, deterministic given `now`.
+ * Small view-model helpers of the professional Home tab. Pure.
  */
 import type { JobSummary } from '@/types/domain';
-import { toDate, type DateInput } from '@/utils/dates';
-
-interface CompletedJobsSummary {
-  /** Sum of agreed prices per currency of the jobs completed in the calendar month of `now`. */
-  thisMonthTotals: { currency: string; amount: number }[];
-}
-
-function sumByCurrency(jobs: readonly Pick<JobSummary, 'agreedPrice' | 'currency'>[]): { currency: string; amount: number }[] {
-  const totals = new Map<string, number>();
-  for (const job of jobs) totals.set(job.currency, (totals.get(job.currency) ?? 0) + job.agreedPrice);
-  return [...totals.entries()]
-    .map(([currency, amount]) => ({ currency, amount: Math.round(amount * 100) / 100 }))
-    .sort((a, b) => b.amount - a.amount);
-}
-
-/** This month’s earnings from completed jobs (the Work tab’s "This month" total). */
-export function summarizeCompletedJobs(
-  jobs: readonly Pick<JobSummary, 'status' | 'agreedPrice' | 'currency' | 'completedAt' | 'updatedAt'>[],
-  now: DateInput,
-): CompletedJobsSummary {
-  const completed = jobs.filter((job) => job.status === 'completed');
-  const reference = toDate(now);
-  const thisMonth = completed.filter((job) => {
-    const at = toDate(job.completedAt ?? job.updatedAt);
-    return at.getFullYear() === reference.getFullYear() && at.getMonth() === reference.getMonth();
-  });
-  return { thisMonthTotals: sumByCurrency(thisMonth) };
-}
 
 /** Jobs waiting for the professional to confirm the appointment, soonest first. */
 function jobsAwaitingConfirmation<T extends Pick<JobSummary, 'status' | 'scheduledStartAt'>>(jobs: readonly T[]): T[] {

@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 
 import { RequestCard, RequestCardSkeleton } from '@/components/requests';
 import { EmptyState, ErrorState, IconButton, Screen, ScreenHeader, SegmentedControl, type SegmentedOption } from '@/components/ui';
+import { APP_CONFIG } from '@/constants/app-config';
 import { useCustomerDashboard, useCustomerRequests, useJobs, useRefetchOnFocus, useRouteParam } from '@/hooks';
 import { routes, TAB_PARAM } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
@@ -30,7 +31,8 @@ export default function CustomerRequestsScreen() {
   const { t } = useTranslation(['customer', 'common']);
   const tab = parseRequestListTab(useRouteParam(TAB_PARAM));
   const query = useCustomerRequests({ statuses: [...REQUEST_TAB_STATUSES[tab]] });
-  const jobsQuery = useJobs('active');
+  // Every active job (at most a few): the appointment line of each request card.
+  const jobsQuery = useJobs('active', { pageSize: APP_CONFIG.maxPageSize });
   // Completed jobs still waiting for a review read "Rate CoolAir HVAC", like on Home.
   const dashboardQuery = useCustomerDashboard();
   const seenOffers = useSeenOffers();
@@ -38,7 +40,7 @@ export default function CustomerRequestsScreen() {
 
   const items = query.data?.items ?? [];
   const requests = tab === 'active' ? sortActiveRequests(items) : items;
-  const appointments = appointmentsByRequest(jobsQuery.data ?? []);
+  const appointments = appointmentsByRequest(jobsQuery.data?.items ?? []);
   const toReview = new Map((dashboardQuery.data?.jobsAwaitingReview ?? []).map((job) => [job.requestId, job.professional.displayName]));
   const rateLine = (requestId: string) => {
     const name = toReview.get(requestId);

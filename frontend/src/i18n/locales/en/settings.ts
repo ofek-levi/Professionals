@@ -5,8 +5,9 @@ export const settings = {
   account: {
     editProfile: 'Edit profile',
     viewPublicProfile: 'View public profile',
-    switchAccount: 'Switch account',
     signOut: 'Sign out',
+    signOutConfirmTitle: 'Sign out?',
+    signOutConfirmMessage: 'Notifications for your account stop on this device until you sign in again.',
     signOutFailed: 'We couldn’t sign you out. Please try again.',
   },
   language: {
@@ -23,31 +24,13 @@ export const settings = {
   },
   notifications: {
     sectionTitle: 'Notifications',
-    pushEnabled: 'In-app banners',
+    pushEnabled: 'Push notifications',
+    pushBlocked: 'Notifications are turned off for this app in your phone’s settings',
     jobUpdates: 'Offers & job updates',
     newRequests: 'New requests nearby',
     messages: 'Messages',
     reminders: 'Appointment reminders',
     emailEnabled: 'Email updates',
     saveFailed: 'Your notification preferences weren’t saved',
-  },
-  demo: {
-    sectionTitle: 'Demo tools',
-    simulation: {
-      title: 'Simulated activity',
-      description: 'Pros send offers and chats reply automatically',
-    },
-    networkFailures: {
-      title: 'Unreliable network',
-      description: 'About 1 in 5 requests fails',
-    },
-    reset: {
-      title: 'Reset demo data',
-      confirmTitle: 'Reset all demo data?',
-      confirmMessage: 'Every change made on this device will be lost. This can’t be undone.',
-      confirmLabel: 'Reset data',
-      success: 'Demo data was reset',
-      failed: 'We couldn’t reset the demo data',
-    },
   },
 } as const;

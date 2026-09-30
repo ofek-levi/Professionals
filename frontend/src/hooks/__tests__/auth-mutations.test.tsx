@@ -1,7 +1,7 @@
 /**
- * Auth mutations against the real endpoint modules and the in-app mock backend: each sign-in path
+ * Auth mutations against the real endpoint modules and the test double: each sign-in path
  * establishes the session through the session store (with the session lifecycle running, so the
- * cache is cleared exactly like after a demo sign-in).
+ * cache is cleared on every identity change).
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook } from '@testing-library/react-native';
@@ -10,13 +10,12 @@ import type { ReactNode } from 'react';
 import { pendingGoogleSignUpStore } from '@/features/auth/pending-google-sign-up';
 import { startSessionLifecycle } from '@/features/auth/session-lifecycle';
 import { useGoogleAuth, useLogin, useRegister, useRequestPasswordReset } from '@/hooks/mutations/use-auth-mutations';
-import { DEMO_CUSTOMER_IDS, PRO_IDS } from '@/mocks/data/seed';
-import { DEMO_ACCOUNT_PASSWORD } from '@/mocks/server/passwords';
-import { createTestEnvironment, type TestEnvironment } from '@/mocks/testing/test-server';
-import { createMockTransport } from '@/mocks/transport';
+import { MAIN_CUSTOMER_IDS, PRO_IDS } from '@/test-utils/mock-backend/data/seed';
+import { SEED_PASSWORD } from '@/test-utils/mock-backend/server/passwords';
+import { createTestEnvironment, type TestEnvironment } from '@/test-utils/mock-backend/testing/test-server';
 import { apiClient, isApiError } from '@/services/api';
 import { sessionStore } from '@/services/auth/session-store';
-import { buildMockGoogleIdToken } from '@/services/auth/google-id-token';
+import { buildMockGoogleIdToken } from '@/test-utils/mock-backend/server/google-id-token';
 import type { RegisterRequest } from '@/types/api';
 
 let env: TestEnvironment;
@@ -24,8 +23,8 @@ let stopLifecycle: (() => void) | null = null;
 const realtime = { connect: jest.fn(), disconnect: jest.fn() };
 
 beforeAll(async () => {
-  env = await createTestEnvironment();
-  apiClient.setTransport(createMockTransport(env.server, { minLatencyMs: 0, maxLatencyMs: 0, failureRate: 0 }).transport);
+  env = createTestEnvironment({ now: new Date() });
+  apiClient.setTransport(env.transport);
   // Like the app after launch: the session resolved to "signed out" before anyone signs in.
   await sessionStore.hydrate();
 });
@@ -43,7 +42,7 @@ function setup() {
     defaultOptions: { queries: { retry: false, gcTime: Infinity }, mutations: { retry: false, gcTime: Infinity } },
   });
   const clear = jest.spyOn(client, 'clear');
-  stopLifecycle = startSessionLifecycle({ store: sessionStore, queryClient: client, realtime, registerDevice: () => Promise.resolve(true) });
+  stopLifecycle = startSessionLifecycle({ store: sessionStore, queryClient: client, realtime });
   function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
@@ -69,10 +68,10 @@ describe('useLogin', () => {
     const { wrapper, clear } = setup();
     const { result } = await renderHook(() => useLogin(), { wrapper });
     await act(async () => {
-      await result.current.mutateAsync({ email: 'avi@aquafix.example.com', password: DEMO_ACCOUNT_PASSWORD });
+      await result.current.mutateAsync({ email: 'avi@aquafix.example.com', password: SEED_PASSWORD });
     });
     expect(sessionStore.getState()).toMatchObject({ status: 'signedIn', userId: PRO_IDS.avi, role: 'professional' });
-    expect(realtime.connect).toHaveBeenCalledWith(`demo-token:${PRO_IDS.avi}`);
+    expect(realtime.connect).toHaveBeenCalledTimes(1);
     expect(clear).toHaveBeenCalled();
   });
 
@@ -113,7 +112,7 @@ describe('useGoogleAuth', () => {
       );
       expect(response.status).toBe('signed_in');
     });
-    expect(sessionStore.getState()).toMatchObject({ status: 'signedIn', userId: DEMO_CUSTOMER_IDS.noa });
+    expect(sessionStore.getState()).toMatchObject({ status: 'signedIn', userId: MAIN_CUSTOMER_IDS.noa });
     expect(pendingGoogleSignUpStore.get()).toBeNull();
   });
 

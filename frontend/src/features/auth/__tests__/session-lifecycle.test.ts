@@ -21,29 +21,22 @@ function createFakeStore(initial: SessionState) {
   };
 }
 
-const signedIn = (userId: string): SessionState => ({
-  status: 'signedIn',
-  userId,
-  role: 'customer',
-  accessToken: `demo-token:${userId}`,
-});
-const signedOut: SessionState = { status: 'signedOut', userId: null, role: null, accessToken: null };
-const loading: SessionState = { status: 'loading', userId: null, role: null, accessToken: null };
+const signedIn = (userId: string): SessionState => ({ status: 'signedIn', userId, role: 'customer' });
+const signedOut: SessionState = { status: 'signedOut', userId: null, role: null };
+const loading: SessionState = { status: 'loading', userId: null, role: null };
 
 function setup(initial: SessionState) {
   const store = createFakeStore(initial);
   const queryClient = { clear: jest.fn() };
   const realtime = { connect: jest.fn(), disconnect: jest.fn() };
-  const registerDevice = jest.fn(() => Promise.resolve(true));
-  const stop = startSessionLifecycle({ store, queryClient, realtime, registerDevice });
-  return { store, queryClient, realtime, registerDevice, stop };
+  const stop = startSessionLifecycle({ store, queryClient, realtime });
+  return { store, queryClient, realtime, stop };
 }
 
 describe('startSessionLifecycle', () => {
   it('connects a restored session without clearing the (empty) cache', () => {
-    const { queryClient, realtime, registerDevice } = setup(signedIn('u1'));
-    expect(realtime.connect).toHaveBeenCalledWith('demo-token:u1');
-    expect(registerDevice).toHaveBeenCalledTimes(1);
+    const { queryClient, realtime } = setup(signedIn('u1'));
+    expect(realtime.connect).toHaveBeenCalledTimes(1);
     expect(queryClient.clear).not.toHaveBeenCalled();
   });
 
@@ -53,25 +46,28 @@ describe('startSessionLifecycle', () => {
     expect(realtime.disconnect).not.toHaveBeenCalled();
     store.set(signedOut);
     expect(realtime.disconnect).toHaveBeenCalledTimes(1);
+    expect(realtime.connect).not.toHaveBeenCalled();
   });
 
   it('clears the cache and reconnects on every identity change', () => {
-    const { store, queryClient, realtime, registerDevice } = setup(signedOut);
+    const { store, queryClient, realtime } = setup(signedOut);
     store.set(signedIn('u1'));
     expect(queryClient.clear).toHaveBeenCalledTimes(1);
-    expect(realtime.connect).toHaveBeenLastCalledWith('demo-token:u1');
+    expect(realtime.connect).toHaveBeenCalledTimes(1);
 
     store.set(signedIn('u2'));
     expect(queryClient.clear).toHaveBeenCalledTimes(2);
-    expect(realtime.connect).toHaveBeenLastCalledWith('demo-token:u2');
-    expect(registerDevice).toHaveBeenCalledTimes(2);
+    // The previous user's connection is closed before the new one opens.
+    expect(realtime.disconnect).toHaveBeenCalledTimes(3);
+    expect(realtime.connect).toHaveBeenCalledTimes(2);
 
     store.set(signedOut);
     expect(queryClient.clear).toHaveBeenCalledTimes(3);
-    expect(realtime.disconnect).toHaveBeenCalledTimes(2);
+    expect(realtime.disconnect).toHaveBeenCalledTimes(4);
+    expect(realtime.connect).toHaveBeenCalledTimes(2);
   });
 
-  it('does nothing when the identity did not change', () => {
+  it('does nothing when the identity did not change (e.g. a token refresh)', () => {
     const { store, queryClient, realtime } = setup(signedIn('u1'));
     store.set({ ...signedIn('u1') });
     expect(queryClient.clear).not.toHaveBeenCalled();
@@ -80,9 +76,10 @@ describe('startSessionLifecycle', () => {
 
   it('stops listening and disconnects when stopped', () => {
     const { store, stop, realtime, queryClient } = setup(signedIn('u1'));
+    const disconnects = realtime.disconnect.mock.calls.length;
     stop();
     expect(store.listenerCount()).toBe(0);
-    expect(realtime.disconnect).toHaveBeenCalledTimes(1);
+    expect(realtime.disconnect).toHaveBeenCalledTimes(disconnects + 1);
     store.set(signedIn('u2'));
     expect(queryClient.clear).not.toHaveBeenCalled();
   });

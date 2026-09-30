@@ -12,3 +12,11 @@ jest.mock('react-native-reanimated', () => {
 });
 // The map's WebView: a View exposing its props (see src/components/__test-utils__/map-bridge.ts).
 jest.mock('react-native-webview', () => require('@/components/__test-utils__/react-native-webview.mock'));
+
+// Native modules and runtime globals the app relies on (see src/test-utils/native).
+jest.mock('expo-secure-store', () => require('@/test-utils/native/expo-secure-store.mock'));
+jest.mock('expo-notifications', () => require('@/test-utils/native/expo-notifications.mock'));
+// React Native's FormData (file parts are `{ uri, name, type }`), not Node's.
+global.FormData = jest.requireActual('react-native/Libraries/Network/FormData').default;
+// No test may dial a real backend over WebSocket.
+global.WebSocket = require('@/test-utils/native/inert-websocket').InertWebSocket;

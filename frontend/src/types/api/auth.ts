@@ -2,19 +2,36 @@ import type {
   AppLanguage,
   CategoryId,
   CustomerProfile,
+  ISODateTimeString,
   OwnProfessionalProfile,
   ServiceLocation,
   User,
   UserRole,
 } from '../domain';
 
-export interface DemoLoginRequest {
-  userId: string;
+/** The tokens of a signed-in session (`POST /auth/refresh` answers exactly these). */
+export interface SessionTokens {
+  /** JWT sent as `Authorization: Bearer …`, valid 30 minutes. */
+  accessToken: string;
+  /** ISO instant the access token expires. */
+  accessTokenExpiresAt: ISODateTimeString;
+  /** Opaque, rotates on every refresh (store the new one before using it), valid 90 days. */
+  refreshToken: string;
 }
 
-export interface AuthSession {
-  accessToken: string;
+/** Login, register and Google `signed_in`: the tokens plus the signed-in user. */
+export interface AuthSession extends SessionTokens {
   user: User;
+}
+
+/** `POST /auth/refresh` → `SessionTokens`. */
+export interface RefreshSessionRequest {
+  refreshToken: string;
+}
+
+/** `POST /auth/logout` – ends that session and removes its push devices. */
+export interface LogoutRequest {
+  refreshToken: string;
 }
 
 /** `POST /auth/login` – email + password sign-in. */
@@ -85,7 +102,12 @@ export type CurrentUserResponse =
   | { user: User & { role: 'customer' }; customerProfile: CustomerProfile; professionalProfile: null }
   | { user: User & { role: 'professional' }; customerProfile: null; professionalProfile: OwnProfessionalProfile };
 
-/** Registers a device for (future) push notifications. */
+/** `PATCH /me` – the language of push notifications and emails. */
+export interface UpdateMeRequest {
+  preferredLanguage: AppLanguage;
+}
+
+/** `POST /me/devices` – registers an Expo push token (`ExponentPushToken[…]`) for this session. */
 export interface RegisterDeviceRequest {
   pushToken: string;
   platform: 'ios' | 'android' | 'web';
