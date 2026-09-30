@@ -1,7 +1,7 @@
 /**
- * Pages opened from the auth emails: verify-email (GET) and the password reset form (GET shows
- * it, POST from the form submits it). Viewing a page never uses the link up, so email scanners
- * that prefetch links cannot burn a reset link; only submitting the form does.
+ * Pages opened from the auth emails: verify-email and the password reset form. GET only shows a
+ * page (a confirm button, the reset form); the POST from that page acts. So email scanners that
+ * prefetch links can neither verify an address nor burn a reset link.
  */
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
@@ -9,9 +9,9 @@ import type { AppDeps } from '../../deps.js';
 import { isApiError } from '../../lib/errors.js';
 import type { AppLanguage } from '../../shared/domain.js';
 import { vm, type ValidationMessage } from '../../shared/validation-messages.js';
-import { verifyEmail } from './email-verification.service.js';
+import { verifyEmail, verifyLinkAccount } from './email-verification.service.js';
 import { PAGE_TEXTS } from './pages/page-texts.js';
-import { renderMessagePage, renderResetForm } from './pages/render-page.js';
+import { renderMessagePage, renderResetForm, renderVerifyConfirm } from './pages/render-page.js';
 import { resetLinkAccount, resetPassword } from './password-reset.service.js';
 import { newPasswordIssue } from './password-rules.js';
 
@@ -60,9 +60,19 @@ function invalidLinkPage(req: Request, page: 'verifyLinkInvalid' | 'resetLinkInv
   return { status: 400, html: renderMessagePage(language, PAGE_TEXTS[language][page], 'error') };
 }
 
+/** `GET /auth/verify-email?token=`: the confirmation page (verifies nothing). */
 export const verifyEmailPage = (deps: AppDeps) =>
   htmlPage(async (req) => {
     const token = linkToken(stringField(req.query, 'token'));
+    const account = token ? await verifyLinkAccount(deps, token) : null;
+    if (!token || !account) return invalidLinkPage(req, 'verifyLinkInvalid');
+    return { status: 200, html: renderVerifyConfirm(account.language, { token, email: account.email }) };
+  });
+
+/** `POST /auth/verify-email` from the confirmation page's button. */
+export const verifyEmailFormSubmit = (deps: AppDeps) =>
+  htmlPage(async (req) => {
+    const token = linkToken(stringField(req.body, 'token'));
     const verified = token ? await verifyEmail(deps, token) : null;
     if (!verified) return invalidLinkPage(req, 'verifyLinkInvalid');
     return { status: 200, html: renderMessagePage(verified.language, PAGE_TEXTS[verified.language].emailVerified, 'success') };

@@ -6,6 +6,7 @@
 import { Schema, model, type Types } from 'mongoose';
 
 import { modelTimestamps } from '../../infra/model-clock.js';
+import { CATEGORY_IDS, type CategoryId } from '../../shared/catalog/index.js';
 import { USER_ROLES, type UserRole } from '../../shared/domain.js';
 
 export interface ConversationParticipantDoc {
@@ -29,6 +30,11 @@ export interface ConversationDoc {
   _id: Types.ObjectId;
   job: Types.ObjectId;
   request: Types.ObjectId;
+  /**
+   * The job's category (never changes), copied here because every message notification carries it:
+   * sending a message then needs no job lookup (the hottest write path).
+   */
+  categoryId: CategoryId;
   /** Exactly two: the customer and the professional's user. */
   participants: ConversationParticipantDoc[];
   lastMessage: LastMessageDoc | null;
@@ -65,6 +71,7 @@ const conversationSchema = new Schema<ConversationDoc>(
   {
     job: { type: Schema.Types.ObjectId, ref: 'Job', required: true },
     request: { type: Schema.Types.ObjectId, ref: 'Request', required: true },
+    categoryId: { type: String, enum: CATEGORY_IDS, required: true },
     participants: { type: [participantSchema], required: true },
     lastMessage: { type: lastMessageSchema, default: null },
     lastActivityAt: { type: Date, required: true },
@@ -77,5 +84,8 @@ const conversationSchema = new Schema<ConversationDoc>(
 conversationSchema.index({ job: 1 }, { unique: true });
 // GET /conversations: the user's conversations, most recent activity first (keyset + totalCount).
 conversationSchema.index({ 'participants.user': 1, lastActivityAt: -1, _id: -1 });
+// GET /conversations/unread-count (the inbox badge, refetched on every message): with `$elemMatch`
+// on both fields the scan is bounded to the conversations where this user has unread messages.
+conversationSchema.index({ 'participants.user': 1, 'participants.unreadCount': 1 }, { name: 'participant_unread' });
 
 export const ConversationModel = model<ConversationDoc>('Conversation', conversationSchema);

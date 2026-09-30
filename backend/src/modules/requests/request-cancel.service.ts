@@ -8,6 +8,7 @@ import type { Types } from 'mongoose';
 import type { AppDeps } from '../../deps.js';
 import { withTransaction } from '../../infra/mongo.js';
 import { uniqueIds } from '../../lib/ids.js';
+import { requestAcceptsOffers } from '../../shared/statuses.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import { cancelJobForRequest } from '../jobs/job-lifecycle.service.js';
 import { JobModel, type JobDoc } from '../jobs/job.model.js';
@@ -15,14 +16,13 @@ import { assertJobTransition } from '../jobs/job-rules.js';
 import { createNotifications } from '../notifications/create-notification.service.js';
 import { rejectPendingOffers, syncRequestOfferCounters } from '../offers/offer-counters.service.js';
 import { publishOfferUpdated } from '../offers/offer-events.js';
-import { explorerAudience } from './matching.service.js';
 import { customerNameOf, loadOwnedRequest } from './request-access.js';
-import { publishRequestUpdated } from './request-events.js';
+import { publishRequestLeftExplorers, publishRequestUpdated } from './request-events.js';
 import { assertRequestTransition } from './request-rules.js';
 import type { RequestDoc } from './request.model.js';
 import type { CancelRequestInput } from './requests.schemas.js';
 
-type CancelDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'redis' | 'keys' | 'background'>;
+type CancelDeps = Pick<AppDeps, 'env' | 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background'>;
 
 export function cancelRequest(deps: CancelDeps, auth: AuthContext, requestId: Types.ObjectId, input: CancelRequestInput): Promise<RequestDoc> {
   return withTransaction(deps.logger, async (tx) => {
@@ -31,8 +31,6 @@ export function cancelRequest(deps: CancelDeps, auth: AuthContext, requestId: Ty
     const job = request.job ? await JobModel.findById(request.job).session(tx.session).lean<JobDoc>() : null;
     const jobToCancel = job && job.status !== 'cancelled' ? job : null;
     if (jobToCancel) assertJobTransition(jobToCancel.status, 'cancelled');
-    // Computed before the change: while the request took offers it was on these explorers.
-    const leavesExplorer = await explorerAudience(request);
 
     const now = deps.clock.now();
     const rejected = await rejectPendingOffers(request._id, 'request_cancelled', now, tx);
@@ -52,7 +50,9 @@ export function cancelRequest(deps: CancelDeps, auth: AuthContext, requestId: Ty
       tx,
     );
     for (const offer of rejected) await publishOfferUpdated(deps, offer, cancelled.customer, tx);
-    await publishRequestUpdated(deps, cancelled, { extra: leavesExplorer, tx });
+    // While it took offers it was on the explorers of matching professionals: they drop it too.
+    if (requestAcceptsOffers(request.status)) publishRequestLeftExplorers(deps, cancelled, tx);
+    else await publishRequestUpdated(deps, cancelled, { tx });
     return cancelled;
   });
 }

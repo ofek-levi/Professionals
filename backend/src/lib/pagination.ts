@@ -18,8 +18,8 @@ import { vm } from '../shared/validation-messages.js';
 import { ApiError } from './errors.js';
 import { queryNumber, queryString } from './query-schemas.js';
 
-export const DEFAULT_PAGE_SIZE = APP_CONFIG.pageSize;
-export const MAX_PAGE_SIZE = APP_CONFIG.maxPageSize;
+const DEFAULT_PAGE_SIZE = APP_CONFIG.pageSize;
+const MAX_PAGE_SIZE = APP_CONFIG.maxPageSize;
 
 export type CursorValue = string | number | boolean | Date | Types.ObjectId;
 export interface SortKey {
@@ -137,8 +137,9 @@ export function afterCursorFilter(spec: SortSpec, values: readonly CursorValue[]
     branch[key.path] = { [key.direction === 1 ? '$gt' : '$lt']: values[index] };
     return branch;
   });
+  // `spec` always has a leading key (at least `_id`); with `_id` alone the single branch is exact.
   const [lead] = spec;
-  if (branches.length === 1 || !lead) return branches[0] ?? {};
+  if (branches.length === 1) return branches[0] ?? {};
   return { [lead.path]: { [lead.direction === 1 ? '$gte' : '$lte']: values[0] }, $or: branches };
 }
 
@@ -158,7 +159,10 @@ interface FindPageOptions<TDoc> {
   sort: SortSpec;
   page: PageParams;
   projection?: Record<string, 0 | 1>;
-  /** First-page total when the caller already knows it (default: `countDocuments(filter)`). */
+  /**
+   * The total when the caller already has it cheaply (e.g. a counter on a parent document); it is
+   * then used on every page. Default: `countDocuments(filter)` on the first page, echoed after.
+   */
   totalCount?: Promise<number>;
 }
 
@@ -179,7 +183,7 @@ export async function findPage<TDoc, TLean = TDoc & { _id: Types.ObjectId }>(
       .sort(sortOf(sort))
       .limit(page.limit + 1)
       .lean<TLean[]>(),
-    cursor ? cursor.totalCount : (totalCount ?? model.countDocuments(filter).exec()),
+    totalCount ?? (cursor ? cursor.totalCount : model.countDocuments(filter).exec()),
   ]);
   return toPage(docs, page, sort, total);
 }

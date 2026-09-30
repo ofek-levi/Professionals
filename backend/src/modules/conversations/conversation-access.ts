@@ -27,14 +27,16 @@ export async function requireParticipantConversation(
   return conversation;
 }
 
-export function participantOf(conversation: ConversationDoc, userId: Types.ObjectId): ConversationParticipantDoc {
+type Participants = Pick<ConversationDoc, '_id' | 'participants'>;
+
+export function participantOf(conversation: Participants, userId: Types.ObjectId): ConversationParticipantDoc {
   const participant = conversation.participants.find((p) => p.user.equals(userId));
   if (!participant) throw new Error(`User ${userId.toHexString()} is not in conversation ${conversation._id.toHexString()}`);
   return participant;
 }
 
 /** The other participant of the two-party conversation. */
-export function counterpartOf(conversation: ConversationDoc, userId: Types.ObjectId): ConversationParticipantDoc {
+export function counterpartOf(conversation: Participants, userId: Types.ObjectId): ConversationParticipantDoc {
   const other = conversation.participants.find((p) => !p.user.equals(userId));
   if (!other) throw new Error(`Conversation ${conversation._id.toHexString()} has no counterpart for ${userId.toHexString()}`);
   return other;

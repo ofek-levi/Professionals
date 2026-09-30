@@ -27,4 +27,6 @@ export const KEY_SPACES = {
   revokedSession: 'revoked-sid',
   /** Pub/sub: session ids just revoked (realtime servers close their sockets). */
   sessionRevokedChannel: 'session-revoked',
+  /** Merge windows of explorer refresh events, per professional. */
+  explorerWindow: 'explorer-window',
 } as const;

@@ -5,10 +5,13 @@
  *    address may have changed at Google.
  * 2. Otherwise the email decides. An account linked to a *different* Google account is refused
  *    (a recycled or re-created address): 401 `INVALID_GOOGLE_TOKEN`, never a sign-in by email alone.
- * 3. An email + password account signing in with Google for the first time gets it linked. If its
- *    email was never verified, the password may have been set by someone who registered the
- *    address before its owner ("pre-account hijacking"): the password is dropped and every
- *    session revoked; the email is now verified by Google. A verified password keeps working.
+ * 3. An email + password account signing in with Google for the first time gets it linked. Google
+ *    proves who owns the address; whoever holds the account's sessions may not be that person
+ *    (someone may have registered the address before its owner: "pre-account hijacking"), so every
+ *    existing session is revoked on this first link. If the email was never verified, the password
+ *    was chosen by an unproven party too: it is dropped, and the email is now verified by Google.
+ *    A verified password keeps working (verifying takes a deliberate click on a confirmation page,
+ *    which link-prefetching mail scanners do not do).
  * 4. Unknown → `registration_required` with the Google profile (the app finishes the sign-up).
  */
 import type { AppDeps } from '../../deps.js';
@@ -50,10 +53,8 @@ async function linkGoogleAccount(deps: GoogleDeps, user: LinkCandidate, identity
       session: tx.session,
     });
     if (matchedCount === 0) throw ApiError.invalidGoogleToken('This email is linked to a different Google account');
-    if (!verified) {
-      await revokeAllSessions(deps, user._id, tx);
-      await deleteEmailTokens(user._id, 'verify_email', tx.session);
-    }
+    await revokeAllSessions(deps, user._id, tx);
+    if (!verified) await deleteEmailTokens(user._id, 'verify_email', tx.session);
     return signIn(deps, user, tx.session);
   });
 }

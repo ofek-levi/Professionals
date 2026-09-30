@@ -7,6 +7,7 @@ import type { Types } from 'mongoose';
 
 import { toServiceLocation } from '../../infra/schema-parts.js';
 import { required } from '../../lib/batch.js';
+import { isoOrNull } from '../../lib/clock.js';
 import { approximateLocation } from '../../lib/geo.js';
 import type {
   CustomerRequestView,
@@ -21,7 +22,6 @@ import { OfferModel, type OfferDoc } from '../offers/offer.model.js';
 import { distanceKm, isRequestMatch, type MatchableProfessional } from './matching.service.js';
 import type { RequestDoc } from './request.model.js';
 
-const iso = (date: Date | null) => (date ? date.toISOString() : null);
 const hex = (id: Types.ObjectId | null) => (id ? id.toHexString() : null);
 
 /** The request as its owner (and the parties of its job) see it. */
@@ -41,8 +41,8 @@ export function toServiceRequestDto(request: RequestDoc): ServiceRequest {
     pendingOfferCount: request.pendingOfferCount,
     acceptedOfferId: hex(request.acceptedOffer),
     jobId: hex(request.job),
-    publishedAt: iso(request.publishedAt),
-    cancelledAt: iso(request.cancelledAt),
+    publishedAt: isoOrNull(request.publishedAt),
+    cancelledAt: isoOrNull(request.cancelledAt),
     cancellationReason: request.cancellationReason,
     cancellationComment: request.cancellationComment,
     createdAt: request.createdAt.toISOString(),
@@ -55,7 +55,7 @@ export async function toCustomerRequestViews(requests: RequestDoc[]): Promise<Cu
   const stats = await loadRequestOfferStats(requests.map((request) => request._id));
   return requests.map((request) => {
     const own = stats.get(request._id.toHexString());
-    return { ...toServiceRequestDto(request), latestOfferAt: iso(own?.latestOfferAt ?? null), lowestOfferPrice: own?.lowestOfferPrice ?? null };
+    return { ...toServiceRequestDto(request), latestOfferAt: isoOrNull(own?.latestOfferAt ?? null), lowestOfferPrice: own?.lowestOfferPrice ?? null };
   });
 }
 

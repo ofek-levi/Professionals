@@ -36,6 +36,11 @@ describe('push receipts cron', () => {
     deps.push.receipts.set('t-ok', { status: 'ok' });
     deps.push.receipts.set('t-gone', { status: 'error', error: 'DeviceNotRegistered' });
 
+    // The set expires a day after the last push even if no instance ever runs this cron.
+    const ttl = await deps.redis.ttl(ticketsKey);
+    expect(ttl).toBeGreaterThan(24 * 60 * 60 - 60);
+    expect(ttl).toBeLessThanOrEqual(24 * 60 * 60);
+
     deps.clock.advanceMinutes(10);
     expect(await checkPushReceipts(deps)).toBe(0); // not due yet
     expect(await deps.redis.zcard(ticketsKey)).toBe(3);

@@ -5,7 +5,9 @@
  */
 import { z } from 'zod';
 
-export const APP_ENVS = ['development', 'staging', 'production'] as const;
+import { deployedSecretIssues, isPlaceholderSecret, parseTrustProxy, type TrustProxy } from './env-hardening.js';
+
+const APP_ENVS = ['development', 'staging', 'production'] as const;
 export type AppEnv = (typeof APP_ENVS)[number];
 
 const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
@@ -43,8 +45,9 @@ const rawEnvSchema = z.object({
   MONGODB_MAX_POOL_SIZE: z.coerce.number().int().min(1).max(500).default(20),
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
   JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
-  JWT_ISSUER: z.string().min(1).default('professionals-api'),
-  JWT_AUDIENCE: z.string().min(1).default('professionals-app'),
+  /** Defaults include APP_ENV, so a secret shared by mistake cannot replay staging tokens in production. */
+  JWT_ISSUER: optionalString,
+  JWT_AUDIENCE: optionalString,
   GOOGLE_WEB_CLIENT_ID: optionalString,
   GOOGLE_IOS_CLIENT_ID: optionalString,
   GOOGLE_ANDROID_CLIENT_ID: optionalString,
@@ -63,11 +66,15 @@ const rawEnvSchema = z.object({
   GEOCODER_EMAIL: optionalString,
   GEOCODER_USER_AGENT: optionalString,
   GEOCODER_COUNTRY_CODES: z.string().default('il'),
+  /** Spacing of provider calls across instances: Nominatim's public API allows 1/s; a hosted plan may allow less (or 0). */
+  GEOCODER_MIN_INTERVAL_MS: z.coerce.number().int().min(0).max(60_000).default(1000),
   CRON_ENABLED: booleanString(true),
   CRON_DISABLED_JOBS: csv,
   RATE_LIMIT_ENABLED: booleanString(true),
   PASSWORD_BREACH_CHECK: booleanString(true),
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
+  /** Window in which explorer refresh events to one professional are merged (0 = send each at once). */
+  EXPLORER_EVENT_WINDOW_MS: z.coerce.number().int().min(0).max(10_000).default(2000),
 });
 type RawEnv = z.output<typeof rawEnvSchema>;
 
@@ -90,7 +97,7 @@ export interface Env {
   publicApiUrl: string;
   /** `'*'` allows every origin (development only). */
   corsOrigins: string[] | '*';
-  trustProxy: boolean | number | string;
+  trustProxy: TrustProxy;
   logLevel: (typeof LOG_LEVELS)[number];
   mongo: { uri: string; dbName: string | undefined; maxPoolSize: number };
   redis: { url: string };
@@ -100,12 +107,13 @@ export interface Env {
   cloudinary: CloudinaryConfig | null;
   mail: { from: string; resendApiKey: string | null; smtp: SmtpConfig | null };
   expoAccessToken: string | null;
-  geocoder: { url: string; email: string | null; userAgent: string; countryCodes: string };
+  geocoder: { url: string; email: string | null; userAgent: string; countryCodes: string; minIntervalMs: number };
   cron: { enabled: boolean; disabledJobs: string[] };
   rateLimit: { enabled: boolean };
   /** Reject new passwords found in data breaches (Pwned Passwords range API). */
   passwordBreachCheck: boolean;
   shutdownTimeoutMs: number;
+  realtime: { explorerEventWindowMs: number };
 }
 
 export class EnvError extends Error {
@@ -126,12 +134,6 @@ function parseCloudinary(raw: RawEnv): CloudinaryConfig | null {
     return { cloudName: raw.CLOUDINARY_CLOUD_NAME, apiKey: raw.CLOUDINARY_API_KEY, apiSecret: raw.CLOUDINARY_API_SECRET };
   }
   return null;
-}
-
-function parseTrustProxy(value: string | undefined): boolean | number | string {
-  if (value === undefined || value === 'false') return false;
-  if (value === 'true') return true;
-  return /^\d+$/.test(value) ? Number(value) : value;
 }
 
 /** Credentials that staging/production must have (development falls back, see `envWarnings`). */
@@ -158,10 +160,12 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
   const cloudinary = parseCloudinary(raw);
   if (raw.CLOUDINARY_URL && !cloudinary) throw new EnvError(['CLOUDINARY_URL must look like cloudinary://key:secret@cloud']);
   const deployed = raw.APP_ENV !== 'development';
-  if (deployed) {
-    const missing = missingForDeployedEnv(raw, cloudinary);
-    if (missing.length > 0) throw new EnvError(missing);
-  }
+  const trustProxy = parseTrustProxy(raw.TRUST_PROXY, deployed);
+  const issues = [
+    ...(deployed ? [...missingForDeployedEnv(raw, cloudinary), ...deployedSecretIssues(raw.JWT_ACCESS_SECRET)] : []),
+    ...trustProxy.issues,
+  ];
+  if (issues.length > 0) throw new EnvError(issues);
   const smtp: SmtpConfig | null =
     raw.SMTP_USER && raw.SMTP_PASS ? { host: raw.SMTP_HOST, port: raw.SMTP_PORT, user: raw.SMTP_USER, pass: raw.SMTP_PASS } : null;
 
@@ -170,11 +174,15 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
     port: raw.PORT,
     publicApiUrl: (raw.PUBLIC_API_URL ?? `http://localhost:${raw.PORT}`).replace(/\/+$/, ''),
     corsOrigins: raw.CORS_ORIGINS.length > 0 ? raw.CORS_ORIGINS : deployed ? [] : '*',
-    trustProxy: parseTrustProxy(raw.TRUST_PROXY),
+    trustProxy: trustProxy.value,
     logLevel: raw.LOG_LEVEL ?? (deployed ? 'info' : 'debug'),
     mongo: { uri: raw.MONGODB_URI, dbName: raw.MONGODB_DB_NAME, maxPoolSize: raw.MONGODB_MAX_POOL_SIZE },
     redis: { url: raw.REDIS_URL },
-    jwt: { accessSecret: raw.JWT_ACCESS_SECRET, issuer: raw.JWT_ISSUER, audience: raw.JWT_AUDIENCE },
+    jwt: {
+      accessSecret: raw.JWT_ACCESS_SECRET,
+      issuer: raw.JWT_ISSUER ?? `professionals-api:${raw.APP_ENV}`,
+      audience: raw.JWT_AUDIENCE ?? `professionals-app:${raw.APP_ENV}`,
+    },
     googleClientIds: [raw.GOOGLE_WEB_CLIENT_ID, raw.GOOGLE_IOS_CLIENT_ID, raw.GOOGLE_ANDROID_CLIENT_ID].filter(
       (id): id is string => id !== undefined,
     ),
@@ -191,11 +199,13 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
       email: raw.GEOCODER_EMAIL ?? null,
       userAgent: raw.GEOCODER_USER_AGENT ?? 'ProfessionalsAPI/1.0 (development)',
       countryCodes: raw.GEOCODER_COUNTRY_CODES,
+      minIntervalMs: raw.GEOCODER_MIN_INTERVAL_MS,
     },
     cron: { enabled: raw.CRON_ENABLED, disabledJobs: raw.CRON_DISABLED_JOBS },
     rateLimit: { enabled: raw.RATE_LIMIT_ENABLED },
     passwordBreachCheck: raw.PASSWORD_BREACH_CHECK,
     shutdownTimeoutMs: raw.SHUTDOWN_TIMEOUT_MS,
+    realtime: { explorerEventWindowMs: raw.EXPLORER_EVENT_WINDOW_MS },
   };
 }
 
@@ -203,6 +213,7 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
 export function envWarnings(env: Env): string[] {
   if (env.appEnv !== 'development') return [];
   const warnings: string[] = [];
+  if (isPlaceholderSecret(env.jwt.accessSecret)) warnings.push('JWT_ACCESS_SECRET is the example placeholder (refused in staging/production)');
   if (!env.mail.smtp) warnings.push('SMTP_USER/SMTP_PASS not set: emails are written to the log instead of being sent');
   if (!env.cloudinary) warnings.push('Cloudinary is not configured: POST /v1/uploads/images answers 503');
   if (env.googleClientIds.length === 0) warnings.push('Google client ids are not configured: Google sign-in answers 503');

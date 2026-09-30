@@ -12,7 +12,7 @@ import mongoose, { type ClientSession } from 'mongoose';
 import type { Logger } from '../lib/logger.js';
 
 mongoose.set('strictQuery', true);
-// Indexes are created explicitly at startup (`syncIndexes`), not lazily on first use.
+// Indexes are created explicitly at startup (`ensureIndexes`), not lazily on first use.
 mongoose.set('autoIndex', false);
 
 export interface MongoOptions {
@@ -33,18 +33,22 @@ export async function connectMongo(options: MongoOptions): Promise<typeof mongoo
 }
 
 /**
- * Creates the collections and makes their indexes match the schemas (idempotent; indexes removed
- * from a schema are dropped). Runs at startup; a failure is logged loudly but does not stop the
- * process (e.g. another instance is building the same index during a rolling deploy).
+ * Creates the collections and every index the schemas declare (idempotent). It never drops one:
+ * during a rolling deploy old and new releases boot side by side, and dropping what the running code
+ * does not declare made them undo each other's indexes (rebuilds, unindexed queries in between).
+ * Indexes no longer declared are only reported (`stale indexes`); drop them in a release step once
+ * no running instance needs them (docs/OPERATIONS.md). A failure is logged loudly but does not stop
+ * the process (e.g. another instance is building the same index).
  */
-export async function syncIndexes(logger: Logger): Promise<void> {
+export async function ensureIndexes(logger: Logger): Promise<void> {
   for (const model of Object.values(mongoose.models)) {
     try {
       await model.createCollection().catch(() => undefined);
-      await model.syncIndexes();
-      logger.debug({ model: model.modelName }, 'indexes synced');
+      await model.createIndexes();
+      const { toDrop } = await model.diffIndexes();
+      if (toDrop.length > 0) logger.warn({ model: model.modelName, indexes: toDrop }, 'stale indexes (drop them in a release step)');
     } catch (error) {
-      logger.error({ err: error, model: model.modelName }, 'index sync failed');
+      logger.error({ err: error, model: model.modelName }, 'index creation failed');
     }
   }
 }

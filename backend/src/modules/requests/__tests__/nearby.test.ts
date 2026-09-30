@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { signInProfessional, type SignedInProfessional } from '../../../../test/auth.js';
 import { createCustomer, createOffer, createRequest, TEL_AVIV, testLocation } from '../../../../test/factories.js';
-import { offsetCoordinates } from '../../../lib/geo.js';
+import { offsetCoordinates, toGeoPoint } from '../../../lib/geo.js';
 import type { UserDoc } from '../../users/user.model.js';
-import type { RequestDoc } from '../request.model.js';
+import { RequestModel, type RequestDoc } from '../request.model.js';
 
 const MINUTE = 60_000;
 
@@ -20,13 +20,19 @@ describe('GET /v1/professional/requests/nearby', () => {
     customer = await createCustomer();
   });
 
-  /** An open request `km` north of the professional's center, published `minutesAgo` ago. */
-  function openRequest(km: number, minutesAgo: number, overrides: Partial<RequestDoc> = {}) {
-    return createRequest(customer, {
-      location: testLocation(offsetCoordinates(TEL_AVIV, km * 1000, 0)),
+  /**
+   * An open request whose public pin is `km` north of the professional's center (the explorer
+   * measures to the pin; the exact address is `exactKm` north), published `minutesAgo` ago.
+   */
+  async function openRequest(km: number, minutesAgo: number, overrides: Partial<RequestDoc> = {}, exactKm = km) {
+    const created = await createRequest(customer, {
+      location: testLocation(offsetCoordinates(TEL_AVIV, exactKm * 1000, 0)),
       publishedAt: new Date(deps.clock.now().getTime() - minutesAgo * MINUTE),
       ...overrides,
     });
+    const publicPoint = toGeoPoint(offsetCoordinates(TEL_AVIV, km * 1000, 0));
+    await RequestModel.updateOne({ _id: created._id }, { $set: { publicPoint } });
+    return { ...created, publicPoint };
   }
 
   const ids = (body: { items: { id: string }[] }) => body.items.map((item) => item.id);
@@ -40,11 +46,15 @@ describe('GET /v1/professional/requests/nearby', () => {
     await openRequest(1, 4, { status: 'professional_selected' });
     await openRequest(1, 5, { status: 'draft', publishedAt: null });
     const received = await openRequest(2, 6, { status: 'offers_received', pendingOfferCount: 1, offerCount: 1 });
+    // Only the approximate pin counts: the exact address never decides nor shows a distance.
+    await openRequest(20.5, 7, {}, 19.5);
+    const pinInside = await openRequest(19.5, 8, {}, 20.5);
 
     const res = await get();
-    expect(ids(res.body)).toEqual([hex(inside), hex(received)]);
+    expect(ids(res.body)).toEqual([hex(inside), hex(received), hex(pinInside)]);
     expect(res.body.items[0]).toMatchObject({ distanceKm: 20, isMatch: true, notes: null });
-    expect(res.body.totalCount).toBe(2);
+    expect(res.body.items[2]).toMatchObject({ distanceKm: 19.5 });
+    expect(res.body.totalCount).toBe(3);
   });
 
   it('applies the explorer filters', async () => {
@@ -53,7 +63,8 @@ describe('GET /v1/professional/requests/nearby', () => {
     const far = await openRequest(15, 3, { pendingOfferCount: 2, offerCount: 2, status: 'offers_received', preferredSchedule: { date: '2026-10-09', timeWindow: 'any' } });
 
     expect(ids((await get('?maxDistanceKm=10')).body)).toEqual([hex(near), hex(mid)]);
-    expect(ids((await get('?maxDistanceKm=500')).body)).toHaveLength(3);
+    // Larger than the service radius: the radius still applies.
+    expect(ids((await get('?maxDistanceKm=40')).body)).toHaveLength(3);
     expect(ids((await get('?categoryIds=handyman')).body)).toEqual([hex(mid)]);
     expect((await get('?categoryIds=painting')).body).toEqual({ items: [], nextCursor: null, totalCount: 0 });
     expect(ids((await get('?urgencies=emergency,urgent')).body)).toEqual([hex(near)]);
@@ -69,6 +80,10 @@ describe('GET /v1/professional/requests/nearby', () => {
 
     const bad = await request(app).get('/v1/professional/requests/nearby?maxDistanceKm=0&urgencies=x&sort=best&preferredDateFrom=2026-13-01').set(pro.headers).expect(400);
     expect(Object.keys(bad.body.fieldErrors as object).sort()).toEqual(['maxDistanceKm', 'preferredDateFrom', 'sort', 'urgencies.0']);
+    // Only the app's presets (5/10/20/40): a free value would let a professional measure distances finely.
+    for (const fine of ['9.99', '10.001', '500']) {
+      await request(app).get(`/v1/professional/requests/nearby?maxDistanceKm=${fine}`).set(pro.headers).expect(400);
+    }
   });
 
   it('sorts like the app and pages each order with keyset cursors', async () => {

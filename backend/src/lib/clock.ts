@@ -5,6 +5,11 @@ export interface Clock {
 
 export const systemClock: Clock = { now: () => new Date() };
 
+/** API form of an optional instant (`null` stays `null`). */
+export function isoOrNull(date: Date | null): string | null {
+  return date ? date.toISOString() : null;
+}
+
 /** Manually driven clock for tests. */
 export class FakeClock implements Clock {
   private current: number;

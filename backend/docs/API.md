@@ -39,7 +39,7 @@ app's current types; then one section per module. Source of each rule: `src/` (s
   **90 days** (sliding) and rotate on every `POST /auth/refresh`. Details: [Auth](#auth).
 - A missing, malformed or expired token, or one whose session was signed out/revoked, answers
   **401 `UNAUTHORIZED`**. Revocation is immediate: logout, refresh-token reuse, a password reset or
-  Google linking over an unverified password put the session ids on a Redis denylist for the
+  a first Google link of a password account put the session ids on a Redis denylist for the
   remaining lifetime of their access tokens.
 - The wrong role answers **403 `FORBIDDEN`** (e.g. a professional calling `/customer/dashboard`), as
   does another user's resource (someone else's request, offer, job, conversation or notification).
@@ -78,8 +78,18 @@ Every list is keyset-paginated: `?cursor=&limit=` → `{ items, nextCursor, tota
   map asks 100). Out of range or not an integer → 400 `fieldErrors.limit`.
 - `cursor`: opaque; pass the previous page's `nextCursor` unchanged. `null` means the last page. A
   tampered cursor → 400 `fieldErrors.cursor`. Cursors encode the sort key of the last item, so pages
-  stay stable while new items arrive (no duplicates, no skips).
-- `totalCount` counts every item matching the filters (not only the remaining ones).
+  stay stable while new items arrive: an inserted item never shifts or repeats the next pages.
+- Items whose sort key changes **move**. Lists ordered by a key that changes (`GET /professional/offers`
+  and `GET /customer/requests` by `updatedAt`, `GET /conversations` by last activity, the explorer's
+  `fewest_offers`) put a changed item at its new position; pages loaded after the change may then miss
+  it (it moved before the cursor) or repeat it. Every such change is announced (`offer.updated`,
+  `request.updated`, `message.created`), and the client must then reload the list **from the first
+  page** (React Query's invalidation of an infinite query does exactly that) and de-duplicate items by
+  id (`selectPaginatedList` does). Lists on immutable keys (messages, notifications, reviews, jobs by
+  appointment/completion) are exact.
+- `totalCount` counts every item matching the filters (not only the remaining ones). It is computed on
+  the first page (no `cursor`) and echoed unchanged by the following pages of that walk (it travels in
+  the cursor), so "load more" never recounts the whole list; the app reads it from the first page.
 - Filters must stay the same between pages of one list; changing them starts over without a cursor.
 - Lists that are arrays in the app's current types (`GET /conversations`, `GET /requests/:id/offers`,
   `GET /jobs`) are paginated too; see the contract changes below.
@@ -87,26 +97,39 @@ Every list is keyset-paginated: `?cursor=&limit=` → `{ items, nextCursor, tota
 ### Rate limits
 
 Counted in Redis (shared by every instance; keys `${APP_ENV}:rl:*`). Over the limit → 429
-`RATE_LIMITED` with `RateLimit`/`RateLimit-Policy`/`Retry-After` headers. If Redis is unreachable,
-requests pass (availability first).
+`RATE_LIMITED` with `RateLimit`/`RateLimit-Policy`/`Retry-After` headers (the service-level budgets
+marked * answer 429 without those headers). If Redis is unreachable, requests pass (availability first).
+
+Signed-in traffic is limited **per user**: many mobile subscribers share one carrier IP (CGNAT), so
+per-IP limits are generous and meant for anonymous routes. Limits that name an account never let a
+stranger lock its owner out (see the notes below the table).
 
 | Scope | Limit |
 |---|---|
-| Every `/v1` request, per IP | 600 / min |
-| `POST /auth/login` | 30 / 15 min per IP, 10 / 15 min per email |
-| `POST /auth/register` | 20 / h per IP, 5 / h per email |
-| `POST /auth/google` | 30 / 15 min per IP |
-| `POST /auth/refresh` | 120 / 15 min per IP |
-| `POST /auth/password-reset` | 10 / h per IP, 3 / h per email |
-| `POST /auth/reset-password` | 30 / 15 min per IP |
-| `GET /geo/search`, `GET /geo/reverse` (together) | 60 / min per IP |
-| `POST /uploads/images` | 60 / 10 min per user |
+| Every `/v1` request | 600 / min per user with a valid bearer token, otherwise per IP |
+| `POST /auth/login` | 300 / 15 min per IP (all attempts); failed attempts*: 10 / 15 min per (email, IP), 100 / 15 min per IP, 50 / 15 min per email from all IPs (not applied to an IP that signed in to that account in the last 30 days) |
+| `POST /auth/register` | 60 / h per IP, 5 / h per (email, IP) |
+| `POST /auth/google` | 120 / 15 min per IP |
+| `POST /auth/refresh` | 30 / 15 min per session, 3000 / 15 min per IP |
+| `POST /auth/password-reset` | 30 / h per IP; reset emails*: 3 / h per address (past it: still 200, no email) |
+| `POST /auth/reset-password` | 300 / 15 min per IP |
+| `GET /geo/search`, `GET /geo/reverse` (together) | 60 / min per IP; cache misses* (provider calls): 15 / min per IP, or 30 / min per signed-in user |
+| `POST /uploads/images` | 60 / 10 min per user; quotas*: 20 unattached uploads, 200 MB / 24 h per user |
 | `POST /requests` | 30 / h per customer |
 | `POST /requests/:id/offers` | 60 / 10 min per professional |
 | `POST /conversations/:id/messages` | 60 / min per user |
 
-Behind a load balancer set `TRUST_PROXY` (see OPERATIONS.md), or every client shares the balancer's
-IP.
+- **Only failed sign-ins count**, so the owner's correct password never uses a budget up. The strict
+  budget is per (email, IP); the account-wide one skips IPs the owner signed in from, and a password
+  reset (which proves the mailbox) clears it. Google sign-in and existing sessions are never affected.
+- **Reset emails**: a new reset link does not invalidate the earlier ones (each stays valid for its hour
+  until one is used), so someone requesting resets for another person's address can neither block nor
+  break the owner's reset.
+- The per-session refresh key only counts genuine tokens: a forged token naming a session never uses
+  that session's budget.
+
+Deployed environments must set `TRUST_PROXY` to their proxies (hop count or subnets, see
+OPERATIONS.md); `true` is refused, since it would let any client choose the IP the limits see.
 
 ### Caching
 
@@ -114,7 +137,10 @@ IP.
   `If-None-Match` → 304.
   The catalog is a code constant (versioned), never a database read.
 - `GET /geo/*`: `Cache-Control: public, max-age=3600`, `Vary: Accept-Language`; results are cached
-  30 days in Redis.
+  in Redis: reverse lookups 30 days (points rounded to ~11 m), address searches 7 days (one entry per
+  query, whatever `limit`), empty answers 1 day. Only cache misses reach the provider (≤ 1/s for all
+  instances); anonymous callers may use at most half of that rate, so sign-ups can never starve
+  signed-in users.
 - Public professional profiles are cached 60 s in Redis and dropped on every profile or stats change.
 - Everything else is private and not cached (`Cache-Control` is not set; clients should not cache).
 
@@ -156,10 +182,11 @@ next phase has to adopt (details in each module's section):
 | Users | New `PATCH /me { preferredLanguage }` and `DELETE /me/devices/:token`; `POST /me/devices` accepts only Expo push tokens. | Call `PATCH /me` when the language changes; register real Expo tokens only (not the simulated provider, not web). |
 | Uploads | `POST /uploads/images` is **multipart** (`file` field, JPEG/PNG/WebP/HEIC ≤ 8 MB), not JSON with a local `uri`. | `FormData.append('file', { uri, name, type })`. |
 | Profiles | `avatarUrl` must be the URL of one of the caller's own uploads (or the current avatar). `GET /geo/reverse` answers 404 where there is no address. | None (already the app's flow / error path). |
-| Lists | `GET /conversations`, `GET /requests/:id/offers`, `GET /jobs` return `Paginated<…>` instead of arrays. | Read `.items` (or use infinite queries); cache helpers map `pages[].items`. |
+| Lists | `GET /conversations`, `GET /requests/:id/offers`, `GET /jobs` return `Paginated<…>` instead of arrays. | Use infinite queries (cache helpers map `pages[].items`); `.items` of one page is enough only for offers (`limit=100`). The Work tab takes "earned this month" from the professional dashboard (marketplace change 2). |
+| Inbox | New `GET /conversations/unread-count` → `{ count }`. | The messages badge uses it instead of summing the paginated list. |
 | Push | Push `data` is `{ notificationId, notificationType, target }`. | The Expo provider copies it into `PushMessage`. |
 | Realtime | Close code 4001 = the token expired or the session was revoked. | On 4001 refresh the access token before reconnecting (today's client retries every 3 s with the same token); stop on a failed refresh. |
-| Limits | New 429 limits (see [Rate limits](#rate-limits)). | Show the generic error. |
+| Limits | New 429 limits (see [Rate limits](#rate-limits)); `maxDistanceKm` only takes the app's presets. | Show the generic error. |
 | Time | Calendar rules use `Asia/Jerusalem` instead of the device zone. | None for Israeli users. |
 
 ## Auth
@@ -171,17 +198,26 @@ Public endpoints (no `Authorization` needed) under `/v1/auth`. Source: `src/modu
 - **Access token**: JWT (HS256), valid **30 minutes**, sent as `Authorization: Bearer <token>` (and as
   `?token=` for `/v1/realtime`). Claims: `sub` (user id), `role`, `sid` (session id), `typ: "access"`,
   `iss`, `aud`. It is verified without a database hit; one Redis lookup refuses tokens of sessions that
-  were signed out or revoked, so revocation takes effect immediately (the denylist entry lives as long
-  as the longest remaining access token, 30 minutes).
-- **Refresh token**: opaque random 256-bit string (43 base64url characters), valid **90 days, sliding**:
-  every refresh returns a new one (the old one stops working) and extends the session to now + 90 days.
-  The server stores only SHA-256 hashes (`sessions` collection, TTL-deleted when expired).
-- **Reuse detection**: presenting a refresh token that a refresh already replaced means two parties hold
-  the session, so the whole session is revoked (and its push devices removed) and the answer is 401.
-  Within 30 seconds of the rotation it is treated as a concurrent refresh by the same app instead: 401,
-  the session stays. Clients should run one refresh at a time and store the new token before using it.
-- One session per sign-in (per device). Signing out deletes it; a password reset, or Google linking over
-  an unverified password, deletes all sessions of the account.
+  were signed out or revoked, so revocation takes effect immediately (the denylist entry outlives the
+  longest remaining access token: 31 minutes).
+  `iss`/`aud` default to `professionals-api:<APP_ENV>` / `professionals-app:<APP_ENV>`, so a token of one
+  environment is refused by another even if they shared a secret by mistake.
+- **Refresh token**: opaque to the app (91 characters: `<session id>.<256-bit secret>.<server
+  signature>`; store and send it as is), valid **90 days, sliding**: every refresh returns a new one
+  and extends the session to now + 90 days. The server stores only SHA-256 hashes (`sessions`
+  collection, TTL-deleted when expired).
+- **Reuse detection**: every token names its session and is signed by the server, so presenting
+  **any** earlier token of a live session — however many rotations ago — means two parties hold it:
+  the whole session is revoked (and its push devices removed) and the answer is 401. A thief who
+  refreshes a stolen token (even several times) is cut off as soon as the owner's app presents its
+  own token. A forged token naming someone's session is simply refused (401) and revokes nothing.
+- **Concurrent refresh / lost response**: presenting the token the last refresh replaced, within 30
+  seconds of that refresh, answers 200 again with the **same** new refresh token (and a fresh access
+  token). Two tabs refreshing at once, or a retry after a lost response, therefore end up with one
+  token, never two diverging ones. Clients should still refresh one at a time and store the new token
+  before using it.
+- One session per sign-in (per device). Signing out deletes it; a password reset, or the first Google
+  link of a password account, deletes all sessions of the account.
 
 ### Contract changes vs the app's types (`frontend/src/types/api/auth.ts`)
 
@@ -192,7 +228,8 @@ Public endpoints (no `Authorization` needed) under `/v1/auth`. Source: `src/modu
 | 3 | `POST /auth/logout` takes `{ refreshToken? }`. Without it, the bearer token's session is revoked (what the current app sends). | Send the refresh token. |
 | 4 | `POST /auth/register` answers **201** (the mock 200). `VALIDATION_ERROR` is **400** (the mock 422); both are handled by the app's client. | None. |
 | 5 | `GET /auth/demo-accounts`, `POST /auth/demo-login` do not exist. | Demo UI already hides itself in `http` mode. |
-| 6 | New server pages `GET /auth/verify-email`, `GET`/`POST /auth/reset-password` (opened from emails, not by the app). | None. |
+| 6 | New server pages `GET`/`POST /auth/verify-email`, `GET`/`POST /auth/reset-password` (opened from emails, not by the app). | None. |
+| 7 | Refresh tokens are 91 characters (`<session>.<secret>.<signature>`), still opaque. | None (store and send as received). |
 
 ### `POST /auth/register` → 201 `AuthSession`
 
@@ -220,13 +257,15 @@ not verified), and the first session. Password sign-ups then get a verification 
 | 409 `EMAIL_ALREADY_REGISTERED` + `fieldErrors.email = ["validation:auth.emailTaken"]` | address (any case) or Google account already registered, also for a concurrent duplicate sign-up |
 | 401 `INVALID_GOOGLE_TOKEN` | Google token invalid/expired, or its email differs from `email` |
 | 503 `SERVER_ERROR` | Google sign-up while Google is not configured (development only) |
-| 429 `RATE_LIMITED` | 20/h per IP, 5/h per email |
+| 429 `RATE_LIMITED` | 60/h per IP, 5/h per (email, IP) |
 
 ### `POST /auth/login` → 200 `AuthSession`
 
 Body `{ email, password }`. 401 `INVALID_CREDENTIALS` (same body and same argon2 work) for an unknown
 email, a wrong password and a Google-only account. Hashes made with older argon2 parameters are
-upgraded on success. 400 for an empty email/password. Rate limits: 30/15 min per IP, 10/15 min per email.
+upgraded on success. 400 for an empty email/password. 429 `RATE_LIMITED` before the password is checked
+when a failed-attempt budget is used up (see [Rate limits](#rate-limits): per (email, IP), per IP, and
+per email except from IPs that signed in to the account before); a correct password never counts.
 
 ### `POST /auth/google` → 200 `GoogleAuthResponse`
 
@@ -234,37 +273,46 @@ Body `{ idToken }` (Google id token; signature, `aud` ∈ web/iOS/Android client
 `email_verified` are checked). Linking rules (BACKEND_INTEGRATION.md §3):
 1. an account linked to this Google `sub` → `{ status: 'signed_in', session }` (matched by `sub` only);
 2. an account with the email but linked to another `sub` → 401 `INVALID_GOOGLE_TOKEN`;
-3. an email + password account → linked and `signed_in`. If its email was **not verified**, the password
-   is removed, the email marked verified and **every session and push device of the account revoked**
-   (pre-account hijacking); a verified account keeps its password and sessions;
+3. an email + password account → linked and `signed_in`. Google proves who owns the address, not who
+   holds the account's sessions (someone may have registered the address first: pre-account hijacking),
+   so **every earlier session and push device of the account is revoked** on this first link. If the
+   email was **not verified**, the password is removed too and the email marked verified; a verified
+   account keeps its password (verifying takes a deliberate click, see the pages below);
 4. unknown → `{ status: 'registration_required', profile: { email, firstName, lastName, avatarUrl } }`.
 
 Errors: 400 without `idToken`, 401 `INVALID_GOOGLE_TOKEN`, 503 when Google is not configured
-(development without client ids), 429 over 30/15 min per IP.
+(development without client ids), 429 over 120/15 min per IP.
 
 ### `POST /auth/refresh` → 200 `{ accessToken, accessTokenExpiresAt, refreshToken }`
 
-Body `{ refreshToken }`. 401 `UNAUTHORIZED` for an unknown, expired, revoked or replayed token (see
-reuse detection); 400 without a token; 429 over 120/15 min per IP.
+Body `{ refreshToken }`. 401 `UNAUTHORIZED` for an unknown, expired, revoked, forged or replayed token
+(see reuse detection; the replay of the just-replaced token within 30 s answers 200 with the same new
+token); 400 without a token; 429 over 30/15 min per session or 3000/15 min per IP.
 
 ### `POST /auth/logout` → 200 `{ success: true }`
 
-Body `{ refreshToken? }`; also reads an optional valid bearer token. Revokes that session (the current
-or just-rotated-away refresh token both work) and deletes the push devices it registered, so a
+Body `{ refreshToken? }`; also reads an optional valid bearer token. Revokes that session (any refresh
+token the server issued for it works) and deletes the push devices it registered, so a
 signed-out phone stops receiving the account's notifications. Always succeeds (idempotent, no auth).
 
 ### `POST /auth/password-reset` → 200 `{ success: true }`
 
 Body `{ email }`. Always the same answer, immediately: the lookup and the email happen in the
 background, so neither the answer nor its timing tells whether the address has an account. When it
-has, a single-use link valid **60 minutes** is emailed (en/he by the account's language); requesting a
-new link invalidates the previous one. Google-only accounts can set a password this way. 400 for an
-invalid email; 429 over 10/h per IP or 3/h per email.
+has, a single-use link valid **60 minutes** is emailed (en/he by the account's language). A newer link
+does **not** invalidate the earlier ones (a stranger requesting resets for the address must not break
+the link its owner is about to open); a successful reset ends them all. At most 3 emails per address
+and hour: past that the answer is still 200 and nothing is sent (the links already sent stay valid).
+Google-only accounts can set a password this way. 400 for an invalid email; 429 over 30/h per IP.
 
 ### Email link pages (server-rendered HTML, en/he, RTL for Hebrew, `Cache-Control: no-store`)
 
-- `GET /auth/verify-email?token=` — marks the email verified (first time only), 200 page in the
-  account's language; 400 page (browser language) for an unknown, expired (48 h) or used link.
+- `GET /auth/verify-email?token=` — a confirmation page in the account's language (the address and a
+  "Confirm email address" button; "didn't create an account? don't confirm"). **Opening the link
+  verifies nothing**: mail gateways prefetch links, and a verified address makes Google linking keep the
+  account's password. 400 page (browser language) for an unknown, expired (48 h) or used link.
+- `POST /auth/verify-email` (the button, form-encoded `{ token }`) — marks the email verified (first time
+  only) and uses the link up: 200 success page, or 400 invalid-link page.
 - `GET /auth/reset-password?token=` — the new-password form (never uses the link up, so email
   scanners prefetching links cannot burn it); 400 page for an invalid link.
 - `POST /auth/reset-password`:
@@ -274,7 +322,8 @@ invalid email; 429 over 10/h per IP or 3/h per email.
     `fieldErrors.password` or `fieldErrors.token = ["validation:invalid"]` (invalid/expired/used link).
   - Both reject a breached password like sign-up does (the link stays usable).
   - Success: new argon2id hash, email marked verified (the link proves the mailbox), link consumed,
-    **every session and push device of the account revoked**. 30/15 min per IP.
+    **every session and push device of the account revoked**, every other reset link ended, and the
+    account's failed sign-ins forgotten. 300/15 min per IP.
 
 No lists here, so no pagination.
 
@@ -356,15 +405,19 @@ Errors: 404 (unknown or malformed id, or a customer's id), 401.
 
 ### `GET /professionals/:professionalId/reviews?cursor=&limit=` — any signed-in user
 `200 Paginated<Review> & { breakdown: RatingBreakdown }`, newest first (keyset on `createdAt, _id`).
-`breakdown` covers all reviews (average rounded to 0.1, `null` without reviews);
-`totalCount === breakdown.reviewCount`. `customerDisplayName` is the short name ("Noa L."),
+`breakdown` covers all reviews (average rounded to 0.1, `null` without reviews) and comes from
+per-star counters kept on the professional (no review is re-read); `totalCount === breakdown.reviewCount`
+on every page. `customerDisplayName` is the short name ("Noa L."),
 reviewer name and avatar are always current. Errors: 404, 400 (`limit`, `cursor`), 401.
 
 ### `GET /professionals?categoryId=&lat=&lng=&cursor=&limit=` — any signed-in user
 `200 Paginated<ProfessionalSummary>`, best ranked first: Bayesian rating (`stats.rankScore`), then
 review count, then id. With `lat` + `lng` only professionals whose own service radius covers the
 point are listed, and nearer ones come first among equals (a single coordinate is ignored, as in the
-app). Errors: 400 (`categoryId` outside the catalog → `validation:invalid`, `lat` →
+app). "Covers" and "nearer" are measured from the **approximate** service-area center the public
+profile shows (250–450 m from the real one), at 0.1 km: a search answering "covered or not" around the
+real center would let anyone probe the circle's edge and recover the professional's address, and
+cursors carry the sort values, so nothing finer than the public profile goes into them. Errors: 400 (`categoryId` outside the catalog → `validation:invalid`, `lat` →
 `validation:location.coordinatesInvalid`, `limit`, `cursor`), 401. (The app has the endpoint in its
 API client but no screen calls it yet.)
 
@@ -372,10 +425,15 @@ API client but no screen calls it yet.)
 `200 PlaceSuggestion[]` (not paginated: autocomplete). `limit` 1–50 (default 8, capped at 20).
 Queries shorter than 2 characters answer `[]` without calling the provider. Language: Hebrew
 letters in `q` → Hebrew results, Latin letters → English, else `Accept-Language`.
-Provider: Nominatim (country filter `GEOCODER_COUNTRY_CODES`), answers cached 30 days in Redis, provider
-calls ≤ 1/s across instances. Headers: `Cache-Control: public, max-age=3600`, `Vary: Accept-Language`.
-Errors: 400 (`limit`), 429 `RATE_LIMITED` (60/min per IP, shared with `/geo/reverse`, or when the
-provider slot stays busy > 4 s), 503 `SERVER_ERROR` (provider down).
+Provider: Nominatim (country filter `GEOCODER_COUNTRY_CODES`), answers cached in Redis (reverse lookups
+30 days, address searches 7 days (one entry per query, whatever `limit`), empty answers 1 day;
+autocomplete stores a key per distinct prefix typed, so these keep it bounded), provider calls ≤ 1/s
+across instances (`GEOCODER_MIN_INTERVAL_MS`). Only cache misses cost a provider call, so they have
+their own budget: 15/min per IP, or 30/min per signed-in user (send the bearer token when there is
+one); anonymous misses may use at most half of the provider's rate. Headers: `Cache-Control: public,
+max-age=3600`, `Vary: Accept-Language`. Errors: 400 (`limit`), 429 `RATE_LIMITED` (60/min per IP,
+shared with `/geo/reverse`; the miss budget; or the provider slot busy > 4 s), 503 `SERVER_ERROR`
+(provider down).
 
 ### `GET /geo/reverse?lat=&lng=` — public
 `200 PlaceSuggestion` for the nearest address; `coordinates` echo the requested point (the pin the
@@ -393,8 +451,9 @@ file's bytes, not from the declared type. Stored on Cloudinary under
 `professionals/<APP_ENV>/images`, longest edge ≤ 2048 px.
 `201 UploadedImage { id, url, width, height }` (dimensions of the stored image).
 Errors: 400 `{ file: ['validation:upload.invalid'] }` (missing, not an image, too large; a wrong
-field name is reported under that name), 401, 429 (60 uploads / 10 min per user), 503 `SERVER_ERROR`
-(storage not configured: development without Cloudinary credentials).
+field name is reported under that name), 401, 429 (60 uploads / 10 min per user; 20 uploads waiting to
+be attached to a request or profile; 200 MB per 24 h per user — checked before the file is read),
+503 `SERVER_ERROR` (storage not configured: development without Cloudinary credentials).
 Uploads nobody attaches within 24 h are deleted by the daily `orphan-uploads` cron (03:17 UTC).
 
 ### Avatars
@@ -417,10 +476,12 @@ default 20, max 100; bad values → 400 `fieldErrors.cursor` / `fieldErrors.limi
 
 | # | Change | App impact |
 |---|---|---|
-| 1 | `GET /conversations` is paginated: `?cursor=&limit=` → `Paginated<Conversation>` (the app expects `Conversation[]`). | `getConversations` becomes an infinite query; the cache helpers that map the list (`realtime-events.ts`, `use-message-mutations.ts`) map `pages[].items`. The inbox badge sums `unreadCount` of the loaded pages only (see *Open points*). |
+| 1 | `GET /conversations` is paginated: `?cursor=&limit=` → `Paginated<Conversation>` (the app expects `Conversation[]`). | `getConversations` becomes an infinite query; the cache helpers that map the list (`realtime-events.ts`, `use-message-mutations.ts`) map `pages[].items`. The inbox badge takes its messages count from contract change 5, not from the loaded pages. |
 | 2 | Push `data` is `{ notificationId, notificationType, target }` (adds `notificationType`, a field the app's `PushMessage` already declares). | The Expo push provider copies `data` into `PushMessage`, so a tap marks the notification read and routes like the inbox. |
 | 3 | `VALIDATION_ERROR` is 400 (the mock answers 422); both are handled by the app's client. | None. |
 | 4 | New limit: 60 messages per minute per user → 429 `RATE_LIMITED`. | Keep the failed message in the composer (already the case for any error). |
+| 5 | New `GET /conversations/unread-count` → `{ count }` (unread messages over all conversations). | `useInboxCounts` takes `messages` from it (refetched on `message.created` / `conversation.read`) instead of summing the list. |
+| 6 | "Email updates" (`emailEnabled`) now sends notification emails, to verified addresses only, throttled (see [Email updates](#email-updates-notificationpreferencesemailenabled)). | None (the toggle does what it says). |
 
 ### `GET /conversations?cursor=&limit=` → `Paginated<Conversation>`
 Most recent activity first (last message, else creation; ties by id), `totalCount` = all of the
@@ -430,6 +491,12 @@ professional profile's display name / the customer's full name; both parties of 
 `unreadCount` = the caller's unread messages from the other participant; `isOpen` (`false` once the job
 is cancelled); `updatedAt` = last message or closing time (reading does not change it). One indexed
 query + one batch load of names/avatars per page. Errors: 400, 401.
+
+### `GET /conversations/unread-count` → `{ count }` (addition)
+The caller's unread messages over **all** their conversations (the sum of `unreadCount`): the inbox
+badge, which the app can no longer sum from the paginated list. Reads only the conversations with
+unread messages for the caller (index `participant_unread`). Refetch it on `message.created` and
+`conversation.read`, like `GET /notifications/unread-count`. Errors: 401.
 
 ### `GET /conversations/:conversationId` → `Conversation`
 Same shape as a list item. 404 unknown or malformed id, 403 not a participant, 401.
@@ -483,10 +550,20 @@ Marks all of the caller's unread notifications read. 401.
 
 ### How notifications are produced (every module)
 `createNotification(s)` (`notifications/create-notification.service.ts`) stores nothing when the
-recipient's category toggle for the type is off (`jobUpdates`, `messages`, `newRequests`, `reminders`;
-`emailEnabled` is not used: no notification emails), stores inside the caller's transaction, then
-publishes `notification.created` to the recipient and, when `pushEnabled`, sends push in the background
-(never delays the response).
+recipient's category toggle for the type is off (`jobUpdates`, `messages`, `newRequests`, `reminders`),
+stores inside the caller's transaction, then publishes `notification.created` to the recipient and, in
+the background (never delaying the response), sends push when `pushEnabled` and an email when
+`emailEnabled` (below).
+
+### Email updates (`notificationPreferences.emailEnabled`)
+- Each notification the user receives is also emailed (same title and text as the push, en/he by the
+  user's language, RTL for Hebrew), with a line on how to turn these emails off in Settings →
+  Notifications. The category toggles apply first, as for push.
+- Only to **verified** addresses: otherwise anyone could register someone else's address and have our
+  notifications sent there.
+- Throttled so a busy chat or area does not flood the inbox: at most one `new_message` email per
+  conversation every 30 minutes, and at most 10 notification emails per user and hour; the rest stay
+  in the app (inbox, push).
 
 ### Push (Expo)
 - Every device the recipient registered with `POST /me/devices` gets the notification, localized in the
@@ -495,7 +572,8 @@ publishes `notification.created` to the recipient and, when `pushEnabled`, sends
 - Sent in chunks of 100 (Expo's limit; the SDK retries 429s). A failed chunk does not stop the others;
   the failure is logged and those devices are kept.
 - Tokens that are not Expo push tokens, or that Expo answers `DeviceNotRegistered`, are deleted at once.
-  Other tickets wait in Redis (`${APP_ENV}:push-tickets`, sorted set by send time, 24 h). The
+  Other tickets wait in Redis (`${APP_ENV}:push-tickets`, sorted set by send time; the key expires 24 h
+  after the last push, so it cannot outlive its receipts even where no instance runs the cron). The
   `push-receipts` cron (every 15 min, Redis-locked) fetches receipts of tickets ≥ 15 min old in batches
   of 1000 (up to 50 000 per run), deletes `DeviceNotRegistered` tokens, logs the other receipt errors
   by type, drops answered tickets and purges tickets older than a day.
@@ -513,10 +591,9 @@ publishes `notification.created` to the recipient and, when `pushEnabled`, sends
 - Multi-instance: events go through Redis pub/sub (`${APP_ENV}:realtime`); each instance delivers to its
   local sockets of the addressed users. Delivery is best effort: the app refetches on reconnect/focus.
 
-### Open points for the app integration
-- Inbox badge: the app sums `Conversation.unreadCount` over the conversation list. With pagination only
-  loaded pages count; request the first page with `limit=100`, or add a
-  `GET /conversations/unread-count` if accounts may have more active conversations than that.
+### Inbox badge
+The app sums `Conversation.unreadCount` over the conversation list; with pagination only the loaded
+pages would count. Use `GET /conversations/unread-count` for the messages part of the badge instead.
 
 ## Marketplace (requests, offers, jobs, reviews, dashboard)
 
@@ -533,7 +610,7 @@ Lists are keyset-paginated (`?cursor=&limit=`, default 20, max 100; bad values �
 | # | Change | App impact |
 |---|---|---|
 | 1 | `GET /requests/:id/offers` is paginated: `?sort=&statuses=&cursor=&limit=` → `Paginated<OfferWithProfessional>` (the app expects `OfferWithProfessional[]`). The whole ranked list is computed per request (the "recommended" score is relative to the other offers), the cursor resumes after the last offer returned. | `getOffersForRequest` reads `.items` (ask `limit=100`: a request rarely gets more offers). |
-| 2 | `GET /jobs?scope=` is paginated → `Paginated<JobSummary>` (the app expects `JobSummary[]`). | `useJobs` reads `.items` (or becomes an infinite query). |
+| 2 | `GET /jobs?scope=` is paginated → `Paginated<JobSummary>` (the app expects `JobSummary[]`). | `useJobs` becomes an **infinite query** (load more on scroll): reading only `.items` of the first page would cut the Work tab's completed list at 20. The Work tab's "earned this month" must not be summed from the loaded pages either: take `ProfessionalDashboard.earningsThisMonth` (computed over every job completed this month, `Asia/Jerusalem`). `scope=completed` is ordered by completion time, newest first, so a client that wants its own per-currency sum can load pages until `completedAt` falls before the month start. |
 | 3 | `GET /jobs?scope=all` is ordered by appointment, latest first (the mock: most recently updated). The app never requests `all`. | None. |
 | 4 | `CustomerDashboard.jobsAwaitingReview` holds at most the 20 most recently completed unreviewed jobs (the mock: all). | None in practice (the app shows the first one and marks requests in lists). |
 | 5 | `photoIds` must be ids returned by `POST /uploads/images` to the same customer and not used elsewhere; unknown/foreign ids → 400 `{ photoIds: ['validation:request.photoNotFound'] }`. Repeated ids are kept once. | Already the app's flow. |
@@ -541,6 +618,7 @@ Lists are keyset-paginated (`?cursor=&limit=`, default 20, max 100; bad values �
 | 7 | `VALIDATION_ERROR` is 400 (the mock answers 422). The body is validated before ownership/state checks, so e.g. an invalid body on a published request answers 400 where the mock answered 409. | None (the client maps both). |
 | 8 | Calendar rules run in `Asia/Jerusalem` (the market's time zone): "today" for preferred dates, the day an emergency/urgent preferred date starts, "this month" for earnings. The mock used the device zone. | None for Israeli users. |
 | 9 | `stats.responseTimeMinutes` is the median over the professional's 100 most recently updated offers (the mock: all offers), so its cost stays bounded. | None. |
+| 10 | `maxDistanceKm` of the explorer accepts only the app's presets (5, 10, 20, 40); other values → 400 `fieldErrors.maxDistanceKm`. Offer distances are measured between the professional's public (approximate) center and the request's approximate pin. | None (the app only sends the presets). |
 
 ### Requests
 
@@ -555,8 +633,9 @@ Preferred date rules (`fieldErrors['preferredSchedule.date']`): real day
 starting before the latest start an offer may propose — emergency ≤ 24 h, urgent ≤ 72 h
 (`…BeyondUrgency`). Photos are attached (kept by the orphan cleanup).
 Published: every matching professional (category + own service radius, haversine from the
-service-area center) gets `new_matching_request` (`distanceKm`, customer short name) and
-`request.updated`; a draft only emits `request.updated` to its owner.
+service-area center to the request's approximate pin) gets `new_matching_request` (`distanceKm`,
+customer short name) and `request.updated`. This fan-out runs right after the response (in the
+background), so the response never waits for it; a draft only emits `request.updated` to its owner.
 
 #### `GET /requests/:requestId` — any role → `RequestDetailsResponse`
 - Owner customer: `{ viewerRole: 'customer', request: CustomerRequestView }` (`latestOfferAt` =
@@ -565,7 +644,7 @@ service-area center) gets `new_matching_request` (`distanceKm`, customer short n
   they sent an offer on it. `{ viewerRole: 'professional', request: ProfessionalRequestView }` with
   the privacy view until their offer is accepted: `location` approximate (deterministic 250–450 m
   offset seeded by the request id, no street, no details, `isApproximate: true`), `notes: null`,
-  `jobId: null`. Plus `distanceKm` (0.1 km, from the service-area center to the real location),
+  `jobId: null`. Plus `distanceKm` (0.1 km, from the service-area center to the approximate pin),
   `customer` (`CustomerSummary`, short name), `myOffer` (their active offer, else their newest),
   `isMatch`.
 
@@ -600,14 +679,22 @@ combine with AND. Unknown values → 400 (`section`, `statuses.<i>`).
 #### `GET /professional/requests/nearby?…` — professional → `Paginated<ProfessionalRequestView>`
 The explorer: requests in `open`/`offers_received` within the professional's radius, in their
 categories. Query (the app's `NearbyRequestsParams`): `categoryIds` (subset of their own; none of
-their own → empty page), `maxDistanceKm` (> 0, capped by the radius), `urgencies`,
+their own → empty page), `maxDistanceKm` (one of the app's presets 5 / 10 / 20 / 40, capped by the
+radius; any other value → 400: a free value would let a professional measure distances finely),
+`urgencies`,
 `preferredDateFrom`/`preferredDateTo` (`YYYY-MM-DD`, inclusive; requests without a preferred date are
 then excluded), `offerPresence` (`no_offers` / `has_offers` on pending offers), `excludeWithMyOffer`
-(hide requests with their pending/accepted offer), `sort` (`newest` default: publication time desc,
-then id asc; `nearest`: the shown 0.1 km distance, then newest; `most_urgent`; `fewest_offers`:
-pending offers asc), `cursor`, `limit` (the app's map asks 100). One `$geoNear` aggregation returns
-the page and `totalCount`; distances use the app's haversine Earth radius, so "inside the radius"
-is exactly the app's `isWithinServiceArea`. Items use the privacy view above.
+(hide requests with their pending offer; a request with an accepted offer never accepts offers
+again), `sort` (`newest` default: publication time desc, then id asc; `nearest`: the shown 0.1 km
+distance, then newest; `most_urgent`; `fewest_offers`: pending offers asc — a key that changes, see
+Pagination), `cursor`, `limit` (the app's map asks 100). One `$geoNear` aggregation returns the page
+(and `totalCount` on the first page); distances are measured to the request's approximate pin (the
+one the privacy view shows, never the exact address) with the app's haversine Earth radius, so
+"inside the radius" is exactly the app's `isWithinServiceArea`. Items use the privacy view above.
+When a request enters or leaves the explorer, matching professionals get `request.updated`; for
+those without an offer on it, events are merged per professional (the first of a 2 s window at once,
+the rest as one event when the window closes), so a burst of publications costs each open explorer
+one or two refetches, not one per request.
 
 ### Offers
 
@@ -622,15 +709,18 @@ Errors in the mock's order: draft or unknown request 404; not `open`/`offers_rec
 `DUPLICATE_OFFER` (also for concurrent double submits: unique index); time rules → 400 on
 `proposedStartAt` (`offer.startTooSoon` < 30 min, `…StartTooFar` > 60 days, `…emergencyWindow`
 > 24 h, `…urgentWindow` > 72 h). `expiresAt` = now + the urgency's validity (6 h / 24 h / 72 h /
-7 days), never after the proposed start. The request is recounted (`open → offers_received`), the
-professional's response time refreshed; `offer_received` to the customer; `offer.updated` +
-`request.updated`.
+7 days), never after the proposed start. The request is recounted (`open → offers_received`);
+`offer_received` to the customer; `offer.updated` + `request.updated`. The professional's response
+time is refreshed after the commit (a derived statistic, off the request).
 
 #### `GET /requests/:requestId/offers?sort=&statuses=&cursor=&limit=` — customer (owner) → `Paginated<OfferWithProfessional>`
 Ranked like the app's `sortOffers` (accepted first, then pending, then the rest; `sort` ∈
 `recommended` (default) | `lowest_price` | `earliest_availability` | `highest_rating` |
-`most_reviews`; ties by submission time). `distanceKm` from the professional's service-area center.
-See contract change 1.
+`most_reviews`; ties by submission time). `distanceKm` between the professional's public (approximate)
+service-area center and the request's approximate pin: neither side's hidden address can be measured
+through it. The cursor resumes after the last offer returned; when that offer
+left the filtered list meanwhile (withdrawn, expired, accepted or rejected under a `statuses` filter)
+it resumes at the same position instead of failing. See contract change 1.
 
 #### `GET /offers/:offerId` — the request's owner or the offering professional → `OfferDetails`
 `OfferWithProfessional & { request: OfferRequestSummary }`; the request location is exact for the

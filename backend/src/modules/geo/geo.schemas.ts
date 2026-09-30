@@ -1,12 +1,13 @@
 import { z } from 'zod';
 
 import { queryNumber, queryString } from '../../lib/query-schemas.js';
+import { API_LIMITS } from '../../shared/limits.js';
 import { vm } from '../../shared/validation-messages.js';
 
 export const GEO_SEARCH = {
   defaultLimit: 8,
   /** Larger limits are accepted (as the mock backend) but capped: autocomplete shows a few rows. */
-  maxResults: 20,
+  maxResults: API_LIMITS.geocoderMaxResults,
   maxLimit: 50,
   /** Shorter queries answer `[]` without calling the provider (the app waits for 2 characters). */
   minQueryLength: 2,

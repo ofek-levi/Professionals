@@ -9,7 +9,7 @@ import type { AppDeps } from '../../deps.js';
 import { ApiError } from '../../lib/errors.js';
 import { findPage, NEWEST_FIRST, sortOf, type PageParams } from '../../lib/pagination.js';
 import type { AppNotification, Paginated } from '../../shared/contract/index.js';
-import { NotificationModel, type NotificationDoc } from './notification.model.js';
+import { NotificationModel, UNREAD, type NotificationDoc } from './notification.model.js';
 import { toNotificationDto } from './notifications.views.js';
 
 const NOTIFICATION_PROJECTION = { user: 1, type: 1, params: 1, target: 1, readAt: 1, createdAt: 1 } as const;
@@ -20,7 +20,7 @@ export interface ListNotificationsInput extends PageParams {
 
 export async function listNotifications(userId: Types.ObjectId, input: ListNotificationsInput): Promise<Paginated<AppNotification>> {
   const page = await findPage<NotificationDoc>(NotificationModel, {
-    filter: input.unreadOnly ? { user: userId, readAt: null } : { user: userId },
+    filter: input.unreadOnly ? { user: userId, readAt: UNREAD } : { user: userId },
     sort: NEWEST_FIRST,
     page: input,
     projection: NOTIFICATION_PROJECTION,
@@ -38,7 +38,7 @@ export async function listRecentNotifications(userId: Types.ObjectId, limit: num
 }
 
 export function countUnreadNotifications(userId: Types.ObjectId): Promise<number> {
-  return NotificationModel.countDocuments({ user: userId, readAt: null });
+  return NotificationModel.countDocuments({ user: userId, readAt: UNREAD });
 }
 
 /** Marks one of the caller's notifications read (idempotent); 404 unknown, 403 someone else's. */
@@ -48,7 +48,7 @@ export async function markNotificationRead(
   notificationId: Types.ObjectId,
 ): Promise<AppNotification> {
   const updated = await NotificationModel.findOneAndUpdate(
-    { _id: notificationId, user: userId, readAt: null },
+    { _id: notificationId, user: userId, readAt: UNREAD },
     { $set: { readAt: deps.clock.now() } },
     { returnDocument: 'after', projection: NOTIFICATION_PROJECTION },
   ).lean<NotificationDoc>();
@@ -61,7 +61,7 @@ export async function markNotificationRead(
 
 /** Returns how many notifications changed. */
 export async function markAllNotificationsRead(deps: Pick<AppDeps, 'clock'>, userId: Types.ObjectId): Promise<number> {
-  const { modifiedCount } = await NotificationModel.updateMany({ user: userId, readAt: null }, { $set: { readAt: deps.clock.now() } });
+  const { modifiedCount } = await NotificationModel.updateMany({ user: userId, readAt: UNREAD }, { $set: { readAt: deps.clock.now() } });
   return modifiedCount;
 }
 
@@ -73,7 +73,7 @@ export async function markConversationNotificationsRead(
   session?: ClientSession,
 ): Promise<void> {
   await NotificationModel.updateMany(
-    { user: userId, type: 'new_message', 'target.conversationId': conversationId.toHexString(), readAt: null },
+    { user: userId, type: 'new_message', 'target.conversationId': conversationId.toHexString(), readAt: UNREAD },
     { $set: { readAt } },
     { session },
   );

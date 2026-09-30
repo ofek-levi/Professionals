@@ -6,7 +6,7 @@
 import { Router } from 'express';
 
 import type { AppDeps } from './deps.js';
-import { RATE_LIMITS, rateLimit } from './middleware/rate-limit.js';
+import { principalKey, RATE_LIMITS, rateLimit } from './middleware/rate-limit.js';
 import { createAuthRouter } from './modules/auth/auth.routes.js';
 import { createCatalogRouter } from './modules/catalog/catalog.routes.js';
 import { createConversationsRouter } from './modules/conversations/conversations.routes.js';
@@ -24,7 +24,8 @@ import { createUsersRouter } from './modules/users/users.routes.js';
 
 export function createV1Router(deps: AppDeps): Router {
   const v1 = Router();
-  v1.use(rateLimit(deps, 'global', RATE_LIMITS.global));
+  // Per signed-in user (valid bearer token), otherwise per IP: see RATE_LIMITS.global.
+  v1.use(rateLimit(deps, 'global', { ...RATE_LIMITS.global, key: principalKey(deps) }));
   for (const create of [
     createAuthRouter,
     createUsersRouter,

@@ -60,7 +60,7 @@ export function sectionFilter(section: CustomerRequestSection): QueryFilter<Requ
  * starting before the latest start an offer may propose for the urgency (emergency ≤ 24 h,
  * urgent ≤ 72 h). Returns the i18n key of the first broken rule.
  */
-export function preferredDateIssue(dateKey: string, urgency: UrgencyLevel, now: Date): ValidationMessage | null {
+function preferredDateIssue(dateKey: string, urgency: UrgencyLevel, now: Date): ValidationMessage | null {
   if (!isValidDateKey(dateKey)) return vm('request.preferredDateInvalid');
   const days = daysBetweenDateKeys(marketDateKey(now), dateKey);
   if (days < 0) return vm('request.preferredDateInPast');

@@ -1,14 +1,15 @@
 /** Small offer lookups shared with the requests and dashboard modules. */
 import type { Types } from 'mongoose';
 
-import { ACTIVE_OFFER_STATUSES } from '../../shared/statuses.js';
 import { OfferModel } from './offer.model.js';
 
-/** Requests on which the professional has an active (pending/accepted) offer. */
-export async function activeOfferRequestIds(professionalId: Types.ObjectId): Promise<Types.ObjectId[]> {
-  const offers = await OfferModel.find({ professional: professionalId, status: { $in: [...ACTIVE_OFFER_STATUSES] } }, { request: 1, _id: 0 }).lean<
-    { request: Types.ObjectId }[]
-  >();
+/**
+ * Requests on which the professional has a pending offer (the explorer's "sent an offer" set).
+ * Accepted offers are left out on purpose: their request left `open`/`offers_received` for good,
+ * so it can never be in the explorer again, and the list would grow with every job ever won.
+ */
+export async function pendingOfferRequestIds(professionalId: Types.ObjectId): Promise<Types.ObjectId[]> {
+  const offers = await OfferModel.find({ professional: professionalId, status: 'pending' }, { request: 1, _id: 0 }).lean<{ request: Types.ObjectId }[]>();
   return offers.map((offer) => offer.request);
 }
 

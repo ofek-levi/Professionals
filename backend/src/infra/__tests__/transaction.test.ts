@@ -45,7 +45,7 @@ describe('withTransaction', () => {
   });
 
   it('ensureConversationForJob is idempotent and transactional', async () => {
-    const input = { jobId: newObjectId(), requestId: newObjectId(), customerUserId: newObjectId(), professionalUserId: newObjectId(), now: deps.clock.now() };
+    const input = { jobId: newObjectId(), requestId: newObjectId(), categoryId: 'plumbing' as const, customerUserId: newObjectId(), professionalUserId: newObjectId(), now: deps.clock.now() };
     const first = await ensureConversationForJob(input);
     expect(await ensureConversationForJob(input)).toEqual(first);
     const conversation = await ConversationModel.findById(first).lean();

@@ -6,6 +6,7 @@ import { signInProfessional } from '../../../../test/auth.js';
 import { createCustomer, createProfessional } from '../../../../test/factories.js';
 import { newObjectId } from '../../../lib/ids.js';
 import type { Rating } from '../../../shared/domain.js';
+import { recordReviewRating } from '../../reviews/professional-stats.service.js';
 import { ReviewModel } from '../../reviews/review.model.js';
 import type { UserDoc } from '../../users/user.model.js';
 
@@ -16,6 +17,7 @@ describe('GET /v1/professionals/:id/reviews', () => {
   async function review(professionalId: UserDoc['_id'], customer: UserDoc, rating: Rating, comment: string | null = null) {
     deps.clock.advanceMinutes(1);
     const doc = await ReviewModel.create({ job: newObjectId(), professional: professionalId, customer: customer._id, categoryId: 'plumbing', rating, comment });
+    await recordReviewRating(deps, professionalId, rating); // what `createReview` does in its transaction
     return doc.toObject();
   }
 

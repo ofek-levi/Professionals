@@ -1,6 +1,9 @@
 /**
- * Single-use tokens of the links sent by email. Issuing a token replaces the user's previous one
- * of the same purpose (only the newest link works); opening a link consumes it atomically.
+ * Single-use tokens of the links sent by email; using a link consumes it atomically.
+ * - Verify links: a new one replaces the previous one (only the newest works).
+ * - Reset links: every link sent stays valid until it expires (1 hour) or a reset succeeds, so
+ *   someone requesting resets for another person's address cannot invalidate the link the owner
+ *   is about to use. The per-address email budget bounds how many exist.
  */
 import type { ClientSession, Types } from 'mongoose';
 
@@ -15,7 +18,7 @@ const TTL_MS: Record<EmailTokenPurpose, number> = {
 
 export async function issueEmailToken(userId: Types.ObjectId, purpose: EmailTokenPurpose, now: Date): Promise<string> {
   const token = randomToken();
-  await EmailTokenModel.deleteMany({ user: userId, purpose });
+  if (purpose === 'verify_email') await EmailTokenModel.deleteMany({ user: userId, purpose });
   await EmailTokenModel.create({ user: userId, purpose, tokenHash: sha256(token), expiresAt: new Date(now.getTime() + TTL_MS[purpose]) });
   return token;
 }

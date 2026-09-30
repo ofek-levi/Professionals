@@ -1,8 +1,8 @@
 /**
  * `POST /requests/:id/offers` (the mock's `submitOffer`): the professional covers the category and
  * the area, has no active offer on the request yet, and proposes an allowed time. One transaction
- * inserts the offer, recounts the request (`open → offers_received`) and refreshes the
- * professional's response time; the customer is notified.
+ * inserts the offer and recounts the request (`open → offers_received`); the customer is notified
+ * and the professional's response time is refreshed after the commit.
  */
 import type { Types } from 'mongoose';
 
@@ -24,7 +24,7 @@ import { syncRequestOfferCounters } from './offer-counters.service.js';
 import { OfferModel, type OfferDoc } from './offer.model.js';
 import type { CreateOfferInput } from './offers.schemas.js';
 
-type SubmitDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'redis' | 'keys' | 'background' | 'cache'>;
+type SubmitDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background' | 'cache'>;
 type OfferingProfessional = Pick<ProfessionalDoc, '_id' | 'displayName' | 'categoryIds' | 'serviceArea'>;
 
 const duplicateOffer = () => ApiError.conflict('You already have an active offer on this request', 'DUPLICATE_OFFER');
@@ -70,7 +70,8 @@ export async function submitOffer(deps: SubmitDeps, auth: AuthContext, requestId
       if (!created) throw new Error('Offer was not created');
       const offer = created.toObject<OfferDoc>();
       const updatedRequest = await syncRequestOfferCounters(request._id, tx);
-      await refreshResponseTime(deps, professional._id, tx);
+      // A derived statistic: recomputed after the commit, off the request (see professional-stats).
+      tx.afterCommit(() => deps.background.run('response-time', () => refreshResponseTime(deps, professional._id)));
       await createNotification(
         deps,
         request.customer,

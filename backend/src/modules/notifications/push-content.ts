@@ -2,6 +2,7 @@
  * Localized push title/body for a stored notification, in the recipient's language (the in-app
  * inbox renders its own texts from `params`; push needs finished strings).
  */
+import { isolateText } from '../../lib/text.js';
 import { getCategoryById } from '../../shared/catalog/index.js';
 import type { NotificationParams } from '../../shared/contract/index.js';
 import { MARKET_TIME_ZONE, type AppLanguage } from '../../shared/domain.js';
@@ -10,7 +11,6 @@ import { PUSH_TEXTS } from './push-texts.js';
 
 const LOCALES: Record<AppLanguage, string> = { en: 'en-IL', he: 'he-IL' };
 /** Left-to-right/right-to-left isolation keeps a Latin name readable inside Hebrew text. */
-const isolate = (text: string) => `⁨${text}⁩`;
 
 function formatPrice(amount: number, currency: string, language: AppLanguage): string {
   try {
@@ -50,8 +50,8 @@ export function pushContent(
 ): { title: string; body: string } {
   const texts = PUSH_TEXTS[language];
   const { params, type } = notification;
-  const professionalName = params.professionalName ? isolate(params.professionalName) : texts.fallbacks.professional;
-  const customerName = params.customerName ? isolate(params.customerName) : texts.fallbacks.customer;
+  const professionalName = params.professionalName ? isolateText(params.professionalName) : texts.fallbacks.professional;
+  const customerName = params.customerName ? isolateText(params.customerName) : texts.fallbacks.customer;
   const values: Record<string, string> = {
     category: (params.categoryId && getCategoryById(params.categoryId)?.name[language]) || texts.fallbacks.service,
     price: params.price !== undefined ? formatPrice(params.price, params.currency ?? 'ILS', language) : '',
@@ -59,7 +59,7 @@ export function pushContent(
     distance: params.distanceKm !== undefined ? formatDistance(params.distanceKm, language) : '',
     professionalName,
     customerName,
-    name: isolate(params.professionalName ?? params.customerName ?? texts.fallbacks.customer),
+    name: isolateText(params.professionalName ?? params.customerName ?? texts.fallbacks.customer),
     preview: params.messagePreview ?? '',
     stars: formatStars(params.rating ?? 0, language),
   };

@@ -6,7 +6,7 @@ import { pino, type Logger, type LoggerOptions } from 'pino';
 
 export type { Logger };
 
-export const REDACTED_PATHS = [
+const REDACTED_PATHS = [
   'req.headers.authorization',
   'req.headers.cookie',
   '*.password',

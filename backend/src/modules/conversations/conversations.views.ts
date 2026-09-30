@@ -2,6 +2,7 @@
 import type { Types } from 'mongoose';
 
 import { required } from '../../lib/batch.js';
+import { isoOrNull } from '../../lib/clock.js';
 import type { Conversation, Message } from '../../shared/contract/index.js';
 import { loadUserDisplays } from '../users/user-display.views.js';
 import type { ConversationDoc, LastMessageDoc } from './conversation.model.js';
@@ -9,10 +10,11 @@ import type { MessageDoc } from './message.model.js';
 
 export type MessageForView = Pick<MessageDoc, '_id' | 'conversation' | 'sender' | 'text' | 'clientMessageId' | 'readAt' | 'createdAt'>;
 
-/** Every field `toConversationDtos` and the list cursor (`lastActivityAt`) read. */
+/** Every field `toConversationDtos`, the list cursor (`lastActivityAt`) and the send path read. */
 export const CONVERSATION_VIEW_PROJECTION = {
   job: 1,
   request: 1,
+  categoryId: 1,
   participants: 1,
   lastMessage: 1,
   lastActivityAt: 1,
@@ -28,7 +30,7 @@ export function toMessageDto(message: MessageForView): Message {
     senderId: message.sender.toHexString(),
     text: message.text,
     createdAt: message.createdAt.toISOString(),
-    readAt: message.readAt ? message.readAt.toISOString() : null,
+    readAt: isoOrNull(message.readAt),
     clientMessageId: message.clientMessageId,
   };
 }

@@ -95,7 +95,12 @@ const dateKeyQuery = queryString(10).refine((value) => value === undefined || is
 export const nearbyRequestsQuery = z.object({
   ...paginationQueryShape,
   categoryIds: queryEnumList(CATEGORY_IDS),
-  maxDistanceKm: queryNumber().refine((value) => value === undefined || value > 0, vm('invalid')),
+  // Only the app's presets: with any float, the answer ("inside or not") could be used to measure
+  // distances finely by moving one's own service area.
+  maxDistanceKm: queryNumber().refine(
+    (value) => value === undefined || (APP_CONFIG.distanceFilterOptionsKm as readonly number[]).includes(value),
+    vm('invalid'),
+  ),
   urgencies: queryEnumList(URGENCY_LEVELS),
   preferredDateFrom: dateKeyQuery,
   preferredDateTo: dateKeyQuery,

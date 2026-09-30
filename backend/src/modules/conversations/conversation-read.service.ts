@@ -17,32 +17,22 @@ import { MessageModel } from './message.model.js';
 type ReadDeps = Pick<AppDeps, 'clock' | 'realtime'>;
 
 /**
- * Applies a read by `readerId` to `conversation` (loaded in the same transaction). Returns
- * whether any message became read.
+ * Marks the counterpart's unread messages and the reader's message notifications of the chat read
+ * (both index-bounded to what is unread) and announces `conversation.read` when a message changed.
+ * The conversation document itself is the caller's to update.
  */
-export async function applyConversationRead(
+export async function readCounterpartMessages(
   deps: ReadDeps,
-  conversation: ConversationDoc,
+  conversation: Pick<ConversationDoc, '_id' | 'participants'>,
   readerId: Types.ObjectId,
+  readAt: Date,
   tx: Tx,
 ): Promise<boolean> {
-  const readAt = deps.clock.now();
-  const counterpart = counterpartOf(conversation, readerId).user;
   const { modifiedCount } = await MessageModel.updateMany(
-    { conversation: conversation._id, sender: counterpart, readAt: null },
+    { conversation: conversation._id, sender: counterpartOf(conversation, readerId).user, readAt: null },
     { $set: { readAt } },
     { session: tx.session },
   );
-  const last = conversation.lastMessage;
-  const lastUnread = last !== null && last.readAt === null && last.sender.equals(counterpart);
-  if (modifiedCount > 0 || lastUnread || participantOf(conversation, readerId).unreadCount > 0) {
-    await ConversationModel.updateOne(
-      { _id: conversation._id },
-      { $set: { 'participants.$[reader].unreadCount': 0, ...(lastUnread ? { 'lastMessage.readAt': readAt } : {}) } },
-      // A read is not a conversation change: `updatedAt` stays the last activity, as in the app.
-      { arrayFilters: [{ 'reader.user': readerId }], session: tx.session, timestamps: false },
-    );
-  }
   await markConversationNotificationsRead(readerId, conversation._id, readAt, tx.session);
   if (modifiedCount === 0) return false;
   await publishEvent(
@@ -57,6 +47,32 @@ export async function applyConversationRead(
     tx,
   );
   return true;
+}
+
+/**
+ * Applies a read by `readerId` to `conversation` (loaded in the same transaction): the messages
+ * and notifications, then the reader's counter and the last message's receipt. Returns whether any
+ * message became read.
+ */
+async function applyConversationRead(
+  deps: ReadDeps,
+  conversation: ConversationDoc,
+  readerId: Types.ObjectId,
+  tx: Tx,
+): Promise<boolean> {
+  const readAt = deps.clock.now();
+  const changed = await readCounterpartMessages(deps, conversation, readerId, readAt, tx);
+  const last = conversation.lastMessage;
+  const lastUnread = last !== null && last.readAt === null && last.sender.equals(counterpartOf(conversation, readerId).user);
+  if (changed || lastUnread || participantOf(conversation, readerId).unreadCount > 0) {
+    await ConversationModel.updateOne(
+      { _id: conversation._id },
+      { $set: { 'participants.$[reader].unreadCount': 0, ...(lastUnread ? { 'lastMessage.readAt': readAt } : {}) } },
+      // A read is not a conversation change: `updatedAt` stays the last activity, as in the app.
+      { arrayFilters: [{ 'reader.user': readerId }], session: tx.session, timestamps: false },
+    );
+  }
+  return changed;
 }
 
 export async function markConversationRead(

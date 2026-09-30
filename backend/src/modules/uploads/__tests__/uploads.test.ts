@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { signInCustomer, signInProfessional } from '../../../../test/auth.js';
+import { createUpload } from '../../../../test/factories.js';
 import { UnconfiguredStorage } from '../../../infra/storage/unconfigured-storage.js';
 import { API_LIMITS } from '../../../shared/limits.js';
 import { detectImageType } from '../image-signature.js';
+import { chargeUploadBytes, UPLOAD_QUOTAS } from '../upload-quota.js';
 import { UploadModel } from '../upload.model.js';
 
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64, 1)]);
@@ -74,6 +76,30 @@ describe('POST /v1/uploads/images', () => {
     const res = await request(app).post('/v1/uploads/images').set(customer.headers).attach('file', big, 'big.jpg').expect(400);
     expect(res.body.fieldErrors).toEqual({ file: ['validation:upload.invalid'] });
     expect(deps.storage.images.size).toBe(0);
+  });
+});
+
+describe('POST /v1/uploads/images quotas', () => {
+  const { app, deps } = createTestApp();
+  beforeEach(clearDatabase);
+
+  it('caps unattached uploads per user; attaching one frees a slot', async () => {
+    const customer = await signInCustomer(deps);
+    for (let i = 0; i < UPLOAD_QUOTAS.pendingUploadsPerUser; i += 1) await createUpload(customer.user);
+    const res = await request(app).post('/v1/uploads/images').set(customer.headers).attach('file', JPEG, 'a.jpg').expect(429);
+    expect(res.body.code).toBe('RATE_LIMITED');
+    // Another user is not affected; an attached upload no longer counts.
+    await request(app).post('/v1/uploads/images').set((await signInCustomer(deps)).headers).attach('file', JPEG, 'a.jpg').expect(201);
+    await UploadModel.updateOne({ owner: customer.user._id }, { $set: { attachedAt: deps.clock.now() } });
+    await request(app).post('/v1/uploads/images').set(customer.headers).attach('file', JPEG, 'a.jpg').expect(201);
+  });
+
+  it('caps the bytes uploaded per user per day', async () => {
+    const customer = await signInCustomer(deps);
+    await chargeUploadBytes(deps, customer.user._id.toHexString(), UPLOAD_QUOTAS.uploadBytesPerUserPerDay - JPEG.length);
+    await request(app).post('/v1/uploads/images').set(customer.headers).attach('file', JPEG, 'a.jpg').expect(201);
+    const res = await request(app).post('/v1/uploads/images').set(customer.headers).attach('file', JPEG, 'b.jpg').expect(429);
+    expect(res.body.message).toContain('Daily upload limit');
   });
 });
 

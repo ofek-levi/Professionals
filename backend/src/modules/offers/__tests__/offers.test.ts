@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { signInCustomer, signInProfessional } from '../../../../test/auth.js';
 import { HAIFA, RAMAT_GAN } from '../../../../test/factories.js';
+import { fromGeoPoint, haversineDistanceKm, roundDistanceKm } from '../../../lib/geo.js';
+import { ProfessionalModel } from '../../professionals/professional.model.js';
 import { RequestModel } from '../../requests/request.model.js';
 import { HOUR, inHours, notificationTypes, offerBody, postOffer, postRequest } from '../../requests/__tests__/marketplace-fixtures.js';
 import { OfferModel } from '../offer.model.js';
@@ -135,7 +137,14 @@ describe('offers', () => {
       const { customer, pro, req } = await setup();
       const offer = await postOffer(app, deps, pro, req.id);
       const asCustomer = await request(app).get(`/v1/offers/${offer.id}`).set(customer.headers).expect(200);
-      expect(asCustomer.body).toMatchObject({ id: offer.id, distanceKm: 0, professional: { id: pro.user._id.toHexString() }, request: { id: req.id } });
+      expect(asCustomer.body).toMatchObject({ id: offer.id, professional: { id: pro.user._id.toHexString() }, request: { id: req.id } });
+      // The request is at the professional's center; the distance is measured between the two
+      // public points (each 250–450 m off), never from either hidden address.
+      const [stored, storedPro] = await Promise.all([RequestModel.findById(req.id).lean(), ProfessionalModel.findById(pro.user._id).lean()]);
+      if (!stored || !storedPro) throw new Error('missing documents');
+      const expected = roundDistanceKm(haversineDistanceKm(fromGeoPoint(storedPro.serviceArea.publicCenter), fromGeoPoint(stored.publicPoint)));
+      expect(asCustomer.body.distanceKm).toBe(expected);
+      expect(asCustomer.body.distanceKm).toBeLessThanOrEqual(0.9);
       expect(asCustomer.body.request.location.isApproximate).toBe(false);
       const asPro = await request(app).get(`/v1/offers/${offer.id}`).set(pro.headers).expect(200);
       expect(asPro.body.request.location).toMatchObject({ isApproximate: true, addressLine: '' });
@@ -162,6 +171,22 @@ describe('offers', () => {
       expect(pendingOnly.body).toEqual({ items: [], nextCursor: null, totalCount: 0 });
       await request(app).get(`/v1/requests/${req.id}/offers?cursor=bogus`).set(customer.headers).expect(400);
       await request(app).get(`/v1/requests/${req.id}/offers`).set((await signInCustomer(deps)).headers).expect(403);
+    });
+
+    it('GET /requests/:id/offers: the next page still loads when the last offer shown left the list', async () => {
+      const { customer, req } = await setup();
+      const cheapest = await signInProfessional(deps);
+      const anchor = await postOffer(app, deps, cheapest, req.id, { price: 300 });
+      for (const price of [400, 500]) await postOffer(app, deps, await signInProfessional(deps), req.id, { price });
+      const path = `/v1/requests/${req.id}/offers?sort=lowest_price&statuses=pending&limit=1`;
+      const first = await request(app).get(path).set(customer.headers).expect(200);
+      expect(first.body.items.map((o: { price: number }) => o.price)).toEqual([300]);
+      // The anchor (300) is withdrawn: the next page resumes at its position instead of failing.
+      await request(app).post(`/v1/offers/${anchor.id}/withdraw`).set(cheapest.headers).expect(200);
+      const second = await request(app).get(`${path}&cursor=${first.body.nextCursor as string}`).set(customer.headers).expect(200);
+      expect(second.body.items.map((o: { price: number }) => o.price)).toEqual([400]);
+      const third = await request(app).get(`${path}&cursor=${second.body.nextCursor as string}`).set(customer.headers).expect(200);
+      expect(third.body).toMatchObject({ items: [{ price: 500 }], nextCursor: null });
     });
 
     it('GET /professional/offers: newest update first, filtered by status, keyset pages', async () => {

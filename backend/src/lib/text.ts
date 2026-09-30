@@ -15,6 +15,11 @@ export function fullName(user: { firstName: string; lastName: string }): string 
   return `${user.firstName} ${user.lastName}`.trim();
 }
 
+/** Unicode first-strong isolate: a name or an address keeps its own direction inside Hebrew text. */
+export function isolateText(text: string): string {
+  return `\u2068${text}\u2069`;
+}
+
 /** `line` without its trailing spaces and tabs (a scan, not a regex: see `normalizeMessageText`). */
 function trimLineEnd(line: string): string {
   let end = line.length;

@@ -8,7 +8,6 @@ import { HOME_REPAIRS } from './data/home-repairs.js';
 import { MOVING } from './data/moving.js';
 import { OTHER_SERVICES } from './data/other-services.js';
 import { CATEGORY_GROUPS } from './groups.js';
-import { CATEGORY_IDS, type CategoryId } from './ids.js';
 import type { CategoryCatalog, CategoryInput, ProfessionalCategory } from './types.js';
 
 export { CATEGORY_GROUP_IDS, CATEGORY_IDS, type CategoryGroupId, type CategoryId } from './ids.js';
@@ -33,12 +32,7 @@ export const CATEGORY_CATALOG: CategoryCatalog = {
   version: CATALOG_VERSION,
 };
 
-const CATEGORY_ID_SET: ReadonlySet<string> = new Set(CATEGORY_IDS);
 const CATEGORY_BY_ID = new Map<string, ProfessionalCategory>(PROFESSIONAL_CATEGORIES.map((c) => [c.id, c]));
-
-export function isSupportedCategoryId(value: unknown): value is CategoryId {
-  return typeof value === 'string' && CATEGORY_ID_SET.has(value);
-}
 
 export function getCategoryById(id: string): ProfessionalCategory | undefined {
   return CATEGORY_BY_ID.get(id);

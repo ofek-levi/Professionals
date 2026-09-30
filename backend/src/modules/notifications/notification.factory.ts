@@ -55,6 +55,11 @@ export type NotificationInput =
       senderRole: UserRole;
       senderName: string;
       messageText: string;
+      /**
+       * Whether the recipient may still have an unread notification of this chat (they had unread
+       * messages), which the new one replaces; `false` skips that lookup on the send path.
+       */
+      replacesUnread: boolean;
     };
 
 export interface NotificationContent {

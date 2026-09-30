@@ -5,25 +5,46 @@ import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { UserModel } from '../../users/user.model.js';
 import { customerPayload, linkSentTo, pathOf, registerAccount } from './auth-test-helpers.js';
 
-describe('GET /v1/auth/verify-email', () => {
+describe('verify-email link (GET confirmation page, POST confirms)', () => {
   const { app, deps } = createTestApp({ now: '2026-10-01T09:00:00.000Z' });
   beforeEach(clearDatabase);
 
-  it('verifies the address once and shows a page in the account’s language', async () => {
+  const confirm = (token: string) => request(app).post('/v1/auth/verify-email').type('form').send({ token });
+
+  it('opening the link (a mail scanner prefetch) verifies nothing; the confirm button does, once', async () => {
     const session = await registerAccount(app, customerPayload({ email: 'noa@example.com', preferredLanguage: 'he' }));
-    const { url, mail } = await linkSentTo(deps, 'noa@example.com');
+    const { url, mail, token } = await linkSentTo(deps, 'noa@example.com');
     expect(mail.text).toContain('Noa');
 
     deps.clock.advanceMinutes(10);
-    const page = await request(app).get(pathOf(url)).expect(200);
-    expect(page.text).toContain('<html lang="he" dir="rtl">');
-    expect(page.text).toContain('כתובת האימייל אושרה');
-    expect(page.headers['cache-control']).toBe('no-store');
+    for (let prefetch = 0; prefetch < 3; prefetch += 1) {
+      const page = await request(app).get(pathOf(url)).expect(200);
+      expect(page.text).toContain('<html lang="he" dir="rtl">');
+      expect(page.text).toContain('<form method="post" action="verify-email">');
+      expect(page.text).toContain('noa@example.com');
+      expect(page.headers['cache-control']).toBe('no-store');
+    }
+    const unverified = await UserModel.findById(session.user.id, { emailVerifiedAt: 1 }).lean();
+    expect(unverified?.emailVerifiedAt ?? null).toBeNull();
+
+    const done = await confirm(token).expect(200);
+    expect(done.text).toContain('כתובת האימייל אושרה');
     const user = await UserModel.findById(session.user.id, { emailVerifiedAt: 1 }).lean();
     expect(user?.emailVerifiedAt?.toISOString()).toBe('2026-10-01T09:10:00.000Z');
 
-    const again = await request(app).get(pathOf(url)).expect(400);
+    const again = await confirm(token).set('Accept-Language', 'en').expect(400);
     expect(again.text).toContain('This link is no longer valid');
+    await request(app).get(pathOf(url)).expect(400);
+  });
+
+  it('pre-account hijacking: a scanner-opened link does not make Google trust the squatter’s password', async () => {
+    await registerAccount(app, customerPayload({ email: 'owner@example.com' }));
+    const { url } = await linkSentTo(deps, 'owner@example.com');
+    await request(app).get(pathOf(url)).expect(200);
+
+    await request(app).post('/v1/auth/google').send({ idToken: deps.google.issue({ email: 'owner@example.com', sub: 'google-owner' }) }).expect(200);
+    const user = await UserModel.findOne({ email: 'owner@example.com' }).lean();
+    expect(user?.passwordHash).toBeUndefined();
   });
 
   it('rejects expired and missing links', async () => {
@@ -36,6 +57,7 @@ describe('GET /v1/auth/verify-email', () => {
 
     const missing = await request(app).get('/v1/auth/verify-email').expect(400);
     expect(missing.text).toContain('<html lang="en" dir="ltr">');
+    await confirm('').expect(400);
   });
 
   it('escapes user data in the email', async () => {

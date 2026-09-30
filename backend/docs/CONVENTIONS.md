@@ -33,7 +33,7 @@ and models. **Do not edit them**; fill your own files.
 
 | Module | Routes (all under `/v1`) |
 |---|---|
-| auth | `POST /auth/register`, `/auth/login`, `/auth/google`, `/auth/refresh`, `/auth/logout`, `/auth/password-reset`, `GET /auth/verify-email`, `GET`+`POST /auth/reset-password` |
+| auth | `POST /auth/register`, `/auth/login`, `/auth/google`, `/auth/refresh`, `/auth/logout`, `/auth/password-reset`, `GET`+`POST /auth/verify-email`, `GET`+`POST /auth/reset-password` |
 | users | `GET`/`PATCH /me`, `POST /me/devices`, `DELETE /me/devices/:token` |
 | catalog | `GET /catalog/categories` (done) |
 | geo | `GET /geo/search`, `GET /geo/reverse` |
@@ -44,7 +44,7 @@ and models. **Do not edit them**; fill your own files.
 | offers | `GET`/`POST /requests/:id/offers`, `GET`/`PATCH /offers/:id`, `POST /offers/:id/withdraw`, `POST /offers/:id/accept`, `GET /professional/offers` |
 | jobs | `GET /jobs`, `GET /jobs/:id`, `POST /jobs/:id/confirm`, `/start`, `/complete` |
 | reviews | `POST /jobs/:id/review` |
-| conversations | `GET /conversations`, `GET /conversations/:id`, `GET`/`POST /conversations/:id/messages`, `POST /conversations/:id/read` |
+| conversations | `GET /conversations`, `GET /conversations/unread-count`, `GET /conversations/:id`, `GET`/`POST /conversations/:id/messages`, `POST /conversations/:id/read` |
 | notifications | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/read-all`, `POST /notifications/:id/read` |
 | dashboard | `GET /customer/dashboard`, `GET /professional/dashboard` |
 

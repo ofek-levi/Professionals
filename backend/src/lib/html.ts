@@ -1,5 +1,5 @@
-/** Helpers shared by the auth emails and the server-rendered link pages. */
-import type { AppLanguage } from '../../shared/domain.js';
+/** HTML helpers of the server-rendered pages and the emails (auth links, notification emails). */
+import type { AppLanguage } from '../shared/domain.js';
 
 const HTML_ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 

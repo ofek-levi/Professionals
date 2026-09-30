@@ -20,7 +20,7 @@ describe('POST /v1/auth/register', () => {
     expect(session).toEqual({
       accessToken: expect.any(String),
       accessTokenExpiresAt: '2026-10-01T09:30:00.000Z',
-      refreshToken: expect.stringMatching(/^[\w-]{43}$/),
+      refreshToken: expect.stringMatching(/^[0-9a-f]{24}\.[\w-]{43}\.[\w-]{22}$/),
       user: {
         id: expect.any(String),
         role: 'customer',

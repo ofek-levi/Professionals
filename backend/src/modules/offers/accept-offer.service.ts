@@ -18,9 +18,8 @@ import { ensureConversationForJob } from '../conversations/conversation-lifecycl
 import { publishJobUpdated } from '../jobs/job-events.js';
 import { JobModel, type JobDoc } from '../jobs/job.model.js';
 import { createNotifications } from '../notifications/create-notification.service.js';
-import { explorerAudience } from '../requests/matching.service.js';
 import { customerNameOf, loadOwnedRequest } from '../requests/request-access.js';
-import { publishRequestUpdated } from '../requests/request-events.js';
+import { publishRequestLeftExplorers } from '../requests/request-events.js';
 import type { RequestDoc } from '../requests/request.model.js';
 import { assertRequestTransition } from '../requests/request-rules.js';
 import { rejectPendingOffers, syncRequestOfferCounters } from './offer-counters.service.js';
@@ -28,7 +27,7 @@ import { publishOfferUpdated } from './offer-events.js';
 import { assertOfferAcceptable, assertOfferTransition } from './offer-rules.js';
 import { OfferModel, type OfferDoc } from './offer.model.js';
 
-type AcceptDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'redis' | 'keys' | 'background'>;
+type AcceptDeps = Pick<AppDeps, 'env' | 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background'>;
 
 export interface AcceptedOffer {
   offer: OfferDoc;
@@ -48,7 +47,6 @@ export async function acceptOffer(deps: AcceptDeps, auth: AuthContext, offerId: 
       assertOfferAcceptable(offer, request, now);
       assertOfferTransition(offer.status, 'accepted');
       assertRequestTransition(request.status, REQUEST_STATUS_FOR_JOB_STATUS.awaiting_confirmation);
-      const leavesExplorer = await explorerAudience(request);
 
       const accepted = await OfferModel.findOneAndUpdate(
         { _id: offer._id, status: 'pending' },
@@ -60,7 +58,7 @@ export async function acceptOffer(deps: AcceptDeps, auth: AuthContext, offerId: 
 
       const jobId = newObjectId();
       const conversation = await ensureConversationForJob(
-        { jobId, requestId: request._id, customerUserId: request.customer, professionalUserId: accepted.professional, now },
+        { jobId, requestId: request._id, categoryId: request.categoryId, customerUserId: request.customer, professionalUserId: accepted.professional, now },
         tx.session,
       );
       const [createdJob] = await JobModel.create(
@@ -103,7 +101,8 @@ export async function acceptOffer(deps: AcceptDeps, auth: AuthContext, offerId: 
         tx,
       );
       for (const changed of [accepted, ...rejected]) await publishOfferUpdated(deps, changed, request.customer, tx);
-      await publishRequestUpdated(deps, updatedRequest, { extra: leavesExplorer, tx });
+      // It took offers until now, so it leaves the explorers of every matching professional.
+      publishRequestLeftExplorers(deps, updatedRequest, tx);
       await publishJobUpdated(deps, job, tx);
       return { offer: accepted, request: updatedRequest, job };
     });

@@ -1,6 +1,6 @@
 /**
- * Upload routes. The per-user rate limit runs after `requireAuth` (it is keyed by the caller) and
- * before multer, so rejected callers never stream a file into memory.
+ * Upload routes. The per-user rate limit and the quotas run after `requireAuth` (they are keyed by
+ * the caller) and before multer, so rejected callers never stream a file into memory.
  */
 import { Router } from 'express';
 import multer from 'multer';
@@ -10,6 +10,7 @@ import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { RATE_LIMITS, rateLimit, userKey } from '../../middleware/rate-limit.js';
 import { API_LIMITS } from '../../shared/limits.js';
+import { checkUploadQuota } from './upload-quota.js';
 import { requireStorage, uploadImage } from './uploads.controller.js';
 
 /** One file of at most 8 MB, buffered in memory, plus a few small text fields (ignored). */
@@ -25,6 +26,7 @@ export function createUploadsRouter(deps: AppDeps): Router {
     requireAuth(deps),
     rateLimit(deps, 'uploads-user', { ...RATE_LIMITS.uploadsPerUser, key: userKey }),
     requireStorage(deps),
+    checkUploadQuota(deps),
     imageUpload.single('file'),
     asyncHandler(uploadImage(deps), { status: 201 }),
   );

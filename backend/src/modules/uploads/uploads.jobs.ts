@@ -14,7 +14,13 @@ const MAX_BATCHES = 100;
 
 type OrphanDeps = Pick<AppDeps, 'storage' | 'clock' | 'logger'>;
 
-/** Returns how many uploads were deleted. */
+/**
+ * Returns how many uploads were deleted. The documents go first, under the `attachedAt: null`
+ * filter, and only the images of documents that were really deleted are destroyed: a request or
+ * profile that claims one of the batch in between keeps its document and its image (deleting the
+ * image first left such a claim pointing at a destroyed file). If storage then fails, the images
+ * are orphaned in storage (logged with their ids) but nothing visible breaks.
+ */
 export async function deleteOrphanUploads(deps: OrphanDeps): Promise<number> {
   const cutoff = new Date(deps.clock.now().getTime() - API_LIMITS.orphanUploadMaxAgeHours * 60 * 60_000);
   const filter = { attachedAt: null, createdAt: { $lt: cutoff } };
@@ -22,9 +28,16 @@ export async function deleteOrphanUploads(deps: OrphanDeps): Promise<number> {
   for (let batch = 0; batch < MAX_BATCHES; batch += 1) {
     const orphans = await UploadModel.find(filter, { publicId: 1 }).sort({ attachedAt: 1, createdAt: 1 }).limit(BATCH_SIZE).lean<Pick<UploadDoc, '_id' | 'publicId'>[]>();
     if (orphans.length === 0) break;
-    // Storage first: when it fails the documents stay and the next run retries.
-    await deps.storage.destroy(orphans.map((upload) => upload.publicId));
-    const result = await UploadModel.deleteMany({ ...filter, _id: { $in: orphans.map((upload) => upload._id) } });
+    const ids = orphans.map((upload) => upload._id);
+    const result = await UploadModel.deleteMany({ ...filter, _id: { $in: ids } });
+    // Claimed meanwhile → still there (attached): its image must stay.
+    const kept = new Set((await UploadModel.find({ _id: { $in: ids } }, { _id: 1 }).lean<Pick<UploadDoc, '_id'>[]>()).map((upload) => upload._id.toHexString()));
+    const publicIds = orphans.filter((upload) => !kept.has(upload._id.toHexString())).map((upload) => upload.publicId);
+    try {
+      await deps.storage.destroy(publicIds);
+    } catch (error) {
+      deps.logger.error({ err: error, publicIds }, 'orphan images could not be destroyed; delete them in storage');
+    }
     deleted += result.deletedCount;
     if (orphans.length < BATCH_SIZE) break;
   }

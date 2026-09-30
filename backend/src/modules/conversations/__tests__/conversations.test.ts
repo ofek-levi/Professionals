@@ -14,6 +14,30 @@ beforeEach(async () => {
   deps.clock.set('2026-10-01T09:00:00.000Z');
 });
 
+describe('GET /v1/conversations/unread-count', () => {
+  it('sums the caller’s unread messages over every conversation (the inbox badge)', async () => {
+    const first = await createChat(deps);
+    const second = await createChat(deps, { customer: first.customer });
+    const count = async (headers: { Authorization: string }) =>
+      (await request(app).get('/v1/conversations/unread-count').set(headers).expect(200)).body as { count: number };
+
+    expect(await count(first.customer.headers)).toEqual({ count: 0 });
+    await send(app, first, first.pro, 'One');
+    await send(app, first, first.pro, 'Two');
+    await send(app, second, second.pro, 'Three');
+    expect(await count(first.customer.headers)).toEqual({ count: 3 });
+    expect(await count(first.pro.headers)).toEqual({ count: 0 });
+    // Replying reads the conversation (the app's rule), and the counterpart gets one unread.
+    await send(app, second, first.customer, 'Thanks');
+    expect(await count(first.customer.headers)).toEqual({ count: 2 });
+    expect(await count(second.pro.headers)).toEqual({ count: 1 });
+
+    await request(app).post(`${first.path}/read`).set(first.customer.headers).expect(200);
+    expect(await count(first.customer.headers)).toEqual({ count: 0 });
+    await request(app).get('/v1/conversations/unread-count').expect(401);
+  });
+});
+
 describe('GET /v1/conversations', () => {
   it('lists the caller’s conversations, most recent activity first, with participants and unread counts', async () => {
     const older = await createChat(deps);
@@ -129,7 +153,8 @@ describe('GET /v1/conversations/:id/messages', () => {
     const second = await request(app).get(`${chat.path}/messages?limit=2&cursor=${first.body.nextCursor as string}`).set(chat.pro.headers).expect(200);
     expect(second.body.items.map((m: { text: string }) => m.text)).toEqual(['three', 'two']);
     const third = await request(app).get(`${chat.path}/messages?limit=2&cursor=${second.body.nextCursor as string}`).set(chat.pro.headers).expect(200);
-    expect(third.body).toMatchObject({ nextCursor: null, totalCount: 6 });
+    // `totalCount` is counted on the first page and echoed by later ones (no recount per page).
+    expect(third.body).toMatchObject({ nextCursor: null, totalCount: 5 });
     expect(third.body.items.map((m: { text: string }) => m.text)).toEqual(['one']);
   });
 

@@ -41,7 +41,7 @@ describe('POST /v1/auth/google', () => {
     expect(res.body.code).toBe('INVALID_GOOGLE_TOKEN');
   });
 
-  it('links a verified password account and keeps its password and sessions', async () => {
+  it('links a verified password account, keeps its password and revokes the earlier sessions', async () => {
     const existing = await registerAccount(app, customerPayload({ email: 'verified@example.com' }));
     await UserModel.updateOne({ _id: existing.user.id }, { $set: { emailVerifiedAt: deps.clock.now() } });
 
@@ -51,7 +51,11 @@ describe('POST /v1/auth/google', () => {
     expect(user?.googleSub).toBe('google-v');
     expect(user?.passwordHash).toEqual(expect.any(String));
     await loginAccount(app, 'verified@example.com');
-    await request(app).post('/v1/auth/refresh').send({ refreshToken: existing.refreshToken }).expect(200);
+    // Sessions opened before the owner proved the address with Google end.
+    await request(app).post('/v1/auth/refresh').send({ refreshToken: existing.refreshToken }).expect(401);
+    await request(app).get('/v1/me').set(bearer(existing.accessToken)).expect(401);
+    const linked = (res.body as { session: AuthSession }).session;
+    await request(app).get('/v1/me').set(bearer(linked.accessToken)).expect(200);
   });
 
   it('pre-account hijacking: drops an unverified password and revokes every session', async () => {

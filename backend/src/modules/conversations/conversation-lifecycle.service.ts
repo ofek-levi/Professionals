@@ -4,12 +4,14 @@
  */
 import type { ClientSession, Types } from 'mongoose';
 
+import type { CategoryId } from '../../shared/catalog/index.js';
 import { ConversationModel } from './conversation.model.js';
 
 export interface JobConversationInput {
   /** Pre-generate the job id (`newObjectId()`) so job and conversation can reference each other. */
   jobId: Types.ObjectId;
   requestId: Types.ObjectId;
+  categoryId: CategoryId;
   customerUserId: Types.ObjectId;
   professionalUserId: Types.ObjectId;
   now: Date;
@@ -26,6 +28,7 @@ export async function ensureConversationForJob(input: JobConversationInput, sess
       $setOnInsert: {
         job: input.jobId,
         request: input.requestId,
+        categoryId: input.categoryId,
         participants: [
           { user: input.customerUserId, role: 'customer', unreadCount: 0 },
           { user: input.professionalUserId, role: 'professional', unreadCount: 0 },

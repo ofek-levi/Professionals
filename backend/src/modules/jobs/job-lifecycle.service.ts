@@ -16,13 +16,13 @@ import { customerNameOf, loadRequest, professionalNameOf } from '../requests/req
 import { publishRequestUpdated } from '../requests/request-events.js';
 import { RequestModel, type RequestDoc } from '../requests/request.model.js';
 import { assertRequestTransition } from '../requests/request-rules.js';
-import { refreshCompletedJobsCount } from '../reviews/professional-stats.service.js';
+import { recordCompletedJob } from '../reviews/professional-stats.service.js';
 import { loadPartyJob } from './job-access.js';
 import { publishJobUpdated } from './job-events.js';
 import { JobModel, type JobDoc } from './job.model.js';
 import { assertJobTransition } from './job-rules.js';
 
-type LifecycleDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'redis' | 'keys' | 'background' | 'cache'>;
+type LifecycleDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background' | 'cache'>;
 type JobPatch = Partial<Pick<JobDoc, 'confirmedAt' | 'startedAt' | 'completedAt' | 'completedBy' | 'cancelledAt'>>;
 
 /** Moves the job to `to` (state machine), mirrors it onto the request and emits both updates. */
@@ -82,7 +82,7 @@ export function completeJob(deps: LifecycleDeps, auth: AuthContext, jobId: Types
   return withTransaction(deps.logger, async (tx) => {
     const job = await loadPartyJob(auth, jobId, tx.session, 'Only the parties of this job can complete it');
     const result = await transitionJob(deps, job, 'completed', { completedAt: deps.clock.now(), completedBy: auth.role }, tx);
-    await refreshCompletedJobsCount(deps, job.professional, tx);
+    await recordCompletedJob(deps, job.professional, tx);
     if (auth.role === 'professional') {
       const counterpartName = await professionalNameOf(job.professional, tx.session);
       await createNotification(deps, job.customer, { type: 'job_completed', job: result.job, recipientRole: 'customer', counterpartName }, tx);

@@ -1,6 +1,6 @@
 /**
  * Registers every mongoose model. Imported by `server.ts` and the test setup before
- * `syncIndexes()`, so every collection and index exists (autoIndex is off).
+ * `ensureIndexes()`, so every collection and index exists (autoIndex is off).
  */
 export { EmailTokenModel } from './modules/auth/email-token.model.js';
 export { SessionModel } from './modules/auth/session.model.js';

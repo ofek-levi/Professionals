@@ -1,7 +1,9 @@
 import mongoose from 'mongoose';
+import { pino } from 'pino';
 import { describe, expect, it } from 'vitest';
 
 import { createTestDeps } from '../../../test/app.js';
+import { ensureIndexes } from '../mongo.js';
 
 interface IndexInfo {
   key: Record<string, unknown>;
@@ -17,7 +19,7 @@ async function indexesOf(collection: string): Promise<IndexInfo[]> {
   return indexes;
 }
 
-describe('declared indexes exist after syncIndexes', () => {
+describe('declared indexes exist after ensureIndexes', () => {
   createTestDeps();
 
   it('creates every collection', async () => {
@@ -35,10 +37,35 @@ describe('declared indexes exist after syncIndexes', () => {
     expect(await indexesOf('reviews')).toContainEqual(expect.objectContaining({ key: { job: 1 }, unique: true }));
     expect(await indexesOf('messages')).toContainEqual(expect.objectContaining({ key: { conversation: 1, sender: 1, clientMessageId: 1 }, unique: true }));
     expect(await indexesOf('users')).toContainEqual(expect.objectContaining({ key: { googleSub: 1 }, unique: true }));
-    expect(await indexesOf('requests')).toContainEqual(expect.objectContaining({ key: { 'location.point': '2dsphere', status: 1, categoryId: 1 } }));
-    expect(await indexesOf('professionals')).toContainEqual(expect.objectContaining({ key: { 'serviceArea.center': '2dsphere', categoryIds: 1 } }));
+    expect(await indexesOf('requests')).toContainEqual(expect.objectContaining({ key: { status: 1, categoryId: 1, publicPoint: '2dsphere' } }));
+    expect(await indexesOf('professionals')).toContainEqual(
+      expect.objectContaining({ key: { categoryIds: 1, 'serviceArea.radiusKm': 1, 'serviceArea.center': '2dsphere' } }),
+    );
+    // Public searches measure from the approximate center only.
+    expect(await indexesOf('professionals')).toContainEqual(
+      expect.objectContaining({ key: { categoryIds: 1, 'serviceArea.radiusKm': 1, 'serviceArea.publicCenter': '2dsphere' } }),
+    );
+    expect(await indexesOf('professionals')).toContainEqual(expect.objectContaining({ key: { 'serviceArea.publicCenter': '2dsphere', categoryIds: 1 } }));
+    expect(await indexesOf('professionals')).not.toContainEqual(expect.objectContaining({ key: { 'serviceArea.center': '2dsphere', categoryIds: 1 } }));
+    expect(await indexesOf('uploads')).toContainEqual(
+      expect.objectContaining({ key: { owner: 1 }, partialFilterExpression: { attachedAt: { $type: 'null' } } }),
+    );
+    expect(await indexesOf('conversations')).toContainEqual(expect.objectContaining({ key: { 'participants.user': 1, 'participants.unreadCount': 1 } }));
+    // Refresh tokens carry their session id: sessions are read by _id, no token-hash index.
+    expect((await indexesOf('sessions')).map((index) => Object.keys(index.key).join())).toEqual(['_id', 'user', 'expiresAt']);
     expect(await indexesOf('sessions')).toContainEqual(expect.objectContaining({ key: { expiresAt: 1 }, expireAfterSeconds: 0 }));
     expect(await indexesOf('emailtokens')).toContainEqual(expect.objectContaining({ key: { expiresAt: 1 }, expireAfterSeconds: 0 }));
     expect(await indexesOf('notifications')).toContainEqual(expect.objectContaining({ key: { createdAt: 1 }, expireAfterSeconds: 90 * 24 * 3600 }));
+  });
+
+  it('never drops an index the code does not declare (rolling deploys); it only reports it', async () => {
+    const db = mongoose.connection.db;
+    if (!db) throw new Error('not connected');
+    await db.collection('reviews').createIndex({ rating: 1 }, { name: 'from_another_release' });
+    const lines: string[] = [];
+    await ensureIndexes(pino({ level: 'warn' }, { write: (line: string) => void lines.push(line) }));
+    expect(await indexesOf('reviews')).toContainEqual(expect.objectContaining({ key: { rating: 1 } }));
+    expect(lines.some((line) => line.includes('stale indexes') && line.includes('from_another_release'))).toBe(true);
+    await db.collection('reviews').dropIndex('from_another_release');
   });
 });

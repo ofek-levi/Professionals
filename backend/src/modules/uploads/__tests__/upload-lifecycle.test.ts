@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import type { QueryFilter } from 'mongoose';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearDatabase, createTestDeps } from '../../../../test/app.js';
 import { createCustomer, createUpload } from '../../../../test/factories.js';
@@ -6,7 +7,7 @@ import { newObjectId } from '../../../lib/ids.js';
 import type { UserDoc } from '../../users/user.model.js';
 import { changeAvatar } from '../avatar.service.js';
 import { claimUploads, releaseUploads } from '../upload-attachments.service.js';
-import { UploadModel } from '../upload.model.js';
+import { UploadModel, type UploadDoc } from '../upload.model.js';
 import { deleteOrphanUploads, uploadJobs } from '../uploads.jobs.js';
 
 const HOUR = 60 * 60_000;
@@ -101,7 +102,7 @@ describe('orphan-uploads cron', () => {
     expect(await deleteOrphanUploads(deps)).toBe(0);
   });
 
-  it('works through backlogs in batches and keeps documents when storage fails', async () => {
+  it('works through backlogs in batches; a storage failure never blocks the cleanup', async () => {
     const owner = await createCustomer();
     await UploadModel.insertMany(
       Array.from({ length: 150 }, (_, i) => ({ owner: owner._id, publicId: `test/images/bulk-${i}`, url: `https://images.test/bulk-${i}.jpg` })),
@@ -111,11 +112,26 @@ describe('orphan-uploads cron', () => {
       ...deps,
       storage: { configured: true, upload: deps.storage.upload.bind(deps.storage), destroy: () => Promise.reject(new Error('down')) },
     };
-    await expect(deleteOrphanUploads(failing)).rejects.toThrow('down');
-    expect(await UploadModel.countDocuments()).toBe(150);
-
-    expect(await deleteOrphanUploads(deps)).toBe(150);
+    expect(await deleteOrphanUploads(failing)).toBe(150);
     expect(await UploadModel.countDocuments()).toBe(0);
+  });
+
+  it('keeps the image of an upload claimed while the cron runs', async () => {
+    const owner = await createCustomer();
+    const [claimed, orphan] = [await storedUpload(owner, false), await storedUpload(owner, false)];
+    deps.clock.advance(25 * HOUR);
+    // A request claims `claimed` between the cron's lookup and its delete.
+    const deleteMany = UploadModel.deleteMany.bind(UploadModel);
+    const claimThenDelete = async (filter: QueryFilter<UploadDoc>) => {
+      await claimUploads(owner._id, [claimed._id], deps.clock.now());
+      return deleteMany(filter);
+    };
+    const race = vi.spyOn(UploadModel, 'deleteMany').mockImplementationOnce(claimThenDelete as unknown as typeof UploadModel.deleteMany);
+    expect(await deleteOrphanUploads(deps)).toBe(1);
+    race.mockRestore();
+    expect(await UploadModel.exists({ _id: claimed._id })).not.toBeNull();
+    expect(deps.storage.images.has(claimed.publicId)).toBe(true);
+    expect(deps.storage.images.has(orphan.publicId)).toBe(false);
   });
 
   it('is registered daily under its fixed name', () => {

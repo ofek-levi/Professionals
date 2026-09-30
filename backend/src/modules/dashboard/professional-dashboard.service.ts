@@ -7,6 +7,7 @@ import type { Types } from 'mongoose';
 
 import type { AppDeps } from '../../deps.js';
 import { ApiError } from '../../lib/errors.js';
+import { RECENTLY_UPDATED, sortOf } from '../../lib/pagination.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type { ProfessionalDashboard } from '../../shared/contract/index.js';
 import { APP_CONFIG } from '../../shared/limits.js';
@@ -42,7 +43,9 @@ export async function getProfessionalDashboard(deps: Pick<AppDeps, 'clock'>, aut
   const [nearby, pendingOffersCount, pendingOffers, activeJobsCount, upcoming, recentNotifications, earnings] = await Promise.all([
     nearbyOverview(professional, PREVIEW_SIZE),
     OfferModel.countDocuments(pending),
-    OfferModel.find(pending).sort({ createdAt: -1, _id: -1 }).limit(PREVIEW_SIZE).lean<OfferDoc[]>(),
+    // Most recently updated first: the `{professional, status, updatedAt}` index order, so the
+    // preview reads 5 entries instead of sorting every pending offer in memory.
+    OfferModel.find(pending).sort(sortOf(RECENTLY_UPDATED)).limit(PREVIEW_SIZE).lean<OfferDoc[]>(),
     JobModel.countDocuments(active),
     JobModel.find(active).sort({ scheduledStartAt: 1, _id: 1 }).limit(PREVIEW_SIZE).lean<JobDoc[]>(),
     listRecentNotifications(auth.userId, PREVIEW_SIZE),

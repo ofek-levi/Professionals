@@ -37,4 +37,18 @@ describe('cron', () => {
     await expect(scheduler.runNow('unknown')).rejects.toThrow('Unknown cron job');
     await scheduler.stop();
   });
+
+  it('runs a scheduled tick once across instances, also for an instance whose timer fires late', async () => {
+    let runs = 0;
+    const job: CronJob = { name: 'tick-job', schedule: '*/5 * * * *', lockTtlMs: 10_000, run: () => Promise.resolve(void (runs += 1)) };
+    const options = { jobs: [job], redis: deps.redis, keys: deps.keys, logger: deps.logger, enabled: false, disabledJobs: [] };
+    const [first, late] = [startScheduler(options), startScheduler(options)];
+    const tick = new Date('2026-10-01T09:05:00.000Z');
+    expect(await first.runNow('tick-job', tick)).toBe(true);
+    // The first run finished and released its run lock; the late instance still finds the tick taken.
+    expect(await late.runNow('tick-job', tick)).toBe(false);
+    expect(await late.runNow('tick-job', new Date('2026-10-01T09:10:00.000Z'))).toBe(true);
+    expect(runs).toBe(2);
+    await Promise.all([first.stop(), late.stop()]);
+  });
 });

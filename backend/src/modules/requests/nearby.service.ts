@@ -7,13 +7,13 @@
 import type { PipelineStage, Types } from 'mongoose';
 
 import { geoNearStage } from '../../lib/geo-near.js';
-import { pageStages, toPage, type PageParams, type SortSpec } from '../../lib/pagination.js';
+import { pageStages, readCursor, sortOf, toPage, type PageParams, type SortSpec } from '../../lib/pagination.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type { Paginated, ProfessionalRequestView } from '../../shared/contract/index.js';
 import type { NearbyRequestSort } from '../../shared/domain.js';
 import { REQUEST_STATUSES_ACCEPTING_OFFERS } from '../../shared/statuses.js';
 import { URGENCY_LEVELS, URGENCY_META } from '../../shared/urgency.js';
-import { activeOfferRequestIds } from '../offers/offer-lookups.js';
+import { pendingOfferRequestIds } from '../offers/offer-lookups.js';
 import { serviceAreaCenter, loadMatchableProfessional, type MatchableProfessional } from './matching.service.js';
 import { RequestModel, type RequestDoc } from './request.model.js';
 import type { NearbyRequestsQuery } from './requests.schemas.js';
@@ -71,7 +71,7 @@ function nearbyStages(professional: MatchableProfessional, filters: NearbyFilter
   return [
     geoNearStage({
       near: serviceAreaCenter(professional),
-      key: 'location.point',
+      key: 'publicPoint', // distances and filters never see the exact address
       distanceField: 'distanceKm',
       maxDistanceKm: filters.maxDistanceKm !== undefined ? Math.min(filters.maxDistanceKm, radiusKm) : radiusKm,
       query,
@@ -86,17 +86,23 @@ function nearbyStages(professional: MatchableProfessional, filters: NearbyFilter
   ];
 }
 
+/** One page; the total (a `$facet` over the whole radius) only on the first page, echoed after. */
 async function nearbyPage(stages: PipelineStage[], sort: SortSpec, page: PageParams): Promise<Paginated<NearbyHit>> {
+  const cursor = readCursor(page, sort);
+  const items = pageStages(sort, cursor, page.limit);
+  if (cursor) return toPage(await RequestModel.aggregate<NearbyHit>([...stages, ...items]), page, sort, cursor.totalCount);
   const [result] = await RequestModel.aggregate<{ items: NearbyHit[]; total: { count: number }[] }>([
     ...stages,
-    { $facet: { items: pageStages(sort, page) as PipelineStage.FacetPipelineStage[], total: [{ $count: 'count' }] } },
+    { $facet: { items: items as PipelineStage.FacetPipelineStage[], total: [{ $count: 'count' }] } },
   ]);
   return toPage(result?.items ?? [], page, sort, result?.total[0]?.count ?? 0);
 }
 
 export async function listNearbyRequests(auth: AuthContext, query: NearbyRequestsQuery): Promise<Paginated<ProfessionalRequestView>> {
-  const professional = await loadMatchableProfessional(auth.userId);
-  const excludeRequestIds = query.excludeWithMyOffer ? await activeOfferRequestIds(professional._id) : [];
+  const [professional, excludeRequestIds] = await Promise.all([
+    loadMatchableProfessional(auth.userId),
+    query.excludeWithMyOffer ? pendingOfferRequestIds(auth.userId) : [],
+  ]);
   const stages = nearbyStages(professional, { ...query, excludeRequestIds });
   if (!stages) return { items: [], nextCursor: null, totalCount: 0 };
   const page = await nearbyPage(stages, SORTS[query.sort ?? 'newest'], { cursor: query.cursor, limit: query.limit });
@@ -113,12 +119,12 @@ export async function nearbyOverview(
 ): Promise<{ count: number; fresh: ProfessionalRequestView[] }> {
   const stages = nearbyStages(professional, {});
   if (!stages) return { count: 0, fresh: [] };
-  const withMyOffer = await activeOfferRequestIds(professional._id);
+  const withMyOffer = await pendingOfferRequestIds(professional._id);
   const [result] = await RequestModel.aggregate<{ fresh: NearbyHit[]; total: { count: number }[] }>([
     ...stages,
     {
       $facet: {
-        fresh: [{ $match: { _id: { $nin: withMyOffer } } }, { $sort: { recency: -1, _id: 1 } }, { $limit: limit }],
+        fresh: [{ $match: { _id: { $nin: withMyOffer } } }, { $sort: sortOf(NEWEST) }, { $limit: limit }],
         total: [{ $count: 'count' }],
       },
     },

@@ -17,7 +17,11 @@ export interface SessionDenylistDeps {
   keys: RedisKeys;
 }
 
-const DENY_TTL_MS = API_LIMITS.accessTokenTtlSeconds * 1000;
+/**
+ * Longer than an access token lives, with a margin: a refresh that was already running when the
+ * session was revoked may sign its access token a moment after the id was listed.
+ */
+const DENY_TTL_MS = (API_LIMITS.accessTokenTtlSeconds + 60) * 1000;
 
 function denyKey(deps: SessionDenylistDeps, sessionId: string): string {
   return deps.keys.key(KEY_SPACES.revokedSession, sessionId);

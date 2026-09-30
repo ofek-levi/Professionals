@@ -43,13 +43,13 @@ describe('marketplace lifecycle (HTTP)', () => {
     expect(notificationTypes(deps, faraway.user._id.toHexString())).toEqual([]);
     expect(notificationTypes(deps, painter.user._id.toHexString())).toEqual([]);
     expect(eventTypes(deps, proId)).toContain('request.updated');
-    await deps.background.drain();
     expect(deps.push.sent.length).toBeGreaterThan(0);
 
     // The explorer shows it with the privacy view.
     const nearby = await request(app).get('/v1/professional/requests/nearby').set(pro.headers).expect(200);
     expect(nearby.body.totalCount).toBe(1);
-    expect(nearby.body.items[0]).toMatchObject({ id: requestId, notes: null, jobId: null, isMatch: true, myOffer: null, distanceKm: 0 });
+    expect(nearby.body.items[0]).toMatchObject({ id: requestId, notes: null, jobId: null, isMatch: true, myOffer: null });
+    expect(nearby.body.items[0].distanceKm).toBeLessThanOrEqual(0.5); // to the public pin, 250–450 m off
     expect(nearby.body.items[0].location).toMatchObject({ addressLine: '', details: null, isApproximate: true });
 
     // Two offers → offers_received; the customer is notified of each.

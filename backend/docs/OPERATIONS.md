@@ -34,14 +34,14 @@ a list of every problem. Summary:
 | `PORT` | | `4000` | HTTP and WebSocket |
 | `PUBLIC_API_URL` | staging, production | `http://localhost:<PORT>` | Public base URL (no `/v1`) used in email links |
 | `CORS_ORIGINS` | | see §1 | Comma-separated browser origins (the native app needs none; Expo web does) |
-| `TRUST_PROXY` | behind a proxy | `false` | Express `trust proxy`: `true`, a hop count (`1`) or subnets. Needed for real client IPs (rate limits, logs) |
+| `TRUST_PROXY` | staging, production | `false` (development) | Express `trust proxy`: a hop count (`1`), or comma-separated proxy addresses/subnets (`10.0.0.0/8`, `loopback`, …); `false` only when clients connect directly. Deployed environments must set it and refuse `true` (it trusts any `X-Forwarded-For`, so a client could choose the IP every per-IP limit sees) |
 | `LOG_LEVEL` | | see §1 | `fatal`…`trace`, `silent` |
 | `MONGODB_URI` | always | — | Must point at a **replica set** (transactions) |
 | `MONGODB_DB_NAME` | | from the URI | Database name |
 | `MONGODB_MAX_POOL_SIZE` | | `20` | Connections per instance |
 | `REDIS_URL` | always | — | `redis://` or `rediss://` (TLS) |
-| `JWT_ACCESS_SECRET` | always | — | ≥ 32 characters (`openssl rand -base64 48`); one per environment |
-| `JWT_ISSUER` / `JWT_AUDIENCE` | | `professionals-api` / `professionals-app` | Access token `iss` / `aud` |
+| `JWT_ACCESS_SECRET` | always | — | `openssl rand -base64 48`; one per environment. Development accepts ≥ 32 characters (the `.env.example` placeholder, with a warning); staging/production refuse placeholders (`change-me`, `example`, …), secrets under 43 characters (32 random bytes) and low-entropy ones. Also signs refresh tokens (derived key) |
+| `JWT_ISSUER` / `JWT_AUDIENCE` | | `professionals-api:<APP_ENV>` / `professionals-app:<APP_ENV>` | Access token `iss` / `aud`; the environment in the defaults makes one environment's tokens useless in another |
 | `GOOGLE_WEB_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID` | staging, production | — | Accepted audiences of Google id tokens |
 | `GOOGLE_ANDROID_CLIENT_ID` | when Android signs in with Google | — | The Android build's id tokens carry this audience |
 | `CLOUDINARY_URL` (or `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET`) | staging, production | — | Image storage |
@@ -51,6 +51,8 @@ a list of every problem. Summary:
 | `GEOCODER_URL` | | Nominatim | Nominatim-compatible endpoint |
 | `GEOCODER_EMAIL`, `GEOCODER_USER_AGENT` | staging, production | dev user agent | Identify the app to the geocoder (usage policy) |
 | `GEOCODER_COUNTRY_CODES` | | `il` | Search restricted to these countries |
+| `GEOCODER_MIN_INTERVAL_MS` | | `1000` | Spacing of provider calls across all instances (Nominatim's public API: ≥ 1000). Lower it only for a provider that allows more (0 = no gate) |
+| `EXPLORER_EVENT_WINDOW_MS` | | `2000` | Explorer refresh events to one professional are merged within this window (0 = send each at once) |
 | `CRON_ENABLED` | | `true` | `false` on instances that must not run scheduled jobs |
 | `CRON_DISABLED_JOBS` | | — | Comma-separated job names to skip (see §5) |
 | `RATE_LIMIT_ENABLED` | | `true` | Keep `true` outside tests |
@@ -60,7 +62,9 @@ a list of every problem. Summary:
 Secrets (`JWT_ACCESS_SECRET`, `CLOUDINARY_*`, `RESEND_API_KEY`, `SMTP_PASS`, `EXPO_ACCESS_TOKEN`, the
 credentials inside `MONGODB_URI`/`REDIS_URL`) belong in the platform's secret store, never in the image
 or the repository. Rotating `JWT_ACCESS_SECRET` invalidates every access token: apps get a 401, refresh
-(refresh tokens are not JWTs and keep working) and continue.
+(refresh tokens are looked up by their stored hash and keep working) and continue. Refresh tokens
+issued before the rotation lose their reuse detection (their signature no longer verifies, so an old
+replayed token is refused but does not revoke its session); tokens issued after it have it again.
 
 ## 3. Infrastructure
 
@@ -76,22 +80,36 @@ in **multi-document transactions**, which MongoDB only supports on a replica set
 - **Self-hosted**: a 3-member replica set (a single-member set works for development:
   `mongod --replSet rs0` + `rs.initiate()`), with authentication and TLS.
 - MongoDB 7 or newer (tested on 7).
-- Indexes are created/updated by the API at startup (`syncIndexes`, before it starts listening) and
-  indexes no longer declared in the code are dropped. Consequences:
+- Indexes are created by the API at startup (`ensureIndexes`, before it starts listening); it never
+  drops one, so old and new releases can boot side by side during a rolling deploy without undoing
+  each other's indexes. Consequences:
   - On a large collection, a new index is built before the first instance of the release serves
     traffic; for big data sets create it ahead of the release (same definition as in the model) so
-    the sync finds it in place.
-  - During a rolling deploy the old and new releases briefly share the database; changing an index an
-    old instance still relies on only makes its queries slower until it is replaced.
+    startup finds it in place.
+  - An index removed from the code stays until you drop it: startup logs `stale indexes` with their
+    names. Once no running instance uses it (the release after the one that stopped declaring it),
+    drop it by hand: `db.<collection>.dropIndex('<name>')`.
+  - Changing the options of an index under the same name makes creation fail (`index creation
+    failed` in the log): give the new definition a new name, or drop the old index first.
 - Data that expires by itself (TTL indexes, no cron): sessions (90 days after the last refresh),
   email links (verification 48 h, reset 1 h), notifications (90 days).
+- Indexes this release no longer declares (drop them once no older instance runs):
+  `sessions.tokenHash_1` and `sessions.previousTokenHash_1` (refresh tokens now carry their session
+  id; sessions are read by `_id`) and `professionals` `serviceArea.center_2dsphere_categoryIds_1`
+  (public searches use `serviceArea.publicCenter`). Sessions created before this release have
+  refresh tokens in the old format: those users sign in again once.
+- Documents written before this release: `professionals.serviceArea.publicCenter` is required; set it
+  for existing professionals before deploying (none exist in production yet).
 
 ### Redis
 
 Redis 6.2+ (tested on 7), shared by every API instance of an environment. It holds: cache (public
-profiles 60 s, geocoder results 30 days), rate-limit counters, cron locks, the geocoder's global
-request gate, revoked session ids (30 min), pending Expo push tickets (sorted set pruned by the
-`push-receipts` job) and the realtime pub/sub channel. Nothing in it is the only copy of business
+profiles 60 s, geocoder: reverse lookups 30 days, searches 7 days, empty answers 1 day), rate-limit
+counters (also WebSocket upgrades per user, failed sign-ins, geocoder misses, upload bytes, reset and
+notification emails), "known" sign-in IPs per account (hashed email, 30 days), cron locks and tick
+claims, the geocoder's global request gate, explorer event windows (seconds), revoked session ids
+(31 min), pending Expo push tickets (sorted set pruned by the `push-receipts` job) and the realtime
+pub/sub channel. Nothing in it is the only copy of business
 data, so persistence is optional; losing it resets limits and caches and drops push receipts not yet
 checked.
 
@@ -124,16 +142,21 @@ Without Docker: `npm ci && npm run build && npm start` on Node ≥ 22.12.
 ### Behind a load balancer / reverse proxy
 
 - Terminate TLS at the load balancer; set `TRUST_PROXY` to the number of proxies in front of the app
-  (usually `1`) so client IPs, rate limits and logs are right.
+  (usually `1`) or to their subnets, so client IPs, rate limits and logs are right. Staging and
+  production refuse to start without it, and refuse `true`.
+- Rate limits of signed-in traffic are per user, and the per-IP caps of the sign-in routes are sized
+  for carrier NAT (many subscribers behind one IPv4); see API.md, Rate limits.
 - The WebSocket endpoint `/v1/realtime` shares the HTTP port: allow `Upgrade` and use an idle timeout
   above 30 s (the server pings every 30 s). The HTTP keep-alive timeout is 65 s, above the usual 60 s
   load-balancer idle timeout.
 - Health checks: liveness `GET /health` (process up, no dependencies), readiness `GET /ready` (MongoDB
   and Redis answer; 503 otherwise).
-- Graceful shutdown on `SIGTERM`/`SIGINT`: stop accepting connections, close WebSockets (code 1001, the
-  app reconnects to another instance), stop cron, let in-flight requests and background work (push
-  sends) finish, close MongoDB and Redis, exit within `SHUTDOWN_TIMEOUT_MS` (default 10 s). Give the
-  platform a stop grace period a little longer than that.
+- Graceful shutdown on `SIGTERM`/`SIGINT`: stop accepting connections; at the same time close
+  WebSockets (code 1001, the app reconnects to another instance; sockets that do not answer within
+  1 s, e.g. a backgrounded phone, are cut) and stop cron; let in-flight requests and then the
+  background work they started (push sends, matching fan-out) finish; close MongoDB and Redis; exit
+  within `SHUTDOWN_TIMEOUT_MS` (default 10 s). Give the platform a stop grace period a little longer
+  than that.
 
 ### Release checklist
 
@@ -142,18 +165,22 @@ Without Docker: `npm ci && npm run build && npm start` on Node ≥ 22.12.
 2. Build and push the image; deploy staging with staging secrets; smoke test sign-up, a request, an
    offer, chat (realtime) and an upload.
 3. Deploy production with a rolling update; watch `/ready`, error rates and the logs.
+4. After the release before it is gone everywhere, drop the indexes startup reports as `stale
+   indexes` (see §3, MongoDB).
 
 ## 5. Scheduled jobs (cron)
 
-Every instance runs the scheduler by default; each run takes a Redis lock (`SET NX PX`), so only one
-instance executes a given tick. Jobs are idempotent and resume where they stopped.
+Every instance runs the scheduler by default. Each scheduled tick is claimed in Redis under its own
+key (`lock:<job>:tick:<scheduled time>`, `SET NX PX`, left to expire rather than released), so one
+instance executes a given tick even when another instance's timer fires late; a second, released lock
+keeps two runs of the same job from overlapping. Jobs are idempotent and resume where they stopped.
 
 | Job | Schedule (UTC) | What |
 |---|---|---|
 | `offer-expiry` | every 5 min | Pending offers past `expiresAt` → `expired`, request counters recounted, professional notified |
 | `appointment-reminders` | every 15 min | Jobs starting within 2 h: one reminder per party, exactly once |
 | `push-receipts` | every 15 min | Expo push receipts: deletes `DeviceNotRegistered` tokens, logs other errors, drops old tickets |
-| `orphan-uploads` | daily 03:17 | Deletes uploads never attached to anything after 24 h (Cloudinary first, then the database) |
+| `orphan-uploads` | daily 03:17 | Deletes uploads never attached to anything after 24 h: the documents first (still unattached), then only their images in Cloudinary, so an upload claimed meanwhile keeps its image; a Cloudinary failure is logged with the image ids |
 
 To move scheduled work off the API instances, run one extra instance of the same image with
 `CRON_ENABLED=true` and set `CRON_ENABLED=false` on the others. `CRON_DISABLED_JOBS` switches off single
@@ -166,13 +193,25 @@ jobs (e.g. `orphan-uploads` while investigating storage).
   sticky sessions needed; a WebSocket simply stays on the instance it connected to).
 - **Connections**: each instance keeps up to `MONGODB_MAX_POOL_SIZE` MongoDB connections (default 20)
   and 2 Redis connections. Keep instances × pool size within the cluster's connection limit.
-- **Database load**: every query is served by an index (documented next to each schema, checked with
-  `explain()`), lists use keyset pagination (no `skip`), reads use projections and `lean()`, related
-  data is batch-loaded with `$in`. The heaviest read is the professional explorer (`$geoNear` on
-  `{status, categoryId, location}`).
-- **Hot spots to watch**: `new_matching_request` fan-out on publish (one notification per matching
-  professional, written after the request is committed), the geocoder (Nominatim's public service
-  allows 1 request/s for the whole deployment; the cache absorbs repeats), Expo push volume.
+- **Database load**: every query is served by an index (documented next to each schema), lists use
+  keyset pagination (no `skip`; the cursor is an index bound, so a deep page reads about `limit` keys)
+  and count their total on the first page only, reads use projections and `lean()`, related data is
+  batch-loaded with `$in`. `test/query-plans.test.ts` and `test/write-paths.test.ts` check the plans
+  of the hottest lists and of the chat write path with MongoDB's profiler (keys examined, no
+  in-memory sort, no recount). The heaviest read is the professional explorer (`$geoNear` on
+  `{status, categoryId, publicPoint}`, every open request in the radius per page, sorted in memory).
+- **Hot spots to watch**: the publish fan-out (matching, one `new_matching_request` per matching
+  professional and a `request.updated` that makes each connected explorer refetch), run in the
+  background after the response; matching reads professionals per radius bucket (5/10/20/40/80 km)
+  so it only walks those who can cover the request, and explorer refresh events are merged per
+  professional (`EXPLORER_EVENT_WINDOW_MS`, first event at once, the rest of the window as one), so a
+  burst of publications costs each open explorer one or two refetches instead of one per request.
+  The geocoder (Nominatim's public service allows 1 request/s for the whole deployment; the cache
+  absorbs repeats, cache misses have a per-IP / per-user budget, and anonymous callers get at most
+  half of the rate so signed-in users are never starved): for production volume use a hosted
+  Nominatim-compatible provider (`GEOCODER_URL`) and raise its rate (`GEOCODER_MIN_INTERVAL_MS`).
+  Expo push volume, and notification emails ("Email updates": at most 10 per user per hour, one per
+  chat per 30 min; they count against the Resend plan).
 - **Node**: one process per container; scale horizontally rather than with cluster mode.
 
 ## 7. Providers
@@ -232,7 +271,8 @@ is unreachable (2 s timeout) the password is accepted and a warning is logged.
 
 The default is the public Nominatim service (<https://operations.osmfoundation.org/policies/nominatim/>):
 at most 1 request per second for the whole deployment (enforced through Redis), an identifying
-`GEOCODER_USER_AGENT` and `GEOCODER_EMAIL`, and results are cached 30 days. For higher traffic point
+`GEOCODER_USER_AGENT` and `GEOCODER_EMAIL`, and results are cached (reverse lookups 30 days, searches
+7 days, empty answers 1 day). For higher traffic point
 `GEOCODER_URL` at a paid Nominatim-compatible provider or a self-hosted instance. When the geocoder is
 unreachable the geo endpoints answer 503 and the app lets the user type the address.
 

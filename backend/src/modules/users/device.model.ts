@@ -1,7 +1,8 @@
-/** `devices`: Expo push tokens of signed-in app installs (`POST /v1/me/devices`). */
+/**
+ * `devices`: Expo push tokens of signed-in app installs (`POST /v1/me/devices`). The platform the
+ * app sends is validated but not stored: Expo routes by token and nothing reads it.
+ */
 import { Schema, model, type Types } from 'mongoose';
-
-import { DEVICE_PLATFORMS, type DevicePlatform } from '../../shared/domain.js';
 
 export interface DeviceDoc {
   _id: Types.ObjectId;
@@ -13,15 +14,16 @@ export interface DeviceDoc {
   session: Types.ObjectId;
   /** Expo push token; a token re-registered by another user moves to that user. */
   token: string;
-  platform: DevicePlatform;
 }
 
-const deviceSchema = new Schema<DeviceDoc>({
-  user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  session: { type: Schema.Types.ObjectId, ref: 'Session', required: true },
-  token: { type: String, required: true },
-  platform: { type: String, enum: DEVICE_PLATFORMS, required: true },
-});
+const deviceSchema = new Schema<DeviceDoc>(
+  {
+    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    session: { type: Schema.Types.ObjectId, ref: 'Session', required: true },
+    token: { type: String, required: true },
+  },
+  { versionKey: false },
+);
 
 // Upsert/reassign on registration, DELETE /me/devices/:token, DeviceNotRegistered cleanup.
 deviceSchema.index({ token: 1 }, { unique: true });

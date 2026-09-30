@@ -2,9 +2,11 @@ import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTestApp } from '../../../../test/app.js';
+import { signInCustomer } from '../../../../test/auth.js';
 import { HAIFA } from '../../../../test/factories.js';
 import { TEST_PLACES } from '../../../infra/geo/index.js';
 import { KEY_SPACES } from '../../../infra/keys.js';
+import { RATE_LIMITS } from '../../../middleware/rate-limit.js';
 import { queryLanguage } from '../geo.service.js';
 
 async function clearGeoCache(deps: ReturnType<typeof createTestApp>['deps']) {
@@ -42,10 +44,13 @@ describe('GET /v1/geo/search', () => {
     const spy = vi.spyOn(deps.geocoderProvider, 'search');
     await request(app).get('/v1/geo/search').query({ q: 'Bialik', limit: 40 }).set('Accept-Language', 'he-IL').expect(200);
     expect(spy).toHaveBeenLastCalledWith('bialik', { limit: 20, language: 'en' });
+    // The provider is always asked for the cap (one cache entry per query); answers are sliced.
     await request(app).get('/v1/geo/search').query({ q: 'ביאליק' }).expect(200);
-    expect(spy).toHaveBeenLastCalledWith('ביאליק', { limit: 8, language: 'he' });
+    expect(spy).toHaveBeenLastCalledWith('ביאליק', { limit: 20, language: 'he' });
     await request(app).get('/v1/geo/search').query({ q: '10 10' }).set('Accept-Language', 'he').expect(200);
-    expect(spy).toHaveBeenLastCalledWith('10 10', { limit: 8, language: 'he' });
+    expect(spy).toHaveBeenLastCalledWith('10 10', { limit: 20, language: 'he' });
+    const one = await request(app).get('/v1/geo/search').query({ q: 'Tel Aviv', limit: 1 }).expect(200);
+    expect(one.body).toHaveLength(1);
   });
 
   it('validates the limit', async () => {
@@ -81,13 +86,28 @@ describe('GET /v1/geo/reverse', () => {
 });
 
 describe('geo rate limit', () => {
-  const { app } = createTestApp({ env: { RATE_LIMIT_ENABLED: 'true' } });
+  const { app, deps } = createTestApp({ env: { RATE_LIMIT_ENABLED: 'true', TRUST_PROXY: 'true' } });
 
   it('limits both routes together per IP', async () => {
-    for (let i = 0; i < 30; i += 1) await request(app).get('/v1/geo/search').query({ q: 'x' }).expect(200);
-    for (let i = 0; i < 30; i += 1) await request(app).get('/v1/geo/reverse').expect(400);
-    const res = await request(app).get('/v1/geo/search').query({ q: 'x' }).expect(429);
+    const ip = { 'X-Forwarded-For': '198.51.100.30' };
+    for (let i = 0; i < 30; i += 1) await request(app).get('/v1/geo/search').set(ip).query({ q: 'x' }).expect(200);
+    for (let i = 0; i < 30; i += 1) await request(app).get('/v1/geo/reverse').set(ip).expect(400);
+    const res = await request(app).get('/v1/geo/search').set(ip).query({ q: 'x' }).expect(429);
     expect(res.body.code).toBe('RATE_LIMITED');
+  });
+
+  it('gives provider calls (cache misses) a much smaller budget, per IP or per signed-in user', async () => {
+    await clearGeoCache(deps);
+    const ip = { 'X-Forwarded-For': '198.51.100.31' };
+    const search = (q: string, headers: Record<string, string>) => request(app).get('/v1/geo/search').set(headers).query({ q });
+    for (let i = 0; i < RATE_LIMITS.geoMissesPerIp.limit; i += 1) await search(`street ${i}`, ip).expect(200);
+    const limited = await search('street new', ip).expect(429);
+    expect(limited.body.code).toBe('RATE_LIMITED');
+    // Cached answers cost nothing.
+    await search('street 0', ip).expect(200);
+    // A signed-in user behind the same IP has their own budget.
+    const signedIn = { ...ip, ...(await signInCustomer(deps)).headers };
+    await search('street new', signedIn).expect(200);
   });
 });
 

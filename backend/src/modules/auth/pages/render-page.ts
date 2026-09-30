@@ -3,7 +3,7 @@
  * scripts; inline styles are allowed). Hebrew pages are right-to-left.
  */
 import type { AppLanguage } from '../../../shared/domain.js';
-import { BRAND, directionOf, escapeHtml } from '../html.js';
+import { BRAND, directionOf, escapeHtml } from '../../../lib/html.js';
 import { PAGE_TEXTS, type MessagePageTexts } from './page-texts.js';
 
 const STYLES = `
@@ -18,7 +18,7 @@ p{margin:0 0 16px;font-size:16px;line-height:1.5;color:${BRAND.muted}}
 label{display:block;margin:16px 0 6px;font-size:14px;font-weight:600}
 input[type=password]{width:100%;padding:12px 14px;font-size:16px;border:1px solid #c9d1db;border-radius:10px;background:#fff;color:inherit}
 input[aria-invalid=true]{border-color:#b42318}
-.hint{margin:6px 0 0;font-size:13px}.field-error{margin:6px 0 0;font-size:13px;color:#b42318}
+.hint{margin:6px 0 0;font-size:13px}.note{margin:20px 0 0;font-size:14px}.field-error{margin:6px 0 0;font-size:13px;color:#b42318}
 button{margin-top:24px;width:100%;padding:13px;font-size:16px;font-weight:600;color:#fff;background:${BRAND.color};border:0;border-radius:10px;cursor:pointer}
 `;
 
@@ -77,5 +77,23 @@ ${passwordField('password', texts.password, state.errors?.password, texts.hint)}
 ${passwordField('confirmPassword', texts.confirmPassword, state.errors?.confirmPassword)}
 <button type="submit">${escapeHtml(texts.submit)}</button>
 </form>`,
+  );
+}
+
+/**
+ * Confirmation step of the verify link: email scanners and link previews fetch the GET without
+ * verifying anything; only the button (a POST to `…/auth/verify-email`) does.
+ */
+export function renderVerifyConfirm(language: AppLanguage, state: { token: string; email: string }): string {
+  const texts = PAGE_TEXTS[language].verifyConfirm;
+  return document(
+    language,
+    texts.title,
+    `<h1>${escapeHtml(texts.title)}</h1><p>${escapeHtml(texts.message)}</p><p><strong dir="ltr">${escapeHtml(state.email)}</strong></p>
+<form method="post" action="verify-email">
+<input type="hidden" name="token" value="${escapeHtml(state.token)}">
+<button type="submit">${escapeHtml(texts.submit)}</button>
+</form>
+<p class="note">${escapeHtml(texts.notYou)}</p>`,
   );
 }

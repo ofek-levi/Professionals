@@ -8,7 +8,7 @@ import type { SuccessResponse } from '../../shared/contract/index.js';
 import { parseConversationId } from './conversation-access.js';
 import { markConversationRead } from './conversation-read.service.js';
 import { conversationParams, conversationsPageQuery, sendMessageBody } from './conversations.schemas.js';
-import { getConversation, listConversations, listMessages } from './conversations.service.js';
+import { countUnreadMessages, getConversation, listConversations, listMessages } from './conversations.service.js';
 import { sendMessage } from './send-message.service.js';
 
 const SUCCESS: SuccessResponse = { success: true };
@@ -17,6 +17,8 @@ export const list = () => async (req: Request) => {
   const { query } = validateRequest(req, { query: conversationsPageQuery });
   return listConversations(authOf(req).userId, { cursor: query.cursor, limit: query.limit });
 };
+
+export const unreadCount = () => (req: Request) => countUnreadMessages(authOf(req).userId);
 
 export const getOne = () => async (req: Request) => {
   const { params } = validateRequest(req, { params: conversationParams });

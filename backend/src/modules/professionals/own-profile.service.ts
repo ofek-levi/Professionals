@@ -15,7 +15,7 @@ import { accountChanges, professionalChanges } from './profile-changes.js';
 import type { UpdateProfessionalProfileInput } from './professionals.schemas.js';
 
 export type ProfileUser = Pick<UserDoc, '_id' | 'firstName' | 'lastName' | 'avatar' | 'notificationPreferences'>;
-export const PROFILE_USER_PROJECTION = { firstName: 1, lastName: 1, avatar: 1, notificationPreferences: 1 } as const;
+const PROFILE_USER_PROJECTION = { firstName: 1, lastName: 1, avatar: 1, notificationPreferences: 1 } as const;
 
 export interface LoadedProfile {
   pro: ProfessionalDoc;
@@ -49,7 +49,7 @@ async function saveProfile(
     if (!current) throw ApiError.notFound('Professional profile');
     account.avatar = await changeAvatar(id, current.avatar, input.avatarUrl, deps.clock.now(), session);
   }
-  const pro = await ProfessionalModel.findOneAndUpdate({ _id: id }, { $set: professionalChanges(input) }, { session, returnDocument: 'after' }).lean<ProfessionalDoc>();
+  const pro = await ProfessionalModel.findOneAndUpdate({ _id: id }, { $set: professionalChanges(id, input) }, { session, returnDocument: 'after' }).lean<ProfessionalDoc>();
   const user =
     Object.keys(account).length > 0
       ? await UserModel.findOneAndUpdate({ _id: id }, { $set: account }, { session, projection: PROFILE_USER_PROJECTION, returnDocument: 'after' }).lean<ProfileUser>()

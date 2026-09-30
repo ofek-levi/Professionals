@@ -2,7 +2,7 @@
 import type { Types } from 'mongoose';
 
 import { descendingBy, findPage, NEWEST_FIRST, type PageParams } from '../../lib/pagination.js';
-import type { Conversation, Message, Paginated } from '../../shared/contract/index.js';
+import type { Conversation, Message, Paginated, UnreadCountResponse } from '../../shared/contract/index.js';
 import { requireParticipantConversation } from './conversation-access.js';
 import { ConversationModel, type ConversationDoc } from './conversation.model.js';
 import { CONVERSATION_VIEW_PROJECTION, toConversationDtos, toMessageDto } from './conversations.views.js';
@@ -21,6 +21,19 @@ export async function listConversations(userId: Types.ObjectId, page: PageParams
     projection: CONVERSATION_VIEW_PROJECTION,
   });
   return { ...result, items: await toConversationDtos(result.items, userId) };
+}
+
+/**
+ * `GET /conversations/unread-count`: unread messages over all the user's conversations (the inbox
+ * badge; the conversation list is paginated, so the app cannot sum it). Reads only conversations
+ * where the user has unread messages (`participant_unread` index), and only their counter.
+ */
+export async function countUnreadMessages(userId: Types.ObjectId): Promise<UnreadCountResponse> {
+  const unread = await ConversationModel.find(
+    { participants: { $elemMatch: { user: userId, unreadCount: { $gt: 0 } } } },
+    { 'participants.$': 1 },
+  ).lean<Pick<ConversationDoc, 'participants'>[]>();
+  return { count: unread.reduce((sum, conversation) => sum + (conversation.participants[0]?.unreadCount ?? 0), 0) };
 }
 
 export async function getConversation(userId: Types.ObjectId, conversationId: Types.ObjectId): Promise<Conversation> {

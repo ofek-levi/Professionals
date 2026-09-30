@@ -18,11 +18,11 @@ const NAME_PATTERN = new RegExp(`^[${NAME_LETTER}][${NAME_LETTER}\\s'’\\u05F3\
 const ISRAELI_PHONE = /^(?:\+972|0)(?:5\d|7\d|[2-4]|[89])\d{7}$/;
 const INTERNATIONAL_PHONE = /^\+[1-9]\d{7,14}$/;
 
-export const LOCATION_LIMITS = { addressLineMax: 120, cityMax: 60, neighborhoodMax: 60, detailsMax: 200 } as const;
+const LOCATION_LIMITS = { addressLineMax: 120, cityMax: 60, neighborhoodMax: 60, detailsMax: 200 } as const;
 export const SIGN_UP_LIMITS = { businessNameMax: 80, maxCategories: 10 } as const;
 
 /** Canonical form of an email address: accounts are case-insensitive. */
-export function normalizeEmail(value: string): string {
+function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 

@@ -4,6 +4,7 @@ import type { AppDeps } from '../../deps.js';
 import { ApiError } from '../../lib/errors.js';
 import { authOf } from '../../middleware/auth.js';
 import { vm } from '../../shared/validation-messages.js';
+import { chargeUploadBytes } from './upload-quota.js';
 import { storeImage } from './uploads.service.js';
 import { toUploadedImage } from './uploads.views.js';
 
@@ -15,5 +16,7 @@ export const requireStorage = (deps: Pick<AppDeps, 'storage'>) => (_req: Request
 /** `POST /v1/uploads/images` (multipart, field `file`) → 201 `UploadedImage`. */
 export const uploadImage = (deps: AppDeps) => async (req: Request) => {
   if (!req.file) throw ApiError.validation({ file: [vm('upload.invalid')] }, 'Attach the image as the multipart field "file"');
-  return toUploadedImage(await storeImage(deps, authOf(req), req.file.buffer));
+  const auth = authOf(req);
+  await chargeUploadBytes(deps, auth.userId.toHexString(), req.file.size);
+  return toUploadedImage(await storeImage(deps, auth, req.file.buffer));
 };

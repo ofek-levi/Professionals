@@ -1,29 +1,33 @@
 /**
  * Customer request lifecycle (the mock's `lifecycle-service.ts`, requests part): create (draft or
  * published), edit/delete drafts, publish. Publishing notifies every matching professional and
- * tells their explorers (`request.updated`).
+ * tells their explorers (`request.updated`), in the background after the commit.
  */
 import type { Types } from 'mongoose';
 
 import type { AppDeps } from '../../deps.js';
 import { withTransaction, type Tx } from '../../infra/mongo.js';
 import { publishEvent } from '../../infra/realtime/index.js';
-import { toLocationDoc } from '../../infra/schema-parts.js';
+import { toLocationDoc, type LocationDoc } from '../../infra/schema-parts.js';
 import { ApiError } from '../../lib/errors.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import { createNotifications } from '../notifications/create-notification.service.js';
 import { releaseUploads } from '../uploads/upload-attachments.service.js';
 import { findMatchingProfessionals } from './matching.service.js';
 import { customerNameOf, loadOwnedRequest } from './request-access.js';
-import { publishRequestUpdated } from './request-events.js';
+import { publishExplorerChange, publishRequestUpdated } from './request-events.js';
 import { releaseRemovedPhotos, resolveRequestPhotos } from './request-photos.js';
 import { assertPreferredSchedule, assertRequestTransition } from './request-rules.js';
-import { RequestModel, type RequestDoc } from './request.model.js';
+import { RequestModel, requestPublicPoint, type RequestDoc } from './request.model.js';
 import type { CreateRequestInput, UpdateDraftRequestInput } from './requests.schemas.js';
 
-type RequestDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'redis' | 'keys' | 'background'>;
+type RequestDeps = Pick<AppDeps, 'env' | 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background'>;
 
-/** Draft → open: new matching professionals are notified and their explorers refreshed. */
+/**
+ * Draft → open. After the commit, in the background (category and location never change, and the
+ * fan-out can be large): the matching professionals are computed, notified and their explorers
+ * refreshed (`request.updated`), so neither the transaction nor the response waits for them.
+ */
 async function publishInTx(deps: RequestDeps, request: RequestDoc, tx: Tx): Promise<RequestDoc> {
   const now = deps.clock.now();
   assertRequestTransition(request.status, 'open');
@@ -34,21 +38,20 @@ async function publishInTx(deps: RequestDeps, request: RequestDoc, tx: Tx): Prom
     { session: tx.session, returnDocument: 'after' },
   ).lean<RequestDoc>();
   if (!published) throw ApiError.invalidTransition('request', request.status, 'open');
-  // Matching reads professionals only (not written here), so it runs outside the transaction.
-  const matches = await findMatchingProfessionals(published);
-  const customerName = await customerNameOf(published.customer, tx.session);
-  // The fan-out can be large: it is stored after the commit instead of holding the transaction.
-  tx.afterCommit(async () => {
-    await createNotifications(
-      deps,
-      matches.map((match) => ({
-        userId: match.professionalId,
-        input: { type: 'new_matching_request', request: published, customerName, distanceKm: match.distanceKm },
-      })),
-    );
-  });
-  await publishRequestUpdated(deps, published, { extra: matches.map((match) => match.professionalId), tx });
+  tx.afterCommit(() => deps.background.run('request-published-fan-out', () => announcePublished(deps, published)));
   return published;
+}
+
+async function announcePublished(deps: RequestDeps, published: RequestDoc): Promise<void> {
+  const [matches, customerName] = await Promise.all([findMatchingProfessionals(published), customerNameOf(published.customer)]);
+  await createNotifications(
+    deps,
+    matches.map((match) => ({
+      userId: match.professionalId,
+      input: { type: 'new_matching_request', request: published, customerName, distanceKm: match.distanceKm },
+    })),
+  );
+  await publishExplorerChange(deps, published, matches.map((match) => match.professionalId));
 }
 
 /** `POST /requests` – a draft, or published right away (`publish`, the default). */
@@ -86,6 +89,11 @@ export function publishRequest(deps: RequestDeps, auth: AuthContext, requestId: 
   return withTransaction(deps.logger, async (tx) => publishInTx(deps, await loadOwnedRequest(auth, requestId, tx.session), tx));
 }
 
+/** A new exact location and its approximate pin, which must always move together. */
+function relocate(location: LocationDoc, requestId: Types.ObjectId): Pick<RequestDoc, 'location' | 'publicPoint'> {
+  return { location, publicPoint: requestPublicPoint(location, requestId) };
+}
+
 /** `PATCH /requests/:id` – drafts only; the preferred date is re-checked against the (new) urgency. */
 export function updateDraftRequest(deps: RequestDeps, auth: AuthContext, requestId: Types.ObjectId, input: UpdateDraftRequestInput): Promise<RequestDoc> {
   const now = deps.clock.now();
@@ -103,7 +111,7 @@ export function updateDraftRequest(deps: RequestDeps, auth: AuthContext, request
         $set: {
           ...(input.categoryId !== undefined ? { categoryId: input.categoryId } : {}),
           ...(input.description !== undefined ? { description: input.description } : {}),
-          ...(input.location !== undefined ? { location: toLocationDoc(input.location) } : {}),
+          ...(input.location !== undefined ? relocate(toLocationDoc(input.location), request._id) : {}),
           ...(input.urgency !== undefined ? { urgency: input.urgency } : {}),
           ...(input.preferredSchedule !== undefined ? { preferredSchedule: input.preferredSchedule } : {}),
           ...(photos !== undefined ? { photos } : {}),

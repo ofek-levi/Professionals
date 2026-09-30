@@ -11,6 +11,7 @@ for push notifications, Google id tokens for "Sign in with Google".
 | Document | What |
 |---|---|
 | [docs/API.md](docs/API.md) | Every endpoint: auth, errors, pagination, rate limits, realtime, contract changes vs the app |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | How the pieces fit: layers, request path, data and consistency, auth, realtime, Redis, cron, hardening |
 | [docs/OPERATIONS.md](docs/OPERATIONS.md) | Environments, variables, deploy, cron, scaling, provider setup (Atlas, Redis, Cloudinary, Resend, Gmail, Google, Expo) |
 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | How the code is organised and written (read before adding code) |
 
@@ -107,7 +108,7 @@ src/
   modules/<name>/  model, schemas, services, controller, routes, views, jobs, __tests__
 test/              per-file database/Redis setup, app factory with fakes, factories, auth + realtime helpers,
                    contract/ (compile-time check against the app's types)
-docs/              API.md, OPERATIONS.md, CONVENTIONS.md
+docs/              API.md, ARCHITECTURE.md, OPERATIONS.md, CONVENTIONS.md
 ```
 
 Modules: `auth`, `users` (me, devices), `catalog`, `geo`, `uploads`, `customers`, `professionals`,

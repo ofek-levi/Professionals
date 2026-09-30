@@ -7,6 +7,12 @@
  *   conversation's last message and the recipient's unread counter are updated, the recipient
  *   gets a `new_message` notification and both participants a `message.created` event.
  * Everything is written in one transaction; events and push follow the commit.
+ *
+ * This is the hottest write path, so it is kept to few sequential round trips: one parallel batch
+ * of reads before the transaction, then the insert, ONE conditional conversation update (which
+ * also re-checks `isOpen` and returns the previous counters), the read receipt only when the sender
+ * had something unread, and the notification (collapse lookup only when the recipient had unread
+ * messages).
  */
 import type { Types } from 'mongoose';
 
@@ -15,47 +21,42 @@ import { withTransaction, type Tx } from '../../infra/mongo.js';
 import { publishEvent } from '../../infra/realtime/index.js';
 import { ApiError, isDuplicateKeyError } from '../../lib/errors.js';
 import type { AuthContext } from '../../middleware/auth.js';
-import type { CategoryId } from '../../shared/catalog/index.js';
 import type { Message } from '../../shared/contract/index.js';
-import { JobModel } from '../jobs/job.model.js';
 import { createNotification } from '../notifications/create-notification.service.js';
 import { loadUserDisplays } from '../users/user-display.views.js';
 import { counterpartOf, participantOf, requireParticipantConversation } from './conversation-access.js';
-import { applyConversationRead } from './conversation-read.service.js';
-import { ConversationModel } from './conversation.model.js';
+import { readCounterpartMessages } from './conversation-read.service.js';
+import { ConversationModel, type ConversationDoc } from './conversation.model.js';
 import { findSentMessage } from './conversations.service.js';
 import type { SendMessageInput } from './conversations.schemas.js';
 import { toMessageDto } from './conversations.views.js';
 import { MessageModel, type MessageDoc } from './message.model.js';
 
-type SendDeps = Pick<AppDeps, 'clock' | 'logger' | 'realtime' | 'push' | 'redis' | 'keys' | 'background'>;
+type SendDeps = Pick<AppDeps, 'clock' | 'logger' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background'>;
 
 interface NewMessage {
   auth: AuthContext;
-  conversationId: Types.ObjectId;
+  /** Loaded before the transaction; participants, job and category never change. */
+  conversation: ConversationDoc;
   input: SendMessageInput;
   senderName: string;
-  categoryId: CategoryId | undefined;
 }
 
 const conversationClosed = () => ApiError.conflict('This conversation is closed');
 
-
-async function storeMessage(deps: SendDeps, { auth, conversationId, input, senderName, categoryId }: NewMessage, tx: Tx): Promise<Message> {
-  // Re-read inside the transaction: counters and `isOpen` must be the committed state.
-  const conversation = await requireParticipantConversation(conversationId, auth.userId, tx.session);
-  if (!conversation.isOpen) throw conversationClosed();
-  await applyConversationRead(deps, conversation, auth.userId, tx);
-
+async function storeMessage(deps: SendDeps, { auth, conversation, input, senderName }: NewMessage, tx: Tx): Promise<Message> {
   const [created] = await MessageModel.create(
-    [{ conversation: conversationId, sender: auth.userId, text: input.text, clientMessageId: input.clientMessageId, readAt: null }],
+    [{ conversation: conversation._id, sender: auth.userId, text: input.text, clientMessageId: input.clientMessageId, readAt: null }],
     { session: tx.session },
   );
   if (!created) throw new Error('Message insert returned nothing');
   const message = created.toObject<MessageDoc>();
   const recipient = counterpartOf(conversation, auth.userId).user;
-  await ConversationModel.updateOne(
-    { _id: conversationId },
+
+  // Last message, the recipient's +1 and the sender's read (a reply reads the chat) in one write,
+  // conditional on the chat still being open (closed meanwhile → 409, the insert rolls back).
+  const before = await ConversationModel.findOneAndUpdate(
+    { _id: conversation._id, isOpen: true },
     {
       $set: {
         lastMessage: {
@@ -67,11 +68,25 @@ async function storeMessage(deps: SendDeps, { auth, conversationId, input, sende
           readAt: null,
         },
         lastActivityAt: message.createdAt,
+        'participants.$[sender].unreadCount': 0,
       },
       $inc: { 'participants.$[recipient].unreadCount': 1 },
     },
-    { arrayFilters: [{ 'recipient.user': recipient }], session: tx.session },
-  );
+    {
+      arrayFilters: [{ 'sender.user': auth.userId }, { 'recipient.user': recipient }],
+      session: tx.session,
+      returnDocument: 'before',
+      projection: { participants: 1, lastMessage: 1 },
+    },
+  ).lean<Pick<ConversationDoc, '_id' | 'participants' | 'lastMessage'>>();
+  if (!before) throw conversationClosed();
+
+  // Unread messages (and their notifications) exist only while the counter is up: a message and its
+  // +1 are written together, and every read clears both. Nothing unread → no read-receipt queries.
+  const lastUnread = before.lastMessage !== null && before.lastMessage.readAt === null && before.lastMessage.sender.equals(recipient);
+  if (lastUnread || participantOf(before, auth.userId).unreadCount > 0) {
+    await readCounterpartMessages(deps, before, auth.userId, deps.clock.now(), tx);
+  }
 
   const dto = toMessageDto(message);
   await createNotification(
@@ -79,11 +94,12 @@ async function storeMessage(deps: SendDeps, { auth, conversationId, input, sende
     recipient,
     {
       type: 'new_message',
-      conversationId,
-      categoryId,
+      conversationId: conversation._id,
+      categoryId: conversation.categoryId,
       senderRole: participantOf(conversation, auth.userId).role,
       senderName,
       messageText: message.text,
+      replacesUnread: participantOf(before, recipient).unreadCount > 0,
     },
     tx,
   );
@@ -99,14 +115,7 @@ export async function sendMessage(deps: SendDeps, auth: AuthContext, conversatio
   ]);
   if (original) return toMessageDto(original);
   if (!conversation.isOpen) throw conversationClosed();
-  const job = await JobModel.findById(conversation.job, { categoryId: 1 }).lean();
-  const message: NewMessage = {
-    auth,
-    conversationId,
-    input,
-    senderName: senders.get(auth.userId.toHexString())?.displayName ?? '',
-    categoryId: job?.categoryId,
-  };
+  const message: NewMessage = { auth, conversation, input, senderName: senders.get(auth.userId.toHexString())?.displayName ?? '' };
   try {
     return await withTransaction(deps.logger, (tx) => storeMessage(deps, message, tx));
   } catch (error) {

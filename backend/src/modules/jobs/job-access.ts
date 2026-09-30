@@ -5,7 +5,7 @@ import { ApiError } from '../../lib/errors.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import { JobModel, type JobDoc } from './job.model.js';
 
-export function isJobParty(job: Pick<JobDoc, 'customer' | 'professional'>, auth: AuthContext): boolean {
+function isJobParty(job: Pick<JobDoc, 'customer' | 'professional'>, auth: AuthContext): boolean {
   return auth.role === 'customer' ? job.customer.equals(auth.userId) : job.professional.equals(auth.userId);
 }
 

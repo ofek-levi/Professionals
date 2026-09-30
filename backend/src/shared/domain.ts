@@ -27,7 +27,6 @@ export const RATING_VALUES = [1, 2, 3, 4, 5] as const;
 export type Rating = (typeof RATING_VALUES)[number];
 
 export const DEVICE_PLATFORMS = ['ios', 'android', 'web'] as const;
-export type DevicePlatform = (typeof DEVICE_PLATFORMS)[number];
 
 export const JOB_SCOPES = ['active', 'upcoming', 'completed', 'all'] as const;
 export type JobScope = (typeof JOB_SCOPES)[number];
@@ -36,7 +35,6 @@ export const NEARBY_REQUEST_SORTS = ['newest', 'nearest', 'most_urgent', 'fewest
 export type NearbyRequestSort = (typeof NEARBY_REQUEST_SORTS)[number];
 
 export const OFFER_PRESENCE_FILTERS = ['any', 'no_offers', 'has_offers'] as const;
-export type OfferPresenceFilter = (typeof OFFER_PRESENCE_FILTERS)[number];
 
 export const OFFER_SORTS = ['recommended', 'lowest_price', 'earliest_availability', 'highest_rating', 'most_reviews'] as const;
 export type OfferSort = (typeof OFFER_SORTS)[number];

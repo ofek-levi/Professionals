@@ -99,7 +99,7 @@ const requestSchema = new Schema<RequestDoc>(
     cancellationReason: { type: String, enum: [...REQUEST_CANCELLATION_REASONS, null], default: null },
     cancellationComment: { type: String, default: null },
   },
-  { timestamps: modelTimestamps() },
+  { timestamps: modelTimestamps(), versionKey: false },
 );
 
 /** The approximate pin of `location` for request `id`. */

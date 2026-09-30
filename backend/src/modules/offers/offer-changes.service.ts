@@ -18,10 +18,10 @@ import { assertOfferEditable, assertOfferTransition, assertProposedStart, assert
 import { OfferModel, type OfferDoc } from './offer.model.js';
 import type { UpdateOfferInput } from './offers.schemas.js';
 
-type ChangeDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'redis' | 'keys' | 'background'>;
+type ChangeDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background'>;
 
 /** Missing → 404; another professional's offer → 403. */
-export async function loadOwnOffer(auth: AuthContext, offerId: Types.ObjectId, tx: Tx): Promise<OfferDoc> {
+async function loadOwnOffer(auth: AuthContext, offerId: Types.ObjectId, tx: Tx): Promise<OfferDoc> {
   const offer = await OfferModel.findById(offerId).session(tx.session).lean<OfferDoc>();
   if (!offer) throw ApiError.notFound('Offer');
   if (!offer.professional.equals(auth.userId)) throw ApiError.forbidden('This offer belongs to another professional');

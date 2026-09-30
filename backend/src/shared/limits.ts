@@ -42,6 +42,8 @@ export const API_LIMITS = {
   /** Unattached uploads older than this are deleted by the orphan-uploads cron. */
   orphanUploadMaxAgeHours: 24,
   geocoderCacheTtlDays: 30,
+  /** Address suggestions fetched (and cached) per search: the largest `limit` `GET /geo/search` serves. */
+  geocoderMaxResults: 20,
   pushTicketTtlSeconds: 24 * 60 * 60,
   publicProfileCacheTtlSeconds: 60,
 } as const;

@@ -59,13 +59,60 @@ describe('sessions: refresh, reuse detection, logout', () => {
     await request(app).get('/v1/me').set(bearer(next.accessToken)).expect(401);
   });
 
-  it('does not treat a concurrent double refresh as theft', async () => {
+  it('revokes the session when a token older than the previous one is replayed (thief rotated twice)', async () => {
     const session = await signUp();
-    const next = await rotate(session.refreshToken);
-    deps.clock.advance(10_000);
+    // The thief refreshes the stolen token twice, so the owner's token is two rotations old.
+    const first = await rotate(session.refreshToken);
+    const second = await rotate(first.refreshToken);
+    deps.clock.advanceMinutes(5);
+
     await refresh(session.refreshToken).expect(401);
+    expect(await SessionModel.countDocuments()).toBe(0);
+    await refresh(second.refreshToken).expect(401);
+    await request(app).get('/v1/me').set(bearer(second.accessToken)).expect(401);
+  });
+
+  it('revokes on an old token even inside the grace window of the latest rotation', async () => {
+    const session = await signUp();
+    const first = await rotate(session.refreshToken);
+    await rotate(first.refreshToken);
+    await refresh(session.refreshToken).expect(401);
+    expect(await SessionModel.countDocuments()).toBe(0);
+  });
+
+  it('gives concurrent refreshes with the same token the same successor (no fork, no revocation)', async () => {
+    const session = await signUp();
+    const results = await Promise.all(Array.from({ length: 5 }, () => refresh(session.refreshToken)));
+    expect(results.map((res) => res.status)).toEqual([200, 200, 200, 200, 200]);
+    const tokens = new Set(results.map((res) => (res.body as RefreshResponse).refreshToken));
+    expect(tokens.size).toBe(1);
     expect(await SessionModel.countDocuments()).toBe(1);
-    await rotate(next.refreshToken);
+    const [next] = [...tokens];
+    await rotate(next ?? '');
+  });
+
+  it('answers a retry after a lost response within 30 s, and treats a later replay as theft', async () => {
+    const session = await signUp();
+    const lost = await rotate(session.refreshToken);
+    deps.clock.advance(10_000);
+    const retried = await rotate(session.refreshToken);
+    expect(retried.refreshToken).toBe(lost.refreshToken);
+    await request(app).get('/v1/me').set(bearer(retried.accessToken)).expect(200);
+
+    deps.clock.advance(25_000);
+    await refresh(session.refreshToken).expect(401);
+    expect(await SessionModel.countDocuments()).toBe(0);
+  });
+
+  it('refuses a forged token naming a live session without revoking it', async () => {
+    const session = await signUp();
+    expect(session.refreshToken).toMatch(/^[0-9a-f]{24}\.[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{22}$/);
+    const [sessionId] = session.refreshToken.split('.');
+    const forged = `${sessionId}.${'A'.repeat(43)}.${'B'.repeat(22)}`;
+    await refresh(forged).expect(401);
+    await request(app).post('/v1/auth/logout').send({ refreshToken: forged }).expect(200);
+    expect(await SessionModel.countDocuments()).toBe(1);
+    await rotate(session.refreshToken);
   });
 
   it('refuses unknown and expired refresh tokens and validates the payload', async () => {
@@ -101,6 +148,14 @@ describe('sessions: refresh, reuse detection, logout', () => {
 
       // Idempotent.
       await request(app).post('/v1/auth/logout').send({ refreshToken: phone.refreshToken }).expect(200);
+    });
+
+    it('accepts any token this server issued for the session, however old', async () => {
+      const session = await signUp();
+      const first = await rotate(session.refreshToken);
+      await rotate(first.refreshToken);
+      await request(app).post('/v1/auth/logout').send({ refreshToken: session.refreshToken }).expect(200);
+      expect(await SessionModel.countDocuments()).toBe(0);
     });
 
     it('stops the access tokens of the revoked session at once, not after 30 minutes', async () => {

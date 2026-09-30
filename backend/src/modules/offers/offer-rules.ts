@@ -13,7 +13,7 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
-export const OFFER_TIME_RULES = {
+const OFFER_TIME_RULES = {
   /** A proposed start must be at least this far in the future. */
   minLeadMinutes: 30,
   maxDaysAhead: APP_CONFIG.maxScheduleDaysAhead,
@@ -46,7 +46,7 @@ export function latestAllowedOfferStart(urgency: UrgencyLevel, now: Date): Date 
 }
 
 /** The first rule a proposed start breaks, or `null` (field `proposedStartAt`). */
-export function proposedStartIssue(proposedStartAt: Date, urgency: UrgencyLevel, now: Date): ValidationMessage | null {
+function proposedStartIssue(proposedStartAt: Date, urgency: UrgencyLevel, now: Date): ValidationMessage | null {
   const startMs = proposedStartAt.getTime();
   const nowMs = now.getTime();
   if (Number.isNaN(startMs)) return vm('offer.startInvalid');
@@ -72,7 +72,7 @@ export function computeOfferExpiry(urgency: UrgencyLevel, proposedStartAt: Date,
 }
 
 /** Expired explicitly, or pending past `expiresAt` (the cron has not run yet). */
-export function isOfferExpired(offer: { status: OfferStatus; expiresAt: Date }, now: Date): boolean {
+function isOfferExpired(offer: { status: OfferStatus; expiresAt: Date }, now: Date): boolean {
   if (offer.status === 'expired') return true;
   return offer.status === 'pending' && offer.expiresAt.getTime() <= now.getTime();
 }

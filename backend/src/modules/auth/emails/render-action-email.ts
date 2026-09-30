@@ -5,8 +5,9 @@
  * link isolated so they are not reordered.
  */
 import type { MailMessage } from '../../../infra/mail/index.js';
+import { isolateText } from '../../../lib/text.js';
 import type { AppLanguage } from '../../../shared/domain.js';
-import { BRAND, directionOf, escapeHtml, startSideOf } from '../html.js';
+import { BRAND, directionOf, escapeHtml, startSideOf } from '../../../lib/html.js';
 import type { ActionEmailTexts } from './auth-email-texts.js';
 
 export interface ActionEmailInput {
@@ -17,8 +18,6 @@ export interface ActionEmailInput {
 }
 
 const EMAIL_SLOT = '\u0000email\u0000';
-/** Unicode first-strong isolate: keeps an LTR address intact inside Hebrew plain text. */
-const isolate = (value: string) => `⁨${value}⁩`;
 
 export function renderActionEmail(texts: ActionEmailTexts, input: ActionEmailInput): MailMessage {
   const dir = directionOf(input.language);
@@ -55,10 +54,10 @@ export function renderActionEmail(texts: ActionEmailTexts, input: ActionEmailInp
   const text = [
     texts.greeting(input.firstName),
     '',
-    texts.body(isolate(input.to)),
+    texts.body(isolateText(input.to)),
     '',
     `${texts.action}:`,
-    isolate(input.link),
+    isolateText(input.link),
     '',
     texts.expiry,
     texts.ignore,

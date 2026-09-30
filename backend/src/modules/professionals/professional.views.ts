@@ -8,7 +8,7 @@ import type { Types } from 'mongoose';
 
 import { toServiceLocation } from '../../infra/schema-parts.js';
 import { loadByIds } from '../../lib/batch.js';
-import { approximateCoordinates, approximateLocation, fromGeoPoint } from '../../lib/geo.js';
+import { approximateLocation, fromGeoPoint } from '../../lib/geo.js';
 import { uniqueIds } from '../../lib/ids.js';
 import { fullName } from '../../lib/text.js';
 import type {
@@ -38,7 +38,7 @@ export const PROFESSIONAL_SUMMARY_PROJECTION = {
   'serviceArea.label': 1,
 } as const;
 
-export function professionalCity(pro: Pick<ProfessionalDoc, 'baseLocation' | 'serviceArea'>): string {
+function professionalCity(pro: Pick<ProfessionalDoc, 'baseLocation' | 'serviceArea'>): string {
   return pro.baseLocation?.city ?? pro.serviceArea.label;
 }
 
@@ -121,7 +121,7 @@ export function toPublicProfessionalProfile(
   const seed = pro._id.toHexString();
   return {
     ...profile,
-    serviceArea: { ...profile.serviceArea, center: approximateCoordinates(profile.serviceArea.center, seed) },
+    serviceArea: { ...profile.serviceArea, center: fromGeoPoint(pro.serviceArea.publicCenter) },
     baseLocation: profile.baseLocation ? approximateLocation(profile.baseLocation, seed) : null,
     contact: viewer.hiredByViewer ? profile.contact : null,
   };

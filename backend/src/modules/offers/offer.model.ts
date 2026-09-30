@@ -45,7 +45,7 @@ const offerSchema = new Schema<OfferDoc>(
     expiresAt: { type: Date, required: true },
     respondedAt: { type: Date, default: null },
   },
-  { timestamps: modelTimestamps() },
+  { timestamps: modelTimestamps(), versionKey: false },
 );
 
 // One active (pending/accepted) offer per professional and request, also under concurrency

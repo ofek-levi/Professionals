@@ -8,6 +8,8 @@ export interface MessagePageTexts {
 }
 
 export interface PageTexts {
+  /** Shown by `GET /auth/verify-email`: only the button (a deliberate POST) verifies the address. */
+  verifyConfirm: { title: string; message: string; submit: string; notYou: string };
   emailVerified: MessagePageTexts;
   verifyLinkInvalid: MessagePageTexts;
   resetLinkInvalid: MessagePageTexts;
@@ -19,6 +21,12 @@ export interface PageTexts {
 
 export const PAGE_TEXTS: Record<AppLanguage, PageTexts> = {
   en: {
+    verifyConfirm: {
+      title: 'Confirm your email address',
+      message: 'Confirm that this is your email address for your Professionals account:',
+      submit: 'Confirm email address',
+      notYou: 'Didn’t create a Professionals account? Don’t confirm: just ignore this email.',
+    },
     emailVerified: {
       title: 'Email address confirmed',
       message: 'Thanks! Your email address is confirmed. You can go back to the Professionals app.',
@@ -53,6 +61,12 @@ export const PAGE_TEXTS: Record<AppLanguage, PageTexts> = {
     },
   },
   he: {
+    verifyConfirm: {
+      title: 'אישור כתובת האימייל',
+      message: 'אשרו שזו כתובת האימייל שלכם בחשבון Professionals:',
+      submit: 'אישור כתובת האימייל',
+      notYou: 'לא פתחתם חשבון ב-Professionals? אל תאשרו, פשוט התעלמו מהאימייל הזה.',
+    },
     emailVerified: {
       title: 'כתובת האימייל אושרה',
       message: 'תודה! כתובת האימייל שלכם אושרה. אפשר לחזור לאפליקציית Professionals.',

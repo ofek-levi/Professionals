@@ -13,14 +13,13 @@ import { vm } from '../../shared/validation-messages.js';
 import type { RegisterDeviceInput } from './users.schemas.js';
 import { DeviceModel } from './device.model.js';
 
-
 export async function registerDevice(deps: Pick<AppDeps, 'push'>, auth: AuthContext, input: RegisterDeviceInput): Promise<void> {
   if (!deps.push.isValidToken(input.pushToken)) throw ApiError.validation({ pushToken: [vm('invalid')] }, 'Not an Expo push token');
   if (!isObjectIdString(auth.sessionId)) throw ApiError.unauthorized();
   const upsert = () =>
     DeviceModel.updateOne(
       { token: input.pushToken },
-      { $set: { user: auth.userId, session: new Types.ObjectId(auth.sessionId), platform: input.platform } },
+      { $set: { user: auth.userId, session: new Types.ObjectId(auth.sessionId) } },
       { upsert: true },
     );
   try {

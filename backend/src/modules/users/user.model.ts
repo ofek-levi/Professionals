@@ -38,7 +38,7 @@ export interface UserDoc {
   updatedAt: Date;
 }
 
-export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   pushEnabled: true,
   emailEnabled: false,
   jobUpdates: true,
@@ -79,7 +79,7 @@ const userSchema = new Schema<UserDoc>(
     defaultLocation: { type: locationSchema, default: null },
   },
   // createdAt = `User.createdAt` / `memberSince`; updatedAt = `CustomerProfile.updatedAt`.
-  { timestamps: modelTimestamps() },
+  { timestamps: modelTimestamps(), versionKey: false },
 );
 
 // Login, registration duplicate check, password reset request.

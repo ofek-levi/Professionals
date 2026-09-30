@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 import { afterAll, beforeAll } from 'vitest';
 
 import '../src/models.js';
-import { connectMongo, syncIndexes } from '../src/infra/mongo.js';
+import { connectMongo, ensureIndexes } from '../src/infra/mongo.js';
 import { closeRedis, createRedis } from '../src/infra/redis.js';
 import { createSilentLogger } from '../src/lib/logger.js';
 import { TEST_DB_NAME, TEST_MONGODB_URI, TEST_REDIS_PREFIX, TEST_REDIS_URL, testState } from './context.js';
@@ -27,7 +27,7 @@ testState.redis = createRedis(TEST_REDIS_URL, 'api-test');
 
 beforeAll(async () => {
   await connectMongo({ uri: TEST_MONGODB_URI, dbName: TEST_DB_NAME, maxPoolSize: 10 });
-  await syncIndexes(createSilentLogger());
+  await ensureIndexes(createSilentLogger());
 });
 
 afterAll(async () => {

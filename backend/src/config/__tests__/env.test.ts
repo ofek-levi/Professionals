@@ -8,8 +8,13 @@ const BASE = {
   JWT_ACCESS_SECRET: 'x'.repeat(32),
 };
 
+/** `openssl rand -base64 48` */
+const STRONG_SECRET = 'q3N1v8Jx0bXo2kqk6H1ZrR6dF0w9Pj4sYt7uLm2cVb5nA8eGi3oKp6sTz1xWy4Q9';
+
 const DEPLOYED = {
   ...BASE,
+  JWT_ACCESS_SECRET: STRONG_SECRET,
+  TRUST_PROXY: '1',
   PUBLIC_API_URL: 'https://api.example.com/',
   GOOGLE_WEB_CLIENT_ID: 'web',
   GOOGLE_IOS_CLIENT_ID: 'ios',
@@ -93,6 +98,41 @@ describe('parseEnv', () => {
       cron: { enabled: true, disabledJobs: ['push-receipts'] },
     });
     expect(envWarnings(env)).toEqual([]);
+  });
+
+  it('refuses the example or a weak JWT secret when deployed, and warns about it in development', () => {
+    const placeholder = 'change-me-to-a-long-random-secret-of-32-chars-or-more';
+    expect(errorOf({ ...DEPLOYED, APP_ENV: 'production', JWT_ACCESS_SECRET: placeholder }).issues).toEqual([
+      'JWT_ACCESS_SECRET is a placeholder: generate one with `openssl rand -base64 48`',
+    ]);
+    for (const weak of ['x'.repeat(64), 'abcdefgh'.repeat(6), 'abcdefghijklmnopqrstuvwxyz0123456789'.repeat(2), 'short-but-32-characters-long-okk']) {
+      expect(errorOf({ ...DEPLOYED, APP_ENV: 'staging', JWT_ACCESS_SECRET: weak }).issues.join()).toContain('too weak');
+    }
+    // Hex of 32 random bytes is fine.
+    parseEnv({ ...DEPLOYED, APP_ENV: 'staging', JWT_ACCESS_SECRET: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08' });
+    expect(envWarnings(parseEnv({ ...BASE, APP_ENV: 'development', JWT_ACCESS_SECRET: placeholder }))).toContain(
+      'JWT_ACCESS_SECRET is the example placeholder (refused in staging/production)',
+    );
+  });
+
+  it('scopes token issuer and audience to the environment by default', () => {
+    expect(parseEnv({ ...DEPLOYED, APP_ENV: 'staging' }).jwt).toMatchObject({ issuer: 'professionals-api:staging', audience: 'professionals-app:staging' });
+    expect(parseEnv({ ...DEPLOYED, APP_ENV: 'production', JWT_AUDIENCE: 'app' }).jwt.audience).toBe('app');
+  });
+
+  it('requires an explicit TRUST_PROXY when deployed and refuses `true` there', () => {
+    const { TRUST_PROXY: _unset, ...withoutProxy } = DEPLOYED;
+    expect(errorOf({ ...withoutProxy, APP_ENV: 'production' }).issues.join()).toContain('TRUST_PROXY is required');
+    expect(errorOf({ ...DEPLOYED, APP_ENV: 'production', TRUST_PROXY: 'true' }).issues.join()).toContain('spoof');
+    expect(errorOf({ ...DEPLOYED, APP_ENV: 'staging', TRUST_PROXY: '10.0.0.0/8, bogus' }).issues.join()).toContain('bogus');
+    expect(errorOf({ ...DEPLOYED, APP_ENV: 'staging', TRUST_PROXY: '10.0.0.0/33' }).issues.join()).toContain('10.0.0.0/33');
+    expect(parseEnv({ ...DEPLOYED, APP_ENV: 'production', TRUST_PROXY: '10.0.0.0/8, 2001:db8::/32, loopback' }).trustProxy).toEqual([
+      '10.0.0.0/8',
+      '2001:db8::/32',
+      'loopback',
+    ]);
+    expect(parseEnv({ ...DEPLOYED, APP_ENV: 'production', TRUST_PROXY: 'false' }).trustProxy).toBe(false);
+    expect(parseEnv({ ...BASE, APP_ENV: 'development', TRUST_PROXY: 'true' }).trustProxy).toBe(true);
   });
 
   it('rejects a malformed CLOUDINARY_URL', () => {

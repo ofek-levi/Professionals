@@ -136,6 +136,7 @@ export async function createJob(
   const conversation = await ensureConversationForJob({
     jobId,
     requestId: request._id,
+    categoryId: request.categoryId,
     customerUserId: request.customer,
     professionalUserId: offer.professional,
     now: modelNow(),
@@ -163,7 +164,6 @@ export async function createDevice(user: Pick<UserDoc, '_id'>, overrides: Overri
     user: user._id,
     session: new Types.ObjectId(),
     token: `ExponentPushToken[test-${next()}]`,
-    platform: 'ios',
     ...overrides,
   });
   return doc.toObject<DeviceDoc>();

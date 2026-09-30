@@ -7,7 +7,7 @@ import type { ServerErrorCode } from '../shared/error-codes.js';
 export type FieldErrors = Record<string, string[]>;
 
 /** Default HTTP status per error code. */
-export const HTTP_STATUS_BY_CODE: Record<ServerErrorCode, number> = {
+const HTTP_STATUS_BY_CODE: Record<ServerErrorCode, number> = {
   UNAUTHORIZED: 401,
   INVALID_CREDENTIALS: 401,
   INVALID_GOOGLE_TOKEN: 401,

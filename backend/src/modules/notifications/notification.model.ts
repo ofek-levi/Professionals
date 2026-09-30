@@ -41,4 +41,11 @@ notificationSchema.index({ user: 1, readAt: 1, createdAt: -1, _id: -1 });
 notificationSchema.index({ user: 1, 'target.conversationId': 1, readAt: 1 }, { partialFilterExpression: { type: 'new_message' } });
 notificationSchema.index({ createdAt: 1 }, { expireAfterSeconds: API_LIMITS.notificationTtlDays * 24 * 60 * 60 });
 
+/**
+ * Filter value for "unread". `readAt` is always stored (null until read), and `$type: 'null'` gives
+ * the `readAt` indexes one exact bound; `readAt: null` also matches a missing field, and with that
+ * second bound the planner preferred walking the user's whole inbox and dropping the read ones.
+ */
+export const UNREAD = { $type: 'null' } as const;
+
 export const NotificationModel = model<NotificationDoc>('Notification', notificationSchema);

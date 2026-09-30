@@ -6,3 +6,5 @@ node_modules/
 *.log
 .DS_Store
 coverage/
+# Redis snapshots (a redis-server started inside the repo writes dump.rdb into its working directory).
+*.rdb

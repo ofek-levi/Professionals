@@ -29,7 +29,7 @@ describe('createNotification', () => {
   it('stores the notification, publishes it and pushes to every device', async () => {
     const { customer, request, offer, input } = await offerReceivedFixture();
     const phone = await createDevice(customer);
-    const tablet = await createDevice(customer, { platform: 'android' });
+    const tablet = await createDevice(customer);
 
     const created = await createNotification(deps, customer._id, input);
     await deps.background.drain();
@@ -91,6 +91,7 @@ describe('createNotification', () => {
       senderRole: 'professional' as const,
       senderName: 'Avi Fix',
       messageText: text,
+      replacesUnread: true,
     });
     await createNotification(deps, customer._id, message('First'));
     await createNotification(deps, customer._id, message('Second\n\n\n  line'));

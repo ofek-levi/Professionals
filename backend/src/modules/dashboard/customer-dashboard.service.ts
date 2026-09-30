@@ -5,6 +5,7 @@
  */
 import type { Types } from 'mongoose';
 
+import { RECENTLY_UPDATED, sortOf } from '../../lib/pagination.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type { CustomerDashboard } from '../../shared/contract/index.js';
 import { ACTIVE_JOB_STATUSES, REQUEST_STATUSES_ACCEPTING_OFFERS } from '../../shared/statuses.js';
@@ -52,7 +53,7 @@ export async function getCustomerDashboard(auth: AuthContext): Promise<CustomerD
   const active = { customer, status: { $in: [...ACTIVE_JOB_STATUSES] } };
   const [counters, recent, activeJobsCount, upcoming, awaitingReview] = await Promise.all([
     requestCounters(customer),
-    RequestModel.find({ customer }).sort({ updatedAt: -1, _id: -1 }).limit(RECENT_REQUESTS).lean<RequestDoc[]>(),
+    RequestModel.find({ customer }).sort(sortOf(RECENTLY_UPDATED)).limit(RECENT_REQUESTS).lean<RequestDoc[]>(),
     JobModel.countDocuments(active),
     JobModel.find(active).sort({ scheduledStartAt: 1, _id: 1 }).limit(UPCOMING_JOBS).lean<JobDoc[]>(),
     JobModel.find({ customer, status: 'completed', review: null }).sort({ completedAt: -1, _id: -1 }).limit(AWAITING_REVIEW).lean<JobDoc[]>(),

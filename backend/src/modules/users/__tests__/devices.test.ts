@@ -19,7 +19,8 @@ describe('/v1/me/devices', () => {
     }
     const devices = await DeviceModel.find().lean();
     expect(devices).toHaveLength(1);
-    expect(devices[0]).toMatchObject({ user: customer.user._id, token: TOKEN, platform: 'ios' });
+    expect(devices[0]).toMatchObject({ user: customer.user._id, token: TOKEN });
+    expect(devices[0]).not.toHaveProperty('platform'); // validated, never read, so not stored
     expect(devices[0]?.session.toHexString()).toBe(verifyAccessToken(deps.env.jwt, customer.token, deps.clock)?.sessionId);
   });
 

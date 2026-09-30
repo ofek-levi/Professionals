@@ -14,14 +14,14 @@ import { syncRequestOfferCounters } from './offer-counters.service.js';
 import { publishOfferUpdated } from './offer-events.js';
 import { OfferModel, type OfferDoc } from './offer.model.js';
 
-type ExpiryDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'redis' | 'keys' | 'background'>;
+type ExpiryDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background'>;
 
 const BATCH_SIZE = 100;
 /** Bounds one run; a larger backlog is finished by the next runs. */
 const MAX_BATCHES = 20;
 
 /** Expires one overdue pending offer; `null` when it is no longer pending or not due. */
-export function expireOffer(deps: ExpiryDeps, offerId: Types.ObjectId, now: Date): Promise<OfferDoc | null> {
+function expireOffer(deps: ExpiryDeps, offerId: Types.ObjectId, now: Date): Promise<OfferDoc | null> {
   return withTransaction(deps.logger, async (tx) => {
     const expired = await OfferModel.findOneAndUpdate(
       { _id: offerId, status: 'pending', expiresAt: { $lte: now } },

@@ -12,11 +12,12 @@ import { allCronJobs } from './cron-jobs.js';
 import { createDeps } from './deps.js';
 import { startScheduler } from './infra/cron/index.js';
 import { KEY_SPACES } from './infra/keys.js';
-import { connectMongo, disconnectMongo, syncIndexes } from './infra/mongo.js';
+import { connectMongo, disconnectMongo, ensureIndexes } from './infra/mongo.js';
 import { attachRealtimeServer } from './infra/realtime/index.js';
 import { closeRedis, createRedis } from './infra/redis.js';
 import { isSessionDenied, sessionRevokedChannel } from './infra/session-denylist.js';
 import { createLogger, type Logger } from './lib/logger.js';
+import { realtimeUpgradeLimiter } from './middleware/rate-limit.js';
 
 function loadEnv(): Env {
   try {
@@ -36,7 +37,7 @@ async function main(): Promise<void> {
   for (const warning of envWarnings(env)) logger.warn(warning);
 
   await connectMongo(env.mongo);
-  await syncIndexes(logger);
+  await ensureIndexes(logger);
   const redis = createRedis(env.redis.url, `api-${env.appEnv}`);
   const subscriber = redis.duplicate({ connectionName: `api-${env.appEnv}-sub` });
 
@@ -56,6 +57,7 @@ async function main(): Promise<void> {
     logger,
     isSessionRevoked: (sessionId) => isSessionDenied(deps, sessionId),
     revocationChannel: sessionRevokedChannel(deps.keys),
+    allowUpgrade: realtimeUpgradeLimiter(deps),
   });
   const scheduler = startScheduler({
     jobs: allCronJobs(deps),
@@ -81,8 +83,8 @@ async function main(): Promise<void> {
     force.unref();
     try {
       const closed = new Promise<void>((resolve) => server.close(() => resolve()));
-      await realtime.close();
-      await scheduler.stop();
+      // Sockets and cron stop side by side; in-flight requests finish, then the work they started.
+      await Promise.all([realtime.close(), scheduler.stop()]);
       await closed;
       await deps.background.drain();
       await Promise.all([closeRedis(subscriber), closeRedis(redis), disconnectMongo()]);

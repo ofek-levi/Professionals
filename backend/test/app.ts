@@ -7,7 +7,7 @@
  *   deps.mailer.sent / deps.push.sent / deps.realtime.eventsFor(userId) / deps.clock.advance(ms)
  */
 import mongoose from 'mongoose';
-import type { Express } from 'express';
+import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 
 import { createApp } from '../src/app.js';
 import { parseEnv, type Env } from '../src/config/env.js';
@@ -24,6 +24,7 @@ import { MemoryRealtimePublisher } from '../src/infra/realtime/index.js';
 import { MemoryImageStorage } from '../src/infra/storage/index.js';
 import { BackgroundTasks } from '../src/lib/background.js';
 import { FakeClock } from '../src/lib/clock.js';
+import { API_LIMITS } from '../src/shared/limits.js';
 import { createSilentLogger } from '../src/lib/logger.js';
 import { TEST_MONGODB_URI, TEST_REDIS_PREFIX, TEST_REDIS_URL, testRedis } from './context.js';
 
@@ -52,6 +53,8 @@ export function testEnv(overrides: Record<string, string> = {}): Env {
     GOOGLE_IOS_CLIENT_ID: 'ios-client.apps.googleusercontent.com',
     RATE_LIMIT_ENABLED: 'false',
     CRON_ENABLED: 'false',
+    // Every explorer event at once, so tests see them synchronously (coalescing has its own test).
+    EXPLORER_EVENT_WINDOW_MS: '0',
     LOG_LEVEL: 'silent',
     ...overrides,
   });
@@ -82,7 +85,7 @@ export function createTestDeps(options: TestAppOptions = {}): TestDeps {
     mailer: new MemoryMailer(),
     push: new MemoryPushSender(),
     storage: new MemoryImageStorage(),
-    geocoder: new CachedGeocoder(geocoderProvider, { cache, redis, keys, minIntervalMs: 0 }),
+    geocoder: new CachedGeocoder(geocoderProvider, { cache, redis, keys, minIntervalMs: 0, maxResults: API_LIMITS.geocoderMaxResults }),
     geocoderProvider,
     google: new MemoryGoogleVerifier(),
     passwordBreach: new MemoryPasswordBreachChecker(),
@@ -95,9 +98,28 @@ export function createTestDeps(options: TestAppOptions = {}): TestDeps {
   return deps;
 }
 
+/**
+ * Holds each response until the background work it started (matching fan-out, push, stats) has
+ * settled, so a test sees what a client sees a moment later instead of racing with it. Services
+ * that must not wait for that work are tested on their own (`deps.background.size`).
+ */
+function settlingBackground(app: Express, background: BackgroundTasks): Express {
+  const wrapper = express();
+  wrapper.use((_req: Request, res: Response, next: NextFunction) => {
+    const end = res.end.bind(res);
+    res.end = ((...args: unknown[]) => {
+      void background.drain().then(() => Reflect.apply(end, res, args));
+      return res;
+    }) as Response['end'];
+    next();
+  });
+  wrapper.use(app);
+  return wrapper;
+}
+
 export function createTestApp(options: TestAppOptions = {}): { app: Express; deps: TestDeps } {
   const deps = createTestDeps(options);
-  return { app: createApp(deps), deps };
+  return { app: settlingBackground(createApp(deps), deps.background), deps };
 }
 
 /** Deletes every document of every collection of this file's database (between tests). */

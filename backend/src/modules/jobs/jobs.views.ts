@@ -6,6 +6,7 @@ import type { Types } from 'mongoose';
 
 import { toServiceLocation } from '../../infra/schema-parts.js';
 import { loadByIds, required } from '../../lib/batch.js';
+import { isoOrNull } from '../../lib/clock.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type { CustomerSummary, Job, JobDetails, JobSummary, ProfessionalSummary } from '../../shared/contract/index.js';
 import { loadCustomerSummaries } from '../customers/customer-summary.views.js';
@@ -16,7 +17,6 @@ import { toServiceRequestDto } from '../requests/requests.views.js';
 import { ReviewModel, type ReviewDoc } from '../reviews/review.model.js';
 import type { JobDoc } from './job.model.js';
 
-const iso = (date: Date | null) => (date ? date.toISOString() : null);
 
 export function toJobDto(job: JobDoc, request: Pick<RequestDoc, 'location'>): Job {
   return {
@@ -33,11 +33,11 @@ export function toJobDto(job: JobDoc, request: Pick<RequestDoc, 'location'>): Jo
     agreedPrice: job.agreedPrice,
     currency: job.currency,
     location: toServiceLocation(request.location),
-    confirmedAt: iso(job.confirmedAt),
-    startedAt: iso(job.startedAt),
-    completedAt: iso(job.completedAt),
+    confirmedAt: isoOrNull(job.confirmedAt),
+    startedAt: isoOrNull(job.startedAt),
+    completedAt: isoOrNull(job.completedAt),
     completedBy: job.completedBy,
-    cancelledAt: iso(job.cancelledAt),
+    cancelledAt: isoOrNull(job.cancelledAt),
     reviewId: job.review ? job.review.toHexString() : null,
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),

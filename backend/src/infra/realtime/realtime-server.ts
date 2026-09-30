@@ -3,17 +3,24 @@
  * - The access token is verified on connect; invalid or of a revoked session → close 4001. A socket
  *   is closed with 4001 when its token expires (the app reconnects with a fresh token) and when its
  *   session is revoked (ids announced on `revocationChannel`).
+ * - Every asynchronous check (revoked session, upgrade throttle) runs BEFORE the handshake, so a
+ *   socket is registered synchronously once it exists: a client that leaves during a check never
+ *   leaves an unobserved socket behind. Upgrades are throttled per user (`allowUpgrade`, over the
+ *   limit → HTTP 429 without a handshake) and each user holds at most `maxSocketsPerUser` sockets
+ *   per instance (more → close 1008).
  * - Events arrive from Redis pub/sub (any instance may publish) and go to the local sockets of the
  *   addressed users. Frames are JSON `RealtimeEvent`s; client frames are ignored.
  * - Heartbeat: sockets that miss a pong between two pings are terminated.
+ * - `close()` sends 1001 and gives clients `closeGraceMs` to answer before cutting the rest, so a
+ *   silent peer (backgrounded phone, half-open TCP) never holds a shutdown for ws's 30 s timeout.
  * The token is never logged (URLs are not logged here at all).
  */
 import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 
-import { WebSocketServer, type WebSocket } from 'ws';
+import { WebSocket, WebSocketServer } from 'ws';
 
-import { verifyAccessToken, type AccessTokenConfig } from '../../lib/access-token.js';
+import { verifyAccessToken, type AccessTokenClaims, type AccessTokenConfig } from '../../lib/access-token.js';
 import type { Clock } from '../../lib/clock.js';
 import type { Logger } from '../../lib/logger.js';
 import type { Redis } from '../redis.js';
@@ -22,6 +29,7 @@ import type { RealtimeEnvelope } from './publisher.js';
 
 export const REALTIME_PATH = '/v1/realtime';
 export const CLOSE_UNAUTHORIZED = 4001;
+export const CLOSE_TOO_MANY_CONNECTIONS = 1008;
 const CLOSE_GOING_AWAY = 1001;
 
 export interface RealtimeServerOptions {
@@ -36,6 +44,12 @@ export interface RealtimeServerOptions {
   isSessionRevoked?: (sessionId: string) => Promise<boolean>;
   /** Pub/sub channel carrying JSON arrays of revoked session ids (`sessionRevokedChannel`). */
   revocationChannel?: string;
+  /** Upgrade throttle for a verified user (shared across instances); omitted → unlimited. */
+  allowUpgrade?: (userId: string) => Promise<boolean>;
+  /** Open sockets per user on one instance (default 10: phones, tablets and browser tabs). */
+  maxSocketsPerUser?: number;
+  /** Time given to clients to answer the shutdown close frame (default 1 s). */
+  closeGraceMs?: number;
   heartbeatMs?: number;
 }
 
@@ -44,31 +58,56 @@ export interface RealtimeServer {
   close(): Promise<void>;
 }
 
+type Admission = { claims: AccessTokenClaims } | { refused: 'unauthorized' | 'throttled' };
+
 function tokenFrom(request: IncomingMessage): string | null {
   const url = new URL(request.url ?? '/', 'http://localhost');
   return url.searchParams.get('token');
 }
 
+function rejectUpgrade(socket: Duplex, status: number, message: string): void {
+  socket.end(`HTTP/1.1 ${status} ${message}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+}
+
+/** Resolves once every socket closed, or after `ms`. */
+function closedOrTimeout(sockets: readonly WebSocket[], ms: number): Promise<void> {
+  const open = sockets.filter((socket) => socket.readyState !== WebSocket.CLOSED);
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    void Promise.all(open.map((socket) => new Promise((done) => socket.once('close', done)))).then(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
 export async function attachRealtimeServer(options: RealtimeServerOptions): Promise<RealtimeServer> {
   const { httpServer, subscriber, channel, tokens, clock, logger } = options;
+  const maxSocketsPerUser = options.maxSocketsPerUser ?? 10;
   const wss = new WebSocketServer({ noServer: true, maxPayload: 4 * 1024 });
   const registry = new ConnectionRegistry();
   const alive = new WeakMap<WebSocket, boolean>();
   const bySession = new Map<string, Set<WebSocket>>();
 
-  const accept = async (socket: WebSocket, request: IncomingMessage) => {
+  const admit = async (request: IncomingMessage): Promise<Admission> => {
     const claims = verifyAccessToken(tokens, tokenFrom(request) ?? '', clock);
-    if (!claims || (await options.isSessionRevoked?.(claims.sessionId))) {
-      socket.close(CLOSE_UNAUTHORIZED, 'Unauthorized');
+    if (!claims) return { refused: 'unauthorized' };
+    const [allowed, revoked] = await Promise.all([options.allowUpgrade?.(claims.userId) ?? true, options.isSessionRevoked?.(claims.sessionId) ?? false]);
+    if (revoked) return { refused: 'unauthorized' };
+    return allowed ? { claims } : { refused: 'throttled' };
+  };
+
+  /** Synchronous from the handshake on: the close handler is attached before anything can happen. */
+  const register = (socket: WebSocket, { userId, sessionId, expiresAt }: AccessTokenClaims) => {
+    if (registry.countFor(userId) >= maxSocketsPerUser) {
+      socket.close(CLOSE_TOO_MANY_CONNECTIONS, 'Too many connections');
       return;
     }
-    const { userId, sessionId } = claims;
     registry.add(userId, socket);
     const sessionSockets = bySession.get(sessionId) ?? new Set<WebSocket>();
     bySession.set(sessionId, sessionSockets.add(socket));
     alive.set(socket, true);
-    const expiresInMs = claims.expiresAt * 1000 - clock.now().getTime();
-    const expiry = setTimeout(() => socket.close(CLOSE_UNAUTHORIZED, 'Token expired'), Math.max(0, expiresInMs));
+    const expiry = setTimeout(() => socket.close(CLOSE_UNAUTHORIZED, 'Token expired'), Math.max(0, expiresAt * 1000 - clock.now().getTime()));
     expiry.unref();
     socket.on('pong', () => alive.set(socket, true));
     socket.on('error', (error) => logger.debug({ err: error, userId }, 'realtime socket error'));
@@ -86,12 +125,26 @@ export async function attachRealtimeServer(options: RealtimeServerOptions): Prom
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      accept(ws, request).catch((error: unknown) => {
+    admit(request)
+      .catch((error: unknown): Admission => {
         logger.warn({ err: error }, 'realtime connection refused');
-        ws.close(CLOSE_UNAUTHORIZED, 'Unauthorized');
+        return { refused: 'unauthorized' };
+      })
+      .then((admission) => {
+        if (socket.destroyed) return; // the client left during the checks: nothing to clean up
+        if ('refused' in admission && admission.refused === 'throttled') {
+          rejectUpgrade(socket, 429, 'Too Many Requests');
+          return;
+        }
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          if ('claims' in admission) register(ws, admission.claims);
+          else ws.close(CLOSE_UNAUTHORIZED, 'Unauthorized');
+        });
+      })
+      .catch((error: unknown) => {
+        logger.warn({ err: error }, 'realtime upgrade failed');
+        socket.destroy();
       });
-    });
   };
   httpServer.on('upgrade', onUpgrade);
 
@@ -142,11 +195,13 @@ export async function attachRealtimeServer(options: RealtimeServerOptions): Prom
       httpServer.off('upgrade', onUpgrade);
       subscriber.off('message', onMessage);
       await subscriber.unsubscribe().catch(() => undefined);
-      for (const socket of registry.all()) socket.close(CLOSE_GOING_AWAY, 'Server shutting down');
+      const sockets = [...wss.clients];
+      for (const socket of sockets) socket.close(CLOSE_GOING_AWAY, 'Server shutting down');
+      // Clients reconnect to another instance anyway: whoever has not answered by now is cut.
+      await closedOrTimeout(sockets, options.closeGraceMs ?? 1000);
+      for (const socket of wss.clients) socket.terminate();
       await new Promise<void>((resolve) => {
-        wss.close(() => {
-          resolve();
-        });
+        wss.close(() => resolve());
       });
     },
   };

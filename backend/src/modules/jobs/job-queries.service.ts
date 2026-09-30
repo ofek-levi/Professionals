@@ -29,7 +29,7 @@ const RECENTLY_COMPLETED: SortSpec = [
 ];
 
 /** The caller's side of the job (`customer` or `professional` = their user id). */
-export function partyFilter(auth: AuthContext): QueryFilter<JobDoc> {
+function partyFilter(auth: AuthContext): QueryFilter<JobDoc> {
   return auth.role === 'customer' ? { customer: auth.userId } : { professional: auth.userId };
 }
 

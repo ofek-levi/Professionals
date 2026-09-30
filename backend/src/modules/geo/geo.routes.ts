@@ -1,6 +1,7 @@
 /**
  * Geocoding routes. Public: professionals choose their base address while signing up. One per-IP
- * limiter covers both routes (they share the provider's ≤ 1 request/s budget).
+ * limiter covers both routes; cache misses (provider calls, ≤ 1/s for everyone) have a much
+ * smaller budget per IP or per signed-in user (`geo-caller.ts`).
  */
 import { Router } from 'express';
 

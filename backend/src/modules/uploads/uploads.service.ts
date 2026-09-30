@@ -7,7 +7,7 @@ import { UploadModel, type UploadDoc } from './upload.model.js';
 import { detectImageType } from './image-signature.js';
 
 /** Storage sub-folder (`professionals/${APP_ENV}/images`); the purpose is only known on attach. */
-export const UPLOAD_FOLDER = 'images';
+const UPLOAD_FOLDER = 'images';
 
 export async function storeImage(deps: Pick<AppDeps, 'storage' | 'logger'>, auth: AuthContext, buffer: Buffer): Promise<UploadDoc> {
   const mimeType = detectImageType(buffer);

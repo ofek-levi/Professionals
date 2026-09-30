@@ -20,7 +20,14 @@ const member = (ticket: PendingTicket) => `${ticket.ticketId}${SEPARATOR}${ticke
 export async function savePushTickets(redis: Redis, keys: RedisKeys, tickets: PendingTicket[], now: Date): Promise<void> {
   if (tickets.length === 0) return;
   const score = now.getTime();
-  await redis.zadd(setKey(keys), ...tickets.flatMap((ticket) => [score, member(ticket)]));
+  const key = setKey(keys);
+  // The key itself expires a day after the last push, so the set cannot outlive its receipts when
+  // no instance runs the receipts cron (CRON_ENABLED=false everywhere); the cron purges entries.
+  await redis
+    .multi()
+    .zadd(key, ...tickets.flatMap((ticket) => [score, member(ticket)]))
+    .expire(key, API_LIMITS.pushTicketTtlSeconds)
+    .exec();
 }
 
 /** Drops tickets older than the receipt lifetime (their receipts are gone). */

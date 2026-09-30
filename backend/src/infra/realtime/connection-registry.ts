@@ -17,6 +17,11 @@ export class ConnectionRegistry {
     if (sockets.size === 0) this.byUser.delete(userId);
   }
 
+  /** Open sockets of `userId` on this instance. */
+  countFor(userId: string): number {
+    return this.byUser.get(userId)?.size ?? 0;
+  }
+
   /** Sends one serialized frame to every open socket of `userIds`; returns how many got it. */
   deliver(userIds: readonly string[], frame: string): number {
     let delivered = 0;

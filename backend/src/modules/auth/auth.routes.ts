@@ -1,43 +1,40 @@
 /**
- * `/auth/*`: public endpoints (no `requireAuth`), each with per-IP and, where an address is
- * involved, per-email rate limits (Redis). The reset form posts URL-encoded data and gets HTML
- * back; the same path accepts JSON for API clients.
+ * `/auth/*`: public endpoints (no `requireAuth`) with Redis rate limits: generous per-IP caps (many
+ * mobile users share one carrier IP), per (email, IP) for sign-up, per session for refresh. Failed
+ * sign-ins are limited by the login throttle and reset emails by a per-address budget, both inside
+ * the services, in ways a stranger cannot use to lock the owner out. The HTML forms post
+ * URL-encoded data and get HTML back; the reset path also accepts JSON for API clients.
  */
 import { Router, type NextFunction, type Request, type Response } from 'express';
 
 import type { AppDeps } from '../../deps.js';
 import { asyncHandler } from '../../lib/async-handler.js';
-import { emailKey, RATE_LIMITS, rateLimit } from '../../middleware/rate-limit.js';
+import { emailAndIpKey, RATE_LIMITS, rateLimit } from '../../middleware/rate-limit.js';
 import { passwordReset, refresh, registerAccount, resetPasswordJson, signInGoogle, signInWithPassword, signOut } from './auth.controller.js';
-import { resetPasswordFormSubmit, resetPasswordPage, verifyEmailPage } from './auth-pages.controller.js';
+import { resetPasswordFormSubmit, resetPasswordPage, verifyEmailFormSubmit, verifyEmailPage } from './auth-pages.controller.js';
+import { refreshSessionKey } from './refresh-token.js';
 
 export function createAuthRouter(deps: AppDeps): Router {
   const router = Router();
-  const perEmail = (name: string, rule: { windowMs: number; limit: number }) => rateLimit(deps, name, { ...rule, key: emailKey });
-
   router.post(
     '/auth/register',
     rateLimit(deps, 'register-ip', RATE_LIMITS.registerPerIp),
-    perEmail('register-email', RATE_LIMITS.registerPerEmail),
+    rateLimit(deps, 'register-email-ip', { ...RATE_LIMITS.registerPerEmailAndIp, key: emailAndIpKey }),
     asyncHandler(registerAccount(deps), { status: 201 }),
   );
-  router.post(
-    '/auth/login',
-    rateLimit(deps, 'login-ip', RATE_LIMITS.loginPerIp),
-    perEmail('login-email', RATE_LIMITS.loginPerEmail),
-    asyncHandler(signInWithPassword(deps)),
-  );
+  router.post('/auth/login', rateLimit(deps, 'login-ip', RATE_LIMITS.loginPerIp), asyncHandler(signInWithPassword(deps)));
   router.post('/auth/google', rateLimit(deps, 'google-ip', RATE_LIMITS.googlePerIp), asyncHandler(signInGoogle(deps)));
-  router.post('/auth/refresh', rateLimit(deps, 'refresh-ip', RATE_LIMITS.refreshPerIp), asyncHandler(refresh(deps)));
-  router.post('/auth/logout', asyncHandler(signOut(deps)));
   router.post(
-    '/auth/password-reset',
-    rateLimit(deps, 'password-reset-ip', RATE_LIMITS.passwordResetPerIp),
-    perEmail('password-reset-email', RATE_LIMITS.passwordResetPerEmail),
-    asyncHandler(passwordReset(deps)),
+    '/auth/refresh',
+    rateLimit(deps, 'refresh-ip', RATE_LIMITS.refreshPerIp),
+    rateLimit(deps, 'refresh-session', { ...RATE_LIMITS.refreshPerSession, key: refreshSessionKey(deps.env.jwt.accessSecret) }),
+    asyncHandler(refresh(deps)),
   );
+  router.post('/auth/logout', asyncHandler(signOut(deps)));
+  router.post('/auth/password-reset', rateLimit(deps, 'password-reset-ip', RATE_LIMITS.passwordResetPerIp), asyncHandler(passwordReset(deps)));
 
   router.get('/auth/verify-email', verifyEmailPage(deps));
+  router.post('/auth/verify-email', verifyEmailFormSubmit(deps));
   router.get('/auth/reset-password', resetPasswordPage(deps));
   const submitForm = resetPasswordFormSubmit(deps);
   const submitJson = asyncHandler(resetPasswordJson(deps));

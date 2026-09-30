@@ -30,7 +30,7 @@ const reviewSchema = new Schema<ReviewDoc>(
     rating: { type: Number, enum: RATING_VALUES, required: true },
     comment: { type: String, default: null },
   },
-  { timestamps: modelTimestamps({ updatedAt: false }) },
+  { timestamps: modelTimestamps({ updatedAt: false }), versionKey: false },
 );
 
 // One review per job (a double submit fails on this key → 409).

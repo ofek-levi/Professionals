@@ -9,7 +9,8 @@ import { WebSocket } from 'ws';
 
 import { createApp } from '../src/app.js';
 import { KEY_SPACES } from '../src/infra/keys.js';
-import { RedisRealtimePublisher, attachRealtimeServer } from '../src/infra/realtime/index.js';
+import { RedisRealtimePublisher, attachRealtimeServer, type RealtimeServer } from '../src/infra/realtime/index.js';
+import type { RealtimeServerOptions } from '../src/infra/realtime/realtime-server.js';
 import { isSessionDenied, sessionRevokedChannel } from '../src/infra/session-denylist.js';
 import type { RealtimeEvent } from '../src/shared/contract/index.js';
 import type { TestDeps } from './app.js';
@@ -20,10 +21,13 @@ export interface RealtimeTestServer {
   url: string;
   /** Publishes through Redis like any API instance would. */
   publisher: RedisRealtimePublisher;
+  realtime: RealtimeServer;
   close(): Promise<void>;
 }
 
-export async function startRealtimeServer(deps: TestDeps, options: { heartbeatMs?: number } = {}): Promise<RealtimeTestServer> {
+type TunableOptions = Partial<Pick<RealtimeServerOptions, 'heartbeatMs' | 'isSessionRevoked' | 'allowUpgrade' | 'maxSocketsPerUser' | 'closeGraceMs'>>;
+
+export async function startRealtimeServer(deps: TestDeps, options: TunableOptions = {}): Promise<RealtimeTestServer> {
   const server = createServer(createApp(deps));
   const subscriber = testRedis().duplicate();
   const channel = deps.keys.key(KEY_SPACES.realtimeChannel);
@@ -36,13 +40,14 @@ export async function startRealtimeServer(deps: TestDeps, options: { heartbeatMs
     logger: deps.logger,
     isSessionRevoked: (sessionId) => isSessionDenied(deps, sessionId),
     revocationChannel: sessionRevokedChannel(deps.keys),
-    heartbeatMs: options.heartbeatMs,
+    ...options,
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
   return {
     url: `ws://127.0.0.1:${port}/v1/realtime`,
     publisher: new RedisRealtimePublisher(deps.redis, channel, deps.logger),
+    realtime,
     async close() {
       await realtime.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));

@@ -16,7 +16,7 @@ import { ProfessionalModel, type ProfessionalDoc } from '../professionals/profes
 import { UserModel, type UserDoc } from '../users/user.model.js';
 import { JobModel, type JobDoc } from './job.model.js';
 
-type ReminderDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'redis' | 'keys' | 'background'>;
+type ReminderDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background'>;
 
 const BATCH_SIZE = 100;
 const MAX_BATCHES = 20;

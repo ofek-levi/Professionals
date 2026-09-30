@@ -1,19 +1,20 @@
 /**
  * `GET /professionals`: browse by category, best ranked first (Bayesian rating `stats.rankScore`,
  * then review count), optionally only those whose service area covers a point (then nearer first
- * among equals) — the order of the app's reference backend, as keyset pages.
+ * among equals) — the order of the app's reference backend, as keyset pages. "Covers" and "nearer"
+ * use the approximate center the public profile shows, at 0.1 km: cursors carry the sort values,
+ * so nothing finer than what the profile already reveals may go into them.
  */
 import type { PipelineStage, Types } from 'mongoose';
 
 import { loadByIds } from '../../lib/batch.js';
-import { geoNearStage } from '../../lib/geo-near.js';
-import { findPage, pageStages, toPage, type SortSpec } from '../../lib/pagination.js';
+import { findPage, pageStages, readCursor, toPage, type SortSpec } from '../../lib/pagination.js';
 import type { GeoCoordinates, Paginated, ProfessionalSummary } from '../../shared/contract/index.js';
 import type { CategoryId } from '../../shared/catalog/index.js';
-import { APP_CONFIG } from '../../shared/limits.js';
 import { UserModel, type UserDoc } from '../users/user.model.js';
 import { ProfessionalModel, type ProfessionalDoc } from './professional.model.js';
 import { PROFESSIONAL_SUMMARY_PROJECTION, toProfessionalSummary } from './professional.views.js';
+import { publicCoverageStages } from './service-area-coverage.js';
 import type { SearchProfessionalsInput } from './professionals.schemas.js';
 
 type SearchHit = Pick<
@@ -37,32 +38,23 @@ function categoryFilter(categoryId: CategoryId | undefined): Record<string, unkn
   return categoryId ? { categoryIds: categoryId } : {};
 }
 
-/**
- * Professionals whose own radius covers `near`: `$geoNear` bounded by the largest radius the app
- * allows (2dsphere + category index), then each one's `radiusKm`. Distances are haversine km (the
- * app's rule), so "covers" matches `isWithinServiceArea` exactly.
- */
-function coveringStages(near: GeoCoordinates, categoryId: CategoryId | undefined): PipelineStage[] {
-  return [
-    geoNearStage({
-      near,
-      key: 'serviceArea.center',
-      distanceField: 'distanceKm',
-      maxDistanceKm: APP_CONFIG.maxServiceRadiusKm,
-      query: categoryFilter(categoryId),
-    }),
-    { $match: { $expr: { $lte: ['$distanceKm', '$serviceArea.radiusKm'] } } },
-  ];
-}
-
 async function searchNear(near: GeoCoordinates, query: SearchProfessionalsInput): Promise<Paginated<SearchHit>> {
   const page = { cursor: query.cursor, limit: query.limit };
-  const base = coveringStages(near, query.categoryId);
-  const [docs, counted] = await Promise.all([
-    ProfessionalModel.aggregate<SearchHit>([...base, ...pageStages(RANKED_NEAR, page), { $project: { ...PROFESSIONAL_SUMMARY_PROJECTION, distanceKm: 1 } }]),
-    ProfessionalModel.aggregate<{ total: number }>([...base, { $count: 'total' }]),
+  const cursor = readCursor(page, RANKED_NEAR);
+  const base: PipelineStage[] = [
+    ...publicCoverageStages(near, query.categoryId),
+    { $set: { distanceKm: { $divide: [{ $floor: { $add: [{ $multiply: ['$distanceKm', 10] }, 0.5] } }, 10] } } },
+  ];
+  const [docs, total] = await Promise.all([
+    ProfessionalModel.aggregate<SearchHit>([
+      ...base,
+      ...pageStages(RANKED_NEAR, cursor, page.limit),
+      { $project: { ...PROFESSIONAL_SUMMARY_PROJECTION, distanceKm: 1 } },
+    ]),
+    // The count repeats the whole coverage scan: first page only (later pages echo it from the cursor).
+    cursor ? cursor.totalCount : ProfessionalModel.aggregate<{ total: number }>([...base, { $count: 'total' }]).then((rows) => rows[0]?.total ?? 0),
   ]);
-  return toPage(docs, page, RANKED_NEAR, counted[0]?.total ?? 0);
+  return toPage(docs, page, RANKED_NEAR, total);
 }
 
 export async function searchProfessionals(query: SearchProfessionalsInput): Promise<Paginated<ProfessionalSummary>> {

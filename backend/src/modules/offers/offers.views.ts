@@ -6,7 +6,8 @@ import type { Types } from 'mongoose';
 
 import { toServiceLocation } from '../../infra/schema-parts.js';
 import { loadByIds, required } from '../../lib/batch.js';
-import { approximateLocation } from '../../lib/geo.js';
+import { isoOrNull } from '../../lib/clock.js';
+import { approximateLocation, fromGeoPoint, haversineDistanceKm, roundDistanceKm } from '../../lib/geo.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type {
   Offer,
@@ -18,7 +19,6 @@ import type {
 } from '../../shared/contract/index.js';
 import { ProfessionalModel, type ProfessionalDoc } from '../professionals/professional.model.js';
 import { PROFESSIONAL_SUMMARY_PROJECTION, toProfessionalSummary } from '../professionals/professional.views.js';
-import { distanceKm } from '../requests/matching.service.js';
 import { RequestModel, type RequestDoc } from '../requests/request.model.js';
 import { UserModel, type UserDoc } from '../users/user.model.js';
 import { OfferModel, type OfferDoc } from './offer.model.js';
@@ -38,27 +38,35 @@ export function toOfferDto(offer: OfferDoc): Offer {
     expiresAt: offer.expiresAt.toISOString(),
     createdAt: offer.createdAt.toISOString(),
     updatedAt: offer.updatedAt.toISOString(),
-    respondedAt: offer.respondedAt ? offer.respondedAt.toISOString() : null,
+    respondedAt: isoOrNull(offer.respondedAt),
   };
 }
 
 type OfferingProfessional = Parameters<typeof toProfessionalSummary>[0] & Pick<ProfessionalDoc, 'serviceArea'>;
 
-/** Summaries plus service-area centers (distance to the request) in two queries. */
+/** Summaries plus public service-area centers (distance to the request) in two queries. */
 async function loadOfferingProfessionals(ids: Types.ObjectId[]): Promise<Map<string, { summary: ProfessionalSummary; pro: OfferingProfessional }>> {
   const [professionals, users] = await Promise.all([
-    loadByIds<ProfessionalDoc, OfferingProfessional>(ProfessionalModel, ids, { ...PROFESSIONAL_SUMMARY_PROJECTION, 'serviceArea.center': 1 }),
+    loadByIds<ProfessionalDoc, OfferingProfessional>(ProfessionalModel, ids, { ...PROFESSIONAL_SUMMARY_PROJECTION, 'serviceArea.publicCenter': 1 }),
     loadByIds<UserDoc, Pick<UserDoc, '_id' | 'avatar'>>(UserModel, ids, { avatar: 1 }),
   ]);
   return new Map([...professionals].map(([id, pro]) => [id, { pro, summary: toProfessionalSummary(pro, users.get(id)) }]));
 }
 
+/**
+ * Distance shown next to an offer: between the professional's public center and the request's
+ * public pin, so neither side's hidden address can be measured by moving the other one.
+ */
+function publicDistanceKm(pro: Pick<ProfessionalDoc, 'serviceArea'>, request: Pick<RequestDoc, 'publicPoint'>): number {
+  return roundDistanceKm(haversineDistanceKm(fromGeoPoint(pro.serviceArea.publicCenter), fromGeoPoint(request.publicPoint)));
+}
+
 /** Offers on one request with their professionals (the customer's comparison list). */
-export async function toOffersWithProfessional(offers: OfferDoc[], request: Pick<RequestDoc, 'location'>): Promise<OfferWithProfessional[]> {
+export async function toOffersWithProfessional(offers: OfferDoc[], request: Pick<RequestDoc, 'publicPoint'>): Promise<OfferWithProfessional[]> {
   const professionals = await loadOfferingProfessionals(offers.map((offer) => offer.professional));
   return offers.map((offer) => {
     const { pro, summary } = required(professionals, offer.professional, 'Professional');
-    return { ...toOfferDto(offer), professional: summary, distanceKm: distanceKm(pro, request) };
+    return { ...toOfferDto(offer), professional: summary, distanceKm: publicDistanceKm(pro, request) };
   });
 }
 
@@ -80,7 +88,7 @@ const SUMMARY_REQUEST_PROJECTION = {
   createdAt: 1,
 } as const;
 
-export function toOfferRequestSummary(request: SummaryRequest, revealLocation: boolean): OfferRequestSummary {
+function toOfferRequestSummary(request: SummaryRequest, revealLocation: boolean): OfferRequestSummary {
   const location = toServiceLocation(request.location);
   const id = request._id.toHexString();
   return {

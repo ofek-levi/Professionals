@@ -39,7 +39,7 @@ function zoneOffsetMs(instant: number): number {
 }
 
 /** A real calendar day (`2026-02-30` is not). */
-export function parseDateKey(key: string): CalendarDay | null {
+function parseDateKey(key: string): CalendarDay | null {
   const match = DATE_KEY.exec(key);
   if (!match) return null;
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];

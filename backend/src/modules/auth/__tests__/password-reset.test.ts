@@ -108,11 +108,13 @@ describe('password reset', () => {
     await loginAccount(app, 'google@example.com', NEW_PASSWORD);
   });
 
-  it('expires links after an hour and keeps only the newest link', async () => {
+  it('expires links after an hour; a newer link does not invalidate the earlier ones', async () => {
     await createCustomer({ email: 'noa@example.com' });
     const first = await requestLink('noa@example.com');
     const second = await requestLink('noa@example.com');
-    await request(app).get(pathOf(first.url)).set('Accept-Language', 'he-IL,he;q=0.9').expect(400);
+    expect(second.token).not.toBe(first.token);
+    // Someone else asking for a reset of this address must not kill the link the owner opens.
+    await request(app).get(pathOf(first.url)).expect(200);
     await request(app).get(pathOf(second.url)).expect(200);
 
     deps.clock.advanceMinutes(61);

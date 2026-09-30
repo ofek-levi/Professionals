@@ -60,7 +60,7 @@ const jobSchema = new Schema<JobDoc>(
     review: { type: Schema.Types.ObjectId, ref: 'Review', default: null },
     reminderSentAt: { type: Date, default: null },
   },
-  { timestamps: modelTimestamps() },
+  { timestamps: modelTimestamps(), versionKey: false },
 );
 
 // One job per request: a concurrent second acceptance fails on this key (→ 409).
@@ -74,6 +74,12 @@ jobSchema.index({ professional: 1, status: 1, scheduledStartAt: 1, _id: 1 });
 const COMPLETED_ONLY = { partialFilterExpression: { status: 'completed' } };
 jobSchema.index({ customer: 1, completedAt: -1, _id: -1 }, COMPLETED_ONLY);
 jobSchema.index({ professional: 1, completedAt: -1, _id: -1 }, COMPLETED_ONLY);
+// Customer dashboard "awaiting your review": only completed jobs without a review, so reviewed ones
+// are never read (same keys as above, narrower partial filter, hence the explicit name).
+jobSchema.index(
+  { customer: 1, completedAt: -1, _id: -1 },
+  { name: 'customer_awaiting_review', partialFilterExpression: { status: 'completed', review: null } },
+);
 // Appointment-reminder cron: upcoming awaiting_confirmation/scheduled jobs.
 jobSchema.index({ status: 1, scheduledStartAt: 1 });
 

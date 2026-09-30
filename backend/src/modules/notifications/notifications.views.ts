@@ -1,3 +1,4 @@
+import { isoOrNull } from '../../lib/clock.js';
 import type { AppNotification } from '../../shared/contract/index.js';
 import type { NotificationDoc } from './notification.model.js';
 
@@ -8,7 +9,7 @@ export function toNotificationDto(doc: NotificationDoc): AppNotification {
     type: doc.type,
     params: doc.params,
     target: doc.target,
-    readAt: doc.readAt ? doc.readAt.toISOString() : null,
+    readAt: isoOrNull(doc.readAt),
     createdAt: doc.createdAt.toISOString(),
   };
 }

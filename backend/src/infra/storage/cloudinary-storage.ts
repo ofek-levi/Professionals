@@ -24,8 +24,10 @@ export class CloudinaryStorage implements ImageStorage {
         {
           folder: `${this.rootFolder}/${input.folder}`,
           resource_type: 'image',
-          // HEIC and friends are stored as web-friendly JPEG/WebP at a bounded size.
-          transformation: [{ width: MAX_EDGE_PX, height: MAX_EDGE_PX, crop: 'limit' }, { quality: 'auto', fetch_format: 'auto' }],
+          // Incoming transformation: the stored original is bounded and recompressed. HEIC/WebP are
+          // converted by `format` (PNG keeps transparency). No `fetch_format: 'auto'` here: automatic
+          // format depends on the requesting browser, so it belongs to delivery URLs, not to upload.
+          transformation: [{ width: MAX_EDGE_PX, height: MAX_EDGE_PX, crop: 'limit' }, { quality: 'auto' }],
           format: input.mimeType === 'image/png' ? 'png' : 'jpg',
         },
         (error, result?: UploadApiResponse) => {

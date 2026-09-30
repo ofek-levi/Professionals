@@ -17,6 +17,7 @@ import { createImageStorage, type ImageStorage } from './infra/storage/index.js'
 import { BackgroundTasks } from './lib/background.js';
 import { systemClock, type Clock } from './lib/clock.js';
 import type { Logger } from './lib/logger.js';
+import { API_LIMITS } from './shared/limits.js';
 
 export interface AppDeps {
   env: Env;
@@ -51,7 +52,7 @@ export function createDeps({ env, logger, redis }: { env: Env; logger: Logger; r
     mailer: createMailer(env, logger),
     push: new ExpoPushSender(env.expoAccessToken),
     storage: createImageStorage(env),
-    geocoder: new CachedGeocoder(new NominatimGeocoder(env.geocoder), { cache, redis, keys, minIntervalMs: 1000 }),
+    geocoder: new CachedGeocoder(new NominatimGeocoder(env.geocoder), { cache, redis, keys, minIntervalMs: env.geocoder.minIntervalMs, maxResults: API_LIMITS.geocoderMaxResults }),
     google: createGoogleVerifier(env),
     passwordBreach: createPasswordBreachChecker(env, logger),
     realtime: new RedisRealtimePublisher(redis, keys.key(KEY_SPACES.realtimeChannel), logger),

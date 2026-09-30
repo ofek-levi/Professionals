@@ -6,7 +6,7 @@ import { signInCustomer, signInProfessional } from '../../../../test/auth.js';
 import { createCustomer, createUpload } from '../../../../test/factories.js';
 import { UploadModel } from '../../uploads/upload.model.js';
 import { UserModel } from '../../users/user.model.js';
-import { ProfessionalModel } from '../professional.model.js';
+import { ProfessionalModel, professionalPublicCenter } from '../professional.model.js';
 
 const WORKDAY = { enabled: true, start: '08:00', end: '17:00' };
 const DAY_OFF = { enabled: false, start: '09:00', end: '17:00' };
@@ -91,6 +91,8 @@ describe('PATCH /v1/professional/profile', () => {
     expect(user?.notificationPreferences.newRequests).toBe(false);
     const stored = await ProfessionalModel.findById(pro.user._id).lean();
     expect(stored?.serviceArea.center).toEqual({ type: 'Point', coordinates: [34.78, 32.08] });
+    // The public center moves with it (what searches and the public profile use).
+    expect(stored?.serviceArea.publicCenter).toEqual(professionalPublicCenter({ type: 'Point', coordinates: [34.78, 32.08] }, pro.user._id));
     expect(deps.realtime.eventsFor(pro.user._id.toHexString())).toContainEqual({ type: 'profile.updated', professionalId: pro.user._id.toHexString() });
 
     const again = await request(app).get('/v1/professional/profile').set(pro.headers).expect(200);

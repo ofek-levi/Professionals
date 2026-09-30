@@ -18,7 +18,7 @@ import {
 } from './auth-fields.schemas.js';
 import { newPasswordIssue } from './password-rules.js';
 
-/** Opaque tokens we issue are 43 base64url characters; anything far longer is garbage. */
+/** Tokens we issue are at most 91 characters (refresh tokens; email links: 43); anything far longer is garbage. */
 const opaqueToken = z.string({ error: vm('required') }).trim().min(1, vm('required')).max(200, vm('invalid'));
 
 const professionalSignUpDetails = z.object({

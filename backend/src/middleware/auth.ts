@@ -9,7 +9,7 @@ import type { NextFunction, Request, RequestHandler, Response } from 'express';
 import { Types } from 'mongoose';
 
 import { isSessionDenied, type SessionDenylistDeps } from '../infra/session-denylist.js';
-import { verifyAccessToken, type AccessTokenConfig } from '../lib/access-token.js';
+import { verifyAccessToken, type AccessTokenClaims, type AccessTokenConfig } from '../lib/access-token.js';
 import type { Clock } from '../lib/clock.js';
 import { ApiError } from '../lib/errors.js';
 import type { Logger } from '../lib/logger.js';
@@ -34,16 +34,26 @@ function bearerToken(req: Request): string | null {
 }
 
 export type AuthDeps = SessionDenylistDeps & { env: { jwt: AccessTokenConfig }; clock: Clock; logger: Logger };
+type TokenDeps = Pick<AuthDeps, 'env' | 'clock'>;
+
+/**
+ * Claims of a valid (signed, unexpired) bearer token, without the revocation lookup: enough to key
+ * rate limits by user or to name the session a logout ends. `null` without a valid token.
+ */
+export function bearerClaims(deps: TokenDeps, req: Request): AccessTokenClaims | null {
+  const token = bearerToken(req);
+  const claims = token ? verifyAccessToken(deps.env.jwt, token, deps.clock) : null;
+  return claims && Types.ObjectId.isValid(claims.userId) ? claims : null;
+}
 
 export function requireAuth(deps: AuthDeps): RequestHandler {
   return async (req: Request, _res: Response, next: NextFunction) => {
-    const token = bearerToken(req);
-    if (!token) {
+    if (!bearerToken(req)) {
       next(ApiError.unauthorized());
       return;
     }
-    const claims = verifyAccessToken(deps.env.jwt, token, deps.clock);
-    if (!claims || !Types.ObjectId.isValid(claims.userId)) {
+    const claims = bearerClaims(deps, req);
+    if (!claims) {
       next(ApiError.unauthorized('Invalid or expired access token'));
       return;
     }

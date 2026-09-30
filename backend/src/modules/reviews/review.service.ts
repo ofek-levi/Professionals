@@ -13,11 +13,11 @@ import { publishJobUpdated } from '../jobs/job-events.js';
 import { JobModel, type JobDoc } from '../jobs/job.model.js';
 import { createNotification } from '../notifications/create-notification.service.js';
 import { customerNameOf } from '../requests/request-access.js';
-import { refreshRatingStats } from './professional-stats.service.js';
+import { recordReviewRating } from './professional-stats.service.js';
 import { ReviewModel, type ReviewDoc } from './review.model.js';
 import type { CreateReviewInput } from './reviews.schemas.js';
 
-type ReviewDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'redis' | 'keys' | 'background' | 'cache'>;
+type ReviewDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background' | 'cache'>;
 
 const alreadyReviewed = () => ApiError.conflict('This job was already reviewed');
 
@@ -42,7 +42,7 @@ export async function createReview(deps: ReviewDeps, auth: AuthContext, jobId: T
         { session: tx.session, returnDocument: 'after' },
       ).lean<JobDoc>();
       if (!linked) throw alreadyReviewed();
-      await refreshRatingStats(deps, job.professional, tx);
+      await recordReviewRating(deps, job.professional, review.rating, tx);
       const customerName = await customerNameOf(job.customer, tx.session);
       await createNotification(
         deps,

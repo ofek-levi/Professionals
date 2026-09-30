@@ -14,7 +14,7 @@ import { UserModel, type UserDoc } from '../users/user.model.js';
 type SummaryUser = Pick<UserDoc, '_id' | 'firstName' | 'lastName' | 'avatar' | 'defaultLocation' | 'createdAt'>;
 
 /** Completed jobs per customer (served by the `jobs` {customer, status, …} index). */
-export async function completedJobCounts(customerIds: Types.ObjectId[]): Promise<Map<string, number>> {
+async function completedJobCounts(customerIds: Types.ObjectId[]): Promise<Map<string, number>> {
   if (customerIds.length === 0) return new Map();
   const rows = await JobModel.aggregate<{ _id: Types.ObjectId; count: number }>([
     { $match: { customer: { $in: customerIds }, status: 'completed' } },
@@ -23,7 +23,7 @@ export async function completedJobCounts(customerIds: Types.ObjectId[]): Promise
   return new Map(rows.map((row) => [row._id.toHexString(), row.count]));
 }
 
-export function toCustomerSummary(user: SummaryUser, completedJobsCount: number): CustomerSummary {
+function toCustomerSummary(user: SummaryUser, completedJobsCount: number): CustomerSummary {
   return {
     id: user._id.toHexString(),
     displayName: customerShortName(user),
