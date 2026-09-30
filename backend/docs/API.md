@@ -104,6 +104,9 @@ Signed-in traffic is limited **per user**: many mobile subscribers share one car
 per-IP limits are generous and meant for anonymous routes. Limits that name an account never let a
 stranger lock its owner out (see the notes below the table).
 
+Every route has a limit of its own on top of the global one: a bucket per route, so a busy screen
+never uses up another route's budget. The limits are far above what a person does in the app.
+
 | Scope | Limit |
 |---|---|
 | Every `/v1` request | 600 / min per user with a valid bearer token, otherwise per IP |
@@ -118,6 +121,16 @@ stranger lock its owner out (see the notes below the table).
 | `POST /requests` | 30 / h per customer |
 | `POST /requests/:id/offers` | 60 / 10 min per professional |
 | `POST /conversations/:id/messages` | 60 / min per user |
+| Other signed-in reads (lists, details, counts, dashboards, profiles), each route | 120 / min per user |
+| `GET /professionals`, `GET /professional/requests/nearby` (geospatial searches), each route | 60 / min per user |
+| Other signed-in changes (profile edits, `/me/avatar`, `/me/devices`, draft edits, publish, cancel, offer and job steps, reviews, `POST /notifications/read-all`), each route | 30 / min per user |
+| `POST /conversations/:id/read`, `POST /notifications/:id/read` (read markers), each route | 120 / min per user |
+| `POST /auth/verify-email/resend` | 3 / h per user |
+| `POST /auth/logout` | 600 / 15 min per IP |
+| `GET /catalog/categories` | 300 / min per user when signed in, otherwise per IP |
+| `GET /auth/verify-email`, `POST /auth/verify-email`, `GET /auth/reset-password` (pages opened from the emails), each route | 300 / 15 min per IP; over it, an HTML page (also for `POST /auth/reset-password` form posts) |
+| `GET /health`, `GET /ready`, each route | 300 / min per IP, counted in each instance's memory (not Redis) |
+| `GET /v1/realtime` (WebSocket upgrades) | 60 / min per user |
 
 - **Only failed sign-ins count**, so the owner's correct password never uses a budget up. The strict
   budget is per (email, IP); the account-wide one skips IPs the owner signed in from. A password
@@ -207,6 +220,7 @@ before this change, but it puts the token in the URL (access logs: OPERATIONS.md
 - `GET /health` → 200 `{ status: 'ok' }` while the process runs (liveness).
 - `GET /ready` → 200 `{ status: 'ready', checks: { mongo: 'ok', redis: 'ok' } }`, or 503
   `{ status: 'unavailable', checks }` when MongoDB or Redis does not answer (readiness: take the instance out of the load balancer).
+- Both: 300 / min per IP, counted in the instance's memory, so a Redis outage never fails a probe.
 
 ## Contract changes vs the app's types
 

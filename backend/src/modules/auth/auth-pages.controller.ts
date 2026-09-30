@@ -6,7 +6,7 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
 import type { AppDeps } from '../../deps.js';
-import { isApiError } from '../../lib/errors.js';
+import { ApiError, isApiError } from '../../lib/errors.js';
 import { clientIpKey } from '../../middleware/rate-limit.js';
 import type { AppLanguage } from '../../shared/domain.js';
 import { vm, type ValidationMessage } from '../../shared/validation-messages.js';
@@ -44,16 +44,33 @@ interface HtmlPage {
  */
 const PAGE_CSP = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'";
 
-/** Sends the page a controller renders; pages carry single-use tokens, so never cached. */
+/** Pages carry single-use tokens, so never cached. */
+function sendPage(res: Response, page: HtmlPage): void {
+  res.status(page.status).set({ 'Cache-Control': 'no-store', 'Content-Security-Policy': PAGE_CSP }).type('html').send(page.html);
+}
+
+/** Sends the page a controller renders. */
 function htmlPage(render: (req: Request) => Promise<HtmlPage>): RequestHandler {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const page = await render(req);
-      res.status(page.status).set({ 'Cache-Control': 'no-store', 'Content-Security-Policy': PAGE_CSP }).type('html').send(page.html);
+      sendPage(res, await render(req));
     } catch (error) {
       next(error);
     }
   };
+}
+
+/**
+ * Rate-limit refusal of the pages and their form posts (`onRefused`): a 429 page in the browser's
+ * language; JSON posts to `/auth/reset-password` (API clients) get the usual 429 error.
+ */
+export function tooManyRequestsPage(req: Request, res: Response, next: NextFunction): void {
+  if (req.method === 'POST' && !req.is('application/x-www-form-urlencoded')) {
+    next(ApiError.rateLimited());
+    return;
+  }
+  const language = browserLanguage(req);
+  sendPage(res, { status: 429, html: renderMessagePage(language, PAGE_TEXTS[language].tooManyRequests, 'error') });
 }
 
 function invalidLinkPage(req: Request, page: 'verifyLinkInvalid' | 'resetLinkInvalid'): HtmlPage {

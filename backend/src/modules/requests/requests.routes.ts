@@ -10,20 +10,18 @@ import type { AppDeps } from '../../deps.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth, requireRole } from '../../middleware/auth.js';
 import { imageMultipart } from '../../middleware/multipart.js';
-import { rateLimit, userKey } from '../../middleware/rate-limit.js';
+import { RATE_LIMITS, rateLimit, userKey, userRouteLimits } from '../../middleware/rate-limit.js';
 import { APP_CONFIG } from '../../shared/limits.js';
 import { MULTIPART_FIELDS } from '../../shared/multipart-fields.js';
 import { vm } from '../../shared/validation-messages.js';
 import { REQUEST_PHOTOS } from './request-photos.js';
 import { cancel, create, deleteDraft, getDetails, listMine, listNearby, publish, updateDraft } from './requests.controller.js';
 
-/** New requests per customer (anti-spam; a real customer posts a few a day). */
-const CREATE_REQUESTS_PER_USER = { windowMs: 60 * 60_000, limit: 30, key: userKey };
-
 export function createRequestsRouter(deps: AppDeps): Router {
   const router = Router();
   const auth = requireAuth(deps);
   const customer = requireRole('customer');
+  const limit = userRouteLimits(deps);
   const withPhotos = () =>
     imageMultipart(deps, {
       field: REQUEST_PHOTOS.field,
@@ -35,16 +33,16 @@ export function createRequestsRouter(deps: AppDeps): Router {
     '/requests',
     auth,
     customer,
-    rateLimit(deps, 'requests-create', CREATE_REQUESTS_PER_USER),
+    rateLimit(deps, 'requests-create', { ...RATE_LIMITS.requestsPerUser, key: userKey }),
     withPhotos(),
     asyncHandler(create(deps), { status: 201 }),
   );
-  router.get('/requests/:requestId', auth, asyncHandler(getDetails()));
-  router.patch('/requests/:requestId', auth, customer, withPhotos(), asyncHandler(updateDraft(deps)));
-  router.delete('/requests/:requestId', auth, customer, asyncHandler(deleteDraft(deps)));
-  router.post('/requests/:requestId/publish', auth, customer, asyncHandler(publish(deps)));
-  router.post('/requests/:requestId/cancel', auth, customer, asyncHandler(cancel(deps)));
-  router.get('/customer/requests', auth, customer, asyncHandler(listMine()));
-  router.get('/professional/requests/nearby', auth, requireRole('professional'), asyncHandler(listNearby()));
+  router.get('/requests/:requestId', auth, limit.read('requests-get'), asyncHandler(getDetails()));
+  router.patch('/requests/:requestId', auth, customer, limit.write('requests-update'), withPhotos(), asyncHandler(updateDraft(deps)));
+  router.delete('/requests/:requestId', auth, customer, limit.write('requests-delete'), asyncHandler(deleteDraft(deps)));
+  router.post('/requests/:requestId/publish', auth, customer, limit.write('requests-publish'), asyncHandler(publish(deps)));
+  router.post('/requests/:requestId/cancel', auth, customer, limit.write('requests-cancel'), asyncHandler(cancel(deps)));
+  router.get('/customer/requests', auth, customer, limit.read('requests-list-mine'), asyncHandler(listMine()));
+  router.get('/professional/requests/nearby', auth, requireRole('professional'), limit.search('requests-nearby'), asyncHandler(listNearby()));
   return router;
 }

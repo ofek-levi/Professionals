@@ -42,9 +42,9 @@ an in-memory fake (`test/app.ts`) while MongoDB and Redis stay real.
 ## 3. Request path
 
 ```
-requestId → httpLogger → helmet → cors → compression → /health,/ready
+requestId → httpLogger → helmet → cors → compression → /health,/ready (in-memory per-IP limit)
   → express.json(100 kb) → rejectOperatorKeys → /v1: global rate limit (per user, else per IP)
-  → route: [rateLimit…] [requireAuth] [requireRole] → controller → service → view → JSON
+  → route: [per-IP rateLimit] [requireAuth] [requireRole] [per-user rateLimit] → controller → service → view → JSON
   → notFound → errorHandler ({ code, message, fieldErrors? })
 ```
 

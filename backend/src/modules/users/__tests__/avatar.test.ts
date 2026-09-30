@@ -5,6 +5,7 @@ import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { signInCustomer, signInProfessional } from '../../../../test/auth.js';
 import { JPEG, PDF, PNG } from '../../../../test/images.js';
 import { UnconfiguredStorage } from '../../../infra/storage/unconfigured-storage.js';
+import { newObjectId } from '../../../lib/ids.js';
 import { APP_CONFIG } from '../../../shared/limits.js';
 import { UserModel } from '../user.model.js';
 
@@ -107,8 +108,13 @@ describe('image rate limit', () => {
   it('limits the image posts of a user (avatars and requests share it); the 429 names the image field', async () => {
     const customer = await signInCustomer(deps);
     const other = await signInCustomer(deps);
-    // Refused ones count too: the limit protects the upload path, not only successes.
-    for (let i = 0; i < 60; i += 1) await request(app).put('/v1/me/avatar').set(customer.headers).expect(400);
+    // Refused ones count too: the limit protects the upload path, not only successes. Spread over
+    // the three image routes (each also has a per-route budget of its own, above 20).
+    for (let i = 0; i < 20; i += 1) {
+      await request(app).put('/v1/me/avatar').set(customer.headers).expect(400);
+      await request(app).patch(`/v1/requests/${newObjectId().toHexString()}`).set(customer.headers).expect(400);
+      await request(app).post('/v1/requests').set(customer.headers).field('data', '{}').expect(400);
+    }
     const res = await request(app).put('/v1/me/avatar').set(customer.headers).attach('avatar', JPEG, 'a.jpg').expect(429);
     expect(res.body).toMatchObject({ code: 'RATE_LIMITED', fieldErrors: { avatar: ['validation:upload.rateLimited'] } });
     const post = await request(app).post('/v1/requests').set(customer.headers).field('data', '{}').expect(429);

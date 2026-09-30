@@ -14,6 +14,8 @@ export interface PageTexts {
   verifyLinkInvalid: MessagePageTexts;
   resetLinkInvalid: MessagePageTexts;
   passwordChanged: MessagePageTexts;
+  /** Over the pages' rate limit. */
+  tooManyRequests: MessagePageTexts;
   resetForm: { title: string; password: string; confirmPassword: string; hint: string; submit: string };
   /** Password errors of the reset form (same wording as the app's validation messages). */
   errors: Partial<Record<ValidationMessage, string>>;
@@ -42,6 +44,10 @@ export const PAGE_TEXTS: Record<AppLanguage, PageTexts> = {
     passwordChanged: {
       title: 'Your password was changed',
       message: 'You can now sign in to the Professionals app with your new password. For your security, you were signed out on all devices.',
+    },
+    tooManyRequests: {
+      title: 'Too many attempts',
+      message: 'Please wait a few minutes, then open the link in the email again.',
     },
     resetForm: {
       title: 'Choose a new password',
@@ -82,6 +88,10 @@ export const PAGE_TEXTS: Record<AppLanguage, PageTexts> = {
     passwordChanged: {
       title: 'הסיסמה שונתה',
       message: 'אפשר להתחבר לאפליקציית Professionals עם הסיסמה החדשה. לביטחונכם, החשבון נותק בכל המכשירים.',
+    },
+    tooManyRequests: {
+      title: 'יותר מדי ניסיונות',
+      message: 'המתינו כמה דקות ואז פתחו שוב את הקישור שבאימייל.',
     },
     resetForm: {
       title: 'בחירת סיסמה חדשה',

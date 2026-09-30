@@ -6,12 +6,15 @@ import { createTestApp, createTestDeps } from '../../../test/app.js';
 import { signInCustomer } from '../../../test/auth.js';
 import { createSilentLogger } from '../../lib/logger.js';
 import { errorHandler } from '../error-handler.js';
+import { tooManyRequestsPage } from '../../modules/auth/auth-pages.controller.js';
 import { emailAndIpKey, principalKey, rateLimit } from '../rate-limit.js';
 
 function appWith(deps: ReturnType<typeof createTestDeps>) {
   const app = express();
   app.set('trust proxy', true);
   app.use(express.json());
+  app.use(express.urlencoded({ extended: false }));
+  app.post('/page', rateLimit(deps, 'test-page', { windowMs: 60_000, limit: 1, onRefused: tooManyRequestsPage }), (_req, res) => res.json({ ok: true }));
   app.post('/login', rateLimit(deps, 'test-login-ip', { windowMs: 60_000, limit: 3 }), (_req, res) => res.json({ ok: true }));
   app.post('/register', rateLimit(deps, 'test-register-email', { windowMs: 60_000, limit: 2, key: emailAndIpKey }), (_req, res) => res.json({ ok: true }));
   app.get('/any', rateLimit(deps, 'test-global', { windowMs: 60_000, limit: 3, key: principalKey(deps) }), (_req, res) => res.json({ ok: true }));
@@ -51,6 +54,17 @@ describe('rateLimit (Redis store)', () => {
     await request(app).get('/any').set('X-Forwarded-For', ip).set(second.headers).expect(200);
     // Anonymous (or forged-token) traffic from that IP has the IP's own bucket.
     await request(app).get('/any').set('X-Forwarded-For', ip).set({ Authorization: 'Bearer forged' }).expect(200);
+  });
+
+  it('lets a route answer refused requests itself (an HTML page for form posts, JSON for API clients)', async () => {
+    const app = appWith(createTestDeps({ env: { RATE_LIMIT_ENABLED: 'true' } }));
+    const form = () => request(app).post('/page').set('X-Forwarded-For', '192.0.2.30').type('form').send({ token: 'x' });
+    await form().expect(200);
+    const page = await form().expect(429).expect('Content-Type', /html/);
+    expect(page.text).toContain('Too many attempts');
+    const json = () => request(app).post('/page').set('X-Forwarded-For', '192.0.2.31').send({ token: 'x' });
+    await json().expect(200);
+    expect((await json().expect(429)).body).toEqual({ code: 'RATE_LIMITED', message: 'Too many requests, please try again later' });
   });
 
   it('is a no-op when disabled', async () => {

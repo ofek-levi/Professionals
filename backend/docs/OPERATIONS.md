@@ -170,7 +170,8 @@ Without Docker: `npm ci && npm run build && npm start` on Node ≥ 22.12.
   browser away from WebSocket URLs (a failing socket prints its URL to the console). The HTTP keep-alive timeout is 65 s, above the usual 60 s
   load-balancer idle timeout.
 - Health checks: liveness `GET /health` (process up, no dependencies), readiness `GET /ready` (MongoDB
-  and Redis answer; 503 otherwise).
+  and Redis answer; 503 otherwise). Each takes 300 requests / min per IP, counted in the instance's
+  memory (a Redis outage never fails a probe): probe every few seconds, not faster.
 - Graceful shutdown on `SIGTERM`/`SIGINT`: stop accepting connections; at the same time close
   WebSockets (code 1001, the app reconnects to another instance; sockets that do not answer within
   1 s, e.g. a backgrounded phone, are cut) and stop cron; let in-flight requests and then the

@@ -57,16 +57,19 @@ Every router declares **full paths** and is mounted at `/v1` next to all the oth
 
 - **Never `router.use(...)`** in a module router — it would run for every other module's
   requests too. Put middleware on each route.
-- Order per route: rate limits → `requireAuth(deps)` → `requireRole('customer'|'professional')` →
-  `asyncHandler(controller)`.
+- Order per route: per-IP rate limits → `requireAuth(deps)` → `requireRole('customer'|'professional')` →
+  per-user rate limits → multipart → `asyncHandler(controller)`.
+- **Every route has a rate limit of its own** with a unique bucket name (`src/__tests__/route-rate-limits.test.ts`
+  fails otherwise): signed-in routes use `userRouteLimits(deps)` (`read`, `search`, `write`,
+  `readMarker`), public ones `rateLimit(deps, '<name>', RATE_LIMITS.…)` (§13).
 
 ```ts
 export function createOffersRouter(deps: AppDeps): Router {
   const router = Router();
   const auth = requireAuth(deps);
-  router.get('/offers/:offerId', auth, asyncHandler(offersController.getOffer(deps)));
-  router.post('/offers/:offerId/accept', auth, requireRole('customer'), asyncHandler(offersController.accept(deps)));
-  router.post('/requests/:requestId/offers', auth, requireRole('professional'), asyncHandler(offersController.create(deps), { status: 201 }));
+  const limit = userRouteLimits(deps);
+  router.get('/offers/:offerId', auth, limit.read('offers-get'), asyncHandler(offersController.getOffer(deps)));
+  router.post('/offers/:offerId/accept', auth, requireRole('customer'), limit.write('offers-accept'), asyncHandler(offersController.accept(deps)));
   return router;
 }
 ```
@@ -281,9 +284,12 @@ directly after moving `deps.clock`.
 - Keys only via `deps.keys.key(...)` (prefix `${APP_ENV}:`); cache via `deps.cache` (`get/set/del/wrap`).
 - Cache only what is safe: geocoder results (done), public professional profile (short TTL,
   delete on profile/rating change), never per-user private data unless invalidated precisely.
-- Rate limits: `rateLimit(deps, '<unique-name>', RATE_LIMITS.loginPerIp)` and per-account
-  `{ ...RATE_LIMITS.loginPerEmail, key: emailKey }` / `key: userKey` (`middleware/rate-limit.ts`).
-  A global per-IP limit already covers `/v1`. Tests enable them with
+- Rate limits: every budget is in `RATE_LIMITS` (`middleware/rate-limit.ts`). Per IP
+  `rateLimit(deps, '<unique-name>', RATE_LIMITS.loginPerIp)`, per account
+  `{ ...RATE_LIMITS.registerPerEmailAndIp, key: emailAndIpKey }` / `key: userKey`, per signed-in
+  route `userRouteLimits(deps).read('<unique-name>')`. The name is the Redis bucket: share one
+  between routes only on purpose (listed in `route-rate-limits.test.ts`). A global per-user (else
+  per-IP) limit also covers `/v1`. Tests enable them with
   `createTestApp({ env: { RATE_LIMIT_ENABLED: 'true' } })`.
 
 ## 14. Module template
