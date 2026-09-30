@@ -64,6 +64,7 @@ export async function getCustomerDashboard(auth: AuthContext): Promise<CustomerD
     activeJobsCount,
     recentRequests,
     upcomingJobs: jobSummaries.slice(0, upcoming.length),
-    jobsAwaitingReview: jobSummaries.slice(upcoming.length),
+    // A deleted professional takes no reviews.
+    jobsAwaitingReview: jobSummaries.slice(upcoming.length).filter((job) => !job.professional.accountDeleted),
   };
 }

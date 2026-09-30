@@ -1,7 +1,8 @@
 /**
  * Job transitions (the mock's `lifecycle-service.ts`, jobs part): the professional confirms and
  * starts, either party completes; each transition mirrors onto the request, notifies the other
- * party and emits `job.updated` + `request.updated`, all in one transaction.
+ * party and emits `job.updated` + `request.updated`, all in one transaction. Cancelling happens
+ * with the request (the customer's cancel) or when the professional deletes their account.
  */
 import type { Types } from 'mongoose';
 
@@ -12,8 +13,10 @@ import type { AuthContext } from '../../middleware/auth.js';
 import { REQUEST_STATUS_FOR_JOB_STATUS, type JobStatus } from '../../shared/statuses.js';
 import { closeConversation } from '../conversations/conversation-lifecycle.service.js';
 import { createNotification } from '../notifications/create-notification.service.js';
+import { syncRequestOfferCounters } from '../offers/offer-counters.service.js';
 import { customerNameOf, loadRequest, professionalNameOf } from '../requests/request-access.js';
 import { publishRequestUpdated } from '../requests/request-events.js';
+import { discardAfterCommit, publicIdsOf } from '../requests/request-photos.js';
 import { RequestModel, type RequestDoc } from '../requests/request.model.js';
 import { assertRequestTransition } from '../requests/request-rules.js';
 import { recordCompletedJob } from '../reviews/professional-stats.service.js';
@@ -109,4 +112,29 @@ export async function cancelJobForRequest(deps: Pick<AppDeps, 'realtime'>, job: 
   await closeConversation(job.conversation, tx.session);
   await publishJobUpdated(deps, cancelled, tx);
   return cancelled;
+}
+
+/**
+ * The professional deleted their account: the job (any active status: `in_progress` is cancelled
+ * only here) and its request are cancelled with reason `account_deleted`, the request's photos
+ * deleted as on every cancellation, and the customer is told why (`job_cancelled`).
+ */
+export async function cancelJobForDeletedProfessional(
+  deps: LifecycleDeps & Pick<AppDeps, 'storage'>,
+  job: JobDoc,
+  now: Date,
+  tx: Tx,
+): Promise<void> {
+  const request = await loadRequest(job.request, tx.session);
+  const cancelledJob = await cancelJobForRequest(deps, job, now, tx);
+  const cancelled = await syncRequestOfferCounters(request._id, tx, {
+    status: 'cancelled',
+    cancelledAt: now,
+    cancellationReason: 'account_deleted',
+    cancellationComment: null,
+    photos: [],
+  });
+  discardAfterCommit(deps, tx, publicIdsOf(request.photos));
+  await createNotification(deps, job.customer, { type: 'job_cancelled', job: cancelledJob }, tx);
+  await publishRequestUpdated(deps, cancelled, { tx });
 }

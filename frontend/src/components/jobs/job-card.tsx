@@ -2,7 +2,7 @@ import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { jobStatusMeta, type JobStatus } from '@/constants/job-statuses';
-import { useCategoryName, useFormatters } from '@/i18n/hooks';
+import { useCategoryName, useFormatters, usePersonName } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { Job, JobSummary, UserRole } from '@/types/domain';
 
@@ -55,8 +55,9 @@ export function JobCard({ job, viewerRole, showPrice = false, showStatus = true,
   const styles = useStyles();
   const { t } = useTranslation('common');
   const format = useFormatters();
+  const personName = usePersonName();
   const categoryName = useCategoryName(job.categoryId) || t('category.unknown');
-  const counterpart = viewerRole === 'customer' ? job.professional.displayName : job.customer.displayName;
+  const counterpart = personName(viewerRole === 'customer' ? job.professional : job.customer);
   const { completed, text: when } = useJobWhen(job);
   // The status pill already says "Completed", so the date line only shows when it happened.
   const whenLabel = completed && job.completedAt ? format.dateTime(job.completedAt) : when;

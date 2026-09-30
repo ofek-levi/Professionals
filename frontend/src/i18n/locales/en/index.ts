@@ -3,6 +3,7 @@ import { errors } from './errors';
 import { validation } from './validation';
 import { auth } from './auth';
 import { settings } from './settings';
+import { legal } from './legal';
 import { location } from './location';
 import { customer } from './customer';
 import { requests } from './requests';
@@ -21,6 +22,7 @@ export const en = {
   validation,
   auth,
   settings,
+  legal,
   location,
   customer,
   requests,

@@ -2,7 +2,8 @@
  * Signing out and in against the backend test double: signing out ends the session locally at
  * once, then sends the session's refresh token to `POST /auth/logout` (the server drops the
  * session and its push token); a logout the server did not confirm stays queued and is sent
- * again later. Signing in syncs the account language (`PATCH /me`).
+ * again later. Deleting the account signs out here without a server logout. Signing in syncs the
+ * account language (`PATCH /me`).
  */
 import { renderHook } from '@testing-library/react-native';
 
@@ -13,9 +14,10 @@ import { sessionStore } from '@/services/auth/session-store';
 import type { Transport, TransportResponse } from '@/services/api/transport';
 import { realtimeClient } from '@/services/realtime';
 import { MAIN_CUSTOMER_IDS } from '@/test-utils/mock-backend/data/seed';
+import { SEED_PASSWORD } from '@/test-utils/mock-backend/server/passwords';
 import { createTestEnvironment, expectApiError, type TestEnvironment } from '@/test-utils/mock-backend/testing/test-server';
 
-import { establishSession, pendingLogouts, useAuthActions } from '../session-provider';
+import { deleteAccountAndSignOut, establishSession, pendingLogouts, useAuthActions } from '../session-provider';
 
 const NOA = MAIN_CUSTOMER_IDS.noa;
 
@@ -150,6 +152,49 @@ describe('signOut', () => {
   it('sends nothing when already signed out', async () => {
     await signOut();
     expect(env.log.requests).toEqual([]);
+  });
+});
+
+describe('deleteAccountAndSignOut', () => {
+  // Deleting changes the data: a double of its own for every test.
+  let own: TestEnvironment;
+  beforeEach(() => {
+    own = createTestEnvironment({ now: new Date() });
+    apiClient.setTransport(own.transport);
+  });
+
+  it('signs out on this device only: the deletion ended every session', async () => {
+    const session = own.signIn(NOA);
+    await sessionStore.signIn(session);
+    const disconnect = jest.spyOn(realtimeClient, 'disconnect');
+    try {
+      await deleteAccountAndSignOut({ password: SEED_PASSWORD });
+      expect(disconnect).toHaveBeenCalled();
+      expect(sessionStore.getState().status).toBe('signedOut');
+      expect(await pendingLogouts.pending()).toEqual([]);
+      expect(own.log.to('/auth/logout', 'POST')).toEqual([]);
+      expect(await expectApiError(own.as(null).auth.refresh({ refreshToken: session.refreshToken }))).toMatchObject({ status: 401 });
+    } finally {
+      disconnect.mockRestore();
+    }
+  });
+
+  it('keeps the session and reconnects realtime when the deletion is refused', async () => {
+    await sessionStore.signIn(own.signIn(NOA));
+    const disconnect = jest.spyOn(realtimeClient, 'disconnect').mockImplementation(() => undefined);
+    const connect = jest.spyOn(realtimeClient, 'connect').mockImplementation(() => undefined);
+    try {
+      expect(await expectApiError(deleteAccountAndSignOut({ password: 'wrong-password1' }))).toMatchObject({
+        status: 400,
+        fieldErrors: { password: ['validation:auth.passwordIncorrect'] },
+      });
+      expect(disconnect).toHaveBeenCalled();
+      expect(connect).toHaveBeenCalledTimes(1);
+      expect(sessionStore.getState()).toMatchObject({ status: 'signedIn', userId: NOA });
+    } finally {
+      disconnect.mockRestore();
+      connect.mockRestore();
+    }
   });
 });
 

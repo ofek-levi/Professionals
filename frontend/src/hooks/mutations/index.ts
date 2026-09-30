@@ -3,7 +3,14 @@
  * in `cache-updates.ts`; screens only call `mutate`/`mutateAsync` and render pending/error states.
  */
 export { isPendingMessage } from './cache-updates';
-export { useGoogleAuth, useLogin, useRegister, useRequestPasswordReset, useResendVerificationEmail } from './use-auth-mutations';
+export {
+  useDeleteAccount,
+  useGoogleAuth,
+  useLogin,
+  useRegister,
+  useRequestPasswordReset,
+  useResendVerificationEmail,
+} from './use-auth-mutations';
 export { useCancelRequest, useCreateRequest, useDeleteDraftRequest, usePublishRequest, useUpdateDraftRequest } from './use-request-mutations';
 export { useAcceptOffer, useCreateOffer, useUpdateOffer, useWithdrawOffer } from './use-offer-mutations';
 export { useCompleteJob, useConfirmJob, useCreateReview, useStartJob } from './use-job-mutations';

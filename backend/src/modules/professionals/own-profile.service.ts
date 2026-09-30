@@ -6,7 +6,7 @@ import { withTransaction } from '../../infra/mongo.js';
 import { ApiError } from '../../lib/errors.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type { OwnProfessionalProfile } from '../../shared/contract/index.js';
-import { UserModel, type UserDoc } from '../users/user.model.js';
+import { NOT_DELETED, UserModel, type UserDoc } from '../users/user.model.js';
 import { ProfessionalModel, type ProfessionalDoc } from './professional.model.js';
 import { invalidatePublicProfessionalProfile } from './professional-cache.js';
 import { toOwnProfessionalProfile } from './professional.views.js';
@@ -21,10 +21,10 @@ export interface LoadedProfile {
   user: ProfileUser;
 }
 
-/** The profile and the account fields it shows (same `_id`), or `null`. */
+/** The profile and the account fields it shows (same `_id`), or `null` (none, or the account was deleted). */
 export async function loadProfessionalProfile(professionalId: Types.ObjectId): Promise<LoadedProfile | null> {
   const [pro, user] = await Promise.all([
-    ProfessionalModel.findById(professionalId).lean<ProfessionalDoc>(),
+    ProfessionalModel.findOne({ _id: professionalId, ...NOT_DELETED }).lean<ProfessionalDoc>(),
     UserModel.findById(professionalId, PROFILE_USER_PROJECTION).lean<ProfileUser>(),
   ]);
   return pro && user ? { pro, user } : null;
@@ -38,10 +38,11 @@ export async function getOwnProfessionalProfile(auth: AuthContext): Promise<OwnP
 
 async function saveProfile(id: Types.ObjectId, input: UpdateProfessionalProfileInput, session?: ClientSession): Promise<LoadedProfile> {
   const account = accountChanges(input);
-  const pro = await ProfessionalModel.findOneAndUpdate({ _id: id }, { $set: professionalChanges(id, input) }, { session, returnDocument: 'after' }).lean<ProfessionalDoc>();
+  // A deleted account's tombstone is never edited (its access token outlives it by minutes).
+  const pro = await ProfessionalModel.findOneAndUpdate({ _id: id, ...NOT_DELETED }, { $set: professionalChanges(id, input) }, { session, returnDocument: 'after' }).lean<ProfessionalDoc>();
   const user =
     Object.keys(account).length > 0
-      ? await UserModel.findOneAndUpdate({ _id: id }, { $set: account }, { session, projection: PROFILE_USER_PROJECTION, returnDocument: 'after' }).lean<ProfileUser>()
+      ? await UserModel.findOneAndUpdate({ _id: id, ...NOT_DELETED }, { $set: account }, { session, projection: PROFILE_USER_PROJECTION, returnDocument: 'after' }).lean<ProfileUser>()
       : await UserModel.findById(id, PROFILE_USER_PROJECTION, { session }).lean<ProfileUser>();
   if (!pro || !user) throw ApiError.notFound('Professional profile');
   return { pro, user };

@@ -1,7 +1,8 @@
 /**
  * Settings that are only safe with a real value once the API is reachable from the internet
- * (staging/production): the access-token secret and the `trust proxy` setting. Development accepts
- * the `.env.example` values so a fresh checkout starts.
+ * (staging/production): the access-token and location-privacy secrets, the `trust proxy` setting and
+ * the operator details of the legal documents. Development accepts the `.env.example` values (and
+ * empty operator details) so a fresh checkout starts.
  */
 import { isIP } from 'node:net';
 
@@ -51,6 +52,41 @@ export function deployedSecretIssues(secret: string): string[] {
 /** `true` if the development secret is one of the documented placeholders (startup warning). */
 export function isPlaceholderSecret(secret: string): boolean {
   return PLACEHOLDER_MARKERS.test(secret);
+}
+
+/** Problems of `LOCATION_PRIVACY_SECRET` when deployed (whoever knows it can undo the offset of approximate locations). */
+export function locationSecretIssues(secret: string | undefined): string[] {
+  return secret && isPlaceholderSecret(secret) ? ['LOCATION_PRIVACY_SECRET is a placeholder: generate one with `openssl rand -base64 48`'] : [];
+}
+
+/** The operator fields of `src/config/legal.ts` the published documents cannot do without. */
+export interface LegalOperator {
+  name: { en: string; he: string };
+  address: { en: string; he: string };
+  email: string;
+}
+
+const LEGAL_CONFIG_FILE = 'backend/src/config/legal.ts';
+const EMAIL_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Problems of the operator details for a deployed environment: the documents must say who runs the service and how to reach them. */
+export function legalOperatorIssues(operator: LegalOperator, appEnv: string): string[] {
+  const empty = Object.entries({
+    'operator.name.en': operator.name.en,
+    'operator.name.he': operator.name.he,
+    'operator.address.en': operator.address.en,
+    'operator.address.he': operator.address.he,
+    'operator.email': operator.email,
+  })
+    .filter(([, value]) => !value.trim())
+    .map(([field]) => field);
+  const issues =
+    empty.length > 0
+      ? [`${LEGAL_CONFIG_FILE}: fill in ${empty.join(', ')} (the Terms of Use and the Privacy Policy name the operator; required when APP_ENV=${appEnv})`]
+      : [];
+  const email = operator.email.trim();
+  if (email && !EMAIL_ADDRESS.test(email)) issues.push(`${LEGAL_CONFIG_FILE}: operator.email is not an email address: ${email}`);
+  return issues;
 }
 
 /** Express `trust proxy` value: hop count, address/subnet list, or off. */

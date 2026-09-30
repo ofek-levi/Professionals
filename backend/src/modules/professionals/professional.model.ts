@@ -65,6 +65,11 @@ export interface ProfessionalDoc {
   startingPrice: Money | null;
   isVerified: boolean;
   stats: ProfessionalStatsDoc;
+  /**
+   * The account was deleted: a tombstone ("Deleted user", no categories, contact, business or exact
+   * base) kept for the customers' offers, jobs and reviews; left out of every search and match.
+   */
+  deletedAt?: Date;
   /** createdAt = `memberSince`. */
   createdAt: Date;
   updatedAt: Date;
@@ -161,6 +166,7 @@ const professionalSchema = new Schema<ProfessionalDoc>(
       ),
       default: () => ({}),
     },
+    deletedAt: { type: Date },
   },
   { timestamps: modelTimestamps(), versionKey: false },
 );

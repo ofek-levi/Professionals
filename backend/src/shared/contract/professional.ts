@@ -43,7 +43,6 @@ export interface Money {
 export interface ProfessionalProfile {
   id: EntityId;
   userId: EntityId;
-  fullName: string;
   displayName: string;
   avatarUrl: string | null;
   headline: string;
@@ -65,7 +64,9 @@ export interface ProfessionalProfile {
   updatedAt: ISODateTimeString;
 }
 
+/** The professional's own profile: public views never carry the personal name. */
 export interface OwnProfessionalProfile extends ProfessionalProfile {
+  fullName: string;
   contact: ProfessionalContact;
   notificationPreferences: NotificationPreferences;
 }
@@ -82,4 +83,6 @@ export interface ProfessionalSummary {
   completedJobsCount: number;
   isVerified: boolean;
   city: string;
+  /** The professional deleted their account: `displayName` is the placeholder "Deleted user" and the profile is gone (404). */
+  accountDeleted: boolean;
 }

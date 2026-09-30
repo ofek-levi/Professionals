@@ -1,11 +1,9 @@
-import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { AppText, Field, haptics, Icon } from '@/components/ui';
+import { LegalLinks } from '@/features/legal/components/legal-links';
 import { makeStyles } from '@/theme';
-
-import { LegalDocumentSheet, type LegalDocument } from './legal-document-sheet';
 
 interface TermsCheckboxProps {
   value: boolean;
@@ -19,29 +17,14 @@ interface TermsCheckboxProps {
 const BOX_SIZE = 22;
 
 /**
- * "I agree to the Terms of Service and Privacy Policy" – a checkbox row with an inline error, and
- * links under it that open both documents (the row toggles the checkbox, the links don't).
+ * "I'm 18 or older and I agree to the Terms of Use and the Privacy Policy" – a checkbox row with an
+ * inline error, and links under it that open both documents on their own screen (the row toggles
+ * the checkbox, the links don't; the form keeps its values while a document is open).
  */
 export function TermsCheckbox({ value, onChange, error, testID }: TermsCheckboxProps) {
   const styles = useStyles();
   const { t } = useTranslation('auth');
   const label = t('signUp.account.terms');
-  const [document, setDocument] = useState<LegalDocument | null>(null);
-
-  const link = (target: LegalDocument) => (
-    <Pressable
-      accessibilityRole="link"
-      accessibilityHint={t('legal.openHint')}
-      onPress={() => setDocument(target)}
-      hitSlop={{ top: 12, bottom: 12, left: 6, right: 6 }}
-      style={({ pressed }) => (pressed ? styles.pressed : null)}
-      testID={testID ? `${testID}-${target}` : undefined}
-    >
-      <AppText variant="captionStrong" color="primary">
-        {t(`legal.${target}.title`)}
-      </AppText>
-    </Pressable>
-  );
 
   return (
     <Field error={error}>
@@ -65,14 +48,7 @@ export function TermsCheckbox({ value, onChange, error, testID }: TermsCheckboxP
           {label}
         </AppText>
       </Pressable>
-      <View style={styles.links}>
-        {link('terms')}
-        <AppText variant="caption" color="muted" importantForAccessibility="no" accessibilityElementsHidden>
-          ·
-        </AppText>
-        {link('privacy')}
-      </View>
-      <LegalDocumentSheet document={document} onClose={() => setDocument(null)} />
+      <LegalLinks style={styles.links} testID={testID} />
     </Field>
   );
 }
@@ -108,10 +84,6 @@ const useStyles = makeStyles((t) => ({
     flex: 1,
   },
   links: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: t.spacing.sm,
     marginStart: BOX_SIZE + t.spacing.md,
     marginTop: -t.spacing.sm,
   },

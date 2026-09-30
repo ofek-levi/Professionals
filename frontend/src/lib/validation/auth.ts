@@ -185,6 +185,15 @@ export function toPasswordResetRequest(values: ForgotPasswordFormValues): Passwo
   return { email: normalizeEmail(values.email) };
 }
 
+// ────────────────────────────── Account deletion ──────────────────────────────
+
+/** `/settings/delete-account`: the password that confirms it is the account holder (`POST /me/deletion`). */
+export const deleteAccountPasswordSchema = z.object({
+  password: z.string({ error: vm('auth.passwordRequired') }).min(1, vm('auth.passwordRequired')),
+});
+
+export type DeleteAccountPasswordValues = z.input<typeof deleteAccountPasswordSchema>;
+
 // ────────────────────────────── Google ──────────────────────────────
 
 /** `POST /auth/google` payload. */

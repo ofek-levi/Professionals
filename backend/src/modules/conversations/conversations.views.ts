@@ -53,6 +53,7 @@ export async function toConversationDtos(conversations: ConversationDoc[], viewe
         role: participant.role,
         displayName: display.displayName,
         avatarUrl: display.avatarUrl,
+        accountDeleted: display.accountDeleted,
       };
     }),
     lastMessage: conversation.lastMessage ? lastMessageDto(conversation._id, conversation.lastMessage) : null,

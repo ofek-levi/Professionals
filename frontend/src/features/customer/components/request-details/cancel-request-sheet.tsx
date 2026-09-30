@@ -8,7 +8,7 @@ import { AppText, Button, Icon, InlineAlert, Sheet, useConfirm, useErrorToast, u
 import { useCancelRequest } from '@/hooks';
 import { CANCEL_COMMENT_MAX_LENGTH, cancelRequestSchema } from '@/lib/validation';
 import { makeStyles, useTheme } from '@/theme';
-import { REQUEST_CANCELLATION_REASONS, type CustomerRequestView } from '@/types/domain';
+import { CUSTOMER_CANCELLATION_REASONS, type CustomerRequestView } from '@/types/domain';
 
 interface CancelRequestSheetProps {
   request: CustomerRequestView;
@@ -87,7 +87,7 @@ export function CancelRequestSheet({ request, visible, onClose }: CancelRequestS
               <AppText variant="captionStrong" color="secondary">
                 {t('customer:cancel.reasonLabel')}
               </AppText>
-              {REQUEST_CANCELLATION_REASONS.map((reason) => {
+              {CUSTOMER_CANCELLATION_REASONS.map((reason) => {
                 const selected = value === reason;
                 return (
                   <Pressable

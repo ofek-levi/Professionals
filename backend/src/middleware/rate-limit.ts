@@ -56,7 +56,7 @@ export const RATE_LIMITS = {
   offersPerUser: { windowMs: 10 * MINUTE, limit: 60 },
   /** New requests per customer (anti-spam; a real customer posts a few a day). */
   requestsPerUser: { windowMs: 60 * MINUTE, limit: 30 },
-  /** Public data (the category catalog): per user when signed in, otherwise per IP. */
+  /** Public data (the category catalog, the legal documents): per user when signed in, otherwise per IP; the legal pages per IP. */
   publicReads: { windowMs: MINUTE, limit: 300 },
   /** All sign-in attempts of one IP (argon2 CPU); failed ones are also limited by the login throttle. */
   loginPerIp: { windowMs: 15 * MINUTE, limit: 300 },
@@ -76,6 +76,8 @@ export const RATE_LIMITS = {
   passwordResetEmailsPerAddress: { windowMs: 60 * MINUTE, limit: 3 },
   /** "Send the verification link again" (signed in). */
   verificationEmailsPerUser: { windowMs: 60 * MINUTE, limit: 3 },
+  /** Account deletion attempts (each checks a password: the sign-in throttle counts wrong ones too). */
+  accountDeletionsPerUser: { windowMs: 60 * MINUTE, limit: 5 },
   /** Pages opened from auth emails and their form posts (tokens are unguessable; this caps the load). */
   emailLinkPagesPerIp: { windowMs: 15 * MINUTE, limit: 300 },
   geoPerIp: { windowMs: MINUTE, limit: 60 },

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { createCustomer } from '../../../../test/factories.js';
+import { LEGAL_CONFIG } from '../../../config/legal.js';
 import { sha256 } from '../../../lib/crypto.js';
 import { ProfessionalModel } from '../../professionals/professional.model.js';
 import { UserModel } from '../../users/user.model.js';
@@ -37,6 +38,8 @@ describe('POST /v1/auth/register', () => {
     const user = await UserModel.findById(session.user.id).lean();
     expect(user?.passwordHash).toMatch(/^\$argon2id\$v=19\$m=19456,p=1,t=2\$/);
     expect(user?.emailVerifiedAt).toBeUndefined();
+    // The accepted terms are recorded with the version in force.
+    expect(user?.termsAcceptance).toEqual({ version: LEGAL_CONFIG.effectiveDate, acceptedAt: new Date('2026-10-01T09:00:00.000Z') });
     expect(user?.notificationPreferences).toEqual({
       pushEnabled: true,
       emailEnabled: false,
@@ -197,7 +200,11 @@ describe('POST /v1/auth/register', () => {
       expect(session.user.avatarUrl).toBe('https://lh3.test/dana.jpg');
 
       const user = await UserModel.findById(session.user.id).lean();
-      expect(user).toMatchObject({ googleSub: 'google-dana', emailVerifiedAt: new Date('2026-10-01T09:00:00.000Z') });
+      expect(user).toMatchObject({
+        googleSub: 'google-dana',
+        emailVerifiedAt: new Date('2026-10-01T09:00:00.000Z'),
+        termsAcceptance: { version: LEGAL_CONFIG.effectiveDate, acceptedAt: new Date('2026-10-01T09:00:00.000Z') },
+      });
       expect(user?.passwordHash).toBeUndefined();
       await deps.background.drain();
       expect(deps.mailer.lastTo('dana@example.com')).toBeUndefined();

@@ -8,7 +8,7 @@ import type { AppDeps } from '../../deps.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import { ApiError } from '../../lib/errors.js';
 import type { AppLanguage } from '../../shared/domain.js';
-import { UserModel } from '../users/user.model.js';
+import { NOT_DELETED, UserModel } from '../users/user.model.js';
 import { MAIL_RECIPIENT_PROJECTION, sendVerificationEmail, type MailRecipient } from './auth-mail.service.js';
 import { consumeEmailToken, findEmailTokenUser } from './email-token.service.js';
 
@@ -27,7 +27,7 @@ export async function verifyLinkAccount(deps: Pick<AppDeps, 'clock'>, token: str
  * answer is the same (`{ success: true }`), and the app refetches `/me`.
  */
 export async function resendVerificationEmail(deps: Pick<AppDeps, 'env' | 'clock' | 'mailer'>, auth: AuthContext): Promise<void> {
-  const user = await UserModel.findById(auth.userId, { ...MAIL_RECIPIENT_PROJECTION, emailVerifiedAt: 1 }).lean<
+  const user = await UserModel.findOne({ _id: auth.userId, ...NOT_DELETED }, { ...MAIL_RECIPIENT_PROJECTION, emailVerifiedAt: 1 }).lean<
     MailRecipient & { emailVerifiedAt?: Date | null }
   >();
   if (!user) throw ApiError.unauthorized('The account no longer exists');

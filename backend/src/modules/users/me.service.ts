@@ -1,4 +1,6 @@
 /** `GET /me` (the account + its role profile) and `PATCH /me` (the account's language). */
+import type { ClientSession, Types } from 'mongoose';
+
 import { ApiError } from '../../lib/errors.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type { CurrentUserResponse } from '../../shared/contract/index.js';
@@ -6,16 +8,22 @@ import type { AppLanguage } from '../../shared/domain.js';
 import { loadCustomerStats, toCustomerProfileDto } from '../customers/customer-profile.views.js';
 import { ProfessionalModel, type ProfessionalDoc } from '../professionals/professional.model.js';
 import { toOwnProfessionalProfile } from '../professionals/professional.views.js';
-import { UserModel, type UserDoc } from './user.model.js';
+import { NOT_DELETED, UserModel, type UserDoc } from './user.model.js';
 import { USER_VIEW_PROJECTION, toUserDto, type UserForView } from './user.views.js';
 
-type CurrentUser = UserForView & Pick<UserDoc, 'notificationPreferences' | 'defaultLocation' | 'updatedAt' | 'emailVerifiedAt'>;
+type CurrentUser = UserForView & Pick<UserDoc, 'notificationPreferences' | 'defaultLocation' | 'updatedAt' | 'emailVerifiedAt' | 'deletedAt'>;
 
-const CURRENT_USER_PROJECTION = { ...USER_VIEW_PROJECTION, notificationPreferences: 1, defaultLocation: 1, updatedAt: 1, emailVerifiedAt: 1 } as const;
+const CURRENT_USER_PROJECTION = { ...USER_VIEW_PROJECTION, notificationPreferences: 1, defaultLocation: 1, updatedAt: 1, emailVerifiedAt: 1, deletedAt: 1 } as const;
 
 export function accountGone(): ApiError {
   // 401 (not 404): the token outlived its account, so the app signs out.
   return ApiError.unauthorized('The account no longer exists');
+}
+
+/** Refuses a caller whose account is gone (deleted, or never existed). */
+export async function assertAccountActive(userId: Types.ObjectId, session?: ClientSession): Promise<void> {
+  const user = await UserModel.findOne({ _id: userId, ...NOT_DELETED }, { _id: 1 }).session(session ?? null).lean();
+  if (!user) throw accountGone();
 }
 
 export async function getCurrentUser(auth: AuthContext): Promise<CurrentUserResponse> {
@@ -23,7 +31,7 @@ export async function getCurrentUser(auth: AuthContext): Promise<CurrentUserResp
   // The role is in the token, so the role data loads in parallel with the user.
   if (auth.role === 'customer') {
     const [user, stats] = await Promise.all([userQuery, loadCustomerStats(auth.userId)]);
-    if (!user) throw accountGone();
+    if (!user || user.deletedAt) throw accountGone();
     return {
       user: { ...toUserDto(user), role: 'customer' },
       emailVerified: Boolean(user.emailVerifiedAt),
@@ -32,7 +40,7 @@ export async function getCurrentUser(auth: AuthContext): Promise<CurrentUserResp
     };
   }
   const [user, professional] = await Promise.all([userQuery, ProfessionalModel.findById(auth.userId).lean<ProfessionalDoc>()]);
-  if (!user) throw accountGone();
+  if (!user || user.deletedAt) throw accountGone();
   if (!professional) throw ApiError.notFound('Professional profile');
   return {
     user: { ...toUserDto(user, professional.displayName), role: 'professional' },
@@ -44,6 +52,6 @@ export async function getCurrentUser(auth: AuthContext): Promise<CurrentUserResp
 
 /** The language of push notifications and emails follows the app's language setting. */
 export async function updateLanguage(auth: AuthContext, language: AppLanguage): Promise<void> {
-  const { matchedCount } = await UserModel.updateOne({ _id: auth.userId }, { $set: { language } });
+  const { matchedCount } = await UserModel.updateOne({ _id: auth.userId, ...NOT_DELETED }, { $set: { language } });
   if (matchedCount === 0) throw accountGone();
 }

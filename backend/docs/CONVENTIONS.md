@@ -34,7 +34,7 @@ and models. **Do not edit them**; fill your own files.
 | Module | Routes (all under `/v1`) |
 |---|---|
 | auth | `POST /auth/register`, `/auth/login`, `/auth/google`, `/auth/refresh`, `/auth/logout`, `/auth/password-reset`, `GET`+`POST /auth/verify-email`, `GET`+`POST /auth/reset-password` |
-| users | `GET`/`PATCH /me`, `PUT`/`DELETE /me/avatar`, `POST /me/devices`, `DELETE /me/devices/:token` |
+| users | `GET`/`PATCH /me`, `PUT`/`DELETE /me/avatar`, `POST /me/devices`, `DELETE /me/devices/:token`, `GET /me/deletion-impact`, `POST /me/deletion` |
 | catalog | `GET /catalog/categories` (done) |
 | geo | `GET /geo/search`, `GET /geo/reverse` |
 | customers | `GET`/`PATCH /customer/profile` |
@@ -46,6 +46,7 @@ and models. **Do not edit them**; fill your own files.
 | conversations | `GET /conversations`, `GET /conversations/unread-count`, `GET /conversations/:id`, `GET`/`POST /conversations/:id/messages`, `POST /conversations/:id/read` |
 | notifications | `GET /notifications`, `GET /notifications/unread-count`, `POST /notifications/read-all`, `POST /notifications/:id/read` |
 | dashboard | `GET /customer/dashboard`, `GET /professional/dashboard` |
+| legal | `GET /legal/:document` (and the public pages `GET /legal/:document` outside `/v1`, mounted by `app.ts`) |
 
 Cron job names (fixed; `CRON_DISABLED_JOBS` uses them): `offer-expiry` (offers, every 5 min),
 `appointment-reminders` (jobs, every 15 min), `push-receipts` (notifications, done). Images need
@@ -214,7 +215,7 @@ return { ...page, items: await toOfferWithRequestList(page.items) };
   contacts only for customers who hired the professional; public vs own profile.
 - Shared, ready-made views (use them, don't duplicate):
   - `toUserDto(user, professionalDisplayName?)`, `USER_VIEW_PROJECTION` — `users/user.views.ts`
-  - `loadUserDisplays(userIds)` → `{ role, displayName, shortName, avatarUrl }` — `users/user-display.views.ts`
+  - `loadUserDisplays(userIds)` → `{ role, displayName, shortName, avatarUrl, accountDeleted }` (a deleted account: "Deleted user") — `users/user-display.views.ts`
   - `loadCustomerSummaries(ids)`, `toCustomerSummary`, `completedJobCounts` — `customers/customer-summary.views.ts`
   - `loadCustomerStats(id)`, `toCustomerProfileDto(user, stats)` — `customers/customer-profile.views.ts`
   - `loadProfessionalSummaries(ids)`, `toProfessionalSummary`, `toOwnProfessionalProfile`,
@@ -246,6 +247,9 @@ return { ...page, items: await toOfferWithRequestList(page.items) };
 | offers | `offers.views.ts`: `toOffersWithRequest(offers, viewer: AuthContext)`, `toOffersWithProfessional(offers, request)` | dashboard |
 | jobs | `jobs.views.ts`: `toJobSummaries(jobs: JobDoc[]): Promise<JobSummary[]>`, `toJobDto(job, request)` | dashboard, offers (accept response), reviews |
 | jobs | `job-lifecycle.service.ts`: `cancelJobForRequest(deps, job, now, tx)` (cancel + close conversation + `job.updated`) | requests (cancel) |
+| jobs | `job-lifecycle.service.ts`: `cancelJobForDeletedProfessional(deps, job, now, tx)` (job + request cancelled, `job_cancelled` to the customer) | users (account deletion) |
+| requests | `request-cancel.service.ts`: `cancelRequestInTx(deps, request, { reason, comment, customerName }, tx)` (the cancel without the owner check) | users (account deletion) |
+| offers | `offer-changes.service.ts`: `withdrawOfferInTx(deps, offer, { professionalName }, tx)` | users (account deletion) |
 | notifications | `listRecentNotifications(userId, limit)` | dashboard |
 
 Professional aggregates are updated by the module that changes their source, each only its own

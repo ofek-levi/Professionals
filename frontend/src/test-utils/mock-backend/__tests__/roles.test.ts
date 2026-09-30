@@ -132,7 +132,7 @@ describe('authentication and role separation', () => {
   it('shows a professional’s contact details only to customers who hired them, and never the exact base', async () => {
     const db = env.server.internals.db;
     const own = await env.as(PRO_IDS.avi).professionals.getOwnProfessionalProfile();
-    const hiredBy = db.jobs.find((job) => job.professionalId === own.id)?.customerId;
+    const hiredBy = db.jobs.find((job) => job.professionalId === own.id && job.status !== 'cancelled')?.customerId;
     const stranger = db.users.find((user) => user.role === 'customer' && !db.jobs.find((job) => job.professionalId === own.id && job.customerId === user.id));
     expect(hiredBy).toBeDefined();
     expect(stranger).toBeDefined();
@@ -140,6 +140,7 @@ describe('authentication and role separation', () => {
 
     const publicView = await env.as(stranger.id).professionals.getProfessionalProfile(own.id);
     expect(publicView.contact).toBeNull();
+    expect(publicView).not.toHaveProperty('fullName');
     expect(publicView.baseLocation).toMatchObject({ isApproximate: true, addressLine: '', details: null });
     expect(publicView.baseLocation?.coordinates).not.toEqual(own.baseLocation?.coordinates);
     expect(publicView.serviceArea.center).not.toEqual(own.serviceArea.center);

@@ -91,6 +91,10 @@ export const notifications = {
       bodyForCustomer: 'Your {{category}} job with {{name}} is complete. How did it go? Leave a review.',
       bodyForProfessional: 'The {{category}} job for {{name}} is complete. Great work!',
     },
+    job_cancelled: {
+      title: 'Job cancelled',
+      body: 'Your {{category}} job on {{date}} was cancelled because the professional closed their account.',
+    },
     review_received: {
       title_one: 'New {{count}}-star review',
       title_other: 'New {{count}}-star review',

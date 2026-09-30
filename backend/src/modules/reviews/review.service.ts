@@ -3,7 +3,7 @@
  * customer. The review, the job's link to it and the professional's rating aggregate are written
  * in one transaction; the professional is notified and both parties get `job.updated`.
  */
-import type { Types } from 'mongoose';
+import type { ClientSession, Types } from 'mongoose';
 
 import type { AppDeps } from '../../deps.js';
 import { withTransaction } from '../../infra/mongo.js';
@@ -13,6 +13,8 @@ import { publishJobUpdated } from '../jobs/job-events.js';
 import { JobModel, type JobDoc } from '../jobs/job.model.js';
 import { createNotification } from '../notifications/create-notification.service.js';
 import { customerNameOf } from '../requests/request-access.js';
+import { accountGone } from '../users/me.service.js';
+import { UserModel } from '../users/user.model.js';
 import { recordReviewRating } from './professional-stats.service.js';
 import { ReviewModel, type ReviewDoc } from './review.model.js';
 import type { CreateReviewInput } from './reviews.schemas.js';
@@ -20,6 +22,15 @@ import type { CreateReviewInput } from './reviews.schemas.js';
 type ReviewDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background' | 'cache'>;
 
 const alreadyReviewed = () => ApiError.conflict('This job was already reviewed');
+
+/** Neither the reviewer's account (its token may outlive it) nor the professional's was deleted. */
+async function assertPartiesActive(job: Pick<JobDoc, 'customer' | 'professional'>, session: ClientSession): Promise<void> {
+  const deleted = await UserModel.find({ _id: { $in: [job.customer, job.professional] }, deletedAt: { $exists: true } }, { _id: 1 })
+    .session(session)
+    .lean();
+  if (deleted.some((user) => user._id.equals(job.customer))) throw accountGone();
+  if (deleted.length > 0) throw ApiError.conflict('The professional deleted their account');
+}
 
 export async function createReview(deps: ReviewDeps, auth: AuthContext, jobId: Types.ObjectId, input: CreateReviewInput): Promise<ReviewDoc> {
   try {
@@ -29,6 +40,7 @@ export async function createReview(deps: ReviewDeps, auth: AuthContext, jobId: T
       if (!job.customer.equals(auth.userId)) throw ApiError.forbidden('Only the customer of this job can review it');
       if (job.status !== 'completed') throw ApiError.conflict('Only completed jobs can be reviewed');
       if (job.review !== null) throw alreadyReviewed();
+      await assertPartiesActive(job, tx.session);
 
       const [created] = await ReviewModel.create(
         [{ job: job._id, professional: job.professional, customer: job.customer, categoryId: job.categoryId, rating: input.rating, comment: input.comment }],

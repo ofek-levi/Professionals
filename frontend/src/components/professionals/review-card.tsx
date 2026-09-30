@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, View, type StyleProp, type ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { useCategoryName, useFormatters } from '@/i18n/hooks';
+import { useCategoryName, useFormatters, usePersonName } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import type { Review } from '@/types/domain';
 import { alignForText } from '@/utils/bidi';
@@ -43,7 +43,9 @@ export function ReviewCard({
   const styles = useStyles();
   const { t } = useTranslation('common');
   const format = useFormatters();
+  const personName = usePersonName();
   const categoryName = useCategoryName(showCategory ? review.categoryId : null);
+  const author = personName({ displayName: review.customerDisplayName, accountDeleted: review.customerAccountDeleted });
   const [expanded, setExpanded] = useState(false);
   const comment = review.comment?.trim() ?? '';
   const expandable = comment.length > LONG_COMMENT_CHARS;
@@ -67,10 +69,10 @@ export function ReviewCard({
         metaRow
       ) : (
         <View style={styles.header}>
-          <Avatar name={review.customerDisplayName} uri={review.customerAvatarUrl} size="sm" decorative />
+          <Avatar name={author} uri={review.customerAvatarUrl} size="sm" decorative />
           <View style={styles.texts}>
             <AppText variant="bodyStrong" numberOfLines={1}>
-              {review.customerDisplayName}
+              {author}
             </AppText>
             {metaRow}
           </View>

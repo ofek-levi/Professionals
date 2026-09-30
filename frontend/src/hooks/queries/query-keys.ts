@@ -23,6 +23,7 @@ export const queryKeys = {
 
   auth: {
     me: (userId: Scope) => ['u', userId, 'me'] as const,
+    deletionImpact: (userId: Scope) => ['u', userId, 'deletion-impact'] as const,
   },
 
   catalog: {
@@ -100,6 +101,11 @@ export const queryKeys = {
     detail: (userId: Scope, conversationId: string) => ['u', userId, 'conversations', 'detail', conversationId] as const,
     messages: (userId: Scope, conversationId: string) =>
       ['u', userId, 'conversations', 'messages', conversationId] as const,
+  },
+
+  /** Public documents, one per language (`?lang=`). */
+  legal: {
+    document: (document: string, language: string) => ['public', 'legal', document, language] as const,
   },
 
   /** The server localizes addresses (`Accept-Language`): the language is part of every key. */

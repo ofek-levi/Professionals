@@ -1,6 +1,6 @@
 /**
  * Account routes: `GET`/`PATCH /me`, `PUT`/`DELETE /me/avatar`, `POST /me/devices`,
- * `DELETE /me/devices/:token`.
+ * `DELETE /me/devices/:token`, `GET /me/deletion-impact`, `POST /me/deletion`.
  */
 import { Router } from 'express';
 
@@ -8,10 +8,10 @@ import type { AppDeps } from '../../deps.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { requireAuth } from '../../middleware/auth.js';
 import { imageMultipart } from '../../middleware/multipart.js';
-import { userRouteLimits } from '../../middleware/rate-limit.js';
+import { RATE_LIMITS, rateLimit, userKey, userRouteLimits } from '../../middleware/rate-limit.js';
 import { vm } from '../../shared/validation-messages.js';
 import { AVATAR_IMAGE } from './avatar.service.js';
-import { addDevice, deleteAvatar, deleteDevice, getMe, putAvatar, updateMe } from './users.controller.js';
+import { addDevice, deleteAvatar, deleteDevice, deleteMe, deletionImpact, getMe, putAvatar, updateMe } from './users.controller.js';
 
 export function createUsersRouter(deps: AppDeps): Router {
   const router = Router();
@@ -29,5 +29,13 @@ export function createUsersRouter(deps: AppDeps): Router {
   router.delete('/me/avatar', auth, limit.write('avatar-delete'), asyncHandler(deleteAvatar(deps)));
   router.post('/me/devices', auth, limit.write('devices-add'), asyncHandler(addDevice(deps)));
   router.delete('/me/devices/:token', auth, limit.write('devices-delete'), asyncHandler(deleteDevice()));
+  router.get('/me/deletion-impact', auth, limit.read('account-deletion-impact'), asyncHandler(deletionImpact()));
+  router.post(
+    '/me/deletion',
+    auth,
+    limit.write('account-delete'),
+    rateLimit(deps, 'account-delete-hourly', { ...RATE_LIMITS.accountDeletionsPerUser, key: userKey }),
+    asyncHandler(deleteMe(deps)),
+  );
   return router;
 }

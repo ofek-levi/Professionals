@@ -23,8 +23,14 @@ import type {
 
 // ────────────────────────────── Stored row types ──────────────────────────────
 
-/** A user row (exactly the `User` clients receive). */
-export type StoredUser = User;
+/**
+ * A user row: the `User` clients receive, plus when the account was deleted. A deleted account
+ * stays as an anonymous tombstone so the other parties' jobs, chats and reviews still resolve
+ * (`services/account-deletion-service.ts`).
+ */
+export interface StoredUser extends User {
+  deletedAt?: ISODateTimeString;
+}
 
 /** A job row plus internal scheduler bookkeeping. */
 export interface StoredJob extends Job {

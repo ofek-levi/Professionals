@@ -1,6 +1,7 @@
 /**
  * Structured logging (pino). Secrets never reach the log: known sensitive fields are redacted and
- * `token` query parameters are masked in logged URLs (realtime, email links).
+ * logged URLs are masked: `token` query parameters (realtime, email links) and the push token in the
+ * path of `DELETE /me/devices/:token`.
  */
 import { pino, type Logger, type LoggerOptions } from 'pino';
 
@@ -19,9 +20,11 @@ const REDACTED_PATHS = [
   '*.pushToken',
 ];
 
-/** Masks secret query parameters (`?token=…`) in a URL or path. */
+/** Masks secret query parameters (`?token=…`) and the push token of `/me/devices/:token` in a URL or path. */
 export function redactUrl(url: string): string {
-  return url.replace(/([?&](?:token|access_token|refreshToken)=)[^&#]*/gi, '$1[REDACTED]');
+  return url
+    .replace(/([?&](?:token|access_token|refreshToken)=)[^&#]*/gi, '$1[REDACTED]')
+    .replace(/(\/me\/devices\/)[^/?#]+/i, '$1[REDACTED]');
 }
 
 export function createLogger(options: { level: LoggerOptions['level']; pretty?: boolean }): Logger {

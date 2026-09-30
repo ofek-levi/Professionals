@@ -20,6 +20,7 @@ import { geoNearStage } from '../../lib/geo-near.js';
 import type { CategoryId } from '../../shared/catalog/index.js';
 import type { GeoCoordinates } from '../../shared/contract/index.js';
 import { APP_CONFIG } from '../../shared/limits.js';
+import { NOT_DELETED } from '../users/user.model.js';
 import { ProfessionalModel } from './professional.model.js';
 
 type CenterKey = 'serviceArea.center' | 'serviceArea.publicCenter';
@@ -56,9 +57,10 @@ export function matchingProfessionalsStages(near: GeoCoordinates, categoryId: Ca
 /**
  * Professionals (of `categoryId`, when given) whose public service area covers `near`, in no
  * particular order. Without a category, one scan of the largest radius on
- * `{serviceArea.publicCenter, categoryIds}`.
+ * `{serviceArea.publicCenter, categoryIds}`, leaving out deleted professionals (a category leaves
+ * them out already: their tombstones have none).
  */
 export function publicCoverageStages(near: GeoCoordinates, categoryId: CategoryId | undefined): PipelineStage[] {
-  if (!categoryId) return [geoNear('serviceArea.publicCenter', near, APP_CONFIG.maxServiceRadiusKm, {}), withinOwnRadius];
+  if (!categoryId) return [geoNear('serviceArea.publicCenter', near, APP_CONFIG.maxServiceRadiusKm, NOT_DELETED), withinOwnRadius];
   return bucketStages('serviceArea.publicCenter', near, categoryId);
 }

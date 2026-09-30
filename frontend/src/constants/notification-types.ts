@@ -17,6 +17,8 @@ export const NOTIFICATION_TYPES = [
   'job_started',
   'appointment_reminder',
   'job_completed',
+  /** To the customer when the hired professional deleted their account (the job is cancelled). */
+  'job_cancelled',
   'review_received',
   'new_message',
 ] as const;
@@ -54,6 +56,7 @@ export const NOTIFICATION_TYPE_META: Record<NotificationType, NotificationTypeMe
   job_started: { icon: 'progress-wrench', tone: 'warning', preference: 'jobUpdates' },
   appointment_reminder: { icon: 'bell-ring-outline', tone: 'accent', preference: 'reminders' },
   job_completed: { icon: 'check-all', tone: 'success', preference: 'jobUpdates' },
+  job_cancelled: { icon: 'calendar-remove', tone: 'danger', preference: 'jobUpdates' },
   review_received: { icon: 'star-outline', tone: 'warning', preference: 'jobUpdates' },
   new_message: { icon: 'message-text-outline', tone: 'info', preference: 'messages' },
 };

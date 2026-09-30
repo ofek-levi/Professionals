@@ -1,6 +1,7 @@
 /**
  * Job status machine (the app's `features/jobs/job-status-machine.ts`). A job's status mirrors onto
- * its request (`REQUEST_STATUS_FOR_JOB_STATUS`).
+ * its request (`REQUEST_STATUS_FOR_JOB_STATUS`). `in_progress → cancelled` happens only when a party
+ * deletes their account: no user action cancels a job once the work started.
  */
 import { ApiError } from '../../lib/errors.js';
 import type { JobStatus } from '../../shared/statuses.js';
@@ -8,7 +9,7 @@ import type { JobStatus } from '../../shared/statuses.js';
 const JOB_TRANSITIONS: Record<JobStatus, readonly JobStatus[]> = {
   awaiting_confirmation: ['scheduled', 'cancelled'],
   scheduled: ['in_progress', 'completed', 'cancelled'],
-  in_progress: ['completed'],
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
 };

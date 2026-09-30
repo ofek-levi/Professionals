@@ -38,6 +38,7 @@ export const messaging: LocaleNamespace<typeof enmessaging> = {
     discardTitle: 'למחוק את ההודעה?',
     discardMessage: 'ההודעה לא נשלחה ותוסר מהצ׳אט.',
     closedMessage: 'הצ׳אט נסגר כי העבודה בוטלה.',
+    closedAccountDeleted: 'הצ׳אט נסגר כי החשבון של הצד השני נמחק.',
     closedPlaceholder: 'הצ׳אט סגור',
     charactersLeft_one: 'נותר תו אחד',
     charactersLeft_two: 'נותרו שני תווים',

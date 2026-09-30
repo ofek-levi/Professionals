@@ -26,7 +26,7 @@ import { isObjectIdString } from '../../lib/ids.js';
 import type { UserRole } from '../../shared/domain.js';
 import type { RefreshResponse } from '../../shared/contract/index.js';
 import { API_LIMITS } from '../../shared/limits.js';
-import { UserModel } from '../users/user.model.js';
+import { NOT_DELETED, UserModel } from '../users/user.model.js';
 import { mintRefreshToken, parseRefreshToken, refreshTokenKey, successorToken, type ParsedRefreshToken } from './refresh-token.js';
 import { SessionModel } from './session.model.js';
 
@@ -85,7 +85,7 @@ export async function refreshSession(deps: RefreshDeps, refreshToken: string): P
   ).lean();
   const userId = rotated?.user ?? (await concurrentRefreshUser(deps, presented, { presentedHash, nextHash, now }));
 
-  const user = await UserModel.findById(userId, { role: 1 }).lean();
+  const user = await UserModel.findOne({ _id: userId, ...NOT_DELETED }, { role: 1 }).lean();
   if (!user) {
     await revokeSession(deps, presented.sessionId);
     throw ApiError.unauthorized('The account no longer exists');

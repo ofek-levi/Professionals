@@ -46,7 +46,8 @@ export interface CustomerSummary {
   id: EntityId;
   displayName: string;
   avatarUrl: string | null;
-  city: string | null;
   memberSince: ISODateTimeString;
   completedJobsCount: number;
+  /** The customer deleted their account: show "Deleted user" (`displayName` is the server's placeholder). */
+  accountDeleted?: boolean;
 }

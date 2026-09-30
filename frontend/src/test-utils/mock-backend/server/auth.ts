@@ -37,10 +37,10 @@ export function readBearerToken(headers: Record<string, string> | undefined): st
   return match ? match[1].trim() : null;
 }
 
-/** Builds the actor of a session, or `null` when the user or their role profile does not exist. */
+/** Builds the actor of a session, or `null` when the user (or their role profile) no longer exists. */
 function actorFor(db: MockDatabase, userId: string, sessionId: string): Actor | null {
   const user = db.users.get(userId);
-  if (!user) return null;
+  if (!user || user.deletedAt) return null;
   if (user.role === 'customer') {
     const customerProfile = db.customerProfiles.get(user.id);
     return customerProfile ? { role: 'customer', userId: user.id, user, sessionId, customerProfile } : null;

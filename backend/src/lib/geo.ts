@@ -2,6 +2,8 @@
  * Geographic helpers (ported from the app's `utils/geo.ts` + `request-matching.ts`): distances,
  * GeoJSON conversion and the deterministic privacy offset of approximate locations.
  */
+import { createHmac } from 'node:crypto';
+
 import type { GeoCoordinates, ServiceLocation } from '../shared/contract/index.js';
 
 const EARTH_RADIUS_KM = 6371.0088;
@@ -51,21 +53,24 @@ export function offsetCoordinates(coords: GeoCoordinates, meters: number, bearin
   return { latitude: toDegrees(lat2), longitude: ((toDegrees(lng2) + 540) % 360) - 180 };
 }
 
-/** FNV-1a 32-bit hash (same as the app's `hashString`). */
-function hashString(value: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
+/** `LOCATION_PRIVACY_SECRET`, installed once per process by `createApp` (like the model clock). */
+let offsetKey: string | null = null;
+
+export function setLocationPrivacySecret(secret: string): void {
+  offsetKey = secret;
 }
 
-/** Deterministic approximate point for `seed` (e.g. the request id: every viewer sees the same pin). */
+/**
+ * Deterministic approximate point for `seed` (the record id: every viewer sees the same pin, and
+ * editing the location again moves it by the same offset, so edits cannot be averaged out). The
+ * offset comes from an HMAC of the id: the id is public, the key is not, so it cannot be undone.
+ */
 export function approximateCoordinates(coords: GeoCoordinates, seed: string): GeoCoordinates {
+  if (offsetKey === null) throw new Error('LOCATION_PRIVACY_SECRET is not installed (setLocationPrivacySecret)');
+  const digest = createHmac('sha256', offsetKey).update(`approximate-location:${seed}`).digest();
   const span = APPROXIMATE_MAX_OFFSET_M - APPROXIMATE_MIN_OFFSET_M;
-  const meters = APPROXIMATE_MIN_OFFSET_M + (hashString(seed) % (span + 1));
-  const bearing = hashString(`${seed}:bearing`) % 360;
+  const meters = APPROXIMATE_MIN_OFFSET_M + (digest.readUInt32BE(0) % (span + 1));
+  const bearing = digest.readUInt32BE(4) % 360;
   return offsetCoordinates(coords, meters, bearing);
 }
 

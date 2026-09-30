@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { AppText, Avatar, Skeleton, haptics } from '@/components/ui';
-import { useFormatters } from '@/i18n/hooks';
+import { useFormatters, usePersonName } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { Conversation } from '@/types/domain';
 import { isolateText } from '@/utils/bidi';
@@ -25,11 +25,12 @@ export function ConversationRow({ conversation, currentUserId, now, onPress, fir
   const styles = useStyles();
   const { t } = useTranslation(['messaging', 'common']);
   const format = useFormatters();
+  const personName = usePersonName();
   const counterpart = getCounterpart(conversation, currentUserId);
   const preview = getConversationPreview(conversation, currentUserId);
   const activityAt = getConversationActivityAt(conversation);
   const unread = conversation.unreadCount > 0;
-  const name = counterpart?.displayName ?? t('common:category.unknown');
+  const name = counterpart ? personName(counterpart) : t('common:category.unknown');
 
   const timeKind = getListTimeKind(activityAt, now);
   const time =

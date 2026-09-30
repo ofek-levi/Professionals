@@ -18,6 +18,8 @@ export interface ConversationParticipant {
   role: UserRole;
   displayName: string;
   avatarUrl: string | null;
+  /** The participant deleted their account: show "Deleted user" (the chat is closed). */
+  accountDeleted?: boolean;
 }
 
 export interface Conversation {

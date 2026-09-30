@@ -3,6 +3,7 @@
  * The UI uses it to decide which actions to show; the backend enforces the same transitions.
  */
 import { requestStatusMeta, type CustomerRequestSection, type RequestStatus } from '@/constants/request-statuses';
+import { DomainError } from '@/features/shared/domain-error';
 import { assertTransition, canTransition, type TransitionTable } from '@/features/shared/state-machine';
 import type { ServiceRequest } from '@/types/domain';
 
@@ -12,7 +13,8 @@ const REQUEST_TRANSITIONS: TransitionTable<RequestStatus> = {
   offers_received: ['open', 'professional_selected', 'cancelled'],
   professional_selected: ['scheduled', 'cancelled'],
   scheduled: ['in_progress', 'completed', 'cancelled'],
-  in_progress: ['completed'],
+  // `cancelled` only when an account is deleted: the customer cannot cancel once the work started.
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
 };
@@ -26,8 +28,15 @@ export function assertRequestTransition(from: RequestStatus, to: RequestStatus):
   assertTransition(REQUEST_TRANSITIONS, 'request', from, to);
 }
 
+/** The customer may cancel until the work starts. */
 function isRequestCancellable(status: RequestStatus): boolean {
-  return canTransitionRequest(status, 'cancelled');
+  return status !== 'in_progress' && canTransitionRequest(status, 'cancelled');
+}
+
+/** Throws `INVALID_STATE_TRANSITION` (409) when the customer may not cancel a request in `from`. */
+export function assertCustomerCanCancel(from: RequestStatus): void {
+  if (from === 'in_progress') throw DomainError.invalidTransition('request', from, 'cancelled');
+  assertRequestTransition(from, 'cancelled');
 }
 
 /** Whether professionals can still discover the request and send offers. */

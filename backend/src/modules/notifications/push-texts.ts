@@ -40,6 +40,10 @@ const en: PushTexts = {
       body: 'Your {{category}} job with {{name}} is complete. How did it go? Leave a review.',
       altBody: 'The {{category}} job for {{name}} is complete. Great work!',
     },
+    job_cancelled: {
+      title: 'Job cancelled',
+      body: 'Your {{category}} job on {{date}} was cancelled because the professional closed their account.',
+    },
     review_received: { title: 'New {{stars}} review', body: '{{customerName}} reviewed your {{category}} work.' },
     new_message: { title: 'New message from {{name}}', body: '{{preview}}', altBody: 'Open the chat to read it.' },
   },
@@ -67,6 +71,7 @@ const he: PushTexts = {
       body: 'העבודה בנושא {{category}} עם {{name}} הושלמה. איך היה? נשמח לביקורת שלכם.',
       altBody: 'העבודה בנושא {{category}} עבור {{name}} הושלמה. עבודה מצוינת!',
     },
+    job_cancelled: { title: 'העבודה בוטלה', body: 'העבודה בנושא {{category}} ({{date}}) בוטלה כי החשבון של בעל המקצוע נסגר.' },
     review_received: { title: 'ביקורת חדשה: {{stars}}', body: 'ביקורת חדשה מאת {{customerName}} על העבודה בנושא {{category}}.' },
     new_message: { title: 'הודעה חדשה מאת {{name}}', body: '{{preview}}', altBody: 'פתחו את הצ׳אט כדי לקרוא אותה.' },
   },

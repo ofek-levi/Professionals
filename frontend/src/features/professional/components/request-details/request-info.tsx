@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 
 import { PhotoStrip, PreferredScheduleText, UrgencyBadge } from '@/components/requests';
 import { AppText, Card, Skeleton, useNow } from '@/components/ui';
-import { useCategoryName, useFormatters } from '@/i18n/hooks';
+import { useCategoryName, useFormatters, usePersonName } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { ProfessionalRequestView } from '@/types/domain';
 
@@ -68,6 +68,7 @@ function InfoRow({ label, children, first = false }: { label: string; children: 
 export function RequestInfoCard({ request }: { request: ProfessionalRequestView }) {
   const styles = useStyles();
   const { t } = useTranslation('professional');
+  const personName = usePersonName();
   const { location } = request;
   const area = [location.neighborhood, location.city].filter(Boolean).join(', ');
   const exact = !location.isApproximate;
@@ -90,7 +91,7 @@ export function RequestInfoCard({ request }: { request: ProfessionalRequestView 
       ) : null}
       <InfoRow label={t('request.info.customer')}>
         <AppText variant="bodyStrong" numberOfLines={1}>
-          {request.customer.displayName}
+          {personName(request.customer)}
         </AppText>
       </InfoRow>
     </Card>

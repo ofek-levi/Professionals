@@ -32,6 +32,8 @@ import type { ServerContext } from './context';
 import type { StoredConversation, StoredJob, StoredUser } from './db';
 import {
   customerShortName,
+  DELETED_USER_NAME,
+  isAccountDeleted,
   messagesForConversation,
   offersForRequest,
   relevantOfferOf,
@@ -45,7 +47,8 @@ import { findMatchingProfessionals } from './services/matching-service';
 // ────────────────────────────── Users & profiles ──────────────────────────────
 
 export function toUser(stored: StoredUser): User {
-  return { ...stored };
+  const { deletedAt: _deletedAt, ...user } = stored;
+  return user;
 }
 
 export function toJob(stored: StoredJob): Job {
@@ -57,7 +60,8 @@ export function professionalCity(profile: Pick<ProfessionalProfile, 'baseLocatio
   return profile.baseLocation?.city ?? profile.serviceArea.label;
 }
 
-export function toProfessionalSummary(profile: ProfessionalProfile): ProfessionalSummary {
+/** The tombstone of a deleted professional already carries `DELETED_USER_NAME` and no avatar. */
+export function toProfessionalSummary(ctx: ServerContext, profile: ProfessionalProfile): ProfessionalSummary {
   return {
     id: profile.id,
     displayName: profile.displayName,
@@ -70,22 +74,30 @@ export function toProfessionalSummary(profile: ProfessionalProfile): Professiona
     completedJobsCount: profile.stats.completedJobsCount,
     isVerified: profile.isVerified,
     city: professionalCity(profile),
+    accountDeleted: isAccountDeleted(ctx.db, profile.userId),
   };
 }
 
-/** Whether `viewer` may see the professional's contact details: they hired them (or it's them). */
+/**
+ * Whether `viewer` may see the professional's contact details: they hired them (a job with them that
+ * was not cancelled), or it's them.
+ */
 function canSeeProfessionalContact(ctx: ServerContext, profile: OwnProfessionalProfile, viewer: Actor): boolean {
   if (viewer.role === 'professional') return viewer.professional.id === profile.id;
-  return ctx.db.jobs.find((job) => job.professionalId === profile.id && job.customerId === viewer.userId) !== undefined;
+  const hired = ctx.db.jobs.find(
+    (job) => job.professionalId === profile.id && job.customerId === viewer.userId && job.status !== 'cancelled',
+  );
+  return hired !== undefined;
 }
 
 /**
- * Public profile, as `viewer` sees it: private notification settings are stripped, the base
- * address and the service-area center are approximate (a professional's base is often their home),
- * and the contact details (phone and sign-in-style email) only reach customers who hired them.
+ * Public profile, as `viewer` sees it: the personal name and private notification settings are
+ * stripped, the base address and the service-area center are approximate (a professional's base is
+ * often their home), and the contact details (phone and sign-in-style email) only reach customers
+ * who hired them.
  */
 export function toPublicProfessionalProfile(ctx: ServerContext, profile: OwnProfessionalProfile, viewer: Actor): ProfessionalProfile {
-  const { notificationPreferences: _notificationPreferences, ...publicProfile } = profile;
+  const { notificationPreferences: _notificationPreferences, fullName: _fullName, ...publicProfile } = profile;
   if (viewer.role === 'professional' && viewer.professional.id === profile.id) return publicProfile;
   const { center, label } = profile.serviceArea;
   const approximateCenter = approximateLocation(
@@ -105,11 +117,11 @@ function toCustomerSummary(ctx: ServerContext, customerId: string): CustomerSumm
   const profile = ctx.db.customerProfiles.get(customerId);
   return {
     id: user.id,
-    displayName: customerShortName(user),
+    displayName: user.deletedAt ? DELETED_USER_NAME : customerShortName(user),
     avatarUrl: user.avatarUrl,
-    city: profile?.defaultLocation?.city ?? null,
     memberSince: user.createdAt,
     completedJobsCount: profile?.stats.completedJobsCount ?? 0,
+    accountDeleted: Boolean(user.deletedAt),
   };
 }
 
@@ -173,7 +185,7 @@ export function toOfferWithProfessional(ctx: ServerContext, offer: Offer, reques
   const target = request ?? requireRequest(ctx.db, offer.requestId);
   return {
     ...offer,
-    professional: toProfessionalSummary(professional),
+    professional: toProfessionalSummary(ctx, professional),
     distanceKm: distanceFromServiceAreaKm(professional.serviceArea, target.location.coordinates),
   };
 }
@@ -209,18 +221,25 @@ export function toJobSummary(ctx: ServerContext, job: StoredJob): JobSummary {
   return {
     ...toJob(job),
     description: request.description,
-    professional: toProfessionalSummary(requireProfessional(ctx.db, job.professionalId)),
+    professional: toProfessionalSummary(ctx, requireProfessional(ctx.db, job.professionalId)),
     customer: toCustomerSummary(ctx, job.customerId),
   };
 }
 
 export function toJobDetails(ctx: ServerContext, job: StoredJob, viewer: Actor): JobDetails {
   const review = reviewForJob(ctx.db, job.id) ?? null;
+  const summary = toJobSummary(ctx, job);
   return {
-    ...toJobSummary(ctx, job),
+    ...summary,
     request: requireRequest(ctx.db, job.requestId),
     review,
-    canReview: viewer.role === 'customer' && viewer.userId === job.customerId && job.status === 'completed' && review === null,
+    // A deleted professional takes no more reviews.
+    canReview:
+      viewer.role === 'customer' &&
+      viewer.userId === job.customerId &&
+      job.status === 'completed' &&
+      review === null &&
+      !summary.professional.accountDeleted,
   };
 }
 
@@ -234,7 +253,7 @@ export function toConversation(ctx: ServerContext, conversation: StoredConversat
     requestId: conversation.requestId,
     participants: conversation.participants.map(({ userId, role }) => {
       const user = requireStoredUser(ctx.db, userId);
-      return { userId, role, displayName: user.displayName, avatarUrl: user.avatarUrl };
+      return { userId, role, displayName: user.displayName, avatarUrl: user.avatarUrl, accountDeleted: Boolean(user.deletedAt) };
     }),
     lastMessage: messages.length > 0 ? messages[messages.length - 1] : null,
     unreadCount: messages.filter((message) => message.senderId !== viewerUserId && message.readAt === null).length,

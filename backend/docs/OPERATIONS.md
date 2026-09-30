@@ -17,6 +17,7 @@ without seeing each other's cache, rate limits, locks, push tickets or realtime 
 | Images without Cloudinary | 503 for requests with photos and avatars (requests without photos work); or a local stub, `CLOUDINARY_UPLOAD_PREFIX` (§7) | — | — |
 | Google sign-in without client ids | 503 | — | — |
 | `CORS_ORIGINS` empty | allow every origin | allow none (warning at startup) | allow none (warning at startup) |
+| Operator details empty (`src/config/legal.ts`) | the legal documents show placeholders | Refuses to start (names the file and the empty fields) | Refuses to start |
 | Default `LOG_LEVEL` | `debug` | `info` | `info` |
 
 Use separate MongoDB databases per environment (`MONGODB_DB_NAME` or the database in the URI) and
@@ -32,7 +33,7 @@ a list of every problem. Summary:
 |---|---|---|---|
 | `APP_ENV` | always | — | `development`, `staging`, `production` |
 | `PORT` | | `4000` | HTTP and WebSocket |
-| `PUBLIC_API_URL` | staging, production | `http://localhost:<PORT>` | Public base URL (no `/v1`) used in email links |
+| `PUBLIC_API_URL` | staging, production | `http://localhost:<PORT>` | Public base URL (no `/v1`) used in email links and in the legal documents (their page URLs, §10) |
 | `CORS_ORIGINS` | | see §1 | Comma-separated browser origins: the web app's origin(s), e.g. `https://app.example.com` (the native apps need none). Empty when deployed = no browser can call the API, which the web app reports as "No connection"; startup logs a warning |
 | `TRUST_PROXY` | staging, production | `false` (development) | Express `trust proxy`: a hop count (`1`), or comma-separated proxy addresses/subnets (`10.0.0.0/8`, `loopback`, …); `false` only when clients connect directly. Deployed environments must set it and refuse `true` (it trusts any `X-Forwarded-For`, so a client could choose the IP every per-IP limit sees) |
 | `LOG_LEVEL` | | see §1 | `fatal`…`trace`, `silent` |
@@ -42,6 +43,7 @@ a list of every problem. Summary:
 | `REDIS_URL` | always | — | `redis://` or `rediss://` (TLS) |
 | `JWT_ACCESS_SECRET` | always | — | `openssl rand -base64 48`; one per environment. Development accepts ≥ 32 characters (the `.env.example` placeholder, with a warning); staging/production refuse placeholders (`change-me`, `example`, …), secrets under 43 characters (32 random bytes) and low-entropy ones. Also signs refresh tokens (derived key) |
 | `JWT_ISSUER` / `JWT_AUDIENCE` | | `professionals-api:<APP_ENV>` / `professionals-app:<APP_ENV>` | Access token `iss` / `aud`; the environment in the defaults makes one environment's tokens useless in another |
+| `LOCATION_PRIVACY_SECRET` | staging, production | a fixed development key | `openssl rand -base64 48`; one per environment, ≥ 32 characters, placeholders refused when deployed. Key of the approximate locations (request pins, professionals' service-area centers, 250–450 m from the real point): the offset is an HMAC of the record id, so without the key it cannot be undone. Keep it: the approximate points are stored (`requests.publicPoint`, `professionals.serviceArea.publicCenter`) when a location is saved, while the views derive the ones they show with the current key, so a new key makes them disagree until each location is saved again. Points stored before the key existed (unkeyed offsets) stay as they are; there was no production data then |
 | `GOOGLE_WEB_CLIENT_ID` | staging, production | — | Accepted audience of the web app's Google id tokens |
 | `GOOGLE_ANDROID_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID` | for each native app you ship | — | The Android / iOS build's id tokens carry this audience. Deployed without one, startup logs a warning: that app shows "Continue with Google" when it was built with its own id, and every attempt answers 401 `INVALID_GOOGLE_TOKEN`. The APKs of the Android workflow are the shipped native build, so set the Android id wherever they point |
 | `CLOUDINARY_URL` (or `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET`) | staging, production | — | Image storage |
@@ -61,8 +63,8 @@ a list of every problem. Summary:
 | `SHUTDOWN_TIMEOUT_MS` | | `10000` | Graceful shutdown budget (1 000–60 000) |
 | `IMAGE_UPLOAD_MEMORY_MB` | | `256` | Memory for the bodies of image posts in flight, per instance (64–16 384): their files are held until stored; past it image posts answer 503 with `Retry-After` (§6). Size the container for it plus about 300 MB |
 
-Secrets (`JWT_ACCESS_SECRET`, `CLOUDINARY_*`, `RESEND_API_KEY`, `SMTP_PASS`, `EXPO_ACCESS_TOKEN`, the
-credentials inside `MONGODB_URI`/`REDIS_URL`) belong in the platform's secret store, never in the image
+Secrets (`JWT_ACCESS_SECRET`, `LOCATION_PRIVACY_SECRET`, `CLOUDINARY_*`, `RESEND_API_KEY`, `SMTP_PASS`,
+`EXPO_ACCESS_TOKEN`, the credentials inside `MONGODB_URI`/`REDIS_URL`) belong in the platform's secret store, never in the image
 or the repository. Rotating `JWT_ACCESS_SECRET` invalidates every access token: apps get a 401, refresh
 (refresh tokens are looked up by their stored hash and keep working) and continue. Refresh tokens
 issued before the rotation lose their reuse detection (their signature no longer verifies, so an old
@@ -106,6 +108,8 @@ in **multi-document transactions**, which MongoDB only supports on a replica set
   format: those users sign in again once.
 - Documents written before this release: `professionals.serviceArea.publicCenter` is required; set it
   for existing professionals before deploying (none exist in production yet).
+- Account deletion adds `users.deletedAt` / `professionals.deletedAt` (absent on every existing
+  document: nothing to migrate) and the index `reviews.customer_1`, built at startup.
 
 ### Redis
 
@@ -181,12 +185,19 @@ Without Docker: `npm ci && npm run build && npm start` on Node ≥ 22.12.
 
 ### Release checklist
 
-1. `npm run typecheck && npm run lint && npm test` (needs a local MongoDB replica set + Redis, see the
+1. Before the first staging/production deploy: fill in the operator of the service in
+   [`src/config/legal.ts`](../src/config/legal.ts) (legal name and postal address in English and
+   Hebrew, the contact email; the company/business number is optional) and check `retention` against
+   the hosting setup. The Terms of Use and the Privacy Policy publish these details, so staging and
+   production refuse to start while one is empty. `effectiveDate` is the version users accept at
+   sign-up (`users.termsAcceptance`). The rest of the pre-launch list (store listings, retention at the
+   hosting provider, processing agreements) is in [§10](#10-legal-documents).
+2. `npm run typecheck && npm run lint && npm test` (needs a local MongoDB replica set + Redis, see the
    README), `npm run build`.
-2. Build and push the image; deploy staging with staging secrets; smoke test sign-up, a request, an
+3. Build and push the image; deploy staging with staging secrets; smoke test sign-up, a request, an
    offer, chat (realtime) and a request with a photo.
-3. Deploy production with a rolling update; watch `/ready`, error rates and the logs.
-4. After the release before it is gone everywhere, drop the indexes startup reports as `stale
+4. Deploy production with a rolling update; watch `/ready`, error rates and the logs.
+5. After the release before it is gone everywhere, drop the indexes startup reports as `stale
    indexes` (see §3, MongoDB).
 
 ## 5. Scheduled jobs (cron)
@@ -332,8 +343,8 @@ unreachable the geo endpoints answer 503 and the app lets the user type the addr
 ## 8. Logs and monitoring
 
 - JSON logs on stdout (pino), one line per request with method, path, status, duration and request id
-  (`X-Request-Id`). Authorization headers, passwords, refresh tokens and `?token=` query values are
-  redacted, and other request headers (such as `Sec-WebSocket-Protocol`) are not logged; request/response bodies are not logged. This covers the API's own log only: logs of
+  (`X-Request-Id`). Authorization headers, passwords, refresh tokens, `?token=` query values and the
+  push token in the path of `DELETE /v1/me/devices/:token` are redacted, and other request headers (such as `Sec-WebSocket-Protocol`) are not logged; request/response bodies are not logged. This covers the API's own log only: logs of
   anything in front of it record the realtime URL with its token unless configured not to (see §4,
   load balancer).
 - Startup warnings (`warn`) in staging/production: an empty `CORS_ORIGINS` (the web app cannot reach
@@ -343,3 +354,98 @@ unreachable the geo endpoints answer 503 and the app lets the user type the addr
 - Suggested alerts: `/ready` failing, 5xx rate, `unhandled error` lines, `cron job failed`, push send
   failures (`Expo push request failed`), `refresh token reuse: session revoked` spikes (token theft or a
   client bug).
+- Each account deletion logs `account deleted` (`info`) with the user id and role, nothing personal;
+  §9 uses these lines after restoring a backup.
+
+## 9. Account deletion
+
+Users delete their account in the app (Settings → Delete account: `GET /v1/me/deletion-impact`, then
+`POST /v1/me/deletion` with their password or Google account). It is immediate: one transaction
+cancels or withdraws what is in progress (the other parties are notified), erases the personal data
+and leaves an anonymous tombstone (`users.deletedAt`, and `professionals.deletedAt` for a
+professional) so the other parties' jobs, chats and reviews keep working with "Deleted user"; the
+images go from Cloudinary, and a confirmation email goes to the address the account had. What is
+erased and what stays is listed in [API.md](API.md#post-medeletion--200--success-true--addition) and
+`src/modules/users/account-erasure.ts`; the Privacy Policy and the account-deletion page say the same,
+so change them together.
+
+**Requests by email.** The public account-deletion page lets people who cannot use the app ask by
+email (`LEGAL_CONFIG.operator.email`), and promises the deletion within 30 days with a confirmation:
+1. Check that the request comes from the account's sign-in address (for a Google account, its Google
+   address); if in doubt, reply to that address and wait for the answer.
+2. Run the same deletion from a machine that has the environment's variables:
+   `node dist/delete-account.js <email>` in the API image (or `npm run delete-account -- <email>` in a
+   checkout with a `.env`). It prints the deleted account's id and sends the confirmation email.
+   "No account" means the address signs in to none (or it was deleted already). It also takes a user
+   id instead of the email.
+
+**Retention outside the database** (must match what `src/config/legal.ts` → `retention` promises,
+and the Privacy Policy publishes):
+- Logs: keep the API's logs (and those of anything in front of it) for at most `serverLogsDays`.
+- Backups: keep MongoDB backups (e.g. the Atlas backup policy) for at most `backupsDays`.
+- **Restoring a backup** brings back the accounts deleted after it was taken: before the restored
+  database serves users, run `node dist/delete-account.js <user id>` for every `account deleted` log
+  line since the backup's time.
+- Redis: the only personal leftovers are login-throttle keys (a hashed email and an IP, up to 30 days);
+  everything else expires within hours.
+- Copies of a deleted person's name or message previews inside other users' notifications expire with
+  the 90-day notification TTL.
+- Cloudinary deletions are best effort (§7): a failure is logged with the `publicIds` to delete there.
+
+## 10. Legal documents
+
+The Terms of Use, the Privacy Policy and the account-deletion page are part of the code
+(`src/modules/legal/content/`, English and Hebrew; where they differ, the Hebrew version prevails).
+The operator's details, the effective date and the retention periods they publish come from
+[`src/config/legal.ts`](../src/config/legal.ts); their links and URLs from `PUBLIC_API_URL`, which
+must be the API's public `https://` address. The app reads them from `GET /v1/legal/:document`, and
+anyone can open the public pages below (API.md, [Legal](API.md#legal)).
+
+### Public URLs
+
+| Page | URL | Give it to |
+|---|---|---|
+| Privacy Policy | `<PUBLIC_API_URL>/legal/privacy` | App Store Connect (App Privacy → Privacy Policy URL); Google Play Console (App content → Privacy policy); Google OAuth consent screen (privacy policy link) |
+| Account deletion | `<PUBLIC_API_URL>/legal/account-deletion` | Google Play Console (App content → Data safety → the account deletion URL) |
+| Terms of Use | `<PUBLIC_API_URL>/legal/terms` | Google OAuth consent screen (terms of service link) |
+
+- A page answers in the browser's language; `?lang=he` or `?lang=en` picks one. Give the URLs without it.
+- The Google OAuth consent screen only accepts links on its *authorized domains*: add the API's domain
+  there (Google checks that you own it when the app is submitted for verification).
+- After a deploy, `curl -sI <PUBLIC_API_URL>/legal/privacy` must answer `200` with `text/html`. The
+  pages need no sign-in, have no scripts and allow 300 requests / min per IP.
+
+### Pre-launch checklist
+
+1. Fill in `src/config/legal.ts`: the operator's legal name and postal address in English and Hebrew,
+   the contact email and, if there is one, the company number (ח.פ.) or business id (ע.מ.), shown as
+   "Company No." / "ח.פ." when it starts with 5, otherwise "Licensed Dealer No." / "ע.מ.". Staging and
+   production refuse to start while a required field is empty. The documents publish the email for
+   privacy requests, account deletion by email (§9) and reports of abuse, and promise an answer within
+   30 days: make sure someone reads it.
+2. Give the three URLs above to App Store Connect, the Google Play Console (the privacy policy and the
+   Data safety account deletion URL) and the Google OAuth consent screen.
+3. Set the log retention of the hosting provider (the API's logs and those of the load balancer, proxy
+   or CDN in front of it) to at most `retention.serverLogsDays`, and the retention of MongoDB backups
+   to at most `retention.backupsDays`. If the hosting cannot, change the numbers in `legal.ts` to what
+   it does: the Privacy Policy and the account-deletion page publish them.
+4. Sign data processing agreements with Cloudinary, Resend, Expo and the hosting provider(s) (servers,
+   MongoDB, Redis). The Privacy Policy names these agreements as the safeguard for storing personal
+   data outside Israel. Note here which hosting provider and regions are used.
+5. On the production Cloudinary account, post a request with a photo that carries GPS data (EXIF, e.g.
+   a phone photo taken with location tagging on), download the stored image (its `url`) and check its
+   metadata (`exiftool <file>`). The Privacy Policy does not claim that photos lose their metadata;
+   if the location is kept, consider removing metadata at upload before the documents promise it.
+
+### Publishing a new version
+
+1. Edit the texts in `src/modules/legal/content/<document>.en.ts` and `<document>.he.ts` together:
+   the same section ids in the same order, `**bold**` and `[label](url)` only, and only the
+   placeholders listed in `legal-placeholders.ts` (`npm test` checks all of this).
+2. Set `effectiveDate` in `src/config/legal.ts` to the day the new versions take effect (one date for
+   all three documents). It is the "Effective date" the documents show and the version recorded when
+   someone signs up (`users.termsAcceptance.version`).
+3. The Terms of Use promise at least 14 days' notice of a change, by email or with a notice in the app
+   (the API has no tool for announcing to every user): publish the new texts with the future date and
+   tell users before it arrives. A significant change of the Privacy Policy also needs notice first.
+4. Deploy. The app and the pages show the new texts within 5 minutes (they may be cached that long).

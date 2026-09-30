@@ -88,6 +88,7 @@ export const common = {
     too_expensive: 'The offers were too expensive',
     scheduling_conflict: 'Scheduling conflict',
     other: 'Other',
+    account_deleted: 'The account was deleted',
   },
   time: {
     today: 'Today',
@@ -230,9 +231,23 @@ export const common = {
     conversation: 'Chat',
     editProfile: 'Edit profile',
     settings: 'Settings',
+    deleteAccount: 'Delete account',
+    legal: 'Legal',
     notFound: 'Page not found',
     goHome: 'Go to home',
   },
   verified: 'Verified',
   optional: 'Optional',
+  /** Someone who deleted their account (the server sends `accountDeleted`). */
+  deletedUser: 'Deleted user',
+  /** A hired professional's contact details (job details, their profile). */
+  contact: {
+    title: 'Contact details',
+    phone: 'Phone',
+    email: 'Email',
+    website: 'Website',
+    callA11y: 'Call {{phone}}',
+    emailA11y: 'Email {{email}}',
+    websiteA11y: 'Open {{website}}',
+  },
 } as const;

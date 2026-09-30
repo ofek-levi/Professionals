@@ -21,11 +21,14 @@
  *   /jobs/:jobId/review                   leave a review (customer)
  *   /conversations/:conversationId        chat
  *   /profile/edit                         edit own profile (role aware)
- *   /settings                             language, theme, notifications
+ *   /settings                             language, theme, notifications, legal documents
+ *   /settings/delete-account              delete the account (impact, confirmation)
+ *   /legal/(terms|privacy)                Terms of Use, Privacy Policy (signed in or out)
  */
 import type { Href } from 'expo-router';
 
 import type { CategoryId } from '@/constants/professional-categories';
+import type { LegalDocumentId } from '@/types/api/legal';
 import type { UserRole } from '@/types/domain';
 
 const enc = encodeURIComponent;
@@ -61,6 +64,15 @@ export const ROLE_PARAM = 'role';
 /** The sign-up role for a `?role=` value (unknown/missing → `null`, i.e. ask). */
 export function parseSignUpRole(value: unknown): UserRole | null {
   return value === 'customer' || value === 'professional' ? value : null;
+}
+
+/** The legal documents the app shows (`/legal/:document`). */
+export const LEGAL_DOCUMENTS = ['terms', 'privacy'] as const satisfies readonly LegalDocumentId[];
+export type LegalDocument = (typeof LEGAL_DOCUMENTS)[number];
+
+/** The document of a `/legal/:document` link (anything else → `null`, not found). */
+export function parseLegalDocument(value: unknown): LegalDocument | null {
+  return typeof value === 'string' && (LEGAL_DOCUMENTS as readonly string[]).includes(value) ? (value as LegalDocument) : null;
 }
 
 const work = (tab?: WorkTab): Href => (tab ? `/professional/work?${TAB_PARAM}=${enc(tab)}` : '/professional/work') as Href;
@@ -111,4 +123,7 @@ export const routes = {
   /** The profile form scrolled to the service area (from Explore's empty state). */
   editServiceArea: '/profile/edit?section=area' as Href,
   settings: '/settings' as Href,
+  deleteAccount: '/settings/delete-account' as Href,
+  /** The Terms of Use or the Privacy Policy (open to everyone, signed in or out). */
+  legal: (document: LegalDocument): Href => `/legal/${enc(document)}` as Href,
 } as const;

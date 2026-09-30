@@ -88,6 +88,7 @@ export const VALIDATION_MESSAGE_KEYS = [
   'auth.emailInvalid',
   'auth.emailTaken',
   'auth.passwordRequired',
+  'auth.passwordIncorrect',
   'auth.passwordTooShort',
   'auth.passwordTooLong',
   'auth.passwordLetterAndNumber',

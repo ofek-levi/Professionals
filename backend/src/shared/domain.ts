@@ -14,13 +14,21 @@ export type Weekday = (typeof WEEKDAYS)[number];
 export const PREFERRED_TIME_WINDOWS = ['morning', 'afternoon', 'evening', 'any'] as const;
 export type PreferredTimeWindow = (typeof PREFERRED_TIME_WINDOWS)[number];
 
-export const REQUEST_CANCELLATION_REASONS = [
+/** Reasons the customer picks from when cancelling a request (`POST /requests/:id/cancel`). */
+export const CUSTOMER_CANCELLATION_REASONS = [
   'no_longer_needed',
   'found_elsewhere',
   'too_expensive',
   'scheduling_conflict',
   'other',
 ] as const;
+export type CustomerCancellationReason = (typeof CUSTOMER_CANCELLATION_REASONS)[number];
+
+/**
+ * Every `cancellationReason` a request may carry: the customer's, plus `account_deleted` (set by the
+ * server when the customer or the hired professional deleted their account).
+ */
+export const REQUEST_CANCELLATION_REASONS = [...CUSTOMER_CANCELLATION_REASONS, 'account_deleted'] as const;
 export type RequestCancellationReason = (typeof REQUEST_CANCELLATION_REASONS)[number];
 
 export const RATING_VALUES = [1, 2, 3, 4, 5] as const;

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { CategoryName } from '@/components/categories';
 import { getRequestStatusLine, PhotoStrip } from '@/components/requests';
 import { AppText, Skeleton, useNow } from '@/components/ui';
-import { useFormatters } from '@/i18n/hooks';
+import { useFormatters, usePersonName } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import type { CustomerRequestView, JobDetails } from '@/types/domain';
 import { isolateText } from '@/utils/bidi';
@@ -26,10 +26,11 @@ export function RequestSummary({ request, job }: RequestSummaryProps) {
   const styles = useStyles();
   const { t } = useTranslation(['customer', 'common']);
   const format = useFormatters();
+  const personName = usePersonName();
   const now = useNow(60_000);
   const [expanded, setExpanded] = useState(false);
   const status = getRequestStatusLine(request);
-  const proName = job ? isolateText(job.professional.displayName) : null;
+  const proName = job ? isolateText(personName(job.professional)) : null;
   const toneColor = theme.colors.tones[status.tone].fg;
 
   let statusText: string;

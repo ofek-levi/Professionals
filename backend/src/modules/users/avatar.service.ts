@@ -10,7 +10,7 @@ import type { AuthContext } from '../../middleware/auth.js';
 import { MULTIPART_FIELDS } from '../../shared/multipart-fields.js';
 import { announceProfileChange } from '../professionals/own-profile.service.js';
 import { accountGone } from './me.service.js';
-import { UserModel, type AvatarDoc, type UserDoc } from './user.model.js';
+import { NOT_DELETED, UserModel, type AvatarDoc, type UserDoc } from './user.model.js';
 
 /** Where avatars are stored, and the multipart field of the image. */
 export const AVATAR_IMAGE: ImageTarget = { folder: 'avatars', field: MULTIPART_FIELDS.avatar };
@@ -19,7 +19,7 @@ type AvatarDeps = Pick<AppDeps, 'storage' | 'logger' | 'redis' | 'keys' | 'backg
 
 async function replaceAvatar(deps: AvatarDeps, auth: AuthContext, avatar: AvatarDoc | null): Promise<void> {
   const before = await UserModel.findOneAndUpdate(
-    { _id: auth.userId },
+    { _id: auth.userId, ...NOT_DELETED },
     { $set: { avatar } },
     { projection: { avatar: 1 }, returnDocument: 'before' },
   ).lean<Pick<UserDoc, 'avatar'>>();

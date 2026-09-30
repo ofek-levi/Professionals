@@ -47,8 +47,6 @@ export interface ProfessionalStats {
 export interface ProfessionalProfile {
   id: EntityId;
   userId: EntityId;
-  /** Full personal name. */
-  fullName: string;
   /** Business name when available, otherwise the full name. */
   displayName: string;
   avatarUrl: string | null;
@@ -62,8 +60,8 @@ export interface ProfessionalProfile {
   baseLocation: ServiceLocation | null;
   availability: WeeklyAvailability;
   /**
-   * Phone and email. In public views only customers who hired the professional (have a job with
-   * them) receive it; everyone else gets `null`.
+   * Phone and email. In public views only customers who hired the professional (a job with them
+   * that was not cancelled) receive it; everyone else gets `null`.
    */
   contact: ProfessionalContact | null;
   business: ProfessionalBusinessInfo;
@@ -77,6 +75,8 @@ export interface ProfessionalProfile {
 
 /** The professional's own editable profile, including private settings and exact details. */
 export interface OwnProfessionalProfile extends ProfessionalProfile {
+  /** Full personal name (public views never carry it; customers see `displayName`). */
+  fullName: string;
   contact: ProfessionalContact;
   notificationPreferences: NotificationPreferences;
 }
@@ -94,4 +94,6 @@ export interface ProfessionalSummary {
   completedJobsCount: number;
   isVerified: boolean;
   city: string;
+  /** The professional deleted their account: show "Deleted user" and no profile link (it is gone). */
+  accountDeleted?: boolean;
 }

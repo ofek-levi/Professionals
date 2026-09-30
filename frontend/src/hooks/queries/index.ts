@@ -3,7 +3,7 @@
  * scoped by the signed-in user; hooks stay disabled while signed out, for the wrong role or when
  * a required id is missing.
  */
-export { useCurrentUser } from './use-auth-queries';
+export { useAccountDeletionImpact, useCurrentUser } from './use-auth-queries';
 export { useCustomerDashboard, useProfessionalDashboard } from './use-dashboard-queries';
 export { useCustomerRequests, useNearbyOpenRequests, useNearbyRequestsForMap, useRequest } from './use-request-queries';
 export { useOffer, useProfessionalOffers, useRequestOffers, type OfferDetails } from './use-offer-queries';
@@ -14,3 +14,4 @@ export { useUnreadNotificationsCount, useUpdateNotifications } from './use-notif
 export { useConversation, useConversationMessages, useConversations, useUnreadMessagesCount } from './use-conversation-queries';
 export { useRefetchOnFocus } from './use-refetch-on-focus';
 export { useCategoryLookup } from './use-category-catalog';
+export { useLegalDocument } from './use-legal-queries';

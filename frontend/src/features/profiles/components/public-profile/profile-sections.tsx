@@ -7,6 +7,7 @@ import { AppText, Card, SectionHeader } from '@/components/ui';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { ProfessionalProfile } from '@/types/domain';
+import { isolateLtr } from '@/utils/bidi';
 
 import { BIO_PREVIEW_LINES, groupWorkingHours, isLongBio } from './public-profile-model';
 
@@ -91,7 +92,7 @@ export function AreaAndHoursSection({ profile }: { profile: ProfessionalProfile 
   const format = useFormatters();
   const { serviceArea, business, availability } = profile;
   const credentials: string[] = [];
-  if (business.licenseNumber) credentials.push(t('profile:public.licensed'));
+  if (business.licenseNumber) credentials.push(t('profile:public.licensed', { number: isolateLtr(business.licenseNumber) }));
   if (business.isInsured) credentials.push(t('profile:public.insured'));
   const dayName = (day: keyof typeof availability.days) => t(`common:weekdaysShort.${day}`);
 

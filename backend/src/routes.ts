@@ -14,6 +14,7 @@ import { createCustomersRouter } from './modules/customers/customers.routes.js';
 import { createDashboardRouter } from './modules/dashboard/dashboard.routes.js';
 import { createGeoRouter } from './modules/geo/geo.routes.js';
 import { createJobsRouter } from './modules/jobs/jobs.routes.js';
+import { createLegalRouter } from './modules/legal/legal.routes.js';
 import { createNotificationsRouter } from './modules/notifications/notifications.routes.js';
 import { createOffersRouter } from './modules/offers/offers.routes.js';
 import { createProfessionalsRouter } from './modules/professionals/professionals.routes.js';
@@ -39,6 +40,7 @@ export function createV1Router(deps: AppDeps): Router {
     createConversationsRouter,
     createNotificationsRouter,
     createDashboardRouter,
+    createLegalRouter,
   ]) {
     v1.use(create(deps));
   }

@@ -1,7 +1,7 @@
 /**
  * `/sign-in` – the entry screen of a signed-out user: the brand hero with the language switch, then
- * "Create account" and "Sign in" (email or Google). After signing in, the protected routes become
- * available and `/` redirects to the account's home tab.
+ * "Create account" and "Sign in" (email or Google), and the Terms of Use and Privacy Policy links.
+ * After signing in, the protected routes become available and `/` redirects to the account's home tab.
  */
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useRouter } from 'expo-router';
@@ -11,6 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText, BrandMark, Button, Screen, withAlpha } from '@/components/ui';
+import { LegalLinks } from '@/features/legal/components/legal-links';
 import { routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
 
@@ -77,6 +78,7 @@ export default function SignInScreen() {
             onPress={() => router.push(routes.auth.login)}
             testID="entry-sign-in"
           />
+          <LegalLinks align="center" style={styles.legal} testID="entry-legal" />
         </View>
       </View>
     </Screen>
@@ -127,5 +129,8 @@ const useStyles = makeStyles((t) => ({
     maxWidth: t.layout.maxContentWidth,
     alignSelf: 'center',
     gap: t.spacing.md,
+  },
+  legal: {
+    marginTop: t.spacing.md,
   },
 }));

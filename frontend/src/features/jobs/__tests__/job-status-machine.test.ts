@@ -5,7 +5,8 @@ import { assertJobTransition, getJobActions, requestStatusForJobStatus } from '.
 const EXPECTED: Record<JobStatus, JobStatus[]> = {
   awaiting_confirmation: ['scheduled', 'cancelled'],
   scheduled: ['in_progress', 'completed', 'cancelled'],
-  in_progress: ['completed'],
+  // Only through account deletion: no job action offers it.
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
 };

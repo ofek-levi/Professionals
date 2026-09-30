@@ -78,10 +78,13 @@ export async function toJobDetails(job: JobDoc, viewer: AuthContext): Promise<Jo
   ]);
   if (!request) throw new Error(`Job ${job._id.toHexString()} has no request`);
   const [reviewDto] = review ? await toReviewDtos([review]) : [];
+  const professional = required(professionals, job.professional, 'Professional');
   return {
-    ...toJobSummary(job, request, required(professionals, job.professional, 'Professional'), required(customers, job.customer, 'Customer')),
+    ...toJobSummary(job, request, professional, required(customers, job.customer, 'Customer')),
     request: toServiceRequestDto(request),
     review: reviewDto ?? null,
-    canReview: viewer.role === 'customer' && job.customer.equals(viewer.userId) && job.status === 'completed' && review === null,
+    // A deleted professional takes no more reviews (their stats are frozen).
+    canReview:
+      viewer.role === 'customer' && job.customer.equals(viewer.userId) && job.status === 'completed' && review === null && !professional.accountDeleted,
   };
 }

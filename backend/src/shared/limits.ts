@@ -59,4 +59,6 @@ export const API_LIMITS = {
   imagePostsInFlightPerUser: 2,
   /** Image bytes stored per user per 24 h (accounts are free; storage and bandwidth are not). */
   imageBytesPerUserPerDay: 200 * 1024 * 1024,
+  /** Items listed per kind by `GET /me/deletion-impact` (the counts cover all of them). */
+  deletionImpactItems: 20,
 } as const;

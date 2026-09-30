@@ -26,13 +26,21 @@ export interface RequestPhoto {
   url: string;
 }
 
-export const REQUEST_CANCELLATION_REASONS = [
+/** Reasons the customer picks from when cancelling a request. */
+export const CUSTOMER_CANCELLATION_REASONS = [
   'no_longer_needed',
   'found_elsewhere',
   'too_expensive',
   'scheduling_conflict',
   'other',
 ] as const;
+export type CustomerCancellationReason = (typeof CUSTOMER_CANCELLATION_REASONS)[number];
+
+/**
+ * Every `cancellationReason` a request may carry: the customer's, plus `account_deleted` (set by the
+ * server when the customer or the hired professional deleted their account).
+ */
+export const REQUEST_CANCELLATION_REASONS = [...CUSTOMER_CANCELLATION_REASONS, 'account_deleted'] as const;
 export type RequestCancellationReason = (typeof REQUEST_CANCELLATION_REASONS)[number];
 
 export interface ServiceRequest {

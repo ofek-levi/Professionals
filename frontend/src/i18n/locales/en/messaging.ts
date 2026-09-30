@@ -37,6 +37,7 @@ export const messaging = {
     discardTitle: 'Delete this message?',
     discardMessage: 'It wasn’t sent and will be removed from this chat.',
     closedMessage: 'This chat was closed because the job was cancelled.',
+    closedAccountDeleted: 'This chat is closed because the other person deleted their account.',
     closedPlaceholder: 'Messaging is closed',
     charactersLeft_one: '{{count}} character left',
     charactersLeft_other: '{{count}} characters left',

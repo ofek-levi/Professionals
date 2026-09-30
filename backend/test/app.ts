@@ -24,6 +24,7 @@ import { MemoryRealtimePublisher } from '../src/infra/realtime/index.js';
 import { MemoryImageStorage } from '../src/infra/storage/index.js';
 import { BackgroundTasks } from '../src/lib/background.js';
 import { FakeClock } from '../src/lib/clock.js';
+import { setLocationPrivacySecret } from '../src/lib/geo.js';
 import { API_LIMITS } from '../src/shared/limits.js';
 import { createSilentLogger } from '../src/lib/logger.js';
 import { TEST_MONGODB_URI, TEST_REDIS_PREFIX, TEST_REDIS_URL, testRedis } from './context.js';
@@ -94,8 +95,10 @@ export function createTestDeps(options: TestAppOptions = {}): TestDeps {
     imageAdmission: createImageAdmission(env),
   };
   Object.assign(deps, options.deps);
-  // Stored createdAt/updatedAt follow the fake clock too (also when no app is created).
+  // Also when no app is created: stored createdAt/updatedAt follow the fake clock, and stored
+  // approximate points use the environment's key.
   setModelClock(deps.clock);
+  setLocationPrivacySecret(deps.env.locationPrivacySecret);
   return deps;
 }
 

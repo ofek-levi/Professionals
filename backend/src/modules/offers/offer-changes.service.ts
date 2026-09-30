@@ -1,7 +1,8 @@
 /**
  * The professional's changes to their own pending offer (the mock's `updateOffer` /
  * `withdrawOffer`): edits restart the expiry from now; withdrawing recounts the request
- * (`offers_received → open` when it was the last pending one). The customer is notified.
+ * (`offers_received → open` when it was the last pending one). The customer is notified. Account
+ * deletion withdraws every pending offer of the deleted professional through `withdrawOfferInTx`.
  */
 import type { Types } from 'mongoose';
 
@@ -18,7 +19,7 @@ import { assertOfferEditable, assertOfferTransition, assertProposedStart, assert
 import { OfferModel, type OfferDoc } from './offer.model.js';
 import type { UpdateOfferInput } from './offers.schemas.js';
 
-type ChangeDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background'>;
+export type ChangeDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background'>;
 
 /** Missing → 404; another professional's offer → 403. */
 async function loadOwnOffer(auth: AuthContext, offerId: Types.ObjectId, tx: Tx): Promise<OfferDoc> {
@@ -66,18 +67,26 @@ export function withdrawOffer(deps: ChangeDeps, auth: AuthContext, offerId: Type
   return withTransaction(deps.logger, async (tx) => {
     const offer = await loadOwnOffer(auth, offerId, tx);
     if (offer.status === 'expired') throw ApiError.conflict('This offer has expired', 'OFFER_EXPIRED');
-    assertOfferTransition(offer.status, 'withdrawn');
-    const withdrawn = await OfferModel.findOneAndUpdate(
-      { _id: offer._id, status: 'pending' },
-      { $set: { status: 'withdrawn', statusReason: 'withdrawn_by_professional' } },
-      { session: tx.session, returnDocument: 'after' },
-    ).lean<OfferDoc>();
-    if (!withdrawn) throw ApiError.invalidTransition('offer', offer.status, 'withdrawn');
-    const request = await syncRequestOfferCounters(offer.request, tx);
     const professionalName = await professionalNameOf(offer.professional, tx.session);
-    await createNotification(deps, request.customer, { type: 'offer_withdrawn', offer: withdrawn, categoryId: request.categoryId, professionalName }, tx);
-    await publishOfferUpdated(deps, withdrawn, request.customer, tx);
-    await publishRequestUpdated(deps, request, { tx });
-    return withdrawn;
+    return withdrawOfferInTx(deps, offer, { professionalName }, tx);
   });
+}
+
+/**
+ * Withdraws `offer` (read in `tx`; a pending one, also past its expiry time) and tells the customer.
+ * `professionalName` is what the customer sees (`''` for a deleted account: "A professional").
+ */
+export async function withdrawOfferInTx(deps: ChangeDeps, offer: OfferDoc, { professionalName }: { professionalName: string }, tx: Tx): Promise<OfferDoc> {
+  assertOfferTransition(offer.status, 'withdrawn');
+  const withdrawn = await OfferModel.findOneAndUpdate(
+    { _id: offer._id, status: 'pending' },
+    { $set: { status: 'withdrawn', statusReason: 'withdrawn_by_professional' } },
+    { session: tx.session, returnDocument: 'after' },
+  ).lean<OfferDoc>();
+  if (!withdrawn) throw ApiError.invalidTransition('offer', offer.status, 'withdrawn');
+  const request = await syncRequestOfferCounters(offer.request, tx);
+  await createNotification(deps, request.customer, { type: 'offer_withdrawn', offer: withdrawn, categoryId: request.categoryId, professionalName }, tx);
+  await publishOfferUpdated(deps, withdrawn, request.customer, tx);
+  await publishRequestUpdated(deps, request, { tx });
+  return withdrawn;
 }

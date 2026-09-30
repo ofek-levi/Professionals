@@ -1,11 +1,13 @@
 /**
  * `POST /auth/register`: creates the user, the role data (customer fields live on the user; a
  * professional also gets the profile) and the first session in ONE transaction, as the mock's
- * `account-service` does. Password sign-ups then get a verification email; Google sign-ups are
- * verified by Google.
+ * `account-service` does. Both sign-ups (password and Google) accept the terms (`acceptedTerms`),
+ * recorded with the version in force. Password sign-ups then get a verification email; Google
+ * sign-ups are verified by Google.
  */
 import type { Types } from 'mongoose';
 
+import { LEGAL_CONFIG } from '../../config/legal.js';
 import type { AppDeps } from '../../deps.js';
 import type { GoogleIdentity } from '../../infra/google/index.js';
 import { withTransaction } from '../../infra/mongo.js';
@@ -70,6 +72,7 @@ export async function register(deps: RegisterDeps, input: RegisterInput): Promis
   const passwordHash = password === null ? undefined : await hashPassword(password);
   const details = input.role === 'professional' ? input.professional : null;
   const userId = newObjectId();
+  const now = deps.clock.now();
 
   const created = await withTransaction(deps.logger, async (tx) => {
     const [user] = await UserModel.create(
@@ -79,13 +82,14 @@ export async function register(deps: RegisterDeps, input: RegisterInput): Promis
           email: input.email,
           passwordHash,
           googleSub: google?.sub,
-          emailVerifiedAt: google ? deps.clock.now() : undefined,
+          emailVerifiedAt: google ? now : undefined,
           role: input.role,
           firstName: input.firstName,
           lastName: input.lastName,
           phone: input.phone,
           language: input.preferredLanguage,
           avatar: google?.avatarUrl ? { url: google.avatarUrl, publicId: null } : null,
+          termsAcceptance: { version: LEGAL_CONFIG.effectiveDate, acceptedAt: now },
         },
       ],
       { session: tx.session },

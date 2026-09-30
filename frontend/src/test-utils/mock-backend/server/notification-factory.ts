@@ -37,6 +37,7 @@ export type NotificationInput =
   | { type: 'request_cancelled'; request: RequestRef; customerName: string }
   | { type: 'job_confirmed' | 'job_started'; job: JobRef; professionalName: string }
   | { type: 'appointment_reminder' | 'job_completed'; job: JobRef; recipientRole: UserRole; counterpartName: string }
+  | { type: 'job_cancelled'; job: JobRef }
   | { type: 'review_received'; review: ReviewRef }
   | {
       type: 'new_message';
@@ -155,6 +156,11 @@ function buildNotificationContent(input: NotificationInput): { params: Notificat
           currency: input.job.currency,
           ...counterpartParams(input.recipientRole, input.counterpartName),
         },
+        target: jobTarget(input.job),
+      };
+    case 'job_cancelled':
+      return {
+        params: { categoryId: input.job.categoryId, scheduledAt: input.job.scheduledStartAt },
         target: jobTarget(input.job),
       };
     case 'review_received':

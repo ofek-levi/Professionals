@@ -1,13 +1,14 @@
 /**
- * Process entry point: validate env → connect MongoDB (indexes) and Redis → HTTP + WebSocket →
- * cron. SIGTERM/SIGINT stop accepting connections, close sockets, stop cron, let in-flight
- * requests and background work finish, close MongoDB/Redis and exit within SHUTDOWN_TIMEOUT_MS.
+ * Process entry point: validate env and the legal operator details → connect MongoDB (indexes) and
+ * Redis → HTTP + WebSocket → cron. SIGTERM/SIGINT stop accepting connections, close sockets, stop
+ * cron, let in-flight requests and background work finish, close MongoDB/Redis and exit within
+ * SHUTDOWN_TIMEOUT_MS.
  */
 import { createServer } from 'node:http';
 
 import './models.js';
 import { createApp } from './app.js';
-import { envWarnings, parseEnv, EnvError, type Env } from './config/env.js';
+import { assertLegalConfigured, envWarnings, parseEnv, EnvError, type Env } from './config/env.js';
 import { allCronJobs } from './cron-jobs.js';
 import { createDeps } from './deps.js';
 import { startScheduler } from './infra/cron/index.js';
@@ -22,7 +23,9 @@ import { applyServerTimeouts } from './server-timeouts.js';
 
 function loadEnv(): Env {
   try {
-    return parseEnv();
+    const env = parseEnv();
+    assertLegalConfigured(env);
+    return env;
   } catch (error) {
     if (error instanceof EnvError) {
       process.stderr.write(`${error.message}\n`);

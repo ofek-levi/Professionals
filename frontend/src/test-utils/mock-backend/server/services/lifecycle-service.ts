@@ -18,6 +18,7 @@ import {
 import { assertJobTransition, requestStatusForJobStatus } from '@/features/jobs/job-status-machine';
 import { professionalCoversCategory, isWithinServiceArea } from '../request-matching';
 import {
+  assertCustomerCanCancel,
   assertRequestTransition,
   requestAcceptsOffers,
   requestStatusForPendingOffers,
@@ -37,6 +38,7 @@ import type {
   ISODateTimeString,
   Offer,
   PreferredSchedule,
+  RequestCancellationReason,
   RequestPhoto,
   RequestStatus,
   ServiceLocation,
@@ -311,13 +313,28 @@ export function deleteDraftRequest(ctx: ServerContext, actor: CustomerActor, req
 export function cancelRequest(ctx: ServerContext, actor: CustomerActor, requestId: string, body: unknown): ServiceRequest {
   const payload = parseBody(cancelRequestSchema, body);
   const request = requireOwnedRequest(ctx, actor, requestId);
-  assertRequestTransition(request.status, 'cancelled');
+  assertCustomerCanCancel(request.status);
+  return cancelRequestAndItsWork(ctx, request, {
+    reason: payload.reason,
+    comment: payload.comment,
+    customerName: customerNameOf(ctx, request.customerId),
+  });
+}
+
+/**
+ * The cancellation itself, shared with account deletion (reason `account_deleted`, no comment, an
+ * empty customer name: the professionals' texts then say "A customer").
+ */
+export function cancelRequestAndItsWork(
+  ctx: ServerContext,
+  request: ServiceRequest,
+  { reason, comment, customerName }: { reason: RequestCancellationReason; comment: string | null; customerName: string },
+): ServiceRequest {
   const job = request.jobId ? requireJob(ctx.db, request.jobId) : undefined;
   if (job && job.status !== 'cancelled') assertJobTransition(job.status, 'cancelled');
   const leavesExplorer = explorerAudience(ctx, request);
 
   const now = ctx.nowIso();
-  const customerName = customerNameOf(ctx, request.customerId);
   const professionalsToNotify = new Set<string>();
   const changedOffers: Offer[] = [];
 
@@ -341,8 +358,8 @@ export function cancelRequest(ctx: ServerContext, actor: CustomerActor, requestI
   const cancelled = setRequestStatus(ctx, request, 'cancelled', {
     photos: [],
     cancelledAt: now,
-    cancellationReason: payload.reason,
-    cancellationComment: payload.comment,
+    cancellationReason: reason,
+    cancellationComment: comment,
     offerCount: stats.offerCount,
     pendingOfferCount: stats.pendingOfferCount,
   });
@@ -471,6 +488,14 @@ export function updateOffer(ctx: ServerContext, actor: ProfessionalActor, offerI
 export function withdrawOffer(ctx: ServerContext, actor: ProfessionalActor, offerId: string): Offer {
   const offer = requireOwnOffer(ctx, actor, offerId);
   if (offer.status === 'expired') throw DomainError.conflict('This offer has expired', 'OFFER_EXPIRED');
+  return withdrawPendingOffer(ctx, offer, requireProfessional(ctx.db, offer.professionalId).displayName);
+}
+
+/**
+ * The withdrawal itself, shared with account deletion (every pending offer, overdue ones too, and an
+ * empty professional name: the customer's text then says "A professional").
+ */
+export function withdrawPendingOffer(ctx: ServerContext, offer: Offer, professionalName: string): Offer {
   assertOfferTransition(offer.status, 'withdrawn');
   const now = ctx.nowIso();
   const withdrawn = ctx.db.offers.update(offer.id, {
@@ -483,7 +508,7 @@ export function withdrawOffer(ctx: ServerContext, actor: ProfessionalActor, offe
     type: 'offer_withdrawn',
     offer: withdrawn,
     categoryId: request.categoryId,
-    professionalName: requireProfessional(ctx.db, offer.professionalId).displayName,
+    professionalName,
   });
   emitOfferUpdated(ctx, withdrawn);
   emitRequestUpdated(ctx, request);
@@ -680,4 +705,28 @@ export function completeJob(ctx: ServerContext, actor: Actor, jobId: string): St
     });
   }
   return completed;
+}
+
+/**
+ * Account deletion of the hired professional: the job (`in_progress` too) and its request are
+ * cancelled (`account_deleted`, the request's photos deleted), the chat is closed and the customer
+ * gets `job_cancelled`.
+ */
+export function cancelJobOfDeletedProfessional(ctx: ServerContext, job: StoredJob): StoredJob {
+  assertJobTransition(job.status, 'cancelled');
+  const request = requireRequest(ctx.db, job.requestId);
+  const now = ctx.nowIso();
+  const cancelledJob = ctx.db.jobs.update(job.id, { status: 'cancelled', cancelledAt: now, updatedAt: now });
+  closeConversation(ctx, job.conversationId);
+  const cancelledRequest = setRequestStatus(ctx, request, 'cancelled', {
+    photos: [],
+    cancelledAt: now,
+    cancellationReason: 'account_deleted',
+    cancellationComment: null,
+  });
+  notify(ctx, job.customerId, { type: 'job_cancelled', job: cancelledJob });
+  emitJobUpdated(ctx, cancelledJob);
+  emitRequestUpdated(ctx, cancelledRequest);
+  recomputeCustomerStats(ctx, job.customerId);
+  return cancelledJob;
 }

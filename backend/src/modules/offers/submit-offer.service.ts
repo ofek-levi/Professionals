@@ -18,6 +18,7 @@ import { refreshResponseTime } from '../reviews/professional-stats.service.js';
 import { coversCategory, isWithinServiceArea } from '../requests/matching.service.js';
 import { loadRequest } from '../requests/request-access.js';
 import { publishRequestUpdated } from '../requests/request-events.js';
+import { accountGone } from '../users/me.service.js';
 import { publishOfferUpdated } from './offer-events.js';
 import { assertProposedStart, assertSupportedCurrency, computeOfferExpiry } from './offer-rules.js';
 import { syncRequestOfferCounters } from './offer-counters.service.js';
@@ -25,17 +26,18 @@ import { OfferModel, type OfferDoc } from './offer.model.js';
 import type { CreateOfferInput } from './offers.schemas.js';
 
 type SubmitDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background' | 'cache'>;
-type OfferingProfessional = Pick<ProfessionalDoc, '_id' | 'displayName' | 'categoryIds' | 'serviceArea'>;
+type OfferingProfessional = Pick<ProfessionalDoc, '_id' | 'displayName' | 'categoryIds' | 'serviceArea' | 'deletedAt'>;
 
 const duplicateOffer = () => ApiError.conflict('You already have an active offer on this request', 'DUPLICATE_OFFER');
 
 export async function submitOffer(deps: SubmitDeps, auth: AuthContext, requestId: Types.ObjectId, input: CreateOfferInput): Promise<OfferDoc> {
   try {
     return await withTransaction(deps.logger, async (tx) => {
-      const professional = await ProfessionalModel.findById(auth.userId, { displayName: 1, categoryIds: 1, serviceArea: 1 })
+      const professional = await ProfessionalModel.findById(auth.userId, { displayName: 1, categoryIds: 1, serviceArea: 1, deletedAt: 1 })
         .session(tx.session)
         .lean<OfferingProfessional>();
       if (!professional) throw ApiError.notFound('Professional');
+      if (professional.deletedAt) throw accountGone();
       const request = await loadRequest(requestId, tx.session);
       if (request.status === 'draft') throw ApiError.notFound('Request');
       if (!requestAcceptsOffers(request.status)) throw ApiError.conflict('This request no longer accepts offers', 'REQUEST_NOT_ACCEPTING_OFFERS');

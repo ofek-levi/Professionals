@@ -45,6 +45,7 @@ describe('GET /v1/professionals/:id/reviews', () => {
       comment: 'Late but fine',
       customerDisplayName: 'Dan K.',
       customerAvatarUrl: null,
+      customerAccountDeleted: false,
       createdAt: last.createdAt.toISOString(),
     });
 

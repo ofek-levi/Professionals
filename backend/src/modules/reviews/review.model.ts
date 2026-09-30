@@ -37,5 +37,7 @@ const reviewSchema = new Schema<ReviewDoc>(
 reviewSchema.index({ job: 1 }, { unique: true });
 // GET /professionals/:id/reviews (newest first, keyset), rating aggregate + breakdown.
 reviewSchema.index({ professional: 1, createdAt: -1, _id: -1 });
+// Account deletion: the reviews a customer wrote lose their comment.
+reviewSchema.index({ customer: 1 });
 
 export const ReviewModel = model<ReviewDoc>('Review', reviewSchema);

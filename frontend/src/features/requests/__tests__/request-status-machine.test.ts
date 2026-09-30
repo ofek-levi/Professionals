@@ -2,6 +2,7 @@ import { REQUEST_STATUSES, type RequestStatus } from '@/constants/request-status
 import { DomainError } from '@/features/shared/domain-error';
 
 import {
+  assertCustomerCanCancel,
   assertRequestTransition,
   getCustomerRequestActions,
   getCustomerRequestSection,
@@ -14,7 +15,8 @@ const EXPECTED: Record<RequestStatus, RequestStatus[]> = {
   offers_received: ['open', 'professional_selected', 'cancelled'],
   professional_selected: ['scheduled', 'cancelled'],
   scheduled: ['in_progress', 'completed', 'cancelled'],
-  in_progress: ['completed'],
+  // Only through account deletion (no customer action, see below).
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
 };
@@ -41,9 +43,12 @@ describe('request status machine', () => {
     }
   });
 
-  it('knows which statuses can be cancelled', () => {
+  it('knows which statuses the customer can cancel (not once the work started)', () => {
     const cancellable = REQUEST_STATUSES.filter((status) => getCustomerRequestActions({ status, pendingOfferCount: 0 }).canCancel);
     expect([...cancellable].sort()).toEqual(['draft', 'open', 'offers_received', 'professional_selected', 'scheduled'].sort());
+    for (const status of cancellable) expect(() => assertCustomerCanCancel(status)).not.toThrow();
+    expect(() => assertCustomerCanCancel('in_progress')).toThrow(expect.objectContaining({ code: 'INVALID_STATE_TRANSITION', status: 409 }));
+    expect(() => assertCustomerCanCancel('completed')).toThrow(DomainError);
   });
 
   it('derives customer actions', () => {

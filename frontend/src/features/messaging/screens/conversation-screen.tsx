@@ -21,6 +21,7 @@ import {
   useRefetchOnFocus,
   useRouteParam,
 } from '@/hooks';
+import { usePersonName } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles, useTheme } from '@/theme';
 import type { Conversation } from '@/types/domain';
@@ -70,6 +71,7 @@ function ChatView({ conversation }: { conversation: Conversation }) {
   const { t } = useTranslation(['messaging', 'common']);
   const { userId } = useSession();
   const now = useNow(60_000);
+  const personName = usePersonName();
   const [draft, setDraft] = useState('');
 
   const messagesQuery = useConversationMessages(conversation.id);
@@ -79,7 +81,7 @@ function ChatView({ conversation }: { conversation: Conversation }) {
   useRefetchOnFocus(messagesQuery.refetch);
 
   const counterpart = getCounterpart(conversation, userId);
-  const counterpartName = counterpart?.displayName ?? t('common:screens.conversation');
+  const counterpartName = counterpart ? personName(counterpart) : t('common:screens.conversation');
   const isOpen = canSendMessage(conversation);
   const messages = messagesQuery.data?.items;
   const rows = messages
@@ -166,8 +168,8 @@ function ChatView({ conversation }: { conversation: Conversation }) {
   const footer = (
     <View style={styles.footer}>
       {isOpen ? null : (
-        <AppText variant="caption" color="muted" align="center">
-          {t('messaging:chat.closedMessage')}
+        <AppText variant="caption" color="muted" align="center" testID="chat-closed">
+          {counterpart?.accountDeleted ? t('messaging:chat.closedAccountDeleted') : t('messaging:chat.closedMessage')}
         </AppText>
       )}
       <ChatComposer value={draft} onChangeText={setDraft} onSend={sender.send} disabled={!isOpen} />

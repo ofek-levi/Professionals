@@ -1,6 +1,12 @@
 /** Small text helpers shared by views and notifications. */
 
 /**
+ * How other users see a deleted account (views also set `accountDeleted`, which the app shows in
+ * its own language; older app versions show this).
+ */
+export const DELETED_USER_NAME = 'Deleted user';
+
+/**
  * Privacy-friendly customer name shown to professionals and in reviews, e.g. "Noa L."
  * (ported from the mock backend's `customerShortName`).
  */

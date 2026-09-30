@@ -17,6 +17,8 @@ export interface ConversationParticipant {
   role: UserRole;
   displayName: string;
   avatarUrl: string | null;
+  /** The participant deleted their account: `displayName` is the placeholder "Deleted user". */
+  accountDeleted: boolean;
 }
 
 export interface Conversation {

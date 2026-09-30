@@ -5,12 +5,24 @@
  */
 import { z } from 'zod';
 
-import { deployedSecretIssues, isPlaceholderSecret, parseTrustProxy, type TrustProxy } from './env-hardening.js';
+import {
+  deployedSecretIssues,
+  isPlaceholderSecret,
+  legalOperatorIssues,
+  locationSecretIssues,
+  parseTrustProxy,
+  type LegalOperator,
+  type TrustProxy,
+} from './env-hardening.js';
+import { LEGAL_CONFIG } from './legal.js';
 
 const APP_ENVS = ['development', 'staging', 'production'] as const;
 export type AppEnv = (typeof APP_ENVS)[number];
 
 const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
+
+/** `LOCATION_PRIVACY_SECRET` of a development setup that does not set one (staging/production must). */
+const DEVELOPMENT_LOCATION_PRIVACY_SECRET = 'development-only-location-privacy-secret';
 
 const optionalString = z
   .string()
@@ -50,6 +62,8 @@ const rawEnvSchema = z.object({
   /** Defaults include APP_ENV, so a secret shared by mistake cannot replay staging tokens in production. */
   JWT_ISSUER: optionalString,
   JWT_AUDIENCE: optionalString,
+  /** HMAC key of the offsets of approximate locations (`lib/geo.ts`): whoever knows it can undo them. */
+  LOCATION_PRIVACY_SECRET: z.string().min(32, 'LOCATION_PRIVACY_SECRET must be at least 32 characters').optional(),
   GOOGLE_WEB_CLIENT_ID: optionalString,
   GOOGLE_IOS_CLIENT_ID: optionalString,
   GOOGLE_ANDROID_CLIENT_ID: optionalString,
@@ -113,6 +127,8 @@ export interface Env {
   mongo: { uri: string; dbName: string | undefined; maxPoolSize: number };
   redis: { url: string };
   jwt: { accessSecret: string; issuer: string; audience: string };
+  /** Key of the offsets of approximate locations (installed by `createApp`, see `lib/geo.ts`). */
+  locationPrivacySecret: string;
   /** Accepted `aud` values of Google id tokens; empty = Google sign-in not configured. */
   googleClientIds: string[];
   /** The same ids per app platform (`null` = that app's Google sign-in is refused with 401). */
@@ -133,8 +149,11 @@ export interface Env {
 export type GooglePlatform = 'web' | 'ios' | 'android';
 
 export class EnvError extends Error {
-  constructor(readonly issues: string[]) {
-    super(`Invalid environment configuration:\n${issues.map((issue) => `  - ${issue}`).join('\n')}`);
+  constructor(
+    readonly issues: string[],
+    heading = 'Invalid environment configuration',
+  ) {
+    super(`${heading}:\n${issues.map((issue) => `  - ${issue}`).join('\n')}`);
     this.name = 'EnvError';
   }
 }
@@ -157,6 +176,7 @@ function parseCloudinary(raw: RawEnv): CloudinaryConfig | null {
 function missingForDeployedEnv(raw: RawEnv, cloudinary: CloudinaryConfig | null): string[] {
   const missing: string[] = [];
   if (!raw.PUBLIC_API_URL) missing.push('PUBLIC_API_URL');
+  if (!raw.LOCATION_PRIVACY_SECRET) missing.push('LOCATION_PRIVACY_SECRET');
   if (!raw.GOOGLE_WEB_CLIENT_ID) missing.push('GOOGLE_WEB_CLIENT_ID');
   if (!cloudinary) missing.push('CLOUDINARY_URL (or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET)');
   if (!raw.RESEND_API_KEY) missing.push('RESEND_API_KEY');
@@ -193,7 +213,14 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
   const deployed = raw.APP_ENV !== 'development';
   const trustProxy = parseTrustProxy(raw.TRUST_PROXY, deployed);
   const issues = [
-    ...(deployed ? [...missingForDeployedEnv(raw, cloudinary), ...developmentOnlyIssues(raw), ...deployedSecretIssues(raw.JWT_ACCESS_SECRET)] : []),
+    ...(deployed
+      ? [
+          ...missingForDeployedEnv(raw, cloudinary),
+          ...developmentOnlyIssues(raw),
+          ...deployedSecretIssues(raw.JWT_ACCESS_SECRET),
+          ...locationSecretIssues(raw.LOCATION_PRIVACY_SECRET),
+        ]
+      : []),
     ...trustProxy.issues,
   ];
   if (issues.length > 0) throw new EnvError(issues);
@@ -214,6 +241,7 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
       issuer: raw.JWT_ISSUER ?? `professionals-api:${raw.APP_ENV}`,
       audience: raw.JWT_AUDIENCE ?? `professionals-app:${raw.APP_ENV}`,
     },
+    locationPrivacySecret: raw.LOCATION_PRIVACY_SECRET ?? DEVELOPMENT_LOCATION_PRIVACY_SECRET,
     googleClientIds: [raw.GOOGLE_WEB_CLIENT_ID, raw.GOOGLE_IOS_CLIENT_ID, raw.GOOGLE_ANDROID_CLIENT_ID].filter(
       (id): id is string => id !== undefined,
     ),
@@ -258,6 +286,9 @@ export function envWarnings(env: Env): string[] {
 function developmentWarnings(env: Env): string[] {
   const warnings: string[] = [];
   if (isPlaceholderSecret(env.jwt.accessSecret)) warnings.push('JWT_ACCESS_SECRET is the example placeholder (refused in staging/production)');
+  if (isPlaceholderSecret(env.locationPrivacySecret)) {
+    warnings.push('LOCATION_PRIVACY_SECRET is the example placeholder (refused in staging/production)');
+  }
   if (!env.mail.smtp) warnings.push('SMTP_USER/SMTP_PASS not set: emails are written to the log instead of being sent');
   if (!env.cloudinary) warnings.push('Cloudinary is not configured: photos (request photos, avatars) are refused with 503');
   if (env.cloudinary?.uploadPrefix) warnings.push(`CLOUDINARY_UPLOAD_PREFIX is set: images go to ${env.cloudinary.uploadPrefix}, not to Cloudinary`);
@@ -283,4 +314,14 @@ function deployedWarnings(env: Env): string[] {
     }
   }
   return warnings;
+}
+
+/**
+ * Staging/production refuse to start while the operator details the legal documents publish
+ * (`src/config/legal.ts`) are missing; development renders placeholders instead.
+ */
+export function assertLegalConfigured(env: Pick<Env, 'appEnv'>, operator: LegalOperator = LEGAL_CONFIG.operator): void {
+  if (env.appEnv === 'development') return;
+  const issues = legalOperatorIssues(operator, env.appEnv);
+  if (issues.length > 0) throw new EnvError(issues, 'The legal documents are not configured');
 }

@@ -59,7 +59,19 @@ include drift checks against the app's constants and validation rules.
 ## Deploying
 
 - **API:** Docker image (`backend/Dockerfile`), environments, variables and provider setup in
-  [`backend/docs/OPERATIONS.md`](backend/docs/OPERATIONS.md).
+  [`backend/docs/OPERATIONS.md`](backend/docs/OPERATIONS.md). Before the first staging/production
+  deploy, fill in the operator of the service (legal name, postal address, contact email) in
+  [`backend/src/config/legal.ts`](backend/src/config/legal.ts): the Terms of Use and the Privacy
+  Policy publish them, and the API refuses to start there while they are empty.
+- **Legal documents and store listings:** the API serves the Terms of Use, the Privacy Policy and the
+  account-deletion page at `<API>/legal/terms`, `<API>/legal/privacy` and
+  `<API>/legal/account-deletion` (English and Hebrew; the app shows the same texts). Before launch, go
+  through the [pre-launch checklist](backend/docs/OPERATIONS.md#pre-launch-checklist): which URL goes
+  to App Store Connect, the Google Play Console (privacy policy, Data safety account deletion URL) and
+  the Google OAuth consent screen ([public URLs](backend/docs/OPERATIONS.md#public-urls)), log and
+  backup retention at the hosting provider, data processing agreements with Cloudinary, Resend, Expo
+  and the hosting provider, and a check of photo metadata on Cloudinary. Publishing a new version of a
+  document: [OPERATIONS.md §10](backend/docs/OPERATIONS.md#publishing-a-new-version).
 - **Android APK:** Actions → *Android APK* → Run workflow, choosing `staging` or `production`; each
   GitHub Environment provides `API_BASE_URL` (required), the release signing key (required for
   `production`) and the optional variables/secrets listed in

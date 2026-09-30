@@ -20,7 +20,8 @@ const REQUEST_TRANSITIONS: Record<RequestStatus, readonly RequestStatus[]> = {
   offers_received: ['open', 'professional_selected', 'cancelled'],
   professional_selected: ['scheduled', 'cancelled'],
   scheduled: ['in_progress', 'completed', 'cancelled'],
-  in_progress: ['completed'],
+  // `cancelled` only through account deletion (`assertCustomerCanCancel` refuses it).
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
 };
@@ -28,6 +29,12 @@ const REQUEST_TRANSITIONS: Record<RequestStatus, readonly RequestStatus[]> = {
 /** 409 `INVALID_STATE_TRANSITION` for a disallowed move. */
 export function assertRequestTransition(from: RequestStatus, to: RequestStatus): void {
   if (!REQUEST_TRANSITIONS[from].includes(to)) throw ApiError.invalidTransition('request', from, to);
+}
+
+/** The customer's own cancel (`POST /requests/:id/cancel`): allowed until the work starts. */
+export function assertCustomerCanCancel(from: RequestStatus): void {
+  if (from === 'in_progress') throw ApiError.invalidTransition('request', from, 'cancelled');
+  assertRequestTransition(from, 'cancelled');
 }
 
 /** Status after the pending offer count changed (`open ⇄ offers_received`); others unchanged. */

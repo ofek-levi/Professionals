@@ -1,5 +1,6 @@
 export * from './common';
 export * from './auth';
+export * from './account';
 export * from './requests';
 export * from './offers';
 export * from './jobs';

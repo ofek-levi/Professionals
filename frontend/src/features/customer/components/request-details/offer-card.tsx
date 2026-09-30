@@ -2,7 +2,7 @@ import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { AppText, Avatar, Button, Card, Icon, PriceText, RatingStars } from '@/components/ui';
-import { useFormatters } from '@/i18n/hooks';
+import { useFormatters, usePersonName } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { OfferWithProfessional } from '@/types/domain';
 
@@ -18,22 +18,28 @@ interface OfferCardProps {
   onOpenProfessional: () => void;
 }
 
-/** One offer: who (avatar, name, ★ rating), the proposed time with the price, a short message and the decision. */
+/**
+ * One offer: who (avatar, name, ★ rating), the proposed time with the price, a short message and
+ * the decision. A professional who deleted their account has no profile to open.
+ */
 export function OfferCard({ offer, now, canAccept, accepting, disabled, onAccept, onOpenProfessional }: OfferCardProps) {
   const styles = useStyles();
   const { t } = useTranslation(['customer', 'common']);
   const format = useFormatters();
+  const personName = usePersonName();
   const pro = offer.professional;
+  const name = personName(pro);
   const message = offer.message?.trim();
+  const hasProfile = !pro.accountDeleted;
 
   return (
     <Card padding="lg" style={styles.card} testID={`offer-card-${offer.id}`}>
       <View style={styles.top}>
-        <Avatar name={pro.displayName} uri={pro.avatarUrl} size="md" decorative />
+        <Avatar name={name} uri={pro.avatarUrl} size="md" decorative />
         <View style={styles.who}>
           <View style={styles.nameRow}>
             <AppText variant="bodyStrong" numberOfLines={2} style={styles.shrink}>
-              {pro.displayName}
+              {name}
             </AppText>
             {pro.isVerified ? <Icon name="check-decagram" size={15} color="primary" accessibilityLabel={t('common:verified')} /> : null}
           </View>
@@ -55,26 +61,30 @@ export function OfferCard({ offer, now, canAccept, accepting, disabled, onAccept
         </AppText>
       ) : null}
 
-      <View style={styles.actions}>
-        <Button
-          label={t('customer:offers.viewProfile')}
-          variant="ghost"
-          size="sm"
-          onPress={onOpenProfessional}
-          testID={`offer-pro-${offer.id}`}
-        />
-        {canAccept ? (
-          <Button
-            label={t('customer:offers.accept')}
-            size="sm"
-            loading={accepting}
-            disabled={disabled}
-            onPress={onAccept}
-            style={styles.accept}
-            testID={`offer-accept-${offer.id}`}
-          />
-        ) : null}
-      </View>
+      {hasProfile || canAccept ? (
+        <View style={styles.actions}>
+          {hasProfile ? (
+            <Button
+              label={t('customer:offers.viewProfile')}
+              variant="ghost"
+              size="sm"
+              onPress={onOpenProfessional}
+              testID={`offer-pro-${offer.id}`}
+            />
+          ) : null}
+          {canAccept ? (
+            <Button
+              label={t('customer:offers.accept')}
+              size="sm"
+              loading={accepting}
+              disabled={disabled}
+              onPress={onAccept}
+              style={styles.accept}
+              testID={`offer-accept-${offer.id}`}
+            />
+          ) : null}
+        </View>
+      ) : null}
     </Card>
   );
 }

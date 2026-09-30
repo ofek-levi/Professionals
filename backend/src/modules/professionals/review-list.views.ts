@@ -4,7 +4,7 @@ import type { Review } from '../../shared/contract/index.js';
 import type { ReviewDoc } from '../reviews/review.model.js';
 import { loadUserDisplays, type UserDisplay } from '../users/user-display.views.js';
 
-function toReviewDto(review: ReviewDoc, reviewer: Pick<UserDisplay, 'shortName' | 'avatarUrl'>): Review {
+function toReviewDto(review: ReviewDoc, reviewer: Pick<UserDisplay, 'shortName' | 'avatarUrl' | 'accountDeleted'>): Review {
   return {
     id: review._id.toHexString(),
     jobId: review.job.toHexString(),
@@ -16,6 +16,7 @@ function toReviewDto(review: ReviewDoc, reviewer: Pick<UserDisplay, 'shortName' 
     // Customers appear as "Noa L." to everyone (as in the app).
     customerDisplayName: reviewer.shortName,
     customerAvatarUrl: reviewer.avatarUrl,
+    customerAccountDeleted: reviewer.accountDeleted,
     createdAt: review.createdAt.toISOString(),
   };
 }

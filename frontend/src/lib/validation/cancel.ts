@@ -1,14 +1,14 @@
 /** Request cancellation (`POST /requests/:id/cancel`). */
 import { z } from 'zod';
 
-import { REQUEST_CANCELLATION_REASONS } from '@/types/domain';
+import { CUSTOMER_CANCELLATION_REASONS } from '@/types/domain';
 
 import { vm } from './messages';
 
 export const CANCEL_COMMENT_MAX_LENGTH = 300;
 
 export const cancelRequestSchema = z.object({
-  reason: z.enum(REQUEST_CANCELLATION_REASONS, { error: vm('cancel.reasonRequired') }),
+  reason: z.enum(CUSTOMER_CANCELLATION_REASONS, { error: vm('cancel.reasonRequired') }),
   comment: z
     .string()
     .trim()

@@ -53,7 +53,7 @@ export function AccountStep({
   const translateError = useTranslatedError();
   const terms = useController({ control, name: 'acceptedTerms' });
   const { errors } = useFormState({ control, name: 'email' });
-  const email = useWatch({ control, name: 'email' });
+  const [email, role] = useWatch({ control, name: ['email', 'role'] });
   // The server answered "already registered": offer to sign in right where the error shows.
   const emailTaken = errors.email?.message === vm('auth.emailTaken');
   const anchorNames = (event: LayoutChangeEvent) => {
@@ -137,7 +137,7 @@ export function AccountStep({
           name="phone"
           label={t('fields.phone')}
           placeholder={t('signUp.account.phonePlaceholder')}
-          helperText={t('signUp.account.phoneHelper')}
+          helperText={role === 'professional' ? t('signUp.account.phoneHelperProfessional') : t('signUp.account.phoneHelperCustomer')}
           keyboardType="phone-pad"
           autoComplete="tel"
           textContentType="telephoneNumber"

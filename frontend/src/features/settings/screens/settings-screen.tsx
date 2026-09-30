@@ -1,12 +1,14 @@
 /**
- * `/settings` – language, appearance and notification preferences. Signing out lives in the
- * Profile tab.
+ * `/settings` – language, appearance and notification preferences, the legal documents and
+ * deleting the account. Signing out lives in the Profile tab.
  */
 import Constants from 'expo-constants';
+import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 
 import { AppText, Icon, ListItem, Screen, SegmentedControl, type SegmentedOption } from '@/components/ui';
 import { useAppLanguage } from '@/i18n/hooks';
+import { LEGAL_DOCUMENTS, routes } from '@/lib/routes';
 import { SUPPORTED_LANGUAGES } from '@/types/domain';
 
 import { useNotificationPreferenceRows } from '../components/notification-preference-rows';
@@ -17,7 +19,8 @@ import { useChangeLanguage } from '../use-change-language';
 const APP_VERSION = Constants.expoConfig?.version ?? '1.0.0';
 
 export default function SettingsScreen() {
-  const { t } = useTranslation(['settings', 'common']);
+  const { t } = useTranslation(['settings', 'common', 'legal']);
+  const router = useRouter();
   const language = useAppLanguage();
   const changeLanguage = useChangeLanguage();
   const { colorScheme } = useSettings();
@@ -58,6 +61,26 @@ export default function SettingsScreen() {
       </SettingsSection>
 
       <SettingsSection title={t('settings:notifications.sectionTitle')}>{notificationRows}</SettingsSection>
+
+      <SettingsSection title={t('settings:legal.sectionTitle')} testID="settings-legal">
+        {LEGAL_DOCUMENTS.map((document) => (
+          <ListItem
+            key={document}
+            title={t(`legal:documents.${document}`)}
+            onPress={() => router.push(routes.legal(document))}
+            testID={`settings-legal-${document}`}
+          />
+        ))}
+      </SettingsSection>
+
+      <SettingsSection title={t('settings:deleteAccount.sectionTitle')} testID="settings-account">
+        <ListItem
+          title={t('settings:deleteAccount.row')}
+          destructive
+          onPress={() => router.push(routes.deleteAccount)}
+          testID="settings-delete-account"
+        />
+      </SettingsSection>
 
       <AppText variant="caption" color="muted" align="center">
         {t('settings:version', { version: APP_VERSION })}

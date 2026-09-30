@@ -1,4 +1,4 @@
-import { parseInboxTab, parseSignUpRole, parseWorkTab, routes, TAB_PARAM } from '../routes';
+import { parseInboxTab, parseLegalDocument, parseSignUpRole, parseWorkTab, routes, TAB_PARAM } from '../routes';
 
 describe('tab routes', () => {
   it('builds the tabs of each role', () => {
@@ -50,5 +50,17 @@ describe('auth routes', () => {
     expect(parseSignUpRole('admin')).toBeNull();
     expect(parseSignUpRole(['customer'])).toBeNull();
     expect(parseSignUpRole(undefined)).toBeNull();
+  });
+});
+
+describe('legal routes', () => {
+  it('builds and parses the document routes', () => {
+    expect(routes.legal('terms')).toBe('/legal/terms');
+    expect(routes.legal('privacy')).toBe('/legal/privacy');
+    expect(parseLegalDocument('privacy')).toBe('privacy');
+    // The backend's account deletion page is a web page only.
+    expect(parseLegalDocument('account-deletion')).toBeNull();
+    expect(parseLegalDocument(['terms'])).toBeNull();
+    expect(parseLegalDocument(undefined)).toBeNull();
   });
 });

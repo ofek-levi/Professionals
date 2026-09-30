@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
-import { initI18n } from '@/i18n';
+import { i18n, initI18n } from '@/i18n';
 import type { Review } from '@/types/domain';
 
 import { renderWithProviders } from '../../__test-utils__/render';
@@ -59,5 +59,30 @@ describe('ReviewCard meta', () => {
     await renderWithProviders(<ReviewCard review={review('Great job')} hideAuthor />);
     expect(screen.queryByText('Noa L.')).not.toBeOnTheScreen();
     expect(screen.getByText('Great job')).toBeOnTheScreen();
+  });
+});
+
+describe('ReviewCard of a deleted account', () => {
+  const deleted: Review = {
+    ...review(''),
+    comment: null,
+    customerDisplayName: 'Deleted user',
+    customerAccountDeleted: true,
+  };
+
+  beforeAll(async () => {
+    await initI18n('en');
+  });
+
+  afterAll(async () => {
+    await i18n.changeLanguage('en');
+  });
+
+  it('names the reviewer "Deleted user" in the app’s language and keeps the rating', async () => {
+    await i18n.changeLanguage('he');
+    await renderWithProviders(<ReviewCard review={deleted} />, { isRTL: true });
+    expect(screen.getByText('משתמש שנמחק')).toBeOnTheScreen();
+    expect(screen.queryByText('Deleted user')).not.toBeOnTheScreen();
+    expect(screen.queryByTestId('review-comment')).not.toBeOnTheScreen();
   });
 });

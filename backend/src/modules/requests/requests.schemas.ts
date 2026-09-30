@@ -9,10 +9,10 @@ import { paginationQueryShape } from '../../lib/pagination.js';
 import { queryBoolean, queryEnum, queryEnumList, queryNumber, queryString } from '../../lib/query-schemas.js';
 import { CATEGORY_IDS } from '../../shared/catalog/index.js';
 import {
+  CUSTOMER_CANCELLATION_REASONS,
   NEARBY_REQUEST_SORTS,
   OFFER_PRESENCE_FILTERS,
   PREFERRED_TIME_WINDOWS,
-  REQUEST_CANCELLATION_REASONS,
 } from '../../shared/domain.js';
 import { APP_CONFIG } from '../../shared/limits.js';
 import { CUSTOMER_REQUEST_SECTIONS, REQUEST_STATUSES } from '../../shared/statuses.js';
@@ -78,7 +78,7 @@ export type UpdateDraftRequestInput = z.output<typeof updateDraftRequestBody>;
 
 /** `POST /requests/:id/cancel` */
 export const cancelRequestBody = z.object({
-  reason: z.enum(REQUEST_CANCELLATION_REASONS, { error: vm('cancel.reasonRequired') }),
+  reason: z.enum(CUSTOMER_CANCELLATION_REASONS, { error: vm('cancel.reasonRequired') }),
   comment: z
     .string()
     .trim()

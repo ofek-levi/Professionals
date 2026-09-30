@@ -116,8 +116,9 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 | `PhotoStrip` / `PhotoViewer` | `<PhotoStrip photos={request.photos} />` (opens a full-screen pager) |
 | `PreferredScheduleText` | `<PreferredScheduleText schedule={request.preferredSchedule} />` → "Sun, Sep 27 · Morning (8:00–12:00)" (older requests that still carry a preferred date) |
 | `OfferStatusBadge` | `<OfferStatusBadge status={offer.status} size="sm" />` |
-| `ReviewCard` | `<ReviewCard review={review} showCategory />` – avatar, name, stars · date · category, comment clamped to 3 lines with "Show more". `hideAuthor` drops avatar and name (the viewer's own review, a job's review) |
+| `ReviewCard` | `<ReviewCard review={review} showCategory />` – avatar, name ("Deleted user" for a deleted reviewer), stars · date · category, comment clamped to 3 lines with "Show more". `hideAuthor` drops avatar and name (the viewer's own review, a job's review) |
 | `RatingSummary` | `<RatingSummary breakdown={breakdown} />` |
+| `ProfessionalContactCard` | `<ProfessionalContactCard contact={profile.contact} />` – a hired pro's phone (`tel:`), email (`mailto:`) and website as link rows; renders nothing without any |
 | `JobCard` | `<JobCard job={job} viewerRole={user.role} onPress={…} />` – category + status pill, counterpart, date/time (`showPrice` appends the price) · `<JobCardSkeleton />` (a completed job shows its completion time) |
 | `useJobWhen` | `const { completed, text } = useJobWhen(job)` – the appointment, or "Completed today at 19:28" once done |
 | `LocationPicker` | `<LocationPicker value={location} onChange={setLocation} error={errorText} required initialRegion={regionForRadius(center, 5)} />` (until an address is chosen the error shows under the label, next to the search field) |

@@ -82,6 +82,9 @@ describe('POST /v1/requests/:id/cancel', () => {
     await request(app).post(`/v1/requests/${req.id}/cancel`).set((await signInCustomer(deps)).headers).send({ reason: 'other' }).expect(403);
     const invalid = await request(app).post(`/v1/requests/${req.id}/cancel`).set(customer.headers).send({ reason: 'bored', comment: 'x'.repeat(301) }).expect(400);
     expect(invalid.body.fieldErrors).toEqual({ reason: ['validation:cancel.reasonRequired'], comment: ['validation:cancel.commentTooLong'] });
+    // `account_deleted` is set by account deletion only, never picked by a customer.
+    const reserved = await request(app).post(`/v1/requests/${req.id}/cancel`).set(customer.headers).send({ reason: 'account_deleted' }).expect(400);
+    expect(reserved.body.fieldErrors).toEqual({ reason: ['validation:cancel.reasonRequired'] });
     await request(app).post(`/v1/requests/${req.id}/cancel`).set(pro.headers).send({ reason: 'other' }).expect(403);
     await deps.background.drain();
     expect(deps.storage.images.size).toBe(1);

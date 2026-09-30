@@ -75,6 +75,7 @@ describe('GET /v1/professionals', () => {
       completedJobsCount: 20,
       isVerified: false,
       city: 'Tel Aviv-Yafo',
+      accountDeleted: false,
     });
   });
 

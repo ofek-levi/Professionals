@@ -10,3 +10,5 @@ export type * from './messaging.js';
 export type * from './notification.js';
 export type * from './realtime.js';
 export type * from './responses.js';
+export type * from './account.js';
+export type * from './legal.js';

@@ -11,17 +11,19 @@ app's current types; then one section per module. Source of each rule: `src/` (s
 - [Contract changes vs the app's types](#contract-changes-vs-the-apps-types) (summary)
 - [Auth](#auth) · [Users](#users) · [Profiles](#profiles-customers-professionals-geo) ·
   [Messaging](#messaging-conversations-notifications-push-realtime) ·
-  [Marketplace](#marketplace-requests-offers-jobs-reviews-dashboard)
+  [Marketplace](#marketplace-requests-offers-jobs-reviews-dashboard) · [Legal](#legal)
 
 ## General
 
 ### Base URL and formats
 
 - Every endpoint lives under **`/v1`** (the app's `EXPO_PUBLIC_API_BASE_URL` ends in `/v1`), e.g.
-  `https://api.example.com/v1/requests`. Health checks are outside it (`/health`, `/ready`).
+  `https://api.example.com/v1/requests`. Health checks (`/health`, `/ready`) and the public pages of
+  the legal documents (`/legal/*`) are outside it.
 - Requests and responses are JSON (`Content-Type: application/json`, bodies up to 100 KB). Exceptions:
   the routes that take images (`POST /requests`, `PATCH /requests/:id`, `PUT /me/avatar`: multipart,
-  see [Images](#images)) and the email link pages (`/auth/verify-email`, `/auth/reset-password`: HTML).
+  see [Images](#images)), the email link pages (`/auth/verify-email`, `/auth/reset-password`: HTML) and
+  the legal pages (`/legal/*`: HTML).
 - Ids are 24-character hex strings (MongoDB ObjectIds). Timestamps are ISO-8601 UTC strings; calendar
   dates (`preferredSchedule.date`, explorer date filters) are `YYYY-MM-DD` in the market's zone
   (`Asia/Jerusalem`). Money is `{ amount, currency: 'ILS' }`.
@@ -34,9 +36,9 @@ app's current types; then one section per module. Source of each rule: `src/` (s
 
 ### Authentication
 
-- `Authorization: Bearer <access token>` on every endpoint except `/auth/*`, `/catalog/categories`
-  and `/geo/*`. Access tokens are HS256 JWTs valid **30 minutes**; refresh tokens are opaque, valid
-  **90 days** (sliding) and rotate on every `POST /auth/refresh`. Details: [Auth](#auth).
+- `Authorization: Bearer <access token>` on every endpoint except `/auth/*`, `/catalog/categories`,
+  `/geo/*` and `/legal/*`. Access tokens are HS256 JWTs valid **30 minutes**; refresh tokens are
+  opaque, valid **90 days** (sliding) and rotate on every `POST /auth/refresh`. Details: [Auth](#auth).
 - A missing, malformed or expired token, or one whose session was signed out/revoked, answers
   **401 `UNAUTHORIZED`**. Revocation is immediate: logout, refresh-token reuse, a password reset or
   a first Google link of a password account put the session ids on a Redis denylist for the
@@ -126,8 +128,11 @@ never uses up another route's budget. The limits are far above what a person doe
 | Other signed-in changes (profile edits, `/me/avatar`, `/me/devices`, draft edits, publish, cancel, offer and job steps, reviews, `POST /notifications/read-all`), each route | 30 / min per user |
 | `POST /conversations/:id/read`, `POST /notifications/:id/read` (read markers), each route | 120 / min per user |
 | `POST /auth/verify-email/resend` | 3 / h per user |
+| `POST /me/deletion` | 30 / min and 5 / h per user; a wrong password also counts as a failed sign-in (the `POST /auth/login` budgets, from the same IP) |
 | `POST /auth/logout` | 600 / 15 min per IP |
 | `GET /catalog/categories` | 300 / min per user when signed in, otherwise per IP |
+| `GET /v1/legal/:document` | 300 / min per user when signed in, otherwise per IP |
+| `GET /legal/:document` (public pages) | 300 / min per IP; over it, an HTML page |
 | `GET /auth/verify-email`, `POST /auth/verify-email`, `GET /auth/reset-password` (pages opened from the emails), each route | 300 / 15 min per IP; over it, an HTML page (also for `POST /auth/reset-password` form posts) |
 | `GET /health`, `GET /ready`, each route | 300 / min per IP, counted in each instance's memory (not Redis) |
 | `GET /v1/realtime` (WebSocket upgrades) | 60 / min per user |
@@ -153,12 +158,15 @@ OPERATIONS.md); `true` is refused, since it would let any client choose the IP t
 - `GET /catalog/categories`: `ETag` + `Cache-Control: public, max-age=3600, stale-while-revalidate=86400`;
   `If-None-Match` → 304.
   The catalog is a code constant (versioned), never a database read.
-- `GET /geo/*`: `Cache-Control: public, max-age=3600`, `Vary: Accept-Language`; results are cached
+- `GET /geo/*`: `Cache-Control: private, max-age=3600` (the caller's device may keep an answer; a
+  shared cache such as a CDN must not store the addresses people type), `Vary: Accept-Language`; results are cached
   in Redis: reverse lookups 30 days (points rounded to ~11 m), address searches 7 days (one entry per
   query, whatever `limit`), empty answers 1 day. Only cache misses reach the provider (≤ 1/s for all
   instances); anonymous callers may use at most half of that rate, so sign-ups can never starve
   signed-in users.
 - Public professional profiles are cached 60 s in Redis and dropped on every profile or stats change.
+- `GET /v1/legal/:document` and the pages `/legal/*`: `Cache-Control: public, max-age=300`,
+  `Vary: Accept-Language` (the texts only change with a deploy).
 - Everything else is private and not cached (`Cache-Control` is not set; clients should not cache).
 
 ### Images
@@ -245,6 +253,8 @@ next phase has to adopt (details in each module's section):
 | Realtime | Close code 4001 = the token expired or the session was revoked. | On 4001 refresh the access token before reconnecting (today's client retries every 3 s with the same token); stop on a failed refresh. |
 | Limits | New 429 limits (see [Rate limits](#rate-limits)); `maxDistanceKm` only takes the app's presets. | Show the generic error. |
 | Time | Calendar rules use `Asia/Jerusalem` instead of the device zone. | None for Israeli users. |
+| Users | New `GET /me/deletion-impact` and `POST /me/deletion` (account deletion, [Users](#users)); `accountDeleted` on `CustomerSummary`, `ProfessionalSummary` and `ConversationParticipant`, `customerAccountDeleted` on `Review` (the server's placeholder name is "Deleted user"). | The types are in `frontend/src/types` (the flags optional); screens: Settings → Delete account, "Deleted user" labels, no profile link. |
+| Privacy | `CustomerSummary` has no `city`; the public `ProfessionalProfile` has no `fullName` (only `OwnProfessionalProfile`); a public profile carries `contact` only for a customer with a job with the professional that was not cancelled. `POST /requests/:id/cancel` takes a `CustomerCancellationReason`; a request's `cancellationReason` may also be `account_deleted`. New notification type `job_cancelled`. | Done in the app's types, notification presenter and translations. |
 
 ## Auth
 
@@ -308,8 +318,11 @@ In one transaction: the user (argon2id password hash, `language = preferredLangu
 notification preferences), for professionals the profile (display name = business name or full name,
 service area centered on the base location with the given radius and the city as label, default
 availability, contact = sign-up phone + email, `business.languages = [preferredLanguage]`, zero stats,
-not verified), and the first session. Password sign-ups then get a verification email (en/he by
-`preferredLanguage`); Google sign-ups are verified (Google's `email_verified`) and take the Google avatar.
+not verified), and the first session. The accepted terms are recorded on the user
+(`termsAcceptance { version, acceptedAt }`, `version` = `LEGAL_CONFIG.effectiveDate` of
+`src/config/legal.ts`), for password and Google sign-ups alike. Password sign-ups then get a
+verification email (en/he by `preferredLanguage`); Google sign-ups are verified (Google's
+`email_verified`) and take the Google avatar.
 
 | Error | When |
 |---|---|
@@ -396,7 +409,9 @@ No lists here, so no pagination.
 
 ## Users
 
-Authenticated (`Authorization: Bearer`). Source: `src/modules/users`.
+Authenticated (`Authorization: Bearer`). Source: `src/modules/users`. Once an account is deleted its
+access tokens are refused at once (session denylist); `GET`/`PATCH /me`, `/me/avatar`, `POST /me/devices`
+and the deletion routes also answer 401 by themselves, which covers a Redis outage.
 
 ### `GET /me` → 200 `CurrentUserResponse`
 
@@ -457,7 +472,92 @@ session has ended (like every authenticated endpoint).
 ### `DELETE /me/devices/:token` → 200 `{ success: true }` (addition)
 
 URL-encoded token. Removes the token from the caller's session that holds it (any of the account's
-sessions; they stay signed in); idempotent, never touches another account's session.
+sessions; they stay signed in); idempotent, never touches another account's session. The request log
+masks the token in the path (`/v1/me/devices/[REDACTED]`).
+
+### `GET /me/deletion-impact` → 200 `AccountDeletionImpact` (addition)
+
+What deleting the account now would change, read by the same queries the deletion runs
+(`account-deletion.impact.ts`), and how to confirm it:
+
+```json
+{
+  "role": "customer",
+  "reauthentication": { "password": true, "google": false },
+  "requestsToCancel": { "count": 2, "items": [{ "id": "…", "requestId": "…", "categoryId": "plumbing", "status": "scheduled", "date": "2026-10-01T09:00:00.000Z", "counterpartName": "Avi Fix" }] },
+  "offersToDecline": 3,
+  "draftsToDelete": 1,
+  "jobsToCancel": { "count": 1, "items": [{ "id": "…", "requestId": "…", "categoryId": "plumbing", "status": "scheduled", "date": "2026-10-03T07:00:00.000Z", "counterpartName": "Avi Fix" }] }
+}
+```
+
+- Customer: `requestsToCancel` (`open`, `offers_received`, and those with an active job:
+  `professional_selected`, `scheduled`, `in_progress`; newest first), `offersToDecline` (their pending
+  offers), `draftsToDelete`, `jobsToCancel` (`awaiting_confirmation`, `scheduled`, `in_progress`; soonest
+  first).
+- Professional: `{ role: 'professional', reauthentication, offersToWithdraw, jobsToCancel }`:
+  every pending offer (also one past its expiry time the cron has not expired yet), newest first.
+- `items`: the first 20 of each list (`count` covers all). `date`: a request's publication (creation
+  for none), an offer's proposed start, a job's scheduled start. `counterpartName`: the hired
+  professional's display name or the customer's short name ("Noa L."); `null` for a request nobody
+  was hired for.
+- `reauthentication`: `password` = the account has a password; `google` = it is linked to Google.
+
+Errors: 401 (also for a deleted account).
+
+### `POST /me/deletion` → 200 `{ success: true }` (addition)
+
+Deletes the caller's account at once; it cannot be undone. Body `{ password?: string, googleIdToken?: string }`
+(`DeleteAccountRequest`): accounts with a password send `password` (or a Google `idToken` of the
+Google account linked to them); Google-only accounts send a fresh `googleIdToken` whose `sub` is the
+linked Google account. Refusals are **400, never 401** (the app refreshes the access token on a 401):
+
+| Situation | Answer |
+|---|---|
+| No proof sent | 400 `fieldErrors.password = ["validation:auth.passwordRequired"]` (password accounts) or `fieldErrors.googleIdToken = ["validation:required"]` (Google-only) |
+| Wrong password | 400 `fieldErrors.password = ["validation:auth.passwordIncorrect"]`; counts as a failed sign-in of the account from this IP, so the [sign-in throttle](#rate-limits) answers 429 (`Retry-After`) once it is used up |
+| A Google token of another account, expired or forged | 400 `fieldErrors.googleIdToken = ["validation:invalid"]` |
+| Google unreachable | 503 |
+| The account is already deleted (a second submit, another device) | 401 |
+| More than 5 attempts in an hour | 429 |
+
+One MongoDB transaction does everything (all or nothing); the other parties are notified with an
+empty name, so their texts say "A customer" / "A professional":
+- **Customer**: drafts deleted; every other active request cancelled (`cancellationReason:
+  account_deleted`) as `POST /requests/:id/cancel` does: pending offers `rejected`
+  (`request_cancelled`), an active job — `in_progress` too — `cancelled` and its chat closed,
+  `request_cancelled` to those professionals.
+- **Professional**: every pending offer `withdrawn` (`withdrawn_by_professional`), `offer_withdrawn` to
+  the customer; every active job (`in_progress` too) and its request `cancelled`
+  (`account_deleted`; the request's photos deleted), `job_cancelled` to the customer.
+- **Both**: every chat of the user closed (also those of completed jobs); the user's notifications,
+  email links and sessions (push tokens) deleted, open sockets closed; the avatar deleted from storage.
+
+What stays, without the person (the Privacy Policy says exactly this):
+- The account becomes a tombstone: `_id`, `role`, `language`, `createdAt`, `deletedAt`; the email is
+  replaced by a unique unroutable placeholder, so the real address and the Google account can sign up
+  again as a new account; names, phone, password, Google link, verification, avatar, default address
+  and terms acceptance are removed, every notification setting is off. Signing in with the old
+  credentials answers like an unknown account.
+- Other users see the person as **"Deleted user"** with `accountDeleted: true`
+  (`customerAccountDeleted` on reviews) and no avatar, in jobs, offers, requests, chats and reviews.
+- A customer's requests keep their description, category, dates, status, city and neighbourhood and
+  the approximate pin; the exact point, street address, access details, notes, cancellation comment,
+  photos (deleted from storage) and idempotency key are removed. Completed jobs (category, dates,
+  agreed price) stay in the professional's history. Their reviews keep the rating (the professional's
+  stats do not change) and lose the comment.
+- A professional's profile keeps its stats but no categories, headline, bio, contact, business
+  details, base address, starting price or exact service-area center; it leaves every search and
+  match, `GET /professionals/:id` and its reviews list answer 404, and completed jobs of theirs can no
+  longer be reviewed (`canReview: false`, `POST /jobs/:id/review` → 409). Their offers keep price and
+  dates and lose the message.
+- Chat messages the person sent stay visible to the other participant.
+- Copies of the person's name or message previews inside other users' notifications expire with the
+  90-day notification TTL; login-throttle keys (hashed email) within 30 days; logs and backups as in
+  OPERATIONS.md.
+
+After the commit a confirmation email goes to the address the account had, in its language (what was
+deleted, what stays, the operator's contact address from `src/config/legal.ts`); best effort.
 
 ## Profiles (customers, professionals, geo)
 
@@ -498,18 +598,22 @@ Errors: 400 `VALIDATION_ERROR`, 422 `UNSUPPORTED_CATEGORY` (`categoryIds.<i>`), 
 ### `GET /professionals/:professionalId` — any signed-in user
 `200 ProfessionalProfile` as the viewer may see it (same rules as the app's `views.ts`):
 - everyone but the owner: approximate `baseLocation` (no street, no details, `isApproximate: true`)
-  and approximate `serviceArea.center` (deterministic 250–450 m offset, the same for every viewer);
-- `contact` is `null` unless the viewer is a customer who has (or had) a job with the professional;
-- `notificationPreferences` is never included (also not for the owner).
+  and approximate `serviceArea.center` (deterministic 250–450 m offset, the same for every viewer,
+  derived from `LOCATION_PRIVACY_SECRET` so it cannot be undone from the id);
+- `contact` is `null` unless the viewer is a customer who hired the professional: a job with them in
+  `awaiting_confirmation`, `scheduled`, `in_progress` or `completed` (not after a cancellation);
+- `fullName` and `notificationPreferences` are never included (also not for the owner; both are in
+  `GET /professional/profile`); `business.licenseNumber` is.
 The viewer-independent view is cached in Redis for 60 s and dropped on profile edits.
-Errors: 404 (unknown or malformed id, or a customer's id), 401.
+Errors: 404 (unknown or malformed id, a customer's id, or a deleted account), 401.
 
 ### `GET /professionals/:professionalId/reviews?cursor=&limit=` — any signed-in user
 `200 Paginated<Review> & { breakdown: RatingBreakdown }`, newest first (keyset on `createdAt, _id`).
 `breakdown` covers all reviews (average rounded to 0.1, `null` without reviews) and comes from
 per-star counters kept on the professional (no review is re-read); `totalCount === breakdown.reviewCount`
 on every page. `customerDisplayName` is the short name ("Noa L."),
-reviewer name and avatar are always current. Errors: 404, 400 (`limit`, `cursor`), 401.
+reviewer name and avatar are always current (a deleted reviewer: "Deleted user", `customerAccountDeleted: true`).
+Errors: 404 (also a deleted professional), 400 (`limit`, `cursor`), 401.
 
 ### `GET /professionals?categoryId=&lat=&lng=&cursor=&limit=` — any signed-in user
 `200 Paginated<ProfessionalSummary>`, best ranked first: Bayesian rating (`stats.rankScore`), then
@@ -518,7 +622,8 @@ point are listed, and nearer ones come first among equals (a single coordinate i
 app). "Covers" and "nearer" are measured from the **approximate** service-area center the public
 profile shows (250–450 m from the real one), at 0.1 km: a search answering "covered or not" around the
 real center would let anyone probe the circle's edge and recover the professional's address, and
-cursors carry the sort values, so nothing finer than the public profile goes into them. Errors: 400 (`categoryId` outside the catalog → `validation:invalid`, `lat` →
+cursors carry the sort values, so nothing finer than the public profile goes into them. Deleted
+professionals are never listed. Errors: 400 (`categoryId` outside the catalog → `validation:invalid`, `lat` →
 `validation:location.coordinatesInvalid`, `limit`, `cursor`), 401. (The app has the endpoint in its
 API client but no screen calls it yet.)
 
@@ -531,7 +636,7 @@ Provider: Nominatim (country filter `GEOCODER_COUNTRY_CODES`), answers cached in
 autocomplete stores a key per distinct prefix typed, so these keep it bounded), provider calls ≤ 1/s
 across instances (`GEOCODER_MIN_INTERVAL_MS`). Only cache misses cost a provider call, so they have
 their own budget: 15/min per IP, or 30/min per signed-in user (send the bearer token when there is
-one); anonymous misses may use at most half of the provider's rate. Headers: `Cache-Control: public,
+one); anonymous misses may use at most half of the provider's rate. Headers: `Cache-Control: private,
 max-age=3600`, `Vary: Accept-Language`. Errors: 400 (`limit`), 429 `RATE_LIMITED` (60/min per IP,
 shared with `/geo/reverse`; the miss budget; or the provider slot busy > 4 s), 503 `SERVER_ERROR`
 (provider down).
@@ -692,6 +797,9 @@ Rules, errors, notifications and realtime events are those of the app's mock bac
 (`frontend/src/test-utils/mock-backend/server/services/lifecycle-service.ts`, `views.ts`); malformed ids answer 404.
 Lists are keyset-paginated (`?cursor=&limit=`, default 20, max 100; bad values → 400
 `fieldErrors.cursor` / `fieldErrors.limit`).
+A deleted account is refused with 401 by the routes that create something (`POST /requests`,
+`POST /requests/:id/offers`, `POST /jobs/:id/review`), also while Redis (the session denylist) is down;
+everything it had in progress was closed by the deletion ([`POST /me/deletion`](#post-medeletion--200--success-true--addition)).
 
 ### Contract changes vs the app's types (`frontend/src/types`, `services/api/endpoints`)
 
@@ -762,9 +870,11 @@ retry are read but not stored). The key is scoped to the customer; a new one cre
 - Professional: 404 for drafts; 403 unless the request matches their categories and service area or
   they sent an offer on it. `{ viewerRole: 'professional', request: ProfessionalRequestView }` with
   the privacy view until their offer is accepted: `location` approximate (deterministic 250–450 m
-  offset seeded by the request id, no street, no details, `isApproximate: true`), `notes: null`,
+  offset derived from the request id and `LOCATION_PRIVACY_SECRET`, no street, no details,
+  `isApproximate: true`), `notes: null`,
   `jobId: null`. Plus `distanceKm` (0.1 km, from the service-area center to the approximate pin),
-  `customer` (`CustomerSummary`, short name), `myOffer` (their active offer, else their newest),
+  `customer` (`CustomerSummary`: short name, avatar, member since, completed jobs; nothing of the
+  customer's own address), `myOffer` (their active offer, else their newest),
   `isMatch`.
 
 #### `PATCH /requests/:requestId` — customer (drafts) → `CustomerRequestView`
@@ -796,9 +906,11 @@ Idempotent: an already `open` request is returned unchanged (a retry after a los
 statuses → 409 `INVALID_STATE_TRANSITION`.
 
 #### `POST /requests/:requestId/cancel` — customer → `CustomerRequestView`
-Body `{ reason: RequestCancellationReason, comment?: string | null }` (comment ≤ 300, empty →
-`null`). Allowed from `draft`, `open`, `offers_received`, `professional_selected`, `scheduled`
-(`in_progress`/`completed`/`cancelled` → 409 `INVALID_STATE_TRANSITION`). One transaction: pending
+Body `{ reason: CustomerCancellationReason, comment?: string | null }` (comment ≤ 300, empty →
+`null`; `account_deleted` is not one of them: only account deletion stores it). Allowed from `draft`,
+`open`, `offers_received`, `professional_selected`, `scheduled` (`in_progress`/`completed`/`cancelled`
+→ 409 `INVALID_STATE_TRANSITION`: the state machines allow `in_progress → cancelled` for account
+deletion only). One transaction: pending
 offers → `rejected` (`request_cancelled`), an assigned job → `cancelled` and its chat closed, the
 request → `cancelled` with recounted `offerCount`/`pendingOfferCount`. `request_cancelled` goes to
 every professional with a rejected offer or the cancelled job; `offer.updated`/`job.updated` to the
@@ -903,7 +1015,7 @@ latest appointment first — contract change 3). `JobSummary` adds `description`
 
 #### `GET /jobs/:jobId` — the job's parties → `JobDetails`
 Adds the full `request` (`ServiceRequest`), `review` (`Review | null`) and `canReview` (the customer,
-completed, not reviewed yet). Others → 403.
+completed, not reviewed yet, the professional's account not deleted). Others → 403.
 
 #### `POST /jobs/:jobId/confirm` — professional (own) → `Job`
 `awaiting_confirmation → scheduled` (`confirmedAt`); request → `scheduled`; `job_confirmed` to the
@@ -920,7 +1032,8 @@ Every transition emits `job.updated` (both parties) and `request.updated`.
 #### `POST /jobs/:jobId/review` — customer (own job) → 201 `Review`
 Body `{ rating: 1–5, comment: string | null }` (comment ≤ 800, empty → `null`; missing rating →
 `review.ratingRequired`, other values → `review.ratingInvalid`). Job not completed → 409 `CONFLICT`;
-already reviewed (also a concurrent double submit) → 409 `CONFLICT`; another customer → 403.
+already reviewed (also a concurrent double submit) → 409 `CONFLICT`; the professional deleted their
+account → 409 `CONFLICT`; another customer → 403.
 One transaction stores the review, links it on the job and recomputes the professional's
 `averageRating` (0.1 precision), `reviewCount` and search rank; the cached public profile is dropped,
 `profile.updated` and `review_received` go to the professional, `job.updated` to both parties.
@@ -931,7 +1044,7 @@ One transaction stores the review, links it on the job and recomputes the profes
 `openRequestsCount` (open + offers_received), `requestsWithOffersCount` (the "has offers" section),
 `pendingOffersCount` (pending offers on those requests), `activeJobsCount`, `recentRequests` (5 most
 recently updated), `upcomingJobs` (3 soonest active jobs), `jobsAwaitingReview` (completed without
-review, most recent first, ≤ 20).
+review, most recent first, ≤ 20; jobs of deleted professionals left out).
 
 #### `GET /professional/dashboard` — professional → `ProfessionalDashboard`
 `nearbyOpenRequestsCount` (what the explorer shows without filters), `newRequests` (the 5 newest of
@@ -962,6 +1075,61 @@ those without an active offer of theirs), `pendingOffersCount` + `pendingOffers`
 | Review | `review_received` (professional) | `job.updated`, `profile.updated` |
 | Offer expiry cron | `offer_expired` (professional) | `offer.updated`, `request.updated` |
 | Reminder cron | `appointment_reminder` (both) | — |
+| Account deletion (`POST /me/deletion`) | customer deleted: `request_cancelled` (the professionals, `customerName: ''`); professional deleted: `offer_withdrawn` (`professionalName: ''`) and `job_cancelled` (the customer of each active job; `params { categoryId, scheduledAt }`, no name) | as for cancel / withdraw |
 
 `request.updated` always reaches the owner and every professional who ever sent an offer on the
 request. Notifications honour the recipients' preference toggles and fan out to push.
+
+## Legal
+
+The Terms of Use, the Privacy Policy and the account-deletion page (the "how to delete your account"
+page Google Play asks for), in English and Hebrew. Public: no `Authorization` needed. Source:
+`src/modules/legal` (texts in `content/`, the operator's details in `src/config/legal.ts`). How to
+publish a new version: [OPERATIONS.md §10](OPERATIONS.md#10-legal-documents).
+
+### `GET /legal/:document?lang=en|he` → `LegalDocumentResponse`
+
+`document` is `terms`, `privacy` or `account-deletion`; anything else → 404 `NOT_FOUND`. Without
+`lang`, `Accept-Language` decides (Hebrew when it prefers `he`, otherwise English); another `lang`
+value → 400 `fieldErrors.lang`.
+
+```json
+{ "document": "privacy", "version": "2026-09-30", "effectiveDate": "2026-09-30", "language": "en",
+  "title": "Privacy Policy", "intro": ["…"],
+  "sections": [{ "id": "who-we-are", "heading": "Who we are", "blocks": [
+    { "type": "paragraph", "text": "The Professionals app is operated by:" },
+    { "type": "list", "items": ["…"] },
+    { "type": "definitions", "items": [{ "term": "Email", "text": "[privacy@example.com](mailto:privacy@example.com)" }] }] }] }
+```
+
+- `version` and `effectiveDate` are `LEGAL_CONFIG.effectiveDate`: the version sign-up records
+  (`users.termsAcceptance.version`, password and Google sign-ups).
+- Section `id`s are stable and the same in both languages; the pages use them as anchors
+  (`/legal/privacy#your-rights`).
+- Texts carry two kinds of inline markup, nothing else: `**bold**` and `[label](url)`, where `url` is
+  `https://…`, `mailto:…` or one of the public pages below (`http://` in development). Titles,
+  headings and definition terms are plain text.
+- Placeholders are filled by the server: the operator's name, company number, address and contact
+  email; the effective date as a long date in the document's language ("30 September 2026",
+  "30 בספטמבר 2026"); the URLs of the public pages (built from `PUBLIC_API_URL`); the retention days
+  of logs and backups. In development, empty operator fields show as visible placeholders ("[operator
+  name — set in backend/src/config/legal.ts]", the address `operator-email-not-set@example.invalid`);
+  staging and production do not start without them.
+- `Cache-Control: public, max-age=300`, `Vary: Accept-Language`. 300 / min per user when signed in,
+  otherwise per IP.
+
+### Public pages: `GET /legal/terms`, `/legal/privacy`, `/legal/account-deletion` (outside `/v1`)
+
+The same texts as server-rendered HTML, for the app store listings, the Google OAuth consent screen
+and anyone without the app ([OPERATIONS.md §10](OPERATIONS.md#public-urls) lists where each URL goes).
+
+- Language: `?lang=he|en`, else `Accept-Language` (an unknown `lang` is ignored). `<html lang dir>`;
+  Hebrew pages are right-to-left.
+- A page has a link to the other language, links to the three documents (in the page's language), the
+  title, the effective date, the intro, a table of contents and the sections (`<section id="…">`).
+  Links go only to `https:` pages, `mailto:` addresses and the documents' pages; every text is escaped.
+- No scripts, images, cookies or outside resources: `Content-Security-Policy: default-src 'none';
+  style-src 'unsafe-inline'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'`.
+  `Cache-Control: public, max-age=300`, `Vary: Accept-Language`.
+- An unknown document → 404 (JSON error body). 300 / min per IP; over it, a 429 HTML page in the
+  browser's language (`Cache-Control: no-store`).

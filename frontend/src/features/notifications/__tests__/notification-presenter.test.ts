@@ -32,6 +32,7 @@ const INPUTS: Record<NotificationType, NotificationInput> = {
   job_started: { type: 'job_started', job, professionalName: 'Yossi Mizrahi' },
   appointment_reminder: { type: 'appointment_reminder', job, recipientRole: 'customer', counterpartName: 'Yossi Mizrahi' },
   job_completed: { type: 'job_completed', job, recipientRole: 'customer', counterpartName: 'Yossi Mizrahi' },
+  job_cancelled: { type: 'job_cancelled', job },
   review_received: {
     type: 'review_received',
     review: { id: 'rev_1', professionalId: 'pro_1', rating: 5, categoryId: 'plumbing', customerDisplayName: 'Noa Levi' },
@@ -113,6 +114,16 @@ describe('getNotificationContent', () => {
     const notification = buildNotification(professionalInput, { id: 'n', userId: 'u', now: '2026-09-27T07:00:00.000Z' });
     const content = getNotificationContent(notification, i18n.getFixedT('en', 'notifications'), lookups);
     expect(content.body).toBe(`The PLUMBING job for ${isolateText('Noa Levi')} is complete. Great work!`);
+  });
+
+  it('explains a job cancelled because the professional deleted their account', () => {
+    expect(contentFor('job_cancelled', 'en')).toEqual({
+      title: 'Job cancelled',
+      body: 'Your PLUMBING job on WED 10:00 was cancelled because the professional closed their account.',
+      icon: 'calendar-remove',
+      tone: 'danger',
+    });
+    expect(contentFor('job_cancelled', 'he').body).toBe('העבודה בנושא PLUMBING (WED 10:00) בוטלה כי החשבון של בעל המקצוע נסגר.');
   });
 
   it('pluralizes review stars (including the Hebrew dual)', () => {

@@ -54,6 +54,19 @@ export function useCategoryName(id: CategoryId | string | null | undefined): str
   return category ? pickLocalizedText(category.name, language) : '';
 }
 
+/** Another user as the API shows them (a summary, a chat participant). */
+interface PersonLike {
+  displayName: string;
+  /** They deleted their account (`displayName` is then the server's English placeholder). */
+  accountDeleted?: boolean;
+}
+
+/** The name to show for another user: "Deleted user" in the app's language once they deleted their account. */
+export function usePersonName(): (person: PersonLike) => string {
+  const { t } = useTranslation('common');
+  return (person) => (person.accountDeleted ? t('deletedUser') : person.displayName);
+}
+
 /** `utils/format` functions bound to the active language. */
 interface Formatters {
   number: (value: number, maximumFractionDigits?: number) => string;

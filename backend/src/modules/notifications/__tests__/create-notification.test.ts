@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestDeps } from '../../../../test/app.js';
-import { createCustomer, createOffer, createProfessional, createPushSession, createRequest, createSession } from '../../../../test/factories.js';
+import {
+  createCustomer,
+  createJob,
+  createOffer,
+  createProfessional,
+  createPushSession,
+  createRequest,
+  createSession,
+} from '../../../../test/factories.js';
 import { SessionModel } from '../../auth/session.model.js';
 import { withTransaction } from '../../../infra/mongo.js';
 import { newObjectId } from '../../../lib/ids.js';
@@ -66,6 +74,34 @@ describe('createNotification', () => {
     expect(deps.push.sent[0]).toMatchObject({ title: 'תוקף ההצעה פג', body: expect.stringContaining('אינסטלציה') });
   });
 
+  it('job_cancelled tells the customer why, in their language, under the job updates toggle', async () => {
+    const customer = await createCustomer();
+    const { professional } = await createProfessional();
+    const request = await createRequest(customer);
+    const job = await createJob(request, await createOffer(request, professional, { proposedStartAt: new Date('2026-10-03T07:00:00.000Z') }));
+    await createPushSession(customer);
+
+    const created = await createNotification(deps, customer._id, { type: 'job_cancelled', job });
+    await deps.background.drain();
+    expect(created).toMatchObject({
+      type: 'job_cancelled',
+      params: { categoryId: 'plumbing', scheduledAt: '2026-10-03T07:00:00.000Z' },
+      target: { kind: 'job', jobId: job._id.toHexString() },
+    });
+    expect(deps.push.sent[0]).toMatchObject({
+      title: 'Job cancelled',
+      body: expect.stringMatching(/^Your Plumbing job on .+ was cancelled because the professional closed their account\.$/),
+    });
+
+    await UserModel.updateOne({ _id: customer._id }, { $set: { language: 'he' } });
+    await createNotification(deps, customer._id, { type: 'job_cancelled', job });
+    await deps.background.drain();
+    expect(deps.push.sent[1]).toMatchObject({ title: 'העבודה בוטלה', body: expect.stringContaining('החשבון של בעל המקצוע נסגר') });
+
+    await UserModel.updateOne({ _id: customer._id }, { $set: { 'notificationPreferences.jobUpdates': false } });
+    expect(await createNotification(deps, customer._id, { type: 'job_cancelled', job })).toBeNull();
+  });
+
   it('stores nothing when the category toggle is off, and skips push when push is off', async () => {
     const { customer, input } = await offerReceivedFixture();
     await createPushSession(customer);
@@ -80,6 +116,16 @@ describe('createNotification', () => {
     await deps.background.drain();
     expect(deps.realtime.published).toHaveLength(1);
     expect(deps.push.sent).toEqual([]);
+  });
+
+  it('stores and sends nothing to a deleted account, whatever its preferences say', async () => {
+    const { customer, input } = await offerReceivedFixture();
+    await createPushSession(customer);
+    await UserModel.updateOne({ _id: customer._id }, { $set: { deletedAt: deps.clock.now() } });
+    expect(await createNotification(deps, customer._id, input)).toBeNull();
+    await deps.background.drain();
+    expect(await NotificationModel.countDocuments()).toBe(0);
+    expect([deps.realtime.published, deps.push.sent]).toEqual([[], []]);
   });
 
   it('keeps only the newest unread new_message notification per conversation', async () => {

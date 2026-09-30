@@ -4,7 +4,7 @@
  * the entry screen, email sign-in, the sign-up steps (validation per step, back navigation,
  * customer and professional), finishing a Google sign-up and the password reset.
  */
-import { cleanup, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
+import { act, cleanup, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
 
 import { emitMapMessage, getMapWebView } from '@/components/__test-utils__/map-bridge';
 import { pendingGoogleSignUpStore } from '@/features/auth/pending-google-sign-up';
@@ -55,6 +55,11 @@ async function renderApp(initialUrl: string) {
   return { getPathname: () => result.getPathname() };
 }
 
+function goBack() {
+  const { router } = require('expo-router') as typeof import('expo-router');
+  return act(async () => router.back());
+}
+
 const press = (testID: string) => fireEvent.press(screen.getByTestId(testID));
 const type = (testID: string, text: string) => fireEvent.changeText(screen.getByTestId(testID), text);
 const uniqueEmail = (name: string) => `${name}.${Math.random().toString(36).slice(2, 8)}@example.org`;
@@ -80,6 +85,9 @@ describe('entry screen', () => {
     expect(screen.queryByText(/demo/i)).toBeNull();
     expect(screen.queryByRole('tab')).toBeNull();
     expect(screen.queryByText(/google/i)).toBeNull();
+    // The legal documents are one tap away (links only: nothing is loaded here).
+    expect(screen.getByTestId('entry-legal-terms')).toHaveTextContent('Terms of Use');
+    expect(screen.getByTestId('entry-legal-privacy')).toHaveTextContent('Privacy Policy');
     // Signed out, the entry screen asks the backend for nothing but public data (no accounts list).
     expect(env.log.requests.filter((request) => request.path !== '/catalog/categories')).toEqual([]);
     expect(env.log.requests.every((request) => !request.headers.Authorization)).toBe(true);
@@ -176,6 +184,8 @@ describe('sign up', () => {
     await press('sign-up-continue');
     expect(await screen.findByTestId('sign-up-step-account', {}, TIMEOUT)).toBeOnTheScreen();
     expect(screen.getByTestId('sign-up-progress')).toHaveTextContent('Step 2 of 2');
+    // A customer's phone is for the account only.
+    expect(screen.getByText('Not shown to other users.')).toBeOnTheScreen();
 
     // Step 2: every field is checked before the account is created.
     await press('sign-up-continue');
@@ -186,7 +196,7 @@ describe('sign up', () => {
       'Enter a phone number',
       'Enter your password',
       'Enter your password again',
-      'Accept the Terms of Service and Privacy Policy to continue',
+      'Confirm that you’re 18 or older and accept the Terms of Use and the Privacy Policy to continue',
     ]) {
       expect(await screen.findByText(message)).toBeOnTheScreen();
     }
@@ -197,16 +207,25 @@ describe('sign up', () => {
     await type('sign-up-password', 'Password1');
     expect(await screen.findByText('This password is too easy to guess. Try a less common one')).toBeOnTheScreen();
 
-    // Both documents can be read before accepting them.
+    // The checkbox confirms the age too.
+    expect(screen.getByRole('checkbox', { name: 'I’m 18 or older and I agree to the Terms of Use and the Privacy Policy' })).toBeOnTheScreen();
+
+    // Both documents can be read before accepting them, on their own screen; the form keeps what
+    // was typed meanwhile.
+    await type('sign-up-first-name', 'Tamar');
     await press('sign-up-terms-terms');
-    const terms = await screen.findByTestId('legal-document-sheet', {}, TIMEOUT);
-    expect(within(terms).getByText('Terms of Service')).toBeOnTheScreen();
-    await press('legal-document-done');
-    await waitFor(() => expect(screen.queryByTestId('legal-document-sheet')).toBeNull(), TIMEOUT);
+    await waitFor(() => expect(app.getPathname()).toBe('/legal/terms'), TIMEOUT);
+    expect(await screen.findByTestId('legal-section-about-us', {}, TIMEOUT)).toBeOnTheScreen();
+    await goBack();
+    await waitFor(() => expect(app.getPathname()).toBe('/auth/sign-up'), TIMEOUT);
     await press('sign-up-terms-privacy');
-    expect(within(await screen.findByTestId('legal-document-sheet', {}, TIMEOUT)).getByText('Privacy Policy')).toBeOnTheScreen();
-    await press('legal-document-done');
-    await waitFor(() => expect(screen.queryByTestId('legal-document-sheet')).toBeNull(), TIMEOUT);
+    await waitFor(() => expect(app.getPathname()).toBe('/legal/privacy'), TIMEOUT);
+    expect(await screen.findByTestId('legal-section-your-rights', {}, TIMEOUT)).toBeOnTheScreen();
+    await goBack();
+    await waitFor(() => expect(app.getPathname()).toBe('/auth/sign-up'), TIMEOUT);
+    expect(screen.getByTestId('sign-up-step-account')).toBeOnTheScreen();
+    expect(screen.getByTestId('sign-up-first-name').props.value).toBe('Tamar');
+    expect(screen.getByTestId('sign-up-password').props.value).toBe('Password1');
 
     // The header back arrow returns to the previous step instead of leaving (opened directly, the
     // header offers "home" – the same guard applies).
@@ -253,6 +272,8 @@ describe('sign up', () => {
     // The role came with the link: the flow starts on the account step, counted as step 1 of 3.
     expect(await screen.findByTestId('sign-up-progress', {}, TIMEOUT)).toHaveTextContent('Step 1 of 3');
     expect(screen.getByTestId('sign-up-step-account')).toBeOnTheScreen();
+    // A professional's phone is their contact phone for the customers who hire them.
+    expect(screen.getByText('Shown to customers who hire you.')).toBeOnTheScreen();
     await fillCustomerAccount(uniqueEmail('yossi'));
     await press('sign-up-continue');
 
@@ -314,6 +335,16 @@ describe('Google sign-up', () => {
     await press('sign-up-continue');
     expect(await screen.findByText('Enter a phone number')).toBeOnTheScreen();
     await type('sign-up-phone', '0501112233');
+
+    // Reading a document keeps the Google identity and the form (the screen stays underneath).
+    await press('sign-up-terms-privacy');
+    await waitFor(() => expect(app.getPathname()).toBe('/legal/privacy'), TIMEOUT);
+    await screen.findByTestId('legal-document', {}, TIMEOUT);
+    await goBack();
+    expect(await screen.findByTestId('sign-up-google-identity', {}, TIMEOUT)).toHaveTextContent(/maya\.katz@gmail\.com/);
+    expect(screen.getByTestId('sign-up-phone').props.value).toBe('0501112233');
+    expect(pendingGoogleSignUpStore.get()?.profile.email).toBe('maya.katz@gmail.com');
+
     await press('sign-up-terms');
     await press('sign-up-continue');
     await waitFor(() => expect(app.getPathname()).toBe('/customer/home'), TIMEOUT);

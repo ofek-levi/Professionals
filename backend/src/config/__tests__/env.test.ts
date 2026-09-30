@@ -3,7 +3,7 @@ import { parseEnv as parseDotenv } from 'node:util';
 
 import { describe, expect, it } from 'vitest';
 
-import { EnvError, envWarnings, parseEnv } from '../env.js';
+import { assertLegalConfigured, EnvError, envWarnings, parseEnv } from '../env.js';
 
 /** `backend/.env.example`, read the way `--env-file` and `dotenv` read it. */
 const ENV_EXAMPLE = parseDotenv(readFileSync(new URL('../../../.env.example', import.meta.url), 'utf8'));
@@ -20,6 +20,7 @@ const STRONG_SECRET = 'q3N1v8Jx0bXo2kqk6H1ZrR6dF0w9Pj4sYt7uLm2cVb5nA8eGi3oKp6sTz
 const DEPLOYED = {
   ...BASE,
   JWT_ACCESS_SECRET: STRONG_SECRET,
+  LOCATION_PRIVACY_SECRET: 'Rk2pQ8vN4zT1wX6yB3cH9jL0mS5dF7gA2eU8iO4pK1nV6bZ3',
   TRUST_PROXY: '1',
   PUBLIC_API_URL: 'https://api.example.com/',
   GOOGLE_WEB_CLIENT_ID: 'web',
@@ -33,15 +34,23 @@ const DEPLOYED = {
   CORS_ORIGINS: 'https://app.example.com, https://admin.example.com',
 };
 
-function errorOf(source: Record<string, string>): EnvError {
+function envErrorOf(run: () => unknown): EnvError {
   try {
-    parseEnv(source);
+    run();
   } catch (error) {
     if (error instanceof EnvError) return error;
     throw error;
   }
-  throw new Error('expected parseEnv to throw');
+  throw new Error('expected an EnvError');
 }
+
+const errorOf = (source: Record<string, string>) => envErrorOf(() => parseEnv(source));
+
+const OPERATOR = {
+  name: { en: 'Example Services Ltd', he: 'דוגמה שירותים בע״מ' },
+  address: { en: '1 Example St, Tel Aviv', he: 'רחוב הדוגמה 1, תל אביב' },
+  email: 'privacy@example.com',
+};
 
 describe('parseEnv', () => {
   it('refuses a missing or unknown APP_ENV', () => {
@@ -120,6 +129,42 @@ describe('parseEnv', () => {
     expect(envWarnings(parseEnv({ ...BASE, APP_ENV: 'development', JWT_ACCESS_SECRET: placeholder }))).toContain(
       'JWT_ACCESS_SECRET is the example placeholder (refused in staging/production)',
     );
+  });
+
+  it('requires a real LOCATION_PRIVACY_SECRET when deployed; development falls back to a fixed key', () => {
+    const { LOCATION_PRIVACY_SECRET: _unset, ...withoutKey } = DEPLOYED;
+    expect(errorOf({ ...withoutKey, APP_ENV: 'production' }).issues).toEqual(['LOCATION_PRIVACY_SECRET is required when APP_ENV=production']);
+    const placeholder = 'change-me-to-another-long-random-secret-of-32-chars';
+    expect(errorOf({ ...DEPLOYED, APP_ENV: 'staging', LOCATION_PRIVACY_SECRET: placeholder }).issues).toEqual([
+      'LOCATION_PRIVACY_SECRET is a placeholder: generate one with `openssl rand -base64 48`',
+    ]);
+    expect(errorOf({ ...BASE, APP_ENV: 'development', LOCATION_PRIVACY_SECRET: 'short' }).issues.join()).toContain(
+      'LOCATION_PRIVACY_SECRET must be at least 32 characters',
+    );
+    expect(parseEnv({ ...DEPLOYED, APP_ENV: 'production' }).locationPrivacySecret).toBe(DEPLOYED.LOCATION_PRIVACY_SECRET);
+    expect(parseEnv({ ...BASE, APP_ENV: 'development' }).locationPrivacySecret.length).toBeGreaterThanOrEqual(32);
+    expect(envWarnings(parseEnv({ ...BASE, APP_ENV: 'development', LOCATION_PRIVACY_SECRET: placeholder }))).toContain(
+      'LOCATION_PRIVACY_SECRET is the example placeholder (refused in staging/production)',
+    );
+  });
+
+  it('refuses a deployed start until the operator details of the legal documents are filled in', () => {
+    const empty = { name: { en: '', he: '' }, address: { en: '', he: '' }, email: '' };
+    // Development renders placeholders instead.
+    assertLegalConfigured({ appEnv: 'development' }, empty);
+    for (const appEnv of ['staging', 'production'] as const) {
+      const error = envErrorOf(() => assertLegalConfigured({ appEnv }, empty));
+      expect(error.message).toContain('The legal documents are not configured');
+      expect(error.issues).toEqual([
+        `backend/src/config/legal.ts: fill in operator.name.en, operator.name.he, operator.address.en, operator.address.he, operator.email (the Terms of Use and the Privacy Policy name the operator; required when APP_ENV=${appEnv})`,
+      ]);
+    }
+    assertLegalConfigured({ appEnv: 'production' }, OPERATOR);
+    const partial = { ...OPERATOR, name: { en: 'Example Services Ltd', he: '  ' }, email: 'privacy at example.com' };
+    expect(envErrorOf(() => assertLegalConfigured({ appEnv: 'staging' }, partial)).issues).toEqual([
+      'backend/src/config/legal.ts: fill in operator.name.he (the Terms of Use and the Privacy Policy name the operator; required when APP_ENV=staging)',
+      'backend/src/config/legal.ts: operator.email is not an email address: privacy at example.com',
+    ]);
   });
 
   it('scopes token issuer and audience to the environment by default', () => {

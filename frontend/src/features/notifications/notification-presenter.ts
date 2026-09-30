@@ -110,6 +110,8 @@ export function getNotificationContent(
           ? t('types.job_completed.bodyForCustomer', { category, name: professionalName })
           : t('types.job_completed.bodyForProfessional', { category, name: customerName }),
       );
+    case 'job_cancelled':
+      return content(t('types.job_cancelled.title'), t('types.job_cancelled.body', { category, date }));
     case 'review_received':
       return content(
         t('types.review_received.title', { count: params.rating ?? 0 }),

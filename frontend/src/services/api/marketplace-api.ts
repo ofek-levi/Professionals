@@ -6,6 +6,7 @@ import { createCustomersApi } from './endpoints/customers';
 import { createDashboardApi } from './endpoints/dashboard';
 import { createGeoApi } from './endpoints/geo';
 import { createJobsApi } from './endpoints/jobs';
+import { createLegalApi } from './endpoints/legal';
 import { createNotificationsApi } from './endpoints/notifications';
 import { createOffersApi } from './endpoints/offers';
 import { createProfessionalsApi } from './endpoints/professionals';
@@ -27,6 +28,7 @@ export function createMarketplaceApi(client: ApiClient) {
     notifications: createNotificationsApi(client),
     conversations: createConversationsApi(client),
     geo: createGeoApi(client),
+    legal: createLegalApi(client),
   };
 }
 

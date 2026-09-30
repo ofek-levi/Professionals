@@ -46,7 +46,7 @@ export default function RootLayout() {
 /**
  * Every route of the app. Signed-in routes are protected: signing out removes them from the stack
  * and the entry route (`/`) redirects to the sign-in screen (and back to the role home after
- * signing in).
+ * signing in). The legal documents are open in both states.
  */
 function RootStack() {
   const theme = useTheme();
@@ -65,6 +65,8 @@ function RootStack() {
         }
       >
         <Stack.Screen name="index" options={{ headerShown: false, title: t('appName') }} />
+        {/* Outside both guards: signed out (entry screen, sign-up) and signed in (Settings), and by URL on the web. */}
+        <Stack.Screen name="legal/[document]" options={{ title: t('screens.legal') }} />
 
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" options={{ headerShown: false, title: t('screens.signIn') }} />
@@ -87,6 +89,7 @@ function RootStack() {
           <Stack.Screen name="conversations/[conversationId]" options={{ title: t('screens.conversation') }} />
           <Stack.Screen name="profile/edit" options={{ title: t('screens.editProfile') }} />
           <Stack.Screen name="settings" options={{ title: t('screens.settings') }} />
+          <Stack.Screen name="settings/delete-account" options={{ title: t('screens.deleteAccount') }} />
         </Stack.Protected>
 
         <Stack.Screen name="+not-found" options={{ title: t('screens.notFound') }} />

@@ -3,11 +3,12 @@ import { useTranslation } from 'react-i18next';
 
 import { useConfirm, useErrorToast, useToast } from '@/components/ui';
 import { useCompleteJob, useConfirmJob, useStartJob } from '@/hooks';
+import { usePersonName } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import type { JobDetails, UserRole } from '@/types/domain';
 import { isolateText } from '@/utils/bidi';
 
-import { getCounterpartName } from './job-cards';
+import { getCounterpart } from './job-cards';
 import type { JobActionKey } from './job-view-model';
 
 interface JobActionRunner {
@@ -29,7 +30,8 @@ export function useJobActionRunner(job: JobDetails, role: UserRole): JobActionRu
   const confirmJob = useConfirmJob();
   const startJob = useStartJob();
   const completeJob = useCompleteJob();
-  const name = isolateText(getCounterpartName(job, role));
+  const personName = usePersonName();
+  const name = isolateText(personName(getCounterpart(job, role)));
 
   const pending: JobActionKey | null = confirmJob.isPending
     ? 'confirm'

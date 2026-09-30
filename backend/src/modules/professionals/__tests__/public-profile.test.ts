@@ -25,6 +25,9 @@ describe('GET /v1/professionals/:id', () => {
 
     expect(res.body).toMatchObject({ id: professional._id.toHexString(), avatarUrl: 'https://img.test/a.jpg', contact: null });
     expect(res.body).not.toHaveProperty('notificationPreferences');
+    // The personal name stays private (customers see the display name); the license number is shown.
+    expect(res.body).not.toHaveProperty('fullName');
+    expect(res.body.business).toHaveProperty('licenseNumber');
     expect(res.body.baseLocation).toMatchObject({ addressLine: '', details: null, isApproximate: true, city: 'Tel Aviv-Yafo' });
     const shift = haversineDistanceKm({ latitude: 32.0853, longitude: 34.7818 }, res.body.serviceArea.center);
     expect(shift).toBeGreaterThan(0.2);
@@ -35,15 +38,23 @@ describe('GET /v1/professionals/:id', () => {
     expect(asPro.body).toEqual(res.body);
   });
 
-  it('shows the contact to customers who hired the professional', async () => {
+  it('shows the contact to customers who hired the professional, not after a cancellation', async () => {
     const { professional } = await createProfessional();
-    const customer = await signInCustomer(deps);
-    const req = await createRequest(customer.user);
-    await createJob(req, await createOffer(req, professional), { status: 'cancelled' });
+    const profileOf = async (headers: Record<string, string>) =>
+      (await request(app).get(`/v1/professionals/${professional._id.toHexString()}`).set(headers).expect(200)).body;
+    const cancelled = await signInCustomer(deps);
+    const cancelledRequest = await createRequest(cancelled.user);
+    await createJob(cancelledRequest, await createOffer(cancelledRequest, professional), { status: 'cancelled' });
+    expect((await profileOf(cancelled.headers)).contact).toBeNull();
 
-    const res = await request(app).get(`/v1/professionals/${professional._id.toHexString()}`).set(customer.headers).expect(200);
-    expect(res.body.contact).toEqual(professional.contact);
-    expect(res.body.baseLocation.isApproximate).toBe(true);
+    for (const status of ['awaiting_confirmation', 'scheduled', 'in_progress', 'completed'] as const) {
+      const customer = await signInCustomer(deps);
+      const req = await createRequest(customer.user);
+      await createJob(req, await createOffer(req, professional), { status });
+      const profile = await profileOf(customer.headers);
+      expect(profile.contact).toEqual(professional.contact);
+      expect(profile.baseLocation.isApproximate).toBe(true);
+    }
     // The shared cache never holds the contact.
     const cached = await deps.cache.get<{ contact: unknown }>(`professional:public:${professional._id.toHexString()}`);
     expect(cached?.contact).toBeNull();

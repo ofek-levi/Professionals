@@ -64,7 +64,7 @@ function request(id: string, categoryId: CategoryId, urgency: UrgencyLevel, lati
     createdAt: at,
     updatedAt: at,
     distanceKm: 2.5,
-    customer: { id: 'customer-1', displayName: 'Dana', avatarUrl: null, city: null, memberSince: at, completedJobsCount: 0 },
+    customer: { id: 'customer-1', displayName: 'Dana', avatarUrl: null, memberSince: at, completedJobsCount: 0 },
     myOffer: null,
     isMatch: true,
   };

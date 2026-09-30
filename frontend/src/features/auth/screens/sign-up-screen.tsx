@@ -2,7 +2,7 @@
  * `/auth/sign-up?role=customer|professional` – create an account, one step per screen with a slim
  * progress bar and a sticky primary button:
  * 1. role ("I need a service" / "I offer services"),
- * 2. account (name, email, phone, password + confirmation, terms; or "Continue with Google"),
+ * 2. account (name, email, phone, password + confirmation, age and terms; or "Continue with Google"),
  * 3. services (professionals: optional business name + 1–10 catalog services),
  * 4. service area (professionals: base address + radius).
  * Customers finish after step 2. A role in the link skips step 1 (the flow starts on the account
@@ -15,7 +15,7 @@
  * and drops the password fields; it is kept in memory only (`usePendingGoogleSignUp`).
  */
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useRouter, type Href } from 'expo-router';
+import { useIsFocused, useRouter, type Href } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch, type FieldErrors } from 'react-hook-form';
@@ -138,14 +138,16 @@ export default function SignUpScreen() {
 
   // Header back, gestures and hardware back return to the previous step; the first step leaves.
   // On web the browser's back button does the same. Never while submitting or leaving: then the
-  // navigation is the screen's own.
+  // navigation is the screen's own. Nor while a legal document is open on top of the form: the
+  // browser's back closes the document (the form keeps its values underneath).
+  const focused = useIsFocused();
   const canStepBack = index > firstIndex && !busy && exitTo === null;
   const stepBack = () => {
     setStepIndex(Math.max(firstIndex, index - 1));
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   };
   usePreventRemove(canStepBack, stepBack);
-  useBrowserBack(canStepBack, stepBack);
+  useBrowserBack(canStepBack && focused, stepBack);
 
   // Leave only once the step guard above was lifted.
   useEffect(() => {

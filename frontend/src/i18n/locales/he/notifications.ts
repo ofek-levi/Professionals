@@ -86,6 +86,10 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
       bodyForCustomer: 'העבודה בנושא {{category}} עם {{name}} הושלמה. איך היה? נשמח לביקורת שלכם.',
       bodyForProfessional: 'העבודה בנושא {{category}} עבור {{name}} הושלמה. עבודה מצוינת!',
     },
+    job_cancelled: {
+      title: 'העבודה בוטלה',
+      body: 'העבודה בנושא {{category}} ({{date}}) בוטלה כי החשבון של בעל המקצוע נסגר.',
+    },
     review_received: {
       title_one: 'ביקורת חדשה: כוכב אחד',
       title_two: 'ביקורת חדשה: שני כוכבים',

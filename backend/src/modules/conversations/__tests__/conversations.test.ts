@@ -55,8 +55,14 @@ describe('GET /v1/conversations', () => {
       jobId: older.job._id.toHexString(),
       requestId: older.job.request.toHexString(),
       participants: [
-        { userId: older.customer.user._id.toHexString(), role: 'customer', displayName: 'Noa Levi', avatarUrl: 'https://images.test/noa.jpg' },
-        { userId: older.pro.user._id.toHexString(), role: 'professional', displayName: 'Avi Fix', avatarUrl: null },
+        {
+          userId: older.customer.user._id.toHexString(),
+          role: 'customer',
+          displayName: 'Noa Levi',
+          avatarUrl: 'https://images.test/noa.jpg',
+          accountDeleted: false,
+        },
+        { userId: older.pro.user._id.toHexString(), role: 'professional', displayName: 'Avi Fix', avatarUrl: null, accountDeleted: false },
       ],
       lastMessage: {
         id: sent.id,

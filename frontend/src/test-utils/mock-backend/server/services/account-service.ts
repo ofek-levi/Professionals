@@ -65,15 +65,18 @@ function emailTaken(): DomainError {
 // ────────────────────────────── Google ──────────────────────────────
 
 /**
- * Verifies a Google id token. Test tokens (`mock-google.…`) are decoded; a real Google JWT is
- * accepted after checking issuer, audience (the app's configured client ids), expiry and
- * `email_verified` – but NOT its signature (mock only; a real backend verifies it with Google's
- * public keys).
+ * The claims of a Google id token, `null` when it is not valid. Test tokens (`mock-google.…`) are
+ * decoded; a real Google JWT is accepted after checking issuer, audience (the app's configured
+ * client ids), expiry and `email_verified` – but NOT its signature (mock only; a real backend
+ * verifies it with Google's public keys).
  */
+export function googleClaimsOf(ctx: ServerContext, idToken: string): GoogleIdTokenClaims | null {
+  return isMockGoogleIdToken(idToken) ? parseMockGoogleIdToken(idToken) : decodeUnverifiedGoogleJwt(idToken, ctx.now(), googleAudiences());
+}
+
+/** Sign-in and sign-up: an invalid token is 401 `INVALID_GOOGLE_TOKEN`. */
 function verifyGoogleIdToken(ctx: ServerContext, idToken: string): GoogleIdTokenClaims {
-  const claims = isMockGoogleIdToken(idToken)
-    ? parseMockGoogleIdToken(idToken)
-    : decodeUnverifiedGoogleJwt(idToken, ctx.now(), googleAudiences());
+  const claims = googleClaimsOf(ctx, idToken);
   if (!claims) throw DomainError.invalidGoogleToken();
   return claims;
 }

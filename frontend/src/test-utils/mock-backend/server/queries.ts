@@ -1,4 +1,5 @@
 /** Read helpers over the mock database (no side effects). */
+import { DomainError } from '@/features/shared/domain-error';
 import { isOfferActive } from '@/features/offers/offer-status-machine';
 import type { Message, Offer, OwnProfessionalProfile, Review, ServiceRequest } from '@/types/domain';
 import { compareIds } from '@/utils/id';
@@ -16,6 +17,13 @@ export const requireConversation = (db: MockDatabase, id: string): StoredConvers
 export const requireProfessional = (db: MockDatabase, id: string): OwnProfessionalProfile =>
   db.professionals.require(id, 'Professional');
 export const requireStoredUser = (db: MockDatabase, id: string): StoredUser => db.users.require(id, 'User');
+
+/** A professional whose account still exists: a deleted one's profile and reviews answer 404. */
+export function requireLiveProfessional(db: MockDatabase, id: string): OwnProfessionalProfile {
+  const professional = requireProfessional(db, id);
+  if (isAccountDeleted(db, professional.userId)) throw DomainError.notFound('Professional', id);
+  return professional;
+}
 
 export function findProfessionalByUserId(db: MockDatabase, userId: string): OwnProfessionalProfile | undefined {
   return db.professionals.find((profile) => profile.userId === userId);
@@ -63,6 +71,14 @@ export function messagesForConversation(db: MockDatabase, conversationId: string
 /** User id of the professional behind a profile id. */
 export function professionalUserId(db: MockDatabase, professionalId: string): string {
   return requireProfessional(db, professionalId).userId;
+}
+
+/** The name other users get for a deleted account (with `accountDeleted: true`; the app translates it). */
+export const DELETED_USER_NAME = 'Deleted user';
+
+/** Whether the account behind `userId` was deleted (a tombstone). */
+export function isAccountDeleted(db: MockDatabase, userId: string): boolean {
+  return Boolean(db.users.get(userId)?.deletedAt);
 }
 
 /** Privacy-friendly customer name shown to professionals, e.g. "Noa L.". */

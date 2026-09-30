@@ -8,6 +8,8 @@
  *   the server logout, queued until the server confirms it (`pendingLogouts`).
  * - `establishSession()` is the single sign-in path: the email / Google auth mutations
  *   (`hooks/mutations/use-auth-mutations.ts`) all go through it.
+ * - `deleteAccountAndSignOut()` deletes the account (`POST /me/deletion`) and signs out on this
+ *   device only: the server already ended every session.
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
@@ -18,7 +20,7 @@ import { api } from '@/services/api';
 import { createPendingLogouts } from '@/services/auth/pending-logouts';
 import { sessionStore, type SessionState } from '@/services/auth/session-store';
 import { realtimeClient } from '@/services/realtime';
-import type { AuthSession } from '@/types/api';
+import type { AuthSession, DeleteAccountRequest } from '@/types/api';
 
 import { startPendingLogoutRetries } from './pending-logout-retries';
 import { startSessionLifecycle } from './session-lifecycle';
@@ -57,6 +59,23 @@ export async function establishSession(session: AuthSession): Promise<void> {
   await sessionStore.signIn(session);
   const language = i18n.language;
   if (isSupportedLanguage(language)) void syncAccountLanguage(language, session.user.preferredLanguage);
+}
+
+/**
+ * `POST /me/deletion`, then signs out here without a server logout: the deletion ended every
+ * session of the account. Realtime is closed first, as for a sign-out (the server closes the
+ * account's sockets with 4001, which the realtime client would answer with a refresh that fails
+ * and reports "You've been signed out"), and reconnected when the deletion was refused.
+ */
+export async function deleteAccountAndSignOut(proof: DeleteAccountRequest): Promise<void> {
+  realtimeClient.disconnect();
+  try {
+    await api.users.deleteAccount(proof);
+  } catch (error) {
+    if (sessionStore.getState().status === 'signedIn') realtimeClient.connect();
+    throw error;
+  }
+  await sessionStore.signOut();
 }
 
 const authActions: AuthActions = {

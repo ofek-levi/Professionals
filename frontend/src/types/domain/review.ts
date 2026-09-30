@@ -15,6 +15,8 @@ export interface Review {
   /** Display info of the reviewer, denormalized by the backend. */
   customerDisplayName: string;
   customerAvatarUrl: string | null;
+  /** The reviewer deleted their account: show "Deleted user" (the comment was removed). */
+  customerAccountDeleted?: boolean;
   createdAt: ISODateTimeString;
 }
 

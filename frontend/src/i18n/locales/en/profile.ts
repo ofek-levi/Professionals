@@ -7,7 +7,8 @@ export const profile = {
     reviews: 'Reviews',
     areaAndHours: 'Area & hours',
     serves: 'Serves {{area}} · within {{radius}}',
-    licensed: 'Licensed',
+    /** The license number is self-declared by the professional (not verified). */
+    licensed: 'Licensed · No. {{number}}',
     insured: 'Insured',
     dayRange: '{{first}}–{{last}}',
     hours: '{{start}}–{{end}}',
@@ -19,7 +20,7 @@ export const profile = {
     firstName: 'First name',
     lastName: 'Last name',
     phone: 'Phone',
-    phoneHelper: 'Shared only with the pro you hire.',
+    phoneHelper: 'Not shown to other users.',
     address: 'Default address',
     addAddress: 'Add an address',
     clearAddress: 'Remove address',

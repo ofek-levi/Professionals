@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { AppText, Avatar, Card, Icon, PriceText, RatingStars, Skeleton } from '@/components/ui';
-import { useCategoryName, useFormatters } from '@/i18n/hooks';
+import { useCategoryName, useFormatters, usePersonName } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import type { JobDetails, UserRole } from '@/types/domain';
 import { isolateText } from '@/utils/bidi';
@@ -12,9 +12,12 @@ import { addMinutes } from '@/utils/dates';
 
 import { getJobTimeline, type JobTimelineStep } from './job-view-model';
 
-/** Name of the other party of the job, from the viewer's perspective. */
-export function getCounterpartName(job: Pick<JobDetails, 'professional' | 'customer'>, role: UserRole): string {
-  return role === 'customer' ? job.professional.displayName : job.customer.displayName;
+/** The other party of the job, from the viewer's perspective (name it with `usePersonName`). */
+export function getCounterpart(
+  job: Pick<JobDetails, 'professional' | 'customer'>,
+  role: UserRole,
+): JobDetails['professional'] | JobDetails['customer'] {
+  return role === 'customer' ? job.professional : job.customer;
 }
 
 // ─────────────────────────────── Status ───────────────────────────────
@@ -24,8 +27,9 @@ export function JobStatusHeader({ job, role }: { job: JobDetails; role: UserRole
   const styles = useStyles();
   const { t } = useTranslation(['jobs', 'common']);
   const format = useFormatters();
+  const personName = usePersonName();
   const categoryName = useCategoryName(job.categoryId) || t('common:category.unknown');
-  const name = isolateText(getCounterpartName(job, role));
+  const name = isolateText(personName(getCounterpart(job, role)));
   const headlineDate =
     job.status === 'completed'
       ? format.date(job.completedAt ?? job.updatedAt, 'dayMonth')
@@ -125,22 +129,27 @@ export function JobInfoCard({ job }: { job: JobDetails }) {
   );
 }
 
-/** The other party: avatar and name (+ the rating of a professional; the address is in the card below). */
+/**
+ * The other party: avatar and name (+ the rating of a professional; the address is in the card
+ * below). `onPress` opens their profile; someone who deleted their account has none.
+ */
 export function CounterpartRow({ job, role, onPress }: { job: JobDetails; role: UserRole; onPress?: () => void }) {
   const styles = useStyles();
   const { t } = useTranslation(['jobs', 'common']);
-  const person = role === 'customer' ? job.professional : job.customer;
+  const personName = usePersonName();
+  const person = getCounterpart(job, role);
+  const name = personName(person);
   const label = role === 'customer' ? t('jobs:details.counterpart.professional') : t('jobs:details.counterpart.customer');
 
   const content = (
     <>
-      <Avatar name={person.displayName} uri={person.avatarUrl} size="md" decorative />
+      <Avatar name={name} uri={person.avatarUrl} size="md" decorative />
       <View style={styles.flex}>
         <AppText variant="caption" color="muted">
           {label}
         </AppText>
         <AppText variant="bodyStrong" numberOfLines={1}>
-          {person.displayName}
+          {name}
         </AppText>
       </View>
       {role === 'customer' ? (
@@ -161,7 +170,7 @@ export function CounterpartRow({ job, role, onPress }: { job: JobDetails; role: 
     <Card
       padding="none"
       onPress={onPress}
-      accessibilityLabel={`${label}, ${person.displayName}`}
+      accessibilityLabel={`${label}, ${name}`}
       style={[styles.card, styles.counterpart]}
       testID="job-counterpart"
     >

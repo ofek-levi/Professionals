@@ -27,6 +27,7 @@ describe('shared views', () => {
 
     const stranger = toPublicProfessionalProfile(professional, user, { isOwner: false, hiredByViewer: false });
     expect(stranger).not.toHaveProperty('notificationPreferences');
+    expect(stranger).not.toHaveProperty('fullName');
     expect(stranger.contact).toBeNull();
     expect(stranger.baseLocation).toMatchObject({ addressLine: '', details: null, isApproximate: true, city: 'Tel Aviv-Yafo' });
     const shift = haversineDistanceKm(own.serviceArea.center, stranger.serviceArea.center);
@@ -39,6 +40,7 @@ describe('shared views', () => {
     const self = toPublicProfessionalProfile(professional, user, { isOwner: true, hiredByViewer: false });
     expect(self.baseLocation?.isApproximate).toBe(false);
     expect(self).not.toHaveProperty('notificationPreferences');
+    expect(self).not.toHaveProperty('fullName');
   });
 
   it('batch loaders resolve summaries and display names for a page at once', async () => {
@@ -52,7 +54,9 @@ describe('shared views', () => {
     expect(professionals.get(professional._id.toHexString())).toMatchObject({ displayName: 'Avi Plumbing', city: 'Tel Aviv-Yafo', averageRating: null });
 
     const customers = await loadCustomerSummaries([customer._id]);
-    expect(customers.get(customer._id.toHexString())).toMatchObject({ displayName: 'Noa L.', city: 'Tel Aviv-Yafo', completedJobsCount: 1 });
+    expect(customers.get(customer._id.toHexString())).toMatchObject({ displayName: 'Noa L.', completedJobsCount: 1 });
+    // Not the customer's home city: professionals see the request's own location.
+    expect(customers.get(customer._id.toHexString())).not.toHaveProperty('city');
 
     const displays = await loadUserDisplays([customer._id, proUser._id]);
     expect(displays.get(customer._id.toHexString())).toMatchObject({ role: 'customer', displayName: 'Noa Levi', shortName: 'Noa L.' });

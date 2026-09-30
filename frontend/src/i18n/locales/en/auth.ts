@@ -87,9 +87,11 @@ export const auth = {
       signInInstead: 'Sign in with this email',
       emailFromGoogle: 'From your Google account',
       phonePlaceholder: '050-123-4567',
-      phoneHelper: 'Shared only with the people you work with.',
+      /** The customer's phone is for their account only; a professional's is their contact phone. */
+      phoneHelperCustomer: 'Not shown to other users.',
+      phoneHelperProfessional: 'Shown to customers who hire you.',
       passwordHelper: 'At least 8 characters, with a letter and a number',
-      terms: 'I agree to the Terms of Service and Privacy Policy',
+      terms: 'I’m 18 or older and I agree to the Terms of Use and the Privacy Policy',
     },
     services: {
       title: 'What services do you offer?',
@@ -107,58 +109,5 @@ export const auth = {
     continue: 'Continue with Google',
     promptFailedTitle: 'Google sign-in didn’t open',
     promptFailedMessage: 'Check your connection and that pop-ups are allowed, then try again.',
-  },
-  legal: {
-    openHint: 'Opens the document',
-    terms: {
-      title: 'Terms of Service',
-      sections: {
-        marketplace: {
-          title: 'The marketplace',
-          text: 'Professionals connects people who need a service with independent professionals. The agreement for a job is between the customer and the professional; we are not a party to it.',
-        },
-        customers: {
-          title: 'Customers',
-          text: 'Describe the job and its location accurately, and pay the professional you hire as agreed with them.',
-        },
-        professionals: {
-          title: 'Professionals',
-          text: 'Offer only services you are qualified (and, where required, licensed) to provide, and stand behind the offers you send.',
-        },
-        conduct: {
-          title: 'Respect',
-          text: 'Be courteous in messages. Reviews must describe a real job. We may remove content or suspend accounts that break these rules.',
-        },
-        account: {
-          title: 'Your account',
-          text: 'Keep your sign-in details to yourself; you are responsible for what happens in your account. You can close it at any time.',
-        },
-      },
-    },
-    privacy: {
-      title: 'Privacy Policy',
-      sections: {
-        collected: {
-          title: 'What we collect',
-          text: 'Your name, email and phone; for jobs, the address and a description of the work; for professionals, their services and base address.',
-        },
-        locations: {
-          title: 'Locations',
-          text: 'Professionals see only the approximate area of a request until the customer hires them. Customers never see a professional’s exact base address.',
-        },
-        contact: {
-          title: 'Contact details',
-          text: 'Your phone and email are shared only with the people you work with.',
-        },
-        use: {
-          title: 'How we use it',
-          text: 'To match requests with professionals, send notifications and keep the marketplace safe. We don’t sell your data.',
-        },
-        control: {
-          title: 'Your choices',
-          text: 'You can update your details in your profile and ask us to delete your account and data at any time.',
-        },
-      },
-    },
   },
 } as const;

@@ -15,6 +15,13 @@ export interface AvatarDoc {
   publicId: string | null;
 }
 
+/** The Terms of Use and Privacy Policy the user accepted at sign-up. */
+export interface TermsAcceptanceDoc {
+  /** `LEGAL_CONFIG.effectiveDate` of the accepted versions. */
+  version: string;
+  acceptedAt: Date;
+}
+
 export interface UserDoc {
   _id: Types.ObjectId;
   /** Lower-cased sign-in email. */
@@ -34,6 +41,14 @@ export interface UserDoc {
   notificationPreferences: NotificationPreferences;
   /** Customers only: the default service address. */
   defaultLocation: LocationDoc | null;
+  /** Set at sign-up (password or Google); absent on accounts created before it was recorded. */
+  termsAcceptance?: TermsAcceptanceDoc;
+  /**
+   * The account was deleted (`account-deletion.service.ts`): the document stays as a tombstone
+   * (id, role, language, dates) so the other parties' jobs, chats and reviews keep resolving it;
+   * everything personal is gone and the email is a placeholder (the real one can sign up again).
+   */
+  deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -77,6 +92,10 @@ const userSchema = new Schema<UserDoc>(
       default: () => ({ ...DEFAULT_NOTIFICATION_PREFERENCES }),
     },
     defaultLocation: { type: locationSchema, default: null },
+    termsAcceptance: {
+      type: new Schema<TermsAcceptanceDoc>({ version: { type: String, required: true }, acceptedAt: { type: Date, required: true } }, { _id: false }),
+    },
+    deletedAt: { type: Date },
   },
   // createdAt = `User.createdAt` / `memberSince`; updatedAt = `CustomerProfile.updatedAt`.
   { timestamps: modelTimestamps(), versionKey: false },
@@ -90,3 +109,9 @@ userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ googleSub: 1 }, { unique: true, partialFilterExpression: { googleSub: { $exists: true } }, name: 'googleSub' });
 
 export const UserModel = model<UserDoc>('User', userSchema);
+
+/**
+ * Filter of accounts that were not deleted, on `users` and on `professionals` (same ids, both mark
+ * `deletedAt`). A deleted account's access tokens outlive it by minutes.
+ */
+export const NOT_DELETED = { deletedAt: { $exists: false } } as const;

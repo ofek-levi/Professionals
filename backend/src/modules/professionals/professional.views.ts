@@ -1,8 +1,8 @@
 /**
  * Professional DTO mappers shared by several modules (summaries in offers/jobs/search, profiles in
  * `/me` and `/professional(s)/*`). Privacy (`views.ts` of the mock backend): public views get an
- * approximate base location and service-area center, and the contact only when the viewer hired
- * the professional; the own profile is complete.
+ * approximate base location and service-area center, no personal name (customers see the display
+ * name), and the contact only when the viewer hired the professional; the own profile is complete.
  */
 import type { Types } from 'mongoose';
 
@@ -24,7 +24,7 @@ type ProfileUser = Pick<UserDoc, '_id' | 'firstName' | 'lastName' | 'avatar' | '
 type SummaryUser = Pick<UserDoc, '_id' | 'avatar'>;
 type SummaryProfessional = Pick<
   ProfessionalDoc,
-  '_id' | 'displayName' | 'headline' | 'categoryIds' | 'yearsOfExperience' | 'stats' | 'isVerified' | 'baseLocation' | 'serviceArea'
+  '_id' | 'displayName' | 'headline' | 'categoryIds' | 'yearsOfExperience' | 'stats' | 'isVerified' | 'baseLocation' | 'serviceArea' | 'deletedAt'
 >;
 
 export const PROFESSIONAL_SUMMARY_PROJECTION = {
@@ -36,6 +36,7 @@ export const PROFESSIONAL_SUMMARY_PROJECTION = {
   isVerified: 1,
   'baseLocation.city': 1,
   'serviceArea.label': 1,
+  deletedAt: 1,
 } as const;
 
 function professionalCity(pro: Pick<ProfessionalDoc, 'baseLocation' | 'serviceArea'>): string {
@@ -55,6 +56,8 @@ export function toProfessionalSummary(pro: SummaryProfessional, user: SummaryUse
     completedJobsCount: pro.stats.completedJobsCount,
     isVerified: pro.isVerified,
     city: professionalCity(pro),
+    // The tombstone's display name is already `DELETED_USER_NAME`.
+    accountDeleted: Boolean(pro.deletedAt),
   };
 }
 
@@ -108,15 +111,16 @@ export function toOwnProfessionalProfile(pro: ProfessionalDoc, user: ProfileUser
 }
 
 /**
- * Public profile as a viewer sees it. `isOwner`: the professional themself (exact data, no
- * notification settings); `hiredByViewer`: the viewer is a customer with a job with them.
+ * Public profile as a viewer sees it (never the personal name nor the notification settings).
+ * `isOwner`: the professional themself (exact data); `hiredByViewer`: the viewer is a customer who
+ * hired them (`public-profile.service.ts`).
  */
 export function toPublicProfessionalProfile(
   pro: ProfessionalDoc,
   user: ProfileUser,
   viewer: { isOwner: boolean; hiredByViewer: boolean },
 ): ProfessionalProfile {
-  const { notificationPreferences: _preferences, ...profile } = baseProfile(pro, user);
+  const { notificationPreferences: _preferences, fullName: _fullName, ...profile } = baseProfile(pro, user);
   if (viewer.isOwner) return profile;
   const seed = pro._id.toHexString();
   return {

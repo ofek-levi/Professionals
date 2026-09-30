@@ -47,6 +47,7 @@ export type NotificationInput =
   | { type: 'request_cancelled'; request: RequestRef; customerName: string }
   | { type: 'job_confirmed' | 'job_started'; job: JobRef; professionalName: string }
   | { type: 'appointment_reminder' | 'job_completed'; job: JobRef; recipientRole: UserRole; counterpartName: string }
+  | { type: 'job_cancelled'; job: JobRef }
   | { type: 'review_received'; review: ReviewRef }
   | {
       type: 'new_message';
@@ -147,6 +148,12 @@ function content(input: NotificationInput): { params: NotificationParams; target
           currency: input.job.currency,
           ...counterpart(input.recipientRole, input.counterpartName),
         },
+        target: jobTarget(input.job),
+      };
+    case 'job_cancelled':
+      // No name: the professional deleted their account.
+      return {
+        params: { categoryId: input.job.categoryId, scheduledAt: input.job.scheduledStartAt.toISOString() },
         target: jobTarget(input.job),
       };
     case 'review_received':

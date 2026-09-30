@@ -1,5 +1,5 @@
 /**
- * Account mutations: email sign-in, sign-up, Google sign-in and password reset.
+ * Account mutations: email sign-in, sign-up, Google sign-in, password reset and account deletion.
  *
  * A successful sign-in goes through `establishSession()`, which stores the tokens (secure storage),
  * so the session lifecycle clears the cache and connects realtime, and the `Stack.Protected` guards
@@ -9,11 +9,19 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { pendingGoogleSignUpStore } from '@/features/auth/pending-google-sign-up';
-import { establishSession } from '@/features/auth/session-provider';
+import { deleteAccountAndSignOut, establishSession } from '@/features/auth/session-provider';
 import { queryKeys } from '@/hooks/queries/query-keys';
 import { useQueryScope } from '@/hooks/queries/query-scope';
 import { api } from '@/services/api';
-import type { AuthSession, GoogleAuthResponse, LoginRequest, PasswordResetRequest, RegisterRequest, SuccessResponse } from '@/types/api';
+import type {
+  AuthSession,
+  DeleteAccountRequest,
+  GoogleAuthResponse,
+  LoginRequest,
+  PasswordResetRequest,
+  RegisterRequest,
+  SuccessResponse,
+} from '@/types/api';
 
 async function signIn(session: AuthSession): Promise<AuthSession> {
   pendingGoogleSignUpStore.clear();
@@ -81,5 +89,18 @@ export function useRequestPasswordReset() {
   return useMutation<SuccessResponse, Error, PasswordResetRequest>({
     mutationKey: ['auth', 'password-reset'],
     mutationFn: (payload) => api.auth.requestPasswordReset(payload),
+  });
+}
+
+/**
+ * `POST /me/deletion` → the account is gone and this device signed out (no server logout: every
+ * session ended with the account). The `Stack.Protected` guards then show the entry screen. Fails
+ * with 400 `VALIDATION_ERROR` (`fieldErrors.password` / `fieldErrors.googleIdToken`, never 401) or
+ * 429 after too many attempts; the account is unchanged then.
+ */
+export function useDeleteAccount() {
+  return useMutation<void, Error, DeleteAccountRequest>({
+    mutationKey: ['auth', 'delete-account'],
+    mutationFn: deleteAccountAndSignOut,
   });
 }

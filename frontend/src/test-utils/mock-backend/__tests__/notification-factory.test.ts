@@ -40,6 +40,7 @@ const INPUTS: Record<NotificationType, NotificationInput> = {
   job_started: { type: 'job_started', job, professionalName: 'AquaFix Plumbing' },
   appointment_reminder: { type: 'appointment_reminder', job, recipientRole: 'customer', counterpartName: 'AquaFix Plumbing' },
   job_completed: { type: 'job_completed', job, recipientRole: 'professional', counterpartName: 'Noa L.' },
+  job_cancelled: { type: 'job_cancelled', job },
   review_received: { type: 'review_received', review },
   new_message: {
     type: 'new_message',
@@ -70,7 +71,7 @@ describe('notification factory', () => {
     for (const type of ['offer_received', 'offer_updated', 'offer_withdrawn', 'offer_not_selected', 'offer_expired'] as const) {
       expect(build(type).target).toEqual({ kind: 'offer', offerId: 'off_1', requestId: 'req_1' });
     }
-    for (const type of ['offer_accepted', 'job_confirmed', 'job_started', 'appointment_reminder', 'job_completed'] as const) {
+    for (const type of ['offer_accepted', 'job_confirmed', 'job_started', 'appointment_reminder', 'job_completed', 'job_cancelled'] as const) {
       expect(build(type).target).toEqual({ kind: 'job', jobId: 'job_1' });
     }
     expect(build('request_cancelled').target).toEqual({ kind: 'request', requestId: 'req_1' });
@@ -91,6 +92,8 @@ describe('notification factory', () => {
     expect(build('review_received').params).toMatchObject({ customerName: 'Noa L.', rating: 5 });
     expect(build('appointment_reminder').params).toMatchObject({ professionalName: 'AquaFix Plumbing', scheduledAt: job.scheduledStartAt });
     expect(build('job_completed').params).toMatchObject({ customerName: 'Noa L.', price: 450 });
+    // No name: the professional deleted their account.
+    expect(build('job_cancelled').params).toEqual({ categoryId: 'plumbing', scheduledAt: job.scheduledStartAt });
     expect(build('new_message').params).toMatchObject({
       professionalName: 'AquaFix Plumbing',
       messagePreview: 'See you tomorrow at 9!',

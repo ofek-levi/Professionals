@@ -11,7 +11,7 @@ import { loadByIds } from '../../lib/batch.js';
 import { findPage, pageStages, readCursor, toPage, type SortSpec } from '../../lib/pagination.js';
 import type { GeoCoordinates, Paginated, ProfessionalSummary } from '../../shared/contract/index.js';
 import type { CategoryId } from '../../shared/catalog/index.js';
-import { UserModel, type UserDoc } from '../users/user.model.js';
+import { NOT_DELETED, UserModel, type UserDoc } from '../users/user.model.js';
 import { ProfessionalModel, type ProfessionalDoc } from './professional.model.js';
 import { PROFESSIONAL_SUMMARY_PROJECTION, toProfessionalSummary } from './professional.views.js';
 import { publicCoverageStages } from './service-area-coverage.js';
@@ -19,7 +19,7 @@ import type { SearchProfessionalsInput } from './professionals.schemas.js';
 
 type SearchHit = Pick<
   ProfessionalDoc,
-  '_id' | 'displayName' | 'headline' | 'categoryIds' | 'yearsOfExperience' | 'stats' | 'isVerified' | 'baseLocation' | 'serviceArea'
+  '_id' | 'displayName' | 'headline' | 'categoryIds' | 'yearsOfExperience' | 'stats' | 'isVerified' | 'baseLocation' | 'serviceArea' | 'deletedAt'
 >;
 
 const RANKED: SortSpec = [
@@ -34,8 +34,9 @@ const RANKED_NEAR: SortSpec = [
   { path: '_id', direction: 1 },
 ];
 
+/** A deleted professional's tombstone has no categories: without a category it is filtered out. */
 function categoryFilter(categoryId: CategoryId | undefined): Record<string, unknown> {
-  return categoryId ? { categoryIds: categoryId } : {};
+  return categoryId ? { categoryIds: categoryId } : NOT_DELETED;
 }
 
 async function searchNear(near: GeoCoordinates, query: SearchProfessionalsInput): Promise<Paginated<SearchHit>> {

@@ -8,7 +8,7 @@ import { haversineDistanceKm, isValidCoordinates } from '@/utils/geo';
 import { compareIds } from '@/utils/id';
 
 import { paginate } from '../pagination';
-import { requireProfessional } from '../queries';
+import { isAccountDeleted, requireLiveProfessional } from '../queries';
 import { route } from '../router';
 import { listProfessionalReviews } from '../services/review-service';
 import { toProfessionalSummary, toPublicProfessionalProfile } from '../views';
@@ -28,6 +28,7 @@ export const professionalsRoutes = [
       const professionals = ctx.db.professionals
         .filter(
           (professional) =>
+            !isAccountDeleted(ctx.db, professional.userId) &&
             (!categoryId || (professional.categoryIds as readonly string[]).includes(categoryId)) &&
             (!near || isWithinServiceArea(professional.serviceArea, near)),
         )
@@ -43,7 +44,7 @@ export const professionalsRoutes = [
             a.distance - b.distance ||
             compareIds(a.professional.id, b.professional.id),
         )
-        .map(({ professional }) => toProfessionalSummary(professional));
+        .map(({ professional }) => toProfessionalSummary(ctx, professional));
       return paginate(professionals, paginationFrom(query));
     },
   }),
@@ -51,7 +52,7 @@ export const professionalsRoutes = [
     method: 'GET',
     path: '/professionals/:professionalId',
     auth: 'user',
-    handler: ({ ctx, params, actor }) => toPublicProfessionalProfile(ctx, requireProfessional(ctx.db, params.professionalId), actor),
+    handler: ({ ctx, params, actor }) => toPublicProfessionalProfile(ctx, requireLiveProfessional(ctx.db, params.professionalId), actor),
   }),
   route({
     method: 'GET',

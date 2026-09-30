@@ -2,7 +2,7 @@
  * Cross-module entry point for notifications: every producer (offers, jobs, requests, reviews,
  * messaging, cron) calls `createNotification(s)`. It
  *  1. honours the recipient's category toggle (`jobUpdates`, `messages`, `newRequests`,
- *     `reminders`): disabled → nothing is stored,
+ *     `reminders`): disabled (or a deleted account) → nothing is stored,
  *  2. collapses unread `new_message` notifications of the same conversation into the newest,
  *  3. stores the notification (inside the caller's transaction when `tx` is given),
  *  4. after commit: publishes `notification.created` and, in the background (never delaying the
@@ -15,7 +15,7 @@ import type { AppDeps } from '../../deps.js';
 import type { Tx } from '../../infra/mongo.js';
 import type { AppNotification, NotificationPreferences } from '../../shared/contract/index.js';
 import { NOTIFICATION_TYPE_PREFERENCE } from '../../shared/notification-types.js';
-import { UserModel } from '../users/user.model.js';
+import { NOT_DELETED, UserModel } from '../users/user.model.js';
 import { buildNotificationContent, type NotificationInput } from './notification.factory.js';
 import { NotificationModel, UNREAD, type NotificationDoc } from './notification.model.js';
 import { deliverNotificationEmails, wantsEmail, type EmailItem, type EmailRecipient } from './notifications.email.js';
@@ -44,8 +44,9 @@ export async function createNotifications(
 ): Promise<(AppNotification | null)[]> {
   if (requests.length === 0) return [];
   const session = tx?.session;
+  // A deleted account gets nothing (every producer, crons included, may still name one).
   const recipients = await UserModel.find(
-    { _id: { $in: requests.map((request) => request.userId) } },
+    { _id: { $in: requests.map((request) => request.userId) }, ...NOT_DELETED },
     { notificationPreferences: 1, language: 1, email: 1, emailVerifiedAt: 1 },
   )
     .session(session ?? null)

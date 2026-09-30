@@ -13,7 +13,16 @@ import type { CustomerActor } from '../auth';
 import type { ServerContext } from '../context';
 import type { MockDatabase } from '../db';
 import { paginate } from '../pagination';
-import { customerShortName, professionalUserId, requireJob, requireProfessional, requireStoredUser, reviewForJob } from '../queries';
+import {
+  customerShortName,
+  isAccountDeleted,
+  professionalUserId,
+  requireJob,
+  requireLiveProfessional,
+  requireProfessional,
+  requireStoredUser,
+  reviewForJob,
+} from '../queries';
 import { parseBody } from '../validate';
 import { emitJobUpdated, emitProfileUpdated, notify } from './notification-service';
 
@@ -75,6 +84,10 @@ export function createReview(ctx: ServerContext, actor: CustomerActor, jobId: st
   if (job.customerId !== actor.userId) throw DomainError.forbidden('Only the customer of this job can review it');
   if (job.status !== 'completed') throw DomainError.conflict('Only completed jobs can be reviewed', 'CONFLICT');
   if (job.reviewId !== null || reviewForJob(ctx.db, job.id)) throw DomainError.conflict('This job was already reviewed');
+  // Their stats are frozen once the account is gone.
+  if (isAccountDeleted(ctx.db, professionalUserId(ctx.db, job.professionalId))) {
+    throw DomainError.conflict('The professional deleted their account', 'CONFLICT');
+  }
   const payload = parseBody(createReviewSchema, body);
   const customer = requireStoredUser(ctx.db, actor.userId);
   const now = ctx.nowIso();
@@ -103,7 +116,7 @@ export function listProfessionalReviews(
   professionalId: string,
   params: PaginationParams,
 ): Paginated<Review> & { breakdown: RatingBreakdown } {
-  requireProfessional(ctx.db, professionalId);
+  requireLiveProfessional(ctx.db, professionalId);
   const reviews = ctx.db.reviews
     .filter((review) => review.professionalId === professionalId)
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt) || compareIds(b.id, a.id));

@@ -114,6 +114,7 @@ describe.skipIf(!existsSync(FRONTEND_SRC))('shared constants match the app', () 
     expect(domain.WEEKDAYS).toEqual(professional.WEEKDAYS);
     expect(domain.PREFERRED_TIME_WINDOWS).toEqual(request.PREFERRED_TIME_WINDOWS);
     expect(domain.REQUEST_CANCELLATION_REASONS).toEqual(request.REQUEST_CANCELLATION_REASONS);
+    expect(domain.CUSTOMER_CANCELLATION_REASONS).toEqual(request.CUSTOMER_CANCELLATION_REASONS);
     expect(domain.RATING_VALUES).toEqual(review.RATING_VALUES);
     expect(domain.NEARBY_REQUEST_SORTS).toEqual(requestsApi.NEARBY_REQUEST_SORTS);
     expect(domain.OFFER_PRESENCE_FILTERS).toEqual(requestsApi.OFFER_PRESENCE_FILTERS);

@@ -54,7 +54,7 @@ describe('route rate limits', () => {
     it('finds every route', () => {
       expect(routes.length).toBeGreaterThan(60);
       expect(routes.map((entry) => entry.route)).toEqual(
-        expect.arrayContaining(['GET /health', 'GET /ready', 'POST /auth/login', 'GET /jobs', 'POST /conversations/:conversationId/messages']),
+        expect.arrayContaining(['GET /health', 'GET /ready', 'GET /legal/:document', 'POST /auth/login', 'GET /jobs', 'POST /conversations/:conversationId/messages']),
       );
     });
 

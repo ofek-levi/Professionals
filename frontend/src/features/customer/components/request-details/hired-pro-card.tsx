@@ -2,6 +2,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
+import { openContactLink, phoneUrl } from '@/components/professionals';
 import {
   AppText,
   Avatar,
@@ -17,7 +18,8 @@ import {
   SkeletonCard,
 } from '@/components/ui';
 import { getJobActions } from '@/features/jobs/job-status-machine';
-import { useFormatters } from '@/i18n/hooks';
+import { useProfessionalProfile } from '@/hooks';
+import { useFormatters, usePersonName } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
 import type { JobDetails } from '@/types/domain';
@@ -31,14 +33,19 @@ interface HiredProCardProps {
 }
 
 /**
- * After an offer was accepted: the hired pro, the appointment and price, "View job" and a message
- * button. Once the job is done and not reviewed yet, "Leave a review" takes the lead instead.
+ * After an offer was accepted: the hired pro, the appointment and price, "View job", a call button
+ * (their phone comes with their profile while the job is not cancelled) and a message button. Once
+ * the job is done and not reviewed yet, "Leave a review" takes the lead instead. A pro who deleted
+ * their account shows as "Deleted user", without a profile to open.
  */
 export function HiredProCard({ job, error, loading, onRetry }: HiredProCardProps) {
   const styles = useStyles();
   const router = useRouter();
   const { t } = useTranslation(['customer', 'common', 'jobs']);
   const format = useFormatters();
+  const personName = usePersonName();
+  const hiredProfessionalId = job && job.status !== 'cancelled' && !job.professional.accountDeleted ? job.professional.id : null;
+  const phone = useProfessionalProfile(hiredProfessionalId).data?.contact?.phone ?? null;
 
   if (!job) {
     if (loading) return <SkeletonCard lines={3} />;
@@ -46,29 +53,31 @@ export function HiredProCard({ job, error, loading, onRetry }: HiredProCardProps
   }
 
   const pro = job.professional;
+  const name = personName(pro);
   const actions = getJobActions(job, 'customer', { hasReview: Boolean(job.reviewId) });
   const completed = job.status === 'completed' && job.completedAt;
 
   return (
     <Card padding="none" style={styles.card} testID="hired-pro">
       <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={pro.displayName}
+        accessibilityRole={pro.accountDeleted ? undefined : 'button'}
+        accessibilityLabel={name}
+        disabled={pro.accountDeleted}
         onPress={() => router.push(routes.professionalProfile(pro.id))}
         style={({ pressed }) => [styles.proRow, pressed ? styles.pressed : null]}
         testID="hired-pro-profile"
       >
-        <Avatar name={pro.displayName} uri={pro.avatarUrl} size="md" decorative />
+        <Avatar name={name} uri={pro.avatarUrl} size="md" decorative />
         <View style={styles.who}>
           <View style={styles.nameRow}>
             <AppText variant="bodyStrong" numberOfLines={1} style={styles.shrink}>
-              {pro.displayName}
+              {name}
             </AppText>
             {pro.isVerified ? <Icon name="check-decagram" size={15} color="primary" accessibilityLabel={t('common:verified')} /> : null}
           </View>
           <RatingStars value={pro.averageRating} count={pro.reviewCount} variant="compact" size={13} textVariant="caption" />
         </View>
-        <Icon name="chevron-right" size={20} color="muted" flipInRTL />
+        {pro.accountDeleted ? null : <Icon name="chevron-right" size={20} color="muted" flipInRTL />}
       </Pressable>
 
       <Divider />
@@ -106,12 +115,23 @@ export function HiredProCard({ job, error, loading, onRetry }: HiredProCardProps
             testID="hired-pro-view-job"
           />
         )}
+        {hiredProfessionalId && phone ? (
+          <IconButton
+            icon="phone-outline"
+            variant="soft"
+            size="lg"
+            accessibilityLabel={t('common:contact.callA11y', { phone })}
+            onPress={() => openContactLink(phoneUrl(phone))}
+            style={styles.message}
+            testID="hired-pro-call"
+          />
+        ) : null}
         {actions.canMessage ? (
           <IconButton
             icon="message-text-outline"
             variant="soft"
             size="lg"
-            accessibilityLabel={t('customer:details.hired.message', { name: isolateText(pro.displayName) })}
+            accessibilityLabel={t('customer:details.hired.message', { name: isolateText(name) })}
             onPress={() => router.push(routes.conversation(job.conversationId))}
             style={styles.message}
             testID="hired-pro-message"

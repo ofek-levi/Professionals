@@ -1,7 +1,7 @@
 /**
  * `createApp(deps)`: the Express application without `listen` (server.ts and tests share it).
- * Order matters: request id → logging → security headers/CORS/compression → health (no limits)
- * → JSON body → input guards → /v1 → 404 → error handler.
+ * Order matters: request id → logging → security headers/CORS/compression → health and the public
+ * legal pages (no body, no global limit) → JSON body → input guards → /v1 → 404 → error handler.
  */
 import compression from 'compression';
 import cors, { type CorsOptions } from 'cors';
@@ -11,11 +11,13 @@ import helmet from 'helmet';
 import type { Env } from './config/env.js';
 import type { AppDeps } from './deps.js';
 import { setModelClock } from './infra/model-clock.js';
+import { setLocationPrivacySecret } from './lib/geo.js';
 import { errorHandler, notFound } from './middleware/error-handler.js';
 import { httpLogger } from './middleware/http-logger.js';
 import { rejectOperatorKeys } from './middleware/reject-operator-keys.js';
 import { requestId } from './middleware/request-id.js';
 import { createHealthRouter } from './modules/health/health.routes.js';
+import { createLegalPagesRouter } from './modules/legal/legal.routes.js';
 import { createV1Router } from './routes.js';
 import { API_LIMITS } from './shared/limits.js';
 
@@ -31,6 +33,7 @@ function corsOptions(env: Env): CorsOptions {
 
 export function createApp(deps: AppDeps): Express {
   setModelClock(deps.clock);
+  setLocationPrivacySecret(deps.env.locationPrivacySecret);
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', deps.env.trustProxy);
@@ -42,6 +45,7 @@ export function createApp(deps: AppDeps): Express {
   app.use(cors(corsOptions(deps.env)));
   app.use(compression());
   app.use(createHealthRouter(deps));
+  app.use(createLegalPagesRouter(deps));
 
   app.use(express.json({ limit: API_LIMITS.jsonBodyLimit }));
   app.use(express.urlencoded({ extended: false, limit: API_LIMITS.jsonBodyLimit }));

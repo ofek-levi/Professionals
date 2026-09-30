@@ -27,7 +27,7 @@ How the API is put together and why. Endpoint details are in [API.md](API.md), o
 | Layer | Folder | Responsibility |
 |---|---|---|
 | Bootstrap | `server.ts` | env → MongoDB (indexes) + Redis → HTTP + WebSocket → cron; signals and graceful shutdown |
-| App | `app.ts`, `routes.ts` | middleware chain, `/health` `/ready`, every module router under `/v1`, 404 and errors |
+| App | `app.ts`, `routes.ts` | middleware chain, `/health` `/ready`, the public legal pages `/legal/*`, every module router under `/v1`, 404 and errors |
 | Middleware | `middleware/` | request id, pino-http logging (redacted), auth + roles, Redis rate limits, `$`-key guard, error mapping |
 | Modules | `modules/<domain>/` | routes → thin controller (zod parse) → services (rules, transactions) → views (DTOs, privacy) |
 | Infra | `infra/` | adapters behind interfaces: mongo, redis + keys + cache, mail, push, storage, geo, google, realtime, cron, password breach |
@@ -43,7 +43,7 @@ an in-memory fake (`test/app.ts`) while MongoDB and Redis stay real.
 
 ```
 requestId → httpLogger → helmet → cors → compression → /health,/ready (in-memory per-IP limit)
-  → express.json(100 kb) → rejectOperatorKeys → /v1: global rate limit (per user, else per IP)
+  → /legal/:document (HTML pages, per-IP limit) → express.json(100 kb) → rejectOperatorKeys → /v1: global rate limit (per user, else per IP)
   → route: [per-IP rateLimit] [requireAuth] [requireRole] [per-user rateLimit] → controller → service → view → JSON
   → notFound → errorHandler ({ code, message, fieldErrors? })
 ```
@@ -54,15 +54,20 @@ requestId → httpLogger → helmet → cors → compression → /health,/ready 
   else's resource, 404 for unknown ids), as in the mock's `auth.ts`.
 - **Privacy** lives in the views: professionals see a request's approximate pin (a stored
   `publicPoint`) and no notes until hired; a professional's contact is shown only to customers who
-  hired them; public vs own professional profile. Every professional-facing geo query runs on the
-  approximate points, so no filter or distance reveals an exact address.
+  hired them (a job that was not cancelled); public vs own professional profile (the personal name
+  only in the own one). Every professional-facing geo query runs on the approximate points, so no
+  filter or distance reveals an exact address. The offset of an approximate point (250–450 m) comes
+  from an HMAC of the record id keyed by `LOCATION_PRIVACY_SECRET` (`lib/geo.ts`): the id is public,
+  the key is not, so the offset cannot be undone.
 
 ## 4. Data
 
 MongoDB collections (one model file each, indexes declared next to the schema with the query they
 serve): `users`, `professionals` (1:1 with users, same `_id`), `sessions` (one per signed-in app
 install, with its Expo push token), `emailTokens`, `requests`, `offers`, `jobs`, `reviews`, `conversations`, `messages`, `notifications`.
-Categories are a code constant served from memory (`GET /catalog/categories`, ETag).
+Categories are a code constant served from memory (`GET /catalog/categories`, ETag), and so are the
+legal documents (`modules/legal/content`, operator details in `config/legal.ts`: `GET /v1/legal/:document`
+and the pages `/legal/*`).
 
 - **Images** have no collection of their own: they are uploaded with the thing that owns them
   (multipart `POST /requests` / `PATCH /requests/:id`, `PUT /me/avatar`; `middleware/multipart.ts`)
@@ -85,7 +90,7 @@ Categories are a code constant served from memory (`GET /catalog/categories`, ET
   queries).
 - **Consistency**: multi-document changes run in a transaction (`withTransaction`): register, accept
   offer (accept one, reject the others, update the request, create job + conversation), cancel,
-  job transitions, review + rating aggregate. Concurrency uses conditional updates on the current
+  job transitions, review + rating aggregate, account deletion. Concurrency uses conditional updates on the current
   state plus unique indexes (`jobs.request`, `reviews.job`, active offer per professional and request,
   `messages` client id), so the loser of a race gets 409.
 - **Side effects after commit**: realtime events, push, emails and matching fan-out are registered
@@ -95,6 +100,23 @@ Categories are a code constant served from memory (`GET /catalog/categories`, ET
   and the first page's `totalCount`, so pages are stable under inserts and never use `skip`.
 - **Expiry without cron**: sessions (and with them their push tokens), email tokens and notifications
   (90 days) are removed by TTL indexes.
+- **State machines** (`jobs/job-rules.ts`, `requests/request-rules.ts`, mirrored by the app): a job's
+  status mirrors onto its request. `in_progress → cancelled` exists for account deletion only; the
+  customer's cancel refuses it (`assertCustomerCanCancel`) and no professional action cancels a job.
+- **Account deletion leaves tombstones** (`users/account-deletion.service.ts`, `account-erasure.ts`):
+  other people's offers, jobs, chats and reviews point at the deleted user, and every view resolves
+  those references (a missing document would be a 500), so the `users` document (and a
+  professional's `professionals` document, same `_id`) stays with `deletedAt` set and everything
+  personal removed; the email becomes a unique placeholder, so the address can sign up again. Views
+  show the placeholder name "Deleted user" plus an `accountDeleted` flag the app translates. One
+  transaction marks the account first (a conditional write, so a second submit gets 401), closes
+  everything in progress through the same code as the user actions (`cancelRequestInTx`,
+  `withdrawOfferInTx`, `cancelJobForDeletedProfessional`), anonymises what the other parties keep and
+  revokes the sessions; images and the confirmation email follow after the commit. `deletedAt` is
+  checked where a still-valid access token could act (`NOT_DELETED` in `users/user.model.ts`: `/me`,
+  profile edits, refresh, sign-in lookups, creating requests, offers and reviews) and by
+  `createNotifications`, which never stores anything for a deleted account; searches leave deleted
+  professionals out (no categories; `deletedAt` where no category filters).
 
 ## 5. Auth
 

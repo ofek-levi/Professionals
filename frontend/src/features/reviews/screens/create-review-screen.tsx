@@ -32,7 +32,7 @@ import { APP_CONFIG } from '@/constants/app-config';
 import { useSession } from '@/features/auth';
 import { isRating } from '@/features/reviews/rating';
 import { useCreateReview, useJob, useRouteParam } from '@/hooks';
-import { useCategoryName, useFormatters } from '@/i18n/hooks';
+import { useCategoryName, useFormatters, usePersonName } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import {
   createReviewSchema,
@@ -91,7 +91,8 @@ function ReviewFlow({ job, onRefetchJob }: { job: JobDetails; onRefetchJob: () =
   const { t } = useTranslation(['reviews', 'common']);
   const [submitted, setSubmitted] = useState<Review | null>(null);
   const [conflict, setConflict] = useState(false);
-  const name = job.professional.displayName;
+  const personName = usePersonName();
+  const name = personName(job.professional);
   const backToJob = () => router.dismissTo(routes.job(job.id));
 
   if (submitted) {
@@ -178,10 +179,11 @@ function ReviewForm({
     defaultValues: EMPTY_REVIEW_FORM_VALUES,
   });
   const format = useFormatters();
+  const personName = usePersonName();
   const categoryName = useCategoryName(job.categoryId) || t('common:category.unknown');
   const rating = useWatch({ control, name: 'rating' }) ?? 0;
   const pending = createReview.isPending;
-  const name = job.professional.displayName;
+  const name = personName(job.professional);
 
   usePreventRemove(formState.isDirty && !pending && !createReview.isSuccess, ({ data }) => {
     void confirm({

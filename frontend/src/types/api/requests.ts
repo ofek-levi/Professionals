@@ -1,10 +1,10 @@
 import type {
   CategoryId,
+  CustomerCancellationReason,
   CustomerRequestView,
   ISODateString,
   PreferredSchedule,
   ProfessionalRequestView,
-  RequestCancellationReason,
   RequestStatus,
   ServiceLocation,
   UrgencyLevel,
@@ -41,7 +41,7 @@ export type UpdateDraftRequestPayload = Partial<Omit<CreateServiceRequestPayload
 
 /** `POST /requests/:id/cancel` */
 export interface CancelRequestPayload {
-  reason: RequestCancellationReason;
+  reason: CustomerCancellationReason;
   comment?: string | null;
 }
 

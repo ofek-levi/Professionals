@@ -1,7 +1,8 @@
 /**
  * "Continue with Google": a neutral outline button that opens Google's sign-in (expo-auth-session)
- * and passes Google's `id_token` on to `useGoogleAuth()`. Rendered only where Google sign-in is
- * configured (`useGoogleSignInAvailable()`); there is no stand-in elsewhere.
+ * and passes Google's `id_token` on to `useGoogleAuth()` (or, labelled otherwise, to the account
+ * deletion's confirmation). Rendered only where Google sign-in is configured
+ * (`useGoogleSignInAvailable()`); there is no stand-in elsewhere.
  */
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -20,13 +21,15 @@ export function useGoogleSignInAvailable(): boolean {
 interface GoogleSignInButtonProps {
   /** Receives Google's id token. */
   onIdToken: (idToken: string) => void;
+  /** Defaults to "Continue with Google". */
+  label?: string;
   /** The token is being exchanged with the backend. */
   loading?: boolean;
   disabled?: boolean;
   testID?: string;
 }
 
-export function GoogleSignInButton({ onIdToken, loading = false, disabled = false, testID }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({ onIdToken, label, loading = false, disabled = false, testID }: GoogleSignInButtonProps) {
   const { t } = useTranslation('auth');
   const toast = useToast();
   const google = useRealGoogleIdToken();
@@ -56,7 +59,7 @@ export function GoogleSignInButton({ onIdToken, loading = false, disabled = fals
 
   return (
     <Button
-      label={t('google.continue')}
+      label={label ?? t('google.continue')}
       variant="outline"
       leftElement={<GoogleLogo />}
       fullWidth

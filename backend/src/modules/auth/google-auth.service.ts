@@ -19,7 +19,7 @@ import type { GoogleIdentity } from '../../infra/google/index.js';
 import { withTransaction } from '../../infra/mongo.js';
 import { ApiError } from '../../lib/errors.js';
 import type { AuthSession, GoogleAuthResponse } from '../../shared/contract/index.js';
-import { UserModel, type UserDoc } from '../users/user.model.js';
+import { NOT_DELETED, UserModel, type UserDoc } from '../users/user.model.js';
 import { USER_VIEW_PROJECTION, type UserForView } from '../users/user.views.js';
 import { toGoogleProfile } from './auth.views.js';
 import { deleteEmailTokens } from './email-token.service.js';
@@ -33,10 +33,10 @@ export async function signInWithGoogle(deps: GoogleDeps, idToken: string): Promi
   const identity = await deps.google.verify(idToken);
   if (!identity) throw ApiError.invalidGoogleToken();
 
-  const linked = await UserModel.findOne({ googleSub: identity.sub }, USER_VIEW_PROJECTION).lean<UserForView>();
+  const linked = await UserModel.findOne({ googleSub: identity.sub, ...NOT_DELETED }, USER_VIEW_PROJECTION).lean<UserForView>();
   if (linked) return { status: 'signed_in', session: await signIn(deps, linked) };
 
-  const byEmail = await UserModel.findOne({ email: identity.email }, { ...USER_VIEW_PROJECTION, googleSub: 1, emailVerifiedAt: 1 }).lean<LinkCandidate>();
+  const byEmail = await UserModel.findOne({ email: identity.email, ...NOT_DELETED }, { ...USER_VIEW_PROJECTION, googleSub: 1, emailVerifiedAt: 1 }).lean<LinkCandidate>();
   if (!byEmail) return { status: 'registration_required', profile: toGoogleProfile(identity) };
   if (byEmail.googleSub) throw ApiError.invalidGoogleToken('This email is linked to a different Google account');
   return { status: 'signed_in', session: await linkGoogleAccount(deps, byEmail, identity) };

@@ -216,7 +216,9 @@ sign-up flow with its name and email filled in.
 ## Walkthrough (two accounts)
 
 1. **Create account → I need a service** (a customer): name, email, phone, a password (8+
-   characters with a letter and a number, not a common one like `Password1`) and the terms.
+   characters with a letter and a number, not a common one like `Password1`) and the checkbox
+   confirming you're 18 or older and accept the Terms of Use and the Privacy Policy (its links
+   open each document).
 2. On the customer's Home tap **Request a service**: pick the service, describe the problem, choose
    the urgency, set the address (search, map pin or current location) and optionally add photos.
    **Post request**.
@@ -286,9 +288,10 @@ Bottom tabs are the main navigation, one entry point per feature:
   jobs with this month's total. Jobs follow confirm → start → complete.
 - **Profile editor:** the essentials (photo, names, headline, bio, services, service area and radius,
   weekly hours, contact) plus a collapsed "More details" section (website, license, insurance,
-  languages, starting price, experience, emergency calls). The contact phone and email are shown
-  only to customers who hired the pro, the base address never (customers see the area); changing
-  the contact email doesn't change the sign-in email.
+  languages, starting price, experience, emergency calls). The contact phone, email and website are
+  shown only to customers who hired the pro (on the job, a call button on the request and the pro's
+  profile, while the job is not cancelled), the base address never (customers see the area); changing the contact email doesn't
+  change the sign-in email.
 
 **Both roles**
 - **Inbox:** **Updates | Messages** – notifications grouped by day with unread dots and "Mark all
@@ -301,8 +304,14 @@ Bottom tabs are the main navigation, one entry point per feature:
 - **Chat** with optimistic sending, retry, read receipts and day separators.
 - **Profile tab:** Edit profile, (professionals) View public profile, Settings, Sign out.
 - **Settings:** language (English / עברית with RTL, saved to the account), appearance (system /
-  light / dark) and notification preferences (push notifications, per-type switches, email
-  updates).
+  light / dark), notification preferences (push notifications, per-type switches, email
+  updates), **Legal** (Terms of Use, Privacy Policy) and **Account → Delete account**: what it
+  would cancel right now, what stays, the password (or Google for an account without one) and a
+  last confirmation; the account is deleted at once and the app returns to the entry screen.
+  Others then see the person as "Deleted user".
+- **Legal documents:** the Terms of Use and the Privacy Policy as the backend serves them, in the
+  app's language (`/legal/terms`, `/legal/privacy`). Signed out they are linked from the entry
+  screen and the sign-up checkbox; they also open by URL on the web.
 
 ---
 

@@ -8,7 +8,7 @@ import { compareIds } from '@/utils/id';
 import type { CustomerActor, ProfessionalActor } from '../auth';
 import type { ServerContext } from '../context';
 import type { StoredJob } from '../db';
-import { activeOfferRequestIds, requireProfessional } from '../queries';
+import { activeOfferRequestIds, isAccountDeleted, professionalUserId, requireProfessional } from '../queries';
 import { toCustomerRequestView, toJobSummary, toOfferWithRequest, toProfessionalRequestView } from '../views';
 import { findNearbyRequests } from './matching-service';
 import { recentNotifications } from './notification-service';
@@ -21,8 +21,10 @@ export function getCustomerDashboard(ctx: ServerContext, actor: CustomerActor): 
   const requests = ctx.db.requests.filter((request) => request.customerId === actor.userId);
   const jobs = ctx.db.jobs.filter((job) => job.customerId === actor.userId);
   const activeJobs = jobs.filter((job) => isJobActive(job.status)).sort(byStartAsc);
+  // A professional who deleted their account takes no more reviews.
+  const reviewable = (job: StoredJob) => !isAccountDeleted(ctx.db, professionalUserId(ctx.db, job.professionalId));
   const awaitingReview = jobs
-    .filter((job) => job.status === 'completed' && job.reviewId === null)
+    .filter((job) => job.status === 'completed' && job.reviewId === null && reviewable(job))
     .sort((a, b) => Date.parse(b.completedAt ?? b.updatedAt) - Date.parse(a.completedAt ?? a.updatedAt));
 
   return {

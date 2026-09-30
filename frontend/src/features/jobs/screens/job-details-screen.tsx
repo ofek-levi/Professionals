@@ -1,18 +1,19 @@
 /**
  * `/jobs/:jobId` – job tracking for both parties: status with a slim progress indicator, the
- * counterpart, appointment, price and address, and the review once there is one. The sticky
- * footer holds the single next action for the viewer's role (from `getJobActions`) next to a
- * chat shortcut; less common actions are quiet text buttons.
+ * counterpart (for the customer with the hired professional's phone, email and website, from their
+ * profile), appointment, price and address, and the review once there is one. The sticky footer
+ * holds the single next action for the viewer's role (from `getJobActions`) next to a chat
+ * shortcut; less common actions are quiet text buttons.
  */
 import { useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { ReviewCard } from '@/components/professionals';
+import { ProfessionalContactCard, ReviewCard } from '@/components/professionals';
 import { AppText, BUTTON_SIZE_TOKENS, Button, EmptyState, ErrorState, IconButton, Screen } from '@/components/ui';
 import { useSession } from '@/features/auth';
 import { getJobActions } from '@/features/jobs/job-status-machine';
-import { useJob, useRefetchOnFocus, useRouteParam } from '@/hooks';
+import { useJob, useProfessionalProfile, useRefetchOnFocus, useRouteParam } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
 import type { JobDetails, UserRole } from '@/types/domain';
@@ -67,7 +68,14 @@ function JobDetailsView({
   const plan = planJobActions(job, role, actions);
   const runner = useJobActionRunner(job, role);
   const busy = runner.pending !== null;
+  // The hired professional's contact comes with their profile (only while the job is not cancelled).
+  const hiredProfessionalId =
+    role === 'customer' && job.status !== 'cancelled' && !job.professional.accountDeleted ? job.professional.id : null;
+  const contact = useProfessionalProfile(hiredProfessionalId).data?.contact ?? null;
   const openChat = () => router.push(routes.conversation(job.conversationId));
+  // A professional who deleted their account has no profile left to open.
+  const openProfile =
+    role === 'customer' && !job.professional.accountDeleted ? () => router.push(routes.professionalProfile(job.professional.id)) : undefined;
 
   const primary = plan.primary ? (
     <Button
@@ -116,11 +124,8 @@ function JobDetailsView({
       <JobStatusHeader job={job} role={role} />
 
       <View style={styles.group}>
-        <CounterpartRow
-          job={job}
-          role={role}
-          onPress={role === 'customer' ? () => router.push(routes.professionalProfile(job.professional.id)) : undefined}
-        />
+        <CounterpartRow job={job} role={role} onPress={openProfile} />
+        {hiredProfessionalId && contact ? <ProfessionalContactCard contact={contact} testID="job-pro-contact" /> : null}
         <JobInfoCard job={job} />
         <TextAction
           label={t('jobs:details.request.viewRequest')}

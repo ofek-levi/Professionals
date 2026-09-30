@@ -1,4 +1,4 @@
-/** `/auth/*` and `/me` routes (backend/docs/API.md → Auth, Users). */
+/** `/auth/*` and `/me` routes, account deletion included (backend/docs/API.md → Auth, Users). */
 import { z } from 'zod';
 
 import { vm } from '@/lib/validation/messages';
@@ -10,6 +10,7 @@ import { removeAvatar, setAvatar } from '../avatars';
 import type { ServerContext } from '../context';
 import { requireProfessional } from '../queries';
 import { created, route } from '../router';
+import { deleteAccount, getDeletionImpact } from '../services/account-deletion-service';
 import { login, register, requestPasswordReset, signInWithGoogle } from '../services/account-service';
 import { logout, refreshSession } from '../sessions';
 import { parseBody } from '../validate';
@@ -144,4 +145,6 @@ export const authRoutes = [
   }),
   route({ method: 'POST', path: '/me/devices', auth: 'user', handler: ({ ctx, actor, body }) => registerDevice(ctx, actor, body) }),
   route({ method: 'DELETE', path: '/me/devices/:token', auth: 'user', handler: ({ ctx, actor, params }) => unregisterDevice(ctx, actor, params.token) }),
+  route({ method: 'GET', path: '/me/deletion-impact', auth: 'user', handler: ({ ctx, actor }) => getDeletionImpact(ctx, actor) }),
+  route({ method: 'POST', path: '/me/deletion', auth: 'user', handler: ({ ctx, actor, body }) => deleteAccount(ctx, actor, body) }),
 ];

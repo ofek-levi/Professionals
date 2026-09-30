@@ -21,10 +21,11 @@ describe('GET /v1/geo/search', () => {
     deps.geocoderProvider.calls = 0;
   });
 
-  it('suggests places without a session, cached and cacheable', async () => {
+  it('suggests places without a session, cached, cacheable by the caller only', async () => {
     const res = await request(app).get('/v1/geo/search').query({ q: '  Dizengoff ', limit: 6 }).expect(200);
     expect(res.body).toEqual([TEST_PLACES[0]]);
-    expect(res.headers['cache-control']).toBe('public, max-age=3600');
+    // Not `public`: a CDN or proxy must not store the addresses people type.
+    expect(res.headers['cache-control']).toBe('private, max-age=3600');
     expect(res.headers.vary).toContain('Accept-Language');
 
     await request(app).get('/v1/geo/search').query({ q: 'dizengoff', limit: 6 }).expect(200);
@@ -68,7 +69,7 @@ describe('GET /v1/geo/reverse', () => {
   it('returns the nearest address at the requested point', async () => {
     const res = await request(app).get('/v1/geo/reverse').query({ lat: '32.0627', lng: '34.7708' }).expect(200);
     expect(res.body).toEqual({ ...TEST_PLACES[1], coordinates: { latitude: 32.0627, longitude: 34.7708 } });
-    expect(res.headers['cache-control']).toBe('public, max-age=3600');
+    expect(res.headers['cache-control']).toBe('private, max-age=3600');
   });
 
   it('answers 404 where there is no address', async () => {

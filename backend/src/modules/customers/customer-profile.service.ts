@@ -5,7 +5,7 @@ import { toLocationDoc } from '../../infra/schema-parts.js';
 import { ApiError } from '../../lib/errors.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type { CustomerProfileResponse } from '../../shared/contract/index.js';
-import { UserModel, type UserDoc } from '../users/user.model.js';
+import { NOT_DELETED, UserModel, type UserDoc } from '../users/user.model.js';
 import { USER_VIEW_PROJECTION, toUserDto, type UserForView } from '../users/user.views.js';
 import { loadCustomerStats, toCustomerProfileDto } from './customer-profile.views.js';
 import type { UpdateCustomerProfileInput } from './customers.schemas.js';
@@ -22,7 +22,7 @@ async function respond(userId: Types.ObjectId, user: Promise<CustomerUser | null
 }
 
 export async function getCustomerProfile(auth: AuthContext): Promise<CustomerProfileResponse> {
-  return respond(auth.userId, UserModel.findOne({ _id: auth.userId, role: 'customer' }, CUSTOMER_PROJECTION).lean<CustomerUser>());
+  return respond(auth.userId, UserModel.findOne({ _id: auth.userId, role: 'customer', ...NOT_DELETED }, CUSTOMER_PROJECTION).lean<CustomerUser>());
 }
 
 function changesOf(input: UpdateCustomerProfileInput): Partial<UserDoc> {
@@ -38,7 +38,7 @@ function changesOf(input: UpdateCustomerProfileInput): Partial<UserDoc> {
 
 export async function updateCustomerProfile(auth: AuthContext, input: UpdateCustomerProfileInput): Promise<CustomerProfileResponse> {
   const saved = UserModel.findOneAndUpdate(
-    { _id: auth.userId, role: 'customer' },
+    { _id: auth.userId, role: 'customer', ...NOT_DELETED },
     { $set: changesOf(input) },
     { projection: CUSTOMER_PROJECTION, returnDocument: 'after' },
   ).lean<CustomerUser>();

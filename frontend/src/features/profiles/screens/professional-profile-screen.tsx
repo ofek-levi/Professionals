@@ -1,13 +1,15 @@
 /**
- * `/professionals/:professionalId` – public professional profile: identity and rating, about,
- * services, the latest reviews, the service area and compact working hours.
+ * `/professionals/:professionalId` – public professional profile: identity and rating, the contact
+ * details for a customer who hired them, about, services, the latest reviews, the service area and
+ * compact working hours.
  */
 import { Stack, useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { ReviewCard } from '@/components/professionals';
+import { ProfessionalContactCard, ReviewCard } from '@/components/professionals';
 import { AppText, ErrorState, Screen, SkeletonCard } from '@/components/ui';
+import { useSession } from '@/features/auth';
 import { useProfessionalProfile, useProfessionalReviews, useRefetchOnFocus, useRouteParam } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { makeStyles } from '@/theme';
@@ -21,6 +23,7 @@ export default function ProfessionalProfileScreen() {
   const styles = useStyles();
   const router = useRouter();
   const { t } = useTranslation(['profile', 'common']);
+  const { role } = useSession();
   const professionalId = useRouteParam('professionalId');
   const profileQuery = useProfessionalProfile(professionalId);
   const reviewsQuery = useProfessionalReviews(professionalId, { limit: RECENT_REVIEWS });
@@ -56,6 +59,8 @@ export default function ProfessionalProfileScreen() {
       {/* The large name below is the title; the header stays empty (the name still names the page). */}
       <Stack.Screen options={{ title: profile.displayName, headerTitle: '' }} />
       <ProfileHeader profile={profile} />
+      {/* A customer who hired them (the API sends it to no one else); the professional's own preview leaves it out. */}
+      {role === 'customer' && profile.contact ? <ProfessionalContactCard contact={profile.contact} testID="profile-contact" /> : null}
       <AboutSection profile={profile} />
       <ServicesSection profile={profile} />
 

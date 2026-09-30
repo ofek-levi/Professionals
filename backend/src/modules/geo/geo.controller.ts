@@ -7,9 +7,12 @@ import { geocodeCaller } from './geo-caller.js';
 import { reverseGeocode, searchPlaces } from './geo.service.js';
 import { reverseGeocodeQuery, searchPlacesQuery } from './geo.schemas.js';
 
-/** Answers are public and change rarely; they differ by language. */
+/**
+ * Answers change rarely and differ by language. `private`: the caller's own device may keep them,
+ * a shared cache (CDN, proxy) must not store the addresses people type.
+ */
 function setCacheHeaders(res: Response): void {
-  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.setHeader('Cache-Control', 'private, max-age=3600');
   res.vary('Accept-Language');
 }
 

@@ -61,7 +61,6 @@ const professionalRequest: ProfessionalRequestView = {
     id: 'cust-1',
     displayName: 'Dana L.',
     avatarUrl: null,
-    city: 'Tel Aviv-Yafo',
     memberSince: minutesAgo(60 * 24 * 90),
     completedJobsCount: 4,
   },

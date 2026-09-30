@@ -52,7 +52,7 @@ src/
     categories/ requests/ offers/ professionals/ jobs/ location/ map/ forms/
   features/
     auth/                   session provider + lifecycle, role guards, entry / sign-in / sign-up screens
-    customer/ professional/ requests/ offers/ jobs/ notifications/ messaging/ reviews/ profiles/ settings/
+    customer/ professional/ requests/ offers/ jobs/ notifications/ messaging/ reviews/ profiles/ settings/ legal/
       *.ts                  pure business logic (state machines, selectors, sorting)
       screens/*.tsx         screen components rendered by src/app routes
       components/*.tsx      feature-private components
@@ -108,7 +108,7 @@ plus `cancelled`. `offers_received → open` when the last pending offer is with
 | offers_received        | open, professional_selected, cancelled                      |
 | professional_selected  | scheduled, cancelled                                        |
 | scheduled              | in_progress, completed, cancelled                           |
-| in_progress            | completed                                                   |
+| in_progress            | completed, cancelled (account deletion only)                |
 | completed, cancelled   | — (terminal)                                                |
 
 Offer: `pending → accepted | rejected | withdrawn | expired` (all terminal). Only one offer per
@@ -117,6 +117,8 @@ offer per request; pending offers can be edited.
 
 Job: `awaiting_confirmation → scheduled → in_progress → completed`, `awaiting_confirmation|scheduled → cancelled`.
 Job status mirrors onto the request status (`JOB_STATUS_META[status].requestStatus`).
+`in_progress → cancelled` (job and request) happens only when a party deletes their account; no user
+action offers it (the customer's cancel stops at `scheduled`, `assertCustomerCanCancel`).
 
 Who can do what:
 
@@ -289,7 +291,11 @@ counters, which only the server computes, live in `server/`). It follows `backen
 and its push token), `POST /auth/refresh|logout`, `PATCH /me`, Expo-only `POST /me/devices` and
 `DELETE /me/devices/:token` (one push token per session, stored on it), `VALIDATION_ERROR` as 400, register 201, paginated lists,
 `/conversations/unread-count`, multipart `POST /requests` / `PATCH /requests/:id` (`data` +
-`photos`, `keepPhotos`) and `PUT` / `DELETE /me/avatar`. `env.transport` (with a request log) replaces the app's HTTP transport
+`photos`, `keepPhotos`), `PUT` / `DELETE /me/avatar`, `GET /legal/:document` (a short Terms of
+Use and Privacy Policy in both languages, `data/legal-documents.ts`) and account deletion
+(`GET /me/deletion-impact`, `POST /me/deletion`: the password or the linked Google account, 400
+refusals, the cancellations with their notifications, an anonymous tombstone shown as "Deleted
+user" with `accountDeleted`, the sign-in credential freed; `services/account-deletion-service.ts`). `env.transport` (with a request log) replaces the app's HTTP transport
 (`apiClient.setTransport`); `env.sockets.openSocket` is the realtime endpoint for the app's
 WebSocket client (4001 for bad, expired or revoked tokens, `dropAll(1001)` for a restart). App code
 cannot import it (ESLint), so it is never bundled. `jest.setup.ts` also installs in-memory
@@ -354,7 +360,8 @@ connects (`src/test-utils/native`).
 
 Signed-out routes sit in `Stack.Protected guard={!signedIn}`, signed-in ones in
 `Stack.Protected guard={signedIn}` (`src/app/_layout.tsx`); `/` redirects to `/sign-in` or the role's
-home. Build every link with `routes` (`src/lib/routes.ts`).
+home. `/legal/:document` is declared outside both guards, so it opens in either state and never
+redirects. Build every link with `routes` (`src/lib/routes.ts`).
 
 | Route | Who | Screen |
 |---|---|---|
@@ -368,6 +375,8 @@ home. Build every link with `routes` (`src/lib/routes.ts`).
 | `/professionals/:id`, `/professionals/:id/reviews` | signed in | public profile, all reviews |
 | `/jobs/:id`, `/jobs/:id/review` | both · customer | job tracking, leave a review |
 | `/conversations/:id`, `/profile/edit`, `/settings` | signed in | chat, edit own profile, settings |
+| `/settings/delete-account` | signed in | delete the account (what it cancels, password or Google, last confirmation) |
+| `/legal/terms`, `/legal/privacy` | everyone | Terms of Use, Privacy Policy (linked from the entry screen, the sign-up terms and Settings → Legal; web deep links) |
 
 ### Account screens (src/features/auth)
 
@@ -395,6 +404,48 @@ home. Build every link with `routes` (`src/lib/routes.ts`).
 - An email typed on one auth screen is handed to the next one in memory (`auth-email-hint.ts`,
   never in the URL): "Sign in with this email" (sign-up → sign in) and "Forgot password?"
   (sign in → reset) prefill it.
+- The terms checkbox ("I'm 18 or older and I agree to…") links to the legal screen with
+  `router.push`: the sign-up screen stays mounted underneath, so the form (and a pending Google
+  identity) survives reading a document. `useBrowserBack` is off while the sign-up screen is not
+  focused, so the browser's back button closes the document instead of stepping the form back.
+
+### Deleting the account (src/features/settings)
+
+Settings → Account → Delete account opens `/settings/delete-account`. It loads
+`GET /me/deletion-impact` fresh (`useAccountDeletionImpact`) and shows per role what the deletion
+cancels right away (requests and the offers on them, drafts, jobs; a professional's pending offers
+and jobs, with the first items of each) and what stays (completed jobs, ratings without comments,
+sent messages, as "Deleted user"), with the Privacy Policy one tap away. The account holder
+confirms with the password (`PasswordField`), or – an account without one – with a fresh Google
+sign-in (`GoogleSignInButton` → `googleIdToken`), then once more in a destructive dialog.
+`useDeleteAccount` → `deleteAccountAndSignOut()` (session provider): realtime is closed first (the
+server closes the account's sockets with 4001, which would otherwise trigger a refresh and "You've
+been signed out"), `POST /me/deletion`, then the session ends on this device only – no server
+logout is queued, the deletion ended every session. The `Stack.Protected` guards show the entry
+screen and a toast says the account was deleted. Refusals are 400, never 401: a wrong password
+shows under the field, a Google account other than the linked one as an alert; 429 says when to try
+again (`useErrorText`); offline and other errors are toasts, and realtime reconnects.
+
+Other people's deleted accounts arrive with `accountDeleted` (`customerAccountDeleted` on reviews)
+and the server's English placeholder name: `usePersonName()` (`src/i18n/hooks.ts`) shows "Deleted
+user" in the app's language wherever a counterpart is named, their profile is not linked (it
+answers 404), and a chat closed for that reason says so. A hired professional's contact details
+(`ProfessionalContactCard`: phone → `tel:`, email → `mailto:`, website) show on the job and their
+profile, and the hired-pro card on the request offers a call, when the API sends them – only to a
+customer who hired them, while the job is not cancelled.
+
+### Legal documents (src/features/legal)
+
+The Terms of Use and the Privacy Policy live on the backend (one copy, versioned, also public web
+pages at `<API origin>/legal/:document`); the app never bundles their text. `/legal/:document`
+loads `GET /legal/:document?lang=<app language>` (`useLegalDocument`, public key per language, 5 min
+fresh like the server's `Cache-Control`) and renders the title (header), the effective date, the
+intro and the sections: headings (`accessibilityRole="header"`), paragraphs, bullet lists and
+definitions. Texts carry inline markup only – `**bold**` and `[label](url)` – parsed by
+`legal-markup.ts`; links to `https:`/`mailto:` open in the in-app browser or the mail app (a new tab
+on the web), a link to the other document's public page opens that document in the app, anything
+else stays plain text. A paragraph whose first word is in the other script ("Professionals היא…")
+gets a direction mark, so it still runs in the document's direction.
 
 ### Maps (src/components/map)
 
@@ -461,8 +512,9 @@ AppMap (app-map.tsx)          props + theme → MapPageState (map-page-state.ts)
   `Intl.PluralRules`, so `src/i18n/index.ts` loads the `intl-pluralrules` polyfill first; without it
   the dual forms would never be picked on a phone (Jest and browsers have their own).
 - Namespaces (one file per namespace per language): common, errors, validation, auth, settings,
-  location, customer, requests, offers, reviews, profile, professional, explore, jobs, notifications,
-  messaging. Use `useTranslation(['<ns>', 'common'])` and `t('common:actions.save')` for shared keys.
+  legal, location, customer, requests, offers, reviews, profile, professional, explore, jobs,
+  notifications, messaging. Use `useTranslation(['<ns>', 'common'])` and `t('common:actions.save')`
+  for shared keys.
 - Zod schemas use translation keys as messages (e.g. `'validation:request.descriptionTooShort'`);
   form fields translate them.
 - Category names come from the catalog as `LocalizedText` (`{ en, he }`), so a backend can add

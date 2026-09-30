@@ -30,14 +30,15 @@ docker run -d --name pro-redis -p 6379:6379 redis:7
 
 # 2. The API
 cd backend
-cp .env.example .env        # starts as is; set your own JWT_ACCESS_SECRET (openssl rand -base64 48)
+cp .env.example .env        # starts as is; set your own JWT_ACCESS_SECRET and LOCATION_PRIVACY_SECRET (openssl rand -base64 48)
 npm install
 npm run dev                 # http://localhost:4000 (restarts on changes)
 ```
 
 Check it: `curl localhost:4000/ready` → `{"status":"ready",…}`; the API is under
 `http://localhost:4000/v1` and the WebSocket at `ws://localhost:4000/v1/realtime` (access token in the
-`bearer.<token>` subprotocol, see docs/API.md).
+`bearer.<token>` subprotocol, see docs/API.md). The legal documents are at
+`http://localhost:4000/legal/terms`, `/legal/privacy` and `/legal/account-deletion`.
 The app targets `http://localhost:4000/v1` by default; on a phone set
 `EXPO_PUBLIC_API_BASE_URL=http://<your LAN IP>:4000/v1` (a phone cannot reach `localhost` of your
 computer; see [`frontend/README.md`](../frontend/README.md#quick-start)).
@@ -52,7 +53,9 @@ computer; see [`frontend/README.md`](../frontend/README.md#quick-start)).
 | Network access to Nominatim | `GET /v1/geo/*` answer 503 |
 
 With `APP_ENV=staging` or `production` the process refuses to start until every required credential is
-set (see [OPERATIONS.md](docs/OPERATIONS.md#2-environment-variables)).
+set (see [OPERATIONS.md](docs/OPERATIONS.md#2-environment-variables)) and the operator of the service is
+filled in [`src/config/legal.ts`](src/config/legal.ts) (legal name, postal address, contact email:
+the Terms of Use and the Privacy Policy publish them). Development shows placeholders instead.
 
 On later runs: `docker start pro-mongo pro-redis`.
 
@@ -67,6 +70,7 @@ On later runs: `docker start pro-mongo pro-redis`.
 | `npm run lint` | ESLint (typescript-eslint strict, type-checked) |
 | `npm test` | vitest + supertest against the local MongoDB and Redis |
 | `npm run test:watch` | Tests in watch mode |
+| `npm run delete-account -- <email>` | Deletes that account as the app's "Delete account" does, for a request emailed by its holder (reads `.env`; in the image `node dist/delete-account.js <email>`; see [OPERATIONS.md](docs/OPERATIONS.md#9-account-deletion)) |
 
 ## Tests
 
@@ -78,7 +82,9 @@ On later runs: `docker start pro-mongo pro-redis`.
 - External providers (Cloudinary, email, Expo push, Google, the geocoder) are replaced with in-memory
   fakes through `deps`; time is a controllable fake clock where a rule depends on it.
 - Coverage: auth (register, login, refresh rotation and reuse detection, logout, immediate
-  revocation, password reset, email verification, Google linking), the whole request → offer →
+  revocation, password reset, email verification, Google linking), account deletion (impact,
+  re-authentication, what the other parties keep and see), the legal documents (format rules of the
+  texts, placeholders, JSON and HTML pages), the whole request → offer →
   accept (transaction, concurrent 409) → job → review lifecycle, authorization and privacy views,
   keyset pagination, validation errors, messaging idempotency and read receipts, notifications and
   push fan-out, cron jobs, rate limits, realtime (real WebSocket clients across two instances), and
@@ -101,11 +107,13 @@ in [OPERATIONS.md](docs/OPERATIONS.md#4-deploying).
 ```
 src/
   server.ts        bootstrap: env → MongoDB (indexes) + Redis → HTTP + WebSocket → cron; graceful shutdown
-  app.ts           createApp(deps): middleware, /health, /ready, /v1 routes, errors (no listen)
+  delete-account.ts  operator command: delete an account on an emailed request
+  app.ts           createApp(deps): middleware, /health, /ready, /legal/* pages, /v1 routes, errors (no listen)
   routes.ts        mounts every module router under /v1
   deps.ts          AppDeps: providers injected into services (swapped for fakes in tests)
   cron-jobs.ts     every scheduled job
   config/env.ts    zod-validated environment (APP_ENV = development | staging | production)
+  config/legal.ts  the operator of the service and the dates of the legal documents (fill in before launch)
   shared/          categories, statuses, urgency, notification types, error codes, limits, contract DTO types
   lib/             errors, validation, pagination, access tokens, crypto, geo, clock, logger, batch loading
   infra/           mongo, redis (+ keys, cache, session denylist), mail, push, storage, geo, google, realtime, cron
@@ -116,6 +124,6 @@ test/              per-file database/Redis setup, app factory with fakes, factor
 docs/              API.md, ARCHITECTURE.md, OPERATIONS.md, CONVENTIONS.md
 ```
 
-Modules: `auth` (+ sessions and their push tokens), `users` (me, avatar, device registration), `catalog`, `geo`, `customers`, `professionals`,
+Modules: `auth` (+ sessions and their push tokens), `users` (me, avatar, device registration, account deletion), `catalog`, `geo`, `customers`, `professionals`,
 `requests` (+ matching and the professional explorer), `offers`, `jobs`, `reviews`, `conversations`,
-`notifications` (+ push), `dashboard`, `health`.
+`notifications` (+ push), `dashboard`, `legal` (Terms of Use, Privacy Policy, account-deletion page: JSON and public pages), `health`.

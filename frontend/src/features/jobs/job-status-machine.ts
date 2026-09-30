@@ -1,6 +1,7 @@
 /**
  * Job status machine and the actions each party may take on a job.
  * Job status mirrors onto the request status via `JOB_STATUS_META[status].requestStatus`.
+ * `in_progress → cancelled` happens only when a party deletes their account: no action here offers it.
  */
 import { JOB_STATUS_META, jobStatusMeta, type JobStatus } from '@/constants/job-statuses';
 import type { RequestStatus } from '@/constants/request-statuses';
@@ -10,7 +11,7 @@ import type { Job, UserRole } from '@/types/domain';
 const JOB_TRANSITIONS: TransitionTable<JobStatus> = {
   awaiting_confirmation: ['scheduled', 'cancelled'],
   scheduled: ['in_progress', 'completed', 'cancelled'],
-  in_progress: ['completed'],
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
 };
