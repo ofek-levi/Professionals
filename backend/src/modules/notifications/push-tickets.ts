@@ -1,6 +1,6 @@
 /**
  * Expo push tickets waiting for their receipt, kept in a Redis sorted set scored by send time.
- * The receipts cron reads them, deletes tokens reported `DeviceNotRegistered` and drops entries
+ * The receipts cron reads them, removes tokens reported `DeviceNotRegistered` and drops entries
  * once answered or older than a day (Expo keeps receipts for 24 h).
  */
 import { KEY_SPACES, type RedisKeys } from '../../infra/keys.js';

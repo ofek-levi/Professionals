@@ -1,7 +1,7 @@
 /**
  * Signing out and in against the backend test double: signing out ends the session locally at
  * once, then sends the session's refresh token to `POST /auth/logout` (the server drops the
- * session and its push devices); a logout the server did not confirm stays queued and is sent
+ * session and its push token); a logout the server did not confirm stays queued and is sent
  * again later. Signing in syncs the account language (`PATCH /me`).
  */
 import { renderHook } from '@testing-library/react-native';
@@ -21,6 +21,10 @@ const NOA = MAIN_CUSTOMER_IDS.noa;
 
 let env: TestEnvironment;
 let signOut: () => Promise<void>;
+
+/** The push tokens on Noa's sessions (stored on the session, so they end with it). */
+const noaPushTokens = () =>
+  env.server.internals.db.sessions.filter((session) => session.userId === NOA && session.pushToken !== null).map((session) => session.pushToken);
 
 beforeAll(async () => {
   await initI18n('en');
@@ -45,11 +49,11 @@ afterAll(async () => {
 });
 
 describe('signOut', () => {
-  it('sends POST /auth/logout with the refresh token (no bearer), and the server ends the session and its devices', async () => {
+  it('sends POST /auth/logout with the refresh token (no bearer), and the server ends the session and its push token', async () => {
     const session = env.signIn(NOA);
     await sessionStore.signIn(session);
     await apiClient.post('/me/devices', { pushToken: 'ExponentPushToken[noa-phone]', platform: 'ios' });
-    expect(env.server.internals.db.devices.filter((device) => device.userId === NOA)).toHaveLength(1);
+    expect(noaPushTokens()).toEqual(['ExponentPushToken[noa-phone]']);
 
     await signOut();
     await pendingLogouts.flush();
@@ -59,7 +63,7 @@ describe('signOut', () => {
     expect(logout.headers.Authorization).toBeUndefined();
     expect(sessionStore.getState().status).toBe('signedOut');
     expect(sessionStore.getTokens()).toBeNull();
-    expect(env.server.internals.db.devices.filter((device) => device.userId === NOA)).toEqual([]);
+    expect(noaPushTokens()).toEqual([]);
     expect(await expectApiError(env.as(null).auth.refresh({ refreshToken: session.refreshToken }))).toMatchObject({ status: 401 });
     expect(await pendingLogouts.pending()).toEqual([]);
   });
@@ -117,15 +121,15 @@ describe('signOut', () => {
     await signOut();
     await pendingLogouts.flush();
     expect(sessionStore.getState().status).toBe('signedOut');
-    // Still owed: the session (and its push device) would otherwise live on for 90 days.
+    // Still owed: the session (and its push token) would otherwise live on for 90 days.
     expect(await pendingLogouts.pending()).toEqual([session.refreshToken]);
-    expect(env.server.internals.db.devices.filter((device) => device.userId === NOA)).toHaveLength(1);
+    expect(noaPushTokens()).toEqual(['ExponentPushToken[noa-offline]']);
 
     // Back online (next launch, foreground, sign-in): sent again and forgotten once confirmed.
     apiClient.setTransport(env.transport);
     await pendingLogouts.flush();
     expect(env.log.to('/auth/logout', 'POST')).toEqual([expect.objectContaining({ body: { refreshToken: session.refreshToken }, status: 200 })]);
-    expect(env.server.internals.db.devices.filter((device) => device.userId === NOA)).toEqual([]);
+    expect(noaPushTokens()).toEqual([]);
     expect(await pendingLogouts.pending()).toEqual([]);
   });
 

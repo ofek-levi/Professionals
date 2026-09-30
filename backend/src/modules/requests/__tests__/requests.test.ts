@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { signInCustomer, signInProfessional } from '../../../../test/auth.js';
-import { createUpload, HAIFA } from '../../../../test/factories.js';
+import { HAIFA } from '../../../../test/factories.js';
+import { withForm } from '../../../../test/images.js';
 import { haversineDistanceKm } from '../../../lib/geo.js';
 import { newObjectId } from '../../../lib/ids.js';
-import { UploadModel } from '../../uploads/upload.model.js';
 import { RequestModel } from '../request.model.js';
 import { eventTypes, notificationTypes, postRequest, requestBody } from './marketplace-fixtures.js';
 
@@ -58,40 +58,42 @@ describe('requests', () => {
       expect(farDetails.body.request.matchedProfessionalCount).toBe(0);
     });
 
-    it('is idempotent with a clientRequestId: a retry returns the first request, photos included', async () => {
+    it('is idempotent with a clientRequestId: a retry returns the first request', async () => {
       const customer = await signInCustomer(deps);
       const pro = await signInProfessional(deps);
-      const photo = await createUpload(customer.user);
-      const body = requestBody({ clientRequestId: 'form-1', photoIds: [photo._id.toHexString()] });
+      const body = requestBody({ clientRequestId: 'form-1' });
+      const post = (caller: { headers: Record<string, string> }, data: Record<string, unknown>) =>
+        withForm(request(app).post('/v1/requests').set(caller.headers), data);
 
-      const first = await request(app).post('/v1/requests').set(customer.headers).send(body).expect(201);
+      const first = await post(customer, body).expect(201);
       await deps.background.drain();
-      // The response was lost: the app posts the same form again (its photo is attached by now).
-      const retry = await request(app).post('/v1/requests').set(customer.headers).send(body).expect(201);
-      expect(retry.body).toMatchObject({ id: first.body.id, photos: [{ id: photo._id.toHexString() }] });
+      // The response was lost: the app posts the same form again.
+      const retry = await post(customer, body).expect(201);
+      expect(retry.body.id).toBe(first.body.id);
       await deps.background.drain();
       expect(await RequestModel.countDocuments({})).toBe(1);
       expect(notificationTypes(deps, pro.user._id.toHexString())).toEqual(['new_matching_request']);
 
       // Concurrent double submit: one request.
-      const twice = await Promise.all([1, 2].map(() => request(app).post('/v1/requests').set(customer.headers).send(requestBody({ clientRequestId: 'form-2' }))));
+      const twice = await Promise.all([1, 2].map(() => post(customer, requestBody({ clientRequestId: 'form-2' }))));
       expect(twice.map((res) => res.status)).toEqual([201, 201]);
       expect(twice[0]?.body.id).toBe(twice[1]?.body.id);
       // Another form (or another customer with the same id) creates its own request.
-      await request(app).post('/v1/requests').set(customer.headers).send(requestBody({ clientRequestId: 'form-3' })).expect(201);
-      await request(app).post('/v1/requests').set((await signInCustomer(deps)).headers).send(requestBody({ clientRequestId: 'form-1' })).expect(201);
+      await post(customer, requestBody({ clientRequestId: 'form-3' })).expect(201);
+      await post(await signInCustomer(deps), requestBody({ clientRequestId: 'form-1' })).expect(201);
       expect(await RequestModel.countDocuments({})).toBe(4);
-      const invalid = await request(app).post('/v1/requests').set(customer.headers).send(requestBody({ clientRequestId: ' ' })).expect(400);
+      const invalid = await post(customer, requestBody({ clientRequestId: ' ' })).expect(400);
       expect(invalid.body.fieldErrors).toEqual({ clientRequestId: ['validation:invalid'] });
     });
 
     it('reports every invalid field with the app’s message keys', async () => {
       const customer = await signInCustomer(deps);
-      const res = await request(app)
-        .post('/v1/requests')
-        .set(customer.headers)
-        .send({ categoryId: 'plumbing', description: 'short', location: { coordinates: { latitude: 99, longitude: 0 }, addressLine: '', city: 'X', neighborhood: null, details: null }, urgency: 'soon', photoIds: ['a', 'b', 'c', 'd', 'e', 'f', 'g'] })
-        .expect(400);
+      const res = await withForm(request(app).post('/v1/requests').set(customer.headers), {
+        categoryId: 'plumbing',
+        description: 'short',
+        location: { coordinates: { latitude: 99, longitude: 0 }, addressLine: '', city: 'X', neighborhood: null, details: null },
+        urgency: 'soon',
+      }).expect(400);
       expect(res.body).toEqual({
         code: 'VALIDATION_ERROR',
         message: expect.any(String),
@@ -100,10 +102,9 @@ describe('requests', () => {
           'location.coordinates': ['validation:location.coordinatesInvalid'],
           'location.addressLine': ['validation:location.addressRequired'],
           urgency: ['validation:request.urgencyRequired'],
-          photoIds: ['validation:request.tooManyPhotos'],
         },
       });
-      const unknown = await request(app).post('/v1/requests').set(customer.headers).send(requestBody({ categoryId: 'teleportation' })).expect(422);
+      const unknown = await withForm(request(app).post('/v1/requests').set(customer.headers), requestBody({ categoryId: 'teleportation' })).expect(422);
       expect(unknown.body).toMatchObject({ code: 'UNSUPPORTED_CATEGORY', fieldErrors: { categoryId: ['validation:category.unsupported'] } });
     });
 
@@ -120,58 +121,35 @@ describe('requests', () => {
         ['2026-10-05', 'urgent', 'validation:request.preferredDateBeyondUrgency'],
       ];
       for (const [date, urgency, message] of cases) {
-        const res = await request(app).post('/v1/requests').set(customer.headers).send(requestBody({ urgency, preferredSchedule: { date, timeWindow: 'morning' } }));
+        const res = await withForm(request(app).post('/v1/requests').set(customer.headers), requestBody({ urgency, preferredSchedule: { date, timeWindow: 'morning' } }));
         if (message) expect(res.body.fieldErrors, `${date} ${urgency}`).toEqual({ 'preferredSchedule.date': [message] });
         else expect(res.status, `${date} ${urgency}`).toBe(201);
       }
-      const invalid = await request(app).post('/v1/requests').set(customer.headers).send(requestBody({ preferredSchedule: { date: '2026-02-30', timeWindow: 'noon' } })).expect(400);
+      const invalid = await withForm(request(app).post('/v1/requests').set(customer.headers), requestBody({ preferredSchedule: { date: '2026-02-30', timeWindow: 'noon' } })).expect(400);
       expect(invalid.body.fieldErrors).toEqual({ 'preferredSchedule.date': ['validation:request.preferredDateInvalid'], 'preferredSchedule.timeWindow': ['validation:request.timeWindowInvalid'] });
-    });
-
-    it('attaches the customer’s own uploads as photos and refuses foreign ones', async () => {
-      const customer = await signInCustomer(deps);
-      const [a, b] = [await createUpload(customer.user), await createUpload(customer.user)];
-      const foreign = await createUpload((await signInCustomer(deps)).user);
-      const created = await postRequest(app, customer, { photoIds: [b._id.toHexString(), a._id.toHexString()] });
-      expect(created.photos).toEqual([
-        { id: b._id.toHexString(), url: b.url, width: 800, height: 600 },
-        { id: a._id.toHexString(), url: a.url, width: 800, height: 600 },
-      ]);
-      expect(await UploadModel.countDocuments({ attachedAt: { $ne: null } })).toBe(2);
-      for (const id of [foreign._id.toHexString(), a._id.toHexString(), 'nope']) {
-        const res = await request(app).post('/v1/requests').set(customer.headers).send(requestBody({ photoIds: [id] })).expect(400);
-        expect(res.body.fieldErrors).toEqual({ photoIds: ['validation:request.photoNotFound'] });
-      }
-      expect(await RequestModel.countDocuments({})).toBe(1);
     });
   });
 
   describe('drafts', () => {
-    it('edits photos and fields of a draft (removed photos are released) and deletes it', async () => {
+    it('edits the fields of a draft and deletes it', async () => {
       const customer = await signInCustomer(deps);
-      const [a, b, c] = [await createUpload(customer.user), await createUpload(customer.user), await createUpload(customer.user)];
-      const draft = await postRequest(app, customer, { publish: false, photoIds: [a._id.toHexString(), b._id.toHexString()] });
-      const res = await request(app)
-        .patch(`/v1/requests/${draft.id}`)
-        .set(customer.headers)
-        .send({ description: 'A new, longer description of the leak.', photoIds: [b._id.toHexString(), c._id.toHexString()], urgency: 'flexible' })
-        .expect(200);
-      expect(res.body).toMatchObject({ description: 'A new, longer description of the leak.', urgency: 'flexible', status: 'draft' });
-      expect(res.body.photos.map((photo: { id: string }) => photo.id)).toEqual([b._id.toHexString(), c._id.toHexString()]);
-      expect((await UploadModel.findById(a._id).lean())?.attachedAt).toBeNull();
+      const draft = await postRequest(app, customer, { publish: false });
+      const edit = (caller: { headers: Record<string, string> }, data: Record<string, unknown>) =>
+        withForm(request(app).patch(`/v1/requests/${draft.id}`).set(caller.headers), data);
+      const res = await edit(customer, { description: 'A new, longer description of the leak.', urgency: 'flexible' }).expect(200);
+      expect(res.body).toMatchObject({ description: 'A new, longer description of the leak.', urgency: 'flexible', status: 'draft', photos: [] });
 
       const other = await signInCustomer(deps);
-      await request(app).patch(`/v1/requests/${draft.id}`).set(other.headers).send({ urgency: 'urgent' }).expect(403);
+      await edit(other, { urgency: 'urgent' }).expect(403);
       await request(app).delete(`/v1/requests/${draft.id}`).set(other.headers).expect(403);
       await request(app).delete(`/v1/requests/${draft.id}`).set(customer.headers).expect(200, { success: true });
-      expect(await UploadModel.countDocuments({ attachedAt: null })).toBe(3);
       await request(app).delete(`/v1/requests/${draft.id}`).set(customer.headers).expect(404);
     });
 
     it('refuses to edit or delete published requests', async () => {
       const customer = await signInCustomer(deps);
       const open = await postRequest(app, customer);
-      const edit = await request(app).patch(`/v1/requests/${open.id}`).set(customer.headers).send({ urgency: 'urgent' }).expect(409);
+      const edit = await withForm(request(app).patch(`/v1/requests/${open.id}`).set(customer.headers), { urgency: 'urgent' }).expect(409);
       expect(edit.body.code).toBe('CONFLICT');
       await request(app).delete(`/v1/requests/${open.id}`).set(customer.headers).expect(409);
     });
@@ -240,11 +218,13 @@ describe('requests', () => {
 
     it('caps new requests per customer', async () => {
       const customer = await signInCustomer(limited.deps);
-      for (let i = 0; i < 30; i += 1) await request(limited.app).post('/v1/requests').set(customer.headers).send({}).expect(400);
-      const res = await request(limited.app).post('/v1/requests').set(customer.headers).send(requestBody()).expect(429);
+      const post = (caller: { headers: Record<string, string> }, data: Record<string, unknown>) =>
+        withForm(request(limited.app).post('/v1/requests').set(caller.headers), data);
+      for (let i = 0; i < 30; i += 1) await post(customer, {}).expect(400);
+      const res = await post(customer, requestBody()).expect(429);
       expect(res.body.code).toBe('RATE_LIMITED');
       // Other customers are not affected.
-      await request(limited.app).post('/v1/requests').set((await signInCustomer(limited.deps)).headers).send(requestBody()).expect(201);
+      await post(await signInCustomer(limited.deps), requestBody()).expect(201);
     });
   });
 });

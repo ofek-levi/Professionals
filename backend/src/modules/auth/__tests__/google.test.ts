@@ -3,10 +3,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { bearer } from '../../../../test/auth.js';
-import { createCustomer, createDevice } from '../../../../test/factories.js';
+import { createCustomer, createPushSession } from '../../../../test/factories.js';
 import { UnconfiguredGoogleVerifier } from '../../../infra/google/google-verifier.js';
 import type { AuthSession } from '../../../shared/contract/index.js';
-import { DeviceModel } from '../../users/device.model.js';
 import { UserModel } from '../../users/user.model.js';
 import { SessionModel } from '../session.model.js';
 import { customerPayload, loginAccount, registerAccount, STRONG_PASSWORD } from './auth-test-helpers.js';
@@ -61,7 +60,7 @@ describe('POST /v1/auth/google', () => {
   it('pre-account hijacking: drops an unverified password and revokes every session', async () => {
     // Someone registered the address first and chose the password; the owner then uses Google.
     const squatter = await registerAccount(app, customerPayload({ email: 'owner@example.com' }));
-    await createDevice({ _id: await idOf('owner@example.com') }, { token: 'ExponentPushToken[squatter]' });
+    await createPushSession({ _id: await idOf('owner@example.com') }, { pushToken: 'ExponentPushToken[squatter]' });
 
     const res = await google(deps.google.issue({ email: 'owner@example.com', sub: 'google-owner' })).expect(200);
     expect(res.body.status).toBe('signed_in');
@@ -72,7 +71,7 @@ describe('POST /v1/auth/google', () => {
     await request(app).post('/v1/auth/login').send({ email: 'owner@example.com', password: STRONG_PASSWORD }).expect(401);
     await request(app).post('/v1/auth/refresh').send({ refreshToken: squatter.refreshToken }).expect(401);
     await request(app).get('/v1/me').set(bearer(squatter.accessToken)).expect(401);
-    expect(await DeviceModel.countDocuments()).toBe(0);
+    expect(await SessionModel.countDocuments({ pushToken: { $exists: true } })).toBe(0);
     // Only the owner's new session remains, and it works.
     expect(await SessionModel.countDocuments()).toBe(1);
     const owner = (res.body as { session: AuthSession }).session;

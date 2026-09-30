@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { signInCustomer } from '../../../../test/auth.js';
-import { createDevice } from '../../../../test/factories.js';
+import { createPushSession } from '../../../../test/factories.js';
 import { NotificationModel } from '../../notifications/notification.model.js';
 import { UserModel } from '../../users/user.model.js';
 import { closeConversation } from '../conversation-lifecycle.service.js';
@@ -23,7 +23,7 @@ beforeEach(async () => {
 describe('POST /v1/conversations/:id/messages', () => {
   it('stores the message, notifies the recipient and publishes it to both participants', async () => {
     const chat = await createChat(deps);
-    const phone = await createDevice(chat.customer.user);
+    const phone = await createPushSession(chat.customer.user);
     const customerId = chat.customer.user._id.toHexString();
     const proId = chat.pro.user._id.toHexString();
 
@@ -58,7 +58,7 @@ describe('POST /v1/conversations/:id/messages', () => {
     await deps.background.drain();
     expect(deps.push.sent).toEqual([
       {
-        to: phone.token,
+        to: phone.pushToken,
         title: 'New message from ⁨Avi Fix⁩',
         body: 'I can come at 10:00. Bring the key?',
         data: { notificationId: notification?._id.toHexString(), notificationType: 'new_message', target: notification?.target },

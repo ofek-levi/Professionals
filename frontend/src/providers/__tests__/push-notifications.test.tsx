@@ -108,8 +108,9 @@ function renderShell() {
   );
 }
 
-const devicesOf = (userId: string) =>
-  env.server.internals.db.devices.filter((device) => device.userId === userId).map(({ pushToken, platform }) => ({ pushToken, platform }));
+/** The push tokens on `userId`'s sessions (a session holds at most one). */
+const pushTokensOf = (userId: string) =>
+  env.server.internals.db.sessions.filter((session) => session.userId === userId && session.pushToken !== null).map((session) => session.pushToken);
 
 /** Lets the provider's permission delay (1.5 s) pass and the registration finish. */
 async function passPermissionDelay() {
@@ -120,17 +121,18 @@ async function passPermissionDelay() {
 
 describe('PushNotifications', () => {
   it('registers the device a moment after sign-in, and again when the OS issues a new token', async () => {
-    await sessionStore.signIn(env.signIn(NOA));
+    const signedIn = env.signIn(NOA);
+    await sessionStore.signIn(signedIn);
     await renderShell();
     expect(await screen.findByText('Home')).toBeOnTheScreen();
     expect(mockDevice.prompts).toBe(0); // not before the home is up
 
     await passPermissionDelay();
-    await waitFor(() => expect(devicesOf(NOA)).toEqual([{ pushToken: 'ExponentPushToken[noa-phone]', platform: 'ios' }]));
+    await waitFor(() => expect(pushTokensOf(NOA)).toEqual(['ExponentPushToken[noa-phone]']));
     expect(mockDevice.prompts).toBe(1);
-    // Registered with the session's own token: signing out will remove it.
-    const [device] = env.server.internals.db.devices.filter((row) => row.userId === NOA);
-    expect(env.server.internals.db.sessions.get(device.sessionId)?.userId).toBe(NOA);
+    // Stored on the app's own session (the one it signed in with): signing out will remove it.
+    const [holder] = env.server.internals.db.sessions.filter((session) => session.pushToken === 'ExponentPushToken[noa-phone]');
+    expect(holder.id).toBe(signedIn.refreshToken.split('.')[1]);
 
     mockDevice.token = 'ExponentPushToken[noa-phone-rotated]';
     await act(async () => {
@@ -142,6 +144,7 @@ describe('PushNotifications', () => {
         'ExponentPushToken[noa-phone-rotated]',
       ]),
     );
+    expect(pushTokensOf(NOA)).toEqual(['ExponentPushToken[noa-phone-rotated]']);
     expect(mockDevice.prompts).toBe(1);
   });
 

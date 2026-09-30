@@ -10,6 +10,6 @@ export function createCustomersRouter(deps: AppDeps): Router {
   const router = Router();
   const auth = requireAuth(deps);
   router.get('/customer/profile', auth, requireRole('customer'), asyncHandler(getProfile()));
-  router.patch('/customer/profile', auth, requireRole('customer'), asyncHandler(updateProfile(deps)));
+  router.patch('/customer/profile', auth, requireRole('customer'), asyncHandler(updateProfile()));
   return router;
 }

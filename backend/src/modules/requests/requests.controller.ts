@@ -6,10 +6,12 @@ import { ApiError } from '../../lib/errors.js';
 import { parseObjectId } from '../../lib/ids.js';
 import { validateRequest } from '../../lib/validate.js';
 import { authOf } from '../../middleware/auth.js';
+import { uploadedImages } from '../../middleware/multipart.js';
 import type { CustomerRequestView, SuccessResponse } from '../../shared/contract/index.js';
 import { listNearbyRequests } from './nearby.service.js';
 import { cancelRequest } from './request-cancel.service.js';
-import { createRequest, deleteDraftRequest, publishRequest, updateDraftRequest } from './request-lifecycle.service.js';
+import { createRequest } from './request-create.service.js';
+import { deleteDraftRequest, publishRequest, updateDraftRequest } from './request-lifecycle.service.js';
 import { getRequestDetails, listCustomerRequests } from './request-queries.service.js';
 import type { RequestDoc } from './request.model.js';
 import {
@@ -30,20 +32,20 @@ async function toCustomerView(request: RequestDoc): Promise<CustomerRequestView>
   return view;
 }
 
-/** `POST /v1/requests` → 201 `CustomerRequestView` */
+/** `POST /v1/requests` (multipart: JSON `data` + files `photos`) → 201 `CustomerRequestView` */
 export const create = (deps: AppDeps) => async (req: Request) => {
   const { body } = validateRequest(req, { body: createRequestBody });
-  return toCustomerView(await createRequest(deps, authOf(req, 'customer'), body));
+  return toCustomerView(await createRequest(deps, authOf(req, 'customer'), body, uploadedImages(req)));
 };
 
 /** `GET /v1/requests/:requestId` → `RequestDetailsResponse` (role-aware) */
 export const getDetails = () => (req: Request) => getRequestDetails(authOf(req), requestIdOf(req));
 
-/** `PATCH /v1/requests/:requestId` (drafts) → `CustomerRequestView` */
+/** `PATCH /v1/requests/:requestId` (drafts; multipart: JSON `data` + files `photos`) → `CustomerRequestView` */
 export const updateDraft = (deps: AppDeps) => async (req: Request) => {
   const { params, body } = validateRequest(req, { params: requestParams, body: updateDraftRequestBody });
   const requestId = parseObjectId(params.requestId, 'Request');
-  return toCustomerView(await updateDraftRequest(deps, authOf(req, 'customer'), requestId, body));
+  return toCustomerView(await updateDraftRequest(deps, authOf(req, 'customer'), requestId, body, uploadedImages(req)));
 };
 
 /** `DELETE /v1/requests/:requestId` (drafts) → `{ success: true }` */

@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { signInCustomer, signInProfessional } from '../../../../test/auth.js';
-import { createCustomer, createJob, createOffer, createProfessional, createRequest, createUpload } from '../../../../test/factories.js';
-import { UploadModel } from '../../uploads/upload.model.js';
+import { createCustomer, createJob, createOffer, createProfessional, createRequest } from '../../../../test/factories.js';
 import { UserModel } from '../../users/user.model.js';
 
 const HOME = {
@@ -108,7 +107,6 @@ describe('PATCH /v1/customer/profile', () => {
         phone: '12',
         defaultLocation: { ...HOME, coordinates: { latitude: 95, longitude: 34 }, addressLine: '' },
         notificationPreferences: { pushEnabled: true },
-        avatarUrl: '',
       })
       .expect(400);
     expect(res.body).toEqual({
@@ -125,32 +123,7 @@ describe('PATCH /v1/customer/profile', () => {
         'notificationPreferences.messages': ['validation:required'],
         'notificationPreferences.newRequests': ['validation:required'],
         'notificationPreferences.reminders': ['validation:required'],
-        avatarUrl: ['validation:invalid'],
       },
     });
-  });
-
-  it('sets the avatar from the caller’s own upload and releases the old one', async () => {
-    const customer = await signInCustomer(deps);
-    const first = await createUpload(customer.user);
-    const res = await request(app).patch('/v1/customer/profile').set(customer.headers).send({ avatarUrl: first.url, lastName: 'Mizrahi' }).expect(200);
-    expect(res.body.user).toMatchObject({ avatarUrl: first.url, lastName: 'Mizrahi' });
-    expect((await UserModel.findById(customer.user._id).lean())?.avatar).toEqual({ url: first.url, publicId: first.publicId });
-    expect((await UploadModel.findById(first._id).lean())?.attachedAt).not.toBeNull();
-
-    const removed = await request(app).patch('/v1/customer/profile').set(customer.headers).send({ avatarUrl: null }).expect(200);
-    expect(removed.body.user.avatarUrl).toBeNull();
-    expect((await UploadModel.findById(first._id).lean())?.attachedAt).toBeNull();
-  });
-
-  it('refuses avatars that are not the caller’s uploads and changes nothing', async () => {
-    const customer = await signInCustomer(deps);
-    const foreign = await createUpload(await createCustomer());
-    for (const avatarUrl of [foreign.url, 'https://tracker.example/pixel.gif']) {
-      const res = await request(app).patch('/v1/customer/profile').set(customer.headers).send({ avatarUrl, firstName: 'Changed' }).expect(400);
-      expect(res.body.fieldErrors).toEqual({ avatarUrl: ['validation:invalid'] });
-    }
-    expect((await UserModel.findById(customer.user._id).lean())?.firstName).toBe(customer.user.firstName);
-    expect((await UploadModel.findById(foreign._id).lean())?.attachedAt).toBeNull();
   });
 });

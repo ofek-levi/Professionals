@@ -344,7 +344,7 @@ export function seedMarketplace(b: SeedBuilder): void {
         spec.preferredSchedule && scheduleDay !== null
           ? { date: t.dateKey(scheduleDay), timeWindow: spec.preferredSchedule.timeWindow }
           : null,
-      photos: Array.from({ length: spec.photos ?? 0 }, (_, index) => b.photo(spec.id, index + 1, spec.customerId, createdAt)),
+      photos: Array.from({ length: spec.photos ?? 0 }, (_, index) => b.photo(spec.id, index + 1)),
       notes: spec.notes ?? null,
       status: spec.offers?.some((offer) => !offer.expired) ? 'offers_received' : 'open',
       createdAt,

@@ -3,8 +3,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { signInCustomer, signInProfessional } from '../../../../test/auth.js';
-import { createCustomer, createUpload } from '../../../../test/factories.js';
-import { UploadModel } from '../../uploads/upload.model.js';
 import { UserModel } from '../../users/user.model.js';
 import { ProfessionalModel, professionalPublicCenter } from '../professional.model.js';
 
@@ -167,18 +165,5 @@ describe('PATCH /v1/professional/profile', () => {
     const pro = await signInProfessional(deps);
     const res = await request(app).patch('/v1/professional/profile').set(pro.headers).send({ categoryIds: ['plumbing', 'astrology'] }).expect(422);
     expect(res.body).toMatchObject({ code: 'UNSUPPORTED_CATEGORY', fieldErrors: { 'categoryIds.1': ['validation:category.unsupported'] } });
-  });
-
-  it('takes the avatar from the professional’s own uploads', async () => {
-    const pro = await signInProfessional(deps);
-    const mine = await createUpload(pro.user);
-    const res = await request(app).patch('/v1/professional/profile').set(pro.headers).send({ avatarUrl: mine.url }).expect(200);
-    expect(res.body.avatarUrl).toBe(mine.url);
-    expect((await UploadModel.findById(mine._id).lean())?.attachedAt).not.toBeNull();
-
-    const foreign = await createUpload(await createCustomer());
-    const rejected = await request(app).patch('/v1/professional/profile').set(pro.headers).send({ avatarUrl: foreign.url, headline: 'New headline' }).expect(400);
-    expect(rejected.body.fieldErrors).toEqual({ avatarUrl: ['validation:invalid'] });
-    expect((await ProfessionalModel.findById(pro.user._id).lean())?.headline).toBe(pro.professional.headline);
   });
 });

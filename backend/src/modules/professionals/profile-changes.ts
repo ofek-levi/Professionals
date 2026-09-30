@@ -41,7 +41,7 @@ export function professionalChanges(id: Types.ObjectId, input: UpdateProfessiona
 /**
  * Account fields a professional PATCH changes: the name, the notification settings and the phone
  * (the contact phone doubles as the account phone; the contact email never changes the sign-in
- * email). The avatar is handled separately (upload claim).
+ * email). The avatar has its own endpoint (`PUT /me/avatar`).
  */
 export function accountChanges(input: UpdateProfessionalProfileInput): Partial<UserDoc> {
   return definedFields<Partial<UserDoc>>({

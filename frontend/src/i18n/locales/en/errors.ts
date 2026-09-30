@@ -94,7 +94,7 @@ export const errors = {
     minutes_one: 'Please try again in {{count}} minute.',
     minutes_other: 'Please try again in {{count}} minutes.',
   },
-  /** `POST /uploads/images` failures. */
+  /** Photos that could not be sent (with a request, or as the avatar). */
   upload: {
     invalid: {
       title: 'This photo can’t be used',

@@ -22,7 +22,7 @@ import { API_LIMITS } from './shared/limits.js';
 function corsOptions(env: Env): CorsOptions {
   return {
     origin: env.corsOrigins === '*' ? true : env.corsOrigins,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Authorization', 'Content-Type', 'Accept-Language', 'If-None-Match', 'X-Request-Id'],
     exposedHeaders: ['X-Request-Id', 'ETag', 'RateLimit', 'RateLimit-Policy', 'Retry-After'],
     maxAge: 600,

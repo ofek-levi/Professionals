@@ -1,10 +1,12 @@
+import { Types } from 'mongoose';
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { bearer } from '../../../../test/auth.js';
+import { newObjectId } from '../../../lib/ids.js';
 import type { AuthSession, RefreshResponse } from '../../../shared/contract/index.js';
-import { DeviceModel } from '../../users/device.model.js';
+import { createNotification } from '../../notifications/create-notification.service.js';
 import { SessionModel } from '../session.model.js';
 import { customerPayload, registerAccount } from './auth-test-helpers.js';
 
@@ -154,7 +156,7 @@ describe('sessions: refresh, reuse detection, logout', () => {
   });
 
   describe('POST /v1/auth/logout', () => {
-    it('revokes the session of the refresh token and the devices it registered', async () => {
+    it('revokes the session of the refresh token, and with it the push token it registered', async () => {
       const phone = await signUp();
       const tablet = await loginAgain(phone);
       await registerDevice(phone.accessToken, 'ExponentPushToken[phone]');
@@ -163,8 +165,22 @@ describe('sessions: refresh, reuse detection, logout', () => {
       const res = await request(app).post('/v1/auth/logout').send({ refreshToken: phone.refreshToken }).expect(200);
       expect(res.body).toEqual({ success: true });
       await refresh(phone.refreshToken).expect(401);
-      await rotate(tablet.refreshToken);
-      expect((await DeviceModel.find().lean()).map((device) => device.token)).toEqual(['ExponentPushToken[tablet]']);
+      await rotate(tablet.refreshToken); // a refresh keeps the install's push token
+      expect(await pushTokens()).toEqual(['ExponentPushToken[tablet]']);
+
+      // The signed-out phone gets no more pushes; the tablet still does.
+      deps.push.sent.length = 0;
+      await createNotification(deps, idOf(phone), {
+        type: 'new_message',
+        conversationId: newObjectId(),
+        categoryId: 'plumbing',
+        senderRole: 'professional',
+        senderName: 'Avi Fix',
+        messageText: 'On my way',
+        replacesUnread: true,
+      });
+      await deps.background.drain();
+      expect(deps.push.sent.map((message) => message.to)).toEqual(['ExponentPushToken[tablet]']);
 
       // Idempotent.
       await request(app).post('/v1/auth/logout').send({ refreshToken: phone.refreshToken }).expect(200);
@@ -196,7 +212,7 @@ describe('sessions: refresh, reuse detection, logout', () => {
       await registerDevice(session.accessToken, 'ExponentPushToken[phone]');
       await request(app).post('/v1/auth/logout').set(bearer(session.accessToken)).expect(200);
       await refresh(session.refreshToken).expect(401);
-      expect(await DeviceModel.countDocuments()).toBe(0);
+      expect(await pushTokens()).toEqual([]);
       await request(app).get('/v1/me').set(bearer(session.accessToken)).expect(401);
     });
 
@@ -214,5 +230,11 @@ describe('sessions: refresh, reuse detection, logout', () => {
     async function registerDevice(accessToken: string, pushToken: string): Promise<void> {
       await request(app).post('/v1/me/devices').set(bearer(accessToken)).send({ pushToken, platform: 'ios' }).expect(200);
     }
+
+    async function pushTokens(): Promise<(string | undefined)[]> {
+      return (await SessionModel.find({ pushToken: { $exists: true } }, { pushToken: 1 }).lean()).map((session) => session.pushToken);
+    }
+
+    const idOf = (session: AuthSession) => new Types.ObjectId(session.user.id);
   });
 });

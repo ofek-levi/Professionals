@@ -12,6 +12,5 @@ export const registerDeviceBody = z.object({
   pushToken: z.string({ error: vm('required') }).trim().min(1, vm('required')).max(200, vm('invalid')),
   platform: z.enum(DEVICE_PLATFORMS, { error: vm('invalid') }),
 });
-export type RegisterDeviceInput = z.output<typeof registerDeviceBody>;
 
 export const deviceParams = z.object({ token: z.string().max(200) });

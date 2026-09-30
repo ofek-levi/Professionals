@@ -12,11 +12,10 @@ import type {
 } from '../domain';
 import type { PaginationParams } from './common';
 
-/** `PATCH /professional/profile` */
+/** `PATCH /professional/profile` (the avatar has its own endpoint: `PUT`/`DELETE /me/avatar`). */
 export interface UpdateProfessionalProfilePayload {
   fullName?: string;
   displayName?: string;
-  avatarUrl?: string | null;
   headline?: string;
   bio?: string;
   categoryIds?: CategoryId[];
@@ -36,12 +35,11 @@ export interface CustomerProfileResponse {
   profile: CustomerProfile;
 }
 
-/** `PATCH /customer/profile` */
+/** `PATCH /customer/profile` (the avatar has its own endpoint: `PUT`/`DELETE /me/avatar`). */
 export interface UpdateCustomerProfilePayload {
   firstName?: string;
   lastName?: string;
   phone?: string;
-  avatarUrl?: string | null;
   defaultLocation?: ServiceLocation | null;
   notificationPreferences?: NotificationPreferences;
 }

@@ -15,6 +15,7 @@ import {
   type GeoCoordinates,
   type ISODateString,
   type PreferredTimeWindow,
+  type RequestPhoto,
   type ServiceRequest,
   type UrgencyLevel,
 } from '@/types/domain';
@@ -70,35 +71,34 @@ const preferredScheduleSchema = z.object({
   timeWindow: timeWindowSchema,
 });
 
-const photoIdsSchema = z
-  .array(z.string().trim().min(1, vm('request.photoInvalid')))
-  .max(APP_CONFIG.maxRequestPhotos, vm('request.tooManyPhotos'));
-
 const requestPayloadShape = {
   categoryId: categoryIdSchema,
   description: descriptionSchema,
   location: serviceLocationInputSchema,
   urgency: urgencySchema,
   preferredSchedule: preferredScheduleSchema.nullable(),
-  photoIds: photoIdsSchema,
   notes: nullableText(APP_CONFIG.notesMaxLength, vm('request.notesTooLong')),
 };
 
 /**
- * `POST /requests` payload. Structural rules only; time-relative rules (preferred date not in the
- * past, within the urgency window) are checked with `validatePreferredDateForUrgency` against the
- * server clock.
+ * `POST /requests` payload (the multipart `data`; the photos are its files). Structural rules only;
+ * time-relative rules (preferred date not in the past, within the urgency window) are checked with
+ * `validatePreferredDateForUrgency` against the server clock.
  */
 export const createServiceRequestSchema = z.object({
   ...requestPayloadShape,
-  photoIds: photoIdsSchema.default([]),
   notes: requestPayloadShape.notes.default(null),
   preferredSchedule: requestPayloadShape.preferredSchedule.default(null),
   publish: z.boolean().default(true),
 });
 
-/** `PATCH /requests/:id` (drafts only) – every field optional, no defaults. */
-export const updateDraftRequestSchema = z.object(requestPayloadShape).partial();
+/** `PATCH /requests/:id` (drafts only) – every field optional, no defaults; `keepPhotos` lists the photos kept. */
+export const updateDraftRequestSchema = z
+  .object({
+    ...requestPayloadShape,
+    keepPhotos: z.array(z.string()).max(APP_CONFIG.maxRequestPhotos, vm('request.tooManyPhotos')),
+  })
+  .partial();
 
 // ────────────────────────────── Request form ──────────────────────────────
 
@@ -114,17 +114,15 @@ export const requestFormLocationSchema = z.object({
   details: z.string().trim().max(LOCATION_LIMITS.detailsMax, vm('location.detailsTooLong')).nullable(),
 });
 
-/** A photo picked on the device (not uploaded yet unless `uploadId` is set). */
+/** A photo of the form: picked on the device (sent with the post), or already on the draft (`publicId`). */
 export const requestFormPhotoSchema = z.object({
   uri: z.string().min(1, vm('request.photoInvalid')),
-  width: z.number(),
-  height: z.number(),
   mimeType: z.string().nullable(),
   fileName: z.string().nullable(),
   /** Bytes, when the picker reports it (checked against the upload limit before the transfer). */
   fileSize: z.number().nullable().optional(),
-  /** Id returned by `POST /uploads/images` (photos of an edited draft are already uploaded). */
-  uploadId: z.string().nullable().optional(),
+  /** The photo is already stored on the draft (a draft's photos, or a draft edit that went through). */
+  publicId: z.string().nullable().optional(),
 });
 
 /**
@@ -207,15 +205,13 @@ export function requestToFormValues(request: ServiceRequest): RequestFormValues 
     preferredDate: request.preferredSchedule?.date ?? null,
     preferredTimeWindow: request.preferredSchedule?.timeWindow ?? 'any',
     notes: request.notes ?? '',
-    photos: request.photos.map((photo) => ({
-      uri: photo.url,
-      width: photo.width ?? 0,
-      height: photo.height ?? 0,
-      mimeType: null,
-      fileName: null,
-      uploadId: photo.id,
-    })),
+    photos: requestPhotosToForm(request.photos),
   };
+}
+
+/** Photos stored on a request → form photos (kept as they are unless removed). */
+export function requestPhotosToForm(photos: readonly RequestPhoto[]): RequestFormPhoto[] {
+  return photos.map((photo) => ({ uri: photo.url, mimeType: null, fileName: null, publicId: photo.publicId }));
 }
 
 function requireValue<T>(value: T | null | undefined, field: string): T {
@@ -227,7 +223,7 @@ function requireValue<T>(value: T | null | undefined, field: string): T {
 
 type RequestPayloadFields = Omit<CreateServiceRequestPayload, 'publish'>;
 
-function toRequestPayloadFields(values: RequestFormValues, photoIds: readonly string[]): RequestPayloadFields {
+function toRequestPayloadFields(values: RequestFormValues): RequestPayloadFields {
   const categoryId = requireValue(values.categoryId, 'categoryId');
   if (!isSupportedCategoryId(categoryId)) throw new Error(`Unsupported category "${categoryId}"`);
   const location = requireValue(values.location, 'location');
@@ -248,21 +244,19 @@ function toRequestPayloadFields(values: RequestFormValues, photoIds: readonly st
     },
     urgency,
     preferredSchedule: preferredDate ? { date: preferredDate, timeWindow } : null,
-    photoIds: [...photoIds],
     notes: notes.length > 0 ? notes : null,
   };
 }
 
-/** Converts validated form values into the `POST /requests` payload. */
-export function toCreateRequestPayload(
-  values: RequestFormValues,
-  photoIds: readonly string[],
-  publish: boolean,
-): CreateServiceRequestPayload {
-  return { ...toRequestPayloadFields(values, photoIds), publish };
+/** Converts validated form values into the `POST /requests` payload (the photos go as files). */
+export function toCreateRequestPayload(values: RequestFormValues, publish: boolean): CreateServiceRequestPayload {
+  return { ...toRequestPayloadFields(values), publish };
 }
 
-/** Converts validated form values into the `PATCH /requests/:id` payload (draft editing). */
-export function toUpdateDraftRequestPayload(values: RequestFormValues, photoIds: readonly string[]): UpdateDraftRequestPayload {
-  return toRequestPayloadFields(values, photoIds);
+/**
+ * Converts validated form values into the `PATCH /requests/:id` payload (draft editing): the draft
+ * photos still in the form are kept, the new ones go as files after them.
+ */
+export function toUpdateDraftRequestPayload(values: RequestFormValues): UpdateDraftRequestPayload {
+  return { ...toRequestPayloadFields(values), keepPhotos: values.photos.flatMap((photo) => (photo.publicId ? [photo.publicId] : [])) };
 }

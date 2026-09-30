@@ -34,7 +34,7 @@ async function countOffers(requestId: Types.ObjectId, tx: Tx): Promise<OfferCoun
 
 /** Fields a lifecycle step changes together with the counters (acceptance, cancellation). */
 export type RequestChange = Partial<
-  Pick<RequestDoc, 'status' | 'acceptedOffer' | 'job' | 'cancelledAt' | 'cancellationReason' | 'cancellationComment'>
+  Pick<RequestDoc, 'status' | 'acceptedOffer' | 'job' | 'cancelledAt' | 'cancellationReason' | 'cancellationComment' | 'photos'>
 >;
 
 /**

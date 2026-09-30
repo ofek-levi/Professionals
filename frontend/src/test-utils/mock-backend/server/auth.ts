@@ -11,7 +11,7 @@ import { sessionOfAccessToken } from './sessions';
 interface ActorBase {
   userId: string;
   user: StoredUser;
-  /** The session of the access token (devices registered with it are removed on logout). */
+  /** The session of the access token (a push token registered with it goes away on logout). */
   sessionId: string;
 }
 

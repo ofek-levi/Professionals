@@ -1,9 +1,10 @@
 /**
  * Device registration for push (`POST /me/devices { pushToken, platform }`): asks for permission
  * when allowed to, registers the Expo push token and registers again whenever the OS issues a new
- * one. Signing out needs no call: the server's logout removes the session's devices (it is queued
- * until the server confirms it, `services/auth/pending-logouts.ts`), and push fan-out skips devices
- * whose session has ended (expired or revoked without a logout);
+ * one (the server keeps one token per session: the new one replaces the old). Signing out needs no
+ * call: the token is stored on the session, so the server's logout removes it (the logout is queued
+ * until the server confirms it, `services/auth/pending-logouts.ts`), and push fan-out skips
+ * sessions that have ended (expired or revoked without a logout);
  * `unregister()` is for turning push off in Settings (`DELETE /me/devices/:token`).
  */
 import type { RegisterDeviceRequest } from '@/types/api';

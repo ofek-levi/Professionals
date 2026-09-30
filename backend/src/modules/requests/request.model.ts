@@ -18,12 +18,10 @@ import {
 import { REQUEST_STATUSES, type RequestStatus } from '../../shared/statuses.js';
 import { URGENCY_LEVELS, type UrgencyLevel } from '../../shared/urgency.js';
 
+/** A photo, uploaded with the request (or a draft edit); `publicId` deletes it from storage. */
 export interface RequestPhotoDoc {
-  /** The `uploads` document (the photo id the app sees). */
-  upload: Types.ObjectId;
   url: string;
-  width: number | null;
-  height: number | null;
+  publicId: string;
 }
 
 export interface RequestDoc {
@@ -83,15 +81,7 @@ const requestSchema = new Schema<RequestDoc>(
     },
     photos: {
       type: [
-        new Schema<RequestPhotoDoc>(
-          {
-            upload: { type: Schema.Types.ObjectId, ref: 'Upload', required: true },
-            url: { type: String, required: true },
-            width: { type: Number, default: null },
-            height: { type: Number, default: null },
-          },
-          { _id: false },
-        ),
+        new Schema<RequestPhotoDoc>({ url: { type: String, required: true }, publicId: { type: String, required: true } }, { _id: false }),
       ],
       default: [],
     },
@@ -126,10 +116,12 @@ requestSchema.pre('validate', function setPublicPoint() {
 requestSchema.index({ customer: 1, updatedAt: -1, _id: -1 });
 // Customer dashboard counters by status.
 requestSchema.index({ customer: 1, status: 1 });
-// Idempotent POST /requests: one request per (customer, clientRequestId), also under retries.
+// Idempotent POST /requests: one request per (customer, clientRequestId), also under retries; the
+// lookup that answers a retry runs first on every create. `$exists` (not `$type: 'string'`): MongoDB
+// uses a partial index only when the query implies its filter, and an equality does not imply a type.
 requestSchema.index(
   { customer: 1, clientRequestId: 1 },
-  { unique: true, partialFilterExpression: { clientRequestId: { $type: 'string' } }, name: 'customer_1_clientRequestId_1' },
+  { unique: true, partialFilterExpression: { clientRequestId: { $exists: true } }, name: 'customer_clientRequestId' },
 );
 // Explorer + professional dashboard: $geoNear around a professional's center over requests that
 // accept offers in their categories. Status/category lead so the geo scan never walks the

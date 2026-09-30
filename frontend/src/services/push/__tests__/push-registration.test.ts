@@ -51,8 +51,9 @@ function registrationFor(env: TestEnvironment, provider: PushProvider) {
   });
 }
 
-const devices = (env: TestEnvironment) =>
-  env.server.internals.db.devices.all().map(({ userId, pushToken, platform }) => ({ userId, pushToken, platform }));
+/** The push tokens stored on sessions (one per session, like the backend). */
+const pushTokens = (env: TestEnvironment) =>
+  env.server.internals.db.sessions.all().flatMap(({ userId, pushToken }) => (pushToken ? [{ userId, pushToken }] : []));
 const flush = async () => {
   for (let i = 0; i < 5; i += 1) await new Promise((resolve) => setImmediate(resolve));
 };
@@ -66,7 +67,7 @@ describe('push registration', () => {
     expect(env.log.to('/me/devices', 'POST').map((request) => request.body)).toEqual([
       { pushToken: 'ExponentPushToken[device-1]', platform: 'android' },
     ]);
-    expect(devices(env)).toEqual([{ userId: NOA, pushToken: 'ExponentPushToken[device-1]', platform: 'android' }]);
+    expect(pushTokens(env)).toEqual([{ userId: NOA, pushToken: 'ExponentPushToken[device-1]' }]);
   });
 
   it('never prompts when not allowed to, and does not register without permission', async () => {
@@ -93,7 +94,7 @@ describe('push registration', () => {
     await expect(registrationFor(env, notExpo.provider).register({ askPermission: true })).resolves.toBe('failed');
     expect(env.log.to('/me/devices')[0].status).toBe(400);
     warn.mockRestore();
-    expect(devices(env)).toEqual([]);
+    expect(pushTokens(env)).toEqual([]);
   });
 
   it('registers again when the OS issues a new token, until stopped', async () => {
@@ -107,6 +108,8 @@ describe('push registration', () => {
       'ExponentPushToken[device-1]',
       'ExponentPushToken[device-2]',
     ]);
+    // The session holds only the newest token.
+    expect(pushTokens(env)).toEqual([{ userId: NOA, pushToken: 'ExponentPushToken[device-2]' }]);
     // A token change never prompts.
     expect(device.provider.requestPermission).not.toHaveBeenCalled();
     stop();
@@ -123,7 +126,7 @@ describe('push registration', () => {
     await registration.register({ askPermission: false });
     await registration.unregister();
     expect(env.log.to('/me/devices/ExponentPushToken%5Bdevice-1%5D', 'DELETE').map((request) => request.status)).toEqual([200]);
-    expect(devices(env)).toEqual([]);
+    expect(pushTokens(env)).toEqual([]);
   });
 
   it('does nothing on the web (no push there)', async () => {

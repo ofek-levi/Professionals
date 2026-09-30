@@ -14,8 +14,13 @@ export const APP_CONFIG = {
   personNameMaxLength: 40,
   distanceFilterOptionsKm: [5, 10, 20, 40],
   maxRequestPhotos: 6,
-  /** Largest photo `POST /uploads/images` accepts (8 MiB); the app shrinks or refuses bigger ones first. */
+  /** Largest image the API accepts (8 MiB, per file); the app shrinks or refuses bigger ones first. */
   maxUploadBytes: 8 * 1024 * 1024,
+  /**
+   * How long the app waits per photo of a post (a request's photos travel in one body, so a post
+   * may take `maxRequestPhotos` times this; the API's `API_LIMITS.requestTimeoutMs` is longer).
+   */
+  photoUploadTimeoutMs: 90_000,
   descriptionMinLength: 15,
   descriptionMaxLength: 1000,
   notesMaxLength: 500,
@@ -39,13 +44,19 @@ export const API_LIMITS = {
   /** Notifications are deleted by a TTL index after this many days. */
   notificationTtlDays: 90,
   jsonBodyLimit: '100kb',
-  uploadMaxBytes: APP_CONFIG.maxUploadBytes,
-  uploadAllowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'],
-  /** Unattached uploads older than this are deleted by the orphan-uploads cron. */
-  orphanUploadMaxAgeHours: 24,
   geocoderCacheTtlDays: 30,
   /** Address suggestions fetched (and cached) per search: the largest `limit` `GET /geo/search` serves. */
   geocoderMaxResults: 20,
   pushTicketTtlSeconds: 24 * 60 * 60,
   publicProfileCacheTtlSeconds: 60,
+  /**
+   * Time to receive a whole request (Node's `server.requestTimeout`, default 5 min): a post with
+   * 6 photos on a slow uplink takes longer, and the app waits up to `maxRequestPhotos` ×
+   * `photoUploadTimeoutMs` (9 min) for it.
+   */
+  requestTimeoutMs: 10 * 60_000,
+  /** Image posts of one user running at once, per API process (their files are held in memory). */
+  imagePostsInFlightPerUser: 2,
+  /** Image bytes stored per user per 24 h (accounts are free; storage and bandwidth are not). */
+  imageBytesPerUserPerDay: 200 * 1024 * 1024,
 } as const;

@@ -31,7 +31,7 @@ export function createAuthApi(client: ApiClient) {
     /** `POST /auth/password-reset` – always succeeds for a valid email address. */
     requestPasswordReset: (payload: PasswordResetRequest) => client.post<SuccessResponse>('/auth/password-reset', payload, ANONYMOUS),
     /**
-     * `POST /auth/logout` – ends the session of that refresh token (and removes its push devices).
+     * `POST /auth/logout` – ends the session of that refresh token (and with it its push token).
      * Idempotent (signing out queues it until it succeeds: `services/auth/pending-logouts.ts`).
      */
     logout: (payload: LogoutRequest, signal?: AbortSignal) =>

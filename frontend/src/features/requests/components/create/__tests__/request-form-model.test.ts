@@ -1,4 +1,5 @@
 import { createEmptyRequestFormValues, type RequestFormPhoto } from '@/lib/validation';
+import { ApiError } from '@/services/api/errors';
 
 import {
   addressLabel,
@@ -8,30 +9,30 @@ import {
   firstErrorMessage,
   firstFormField,
   formLocationToService,
+  isPhotoUploadFailure,
   keepPreferredDate,
-  photosToUpload,
+  newPhotoFiles,
   pickedPhotosToForm,
   postedRequestHref,
   serviceLocationToForm,
-  toUploadPayload,
   withDefaultUrgency,
 } from '../request-form-model';
 
 const photo = (overrides: Partial<RequestFormPhoto> = {}): RequestFormPhoto => ({
   uri: 'file:///a.jpg',
-  width: 800,
-  height: 600,
   mimeType: 'image/jpeg',
   fileName: 'a.jpg',
-  uploadId: null,
+  fileSize: 1024,
+  publicId: null,
   ...overrides,
 });
 
 describe('form fields', () => {
   it('maps API field paths to visible form fields', () => {
     expect(apiFieldToFormField('location.addressLine')).toBe('location');
-    expect(apiFieldToFormField('photoIds')).toBe('photos');
-    expect(apiFieldToFormField('photoIds.2')).toBe('photos');
+    expect(apiFieldToFormField('photos')).toBe('photos');
+    // A draft photo that is gone (edited elsewhere) is reported on `keepPhotos`.
+    expect(apiFieldToFormField('keepPhotos')).toBe('photos');
     expect(apiFieldToFormField('categoryId')).toBe('categoryId');
     expect(apiFieldToFormField('urgency')).toBe('urgency');
     // Hidden or unknown fields have no place on the form.
@@ -72,16 +73,41 @@ describe('keepPreferredDate', () => {
 });
 
 describe('photo conversions', () => {
-  it('converts picked photos and form photos', () => {
-    const uploaded = photo({ uri: 'https://cdn/x.jpg', uploadId: 'upl_1', width: 0, height: 0 });
-    const added = pickedPhotosToForm([{ uri: 'blob:new', mimeType: null, width: null, height: null, fileName: null }]);
-    expect(added[0]).toMatchObject({ uri: 'blob:new', width: 0, height: 0, uploadId: null });
-    expect(photosToUpload([uploaded, photo(), ...added]).map((item) => item.uri)).toEqual(['file:///a.jpg', 'blob:new']);
+  it('sends only the photos that are not stored on the draft yet, as files', () => {
+    const stored = photo({ uri: 'https://cdn/x.jpg', publicId: 'test/requests/x' });
+    const added = pickedPhotosToForm([{ uri: 'blob:new', mimeType: null, fileName: null }]);
+    expect(added).toEqual([{ uri: 'blob:new', mimeType: null, fileName: null, fileSize: null, publicId: null }]);
+    expect(newPhotoFiles([stored, photo(), ...added])).toEqual([
+      { uri: 'file:///a.jpg', mimeType: 'image/jpeg', fileName: 'a.jpg', fileSize: 1024 },
+      { uri: 'blob:new', mimeType: null, fileName: null, fileSize: null },
+    ]);
+  });
+});
+
+describe('isPhotoUploadFailure', () => {
+  const error = (status: number, code: ApiError['code'], fieldErrors?: Record<string, string[]>) =>
+    new ApiError(status, { code, message: 'x', ...(fieldErrors ? { fieldErrors } : {}) });
+
+  it('recognises the refusals that name the photos: a refused photo, the image limits, the photo service', () => {
+    expect(isPhotoUploadFailure(error(400, 'VALIDATION_ERROR', { photos: ['validation:upload.invalid'] }), true)).toBe(true);
+    expect(isPhotoUploadFailure(error(413, 'VALIDATION_ERROR', { photos: ['validation:upload.invalid'] }), true)).toBe(true);
+    expect(isPhotoUploadFailure(error(429, 'RATE_LIMITED', { photos: ['validation:upload.rateLimited'] }), true)).toBe(true);
+    expect(isPhotoUploadFailure(error(503, 'SERVER_ERROR', { photos: ['validation:upload.unavailable'] }), true)).toBe(true);
   });
 
-  it('never sends non-positive dimensions to the upload API', () => {
-    expect(toUploadPayload(photo({ width: 0, height: 0 }))).toMatchObject({ width: null, height: null });
-    expect(toUploadPayload(photo())).toMatchObject({ width: 800, height: 600 });
+  it('leaves every other failure to the form, even with photos sent', () => {
+    // The request limit (30 posts / h) runs before the image limit: removing the photos would not help.
+    expect(isPhotoUploadFailure(error(429, 'RATE_LIMITED'), true)).toBe(false);
+    expect(isPhotoUploadFailure(error(503, 'SERVER_ERROR'), true)).toBe(false);
+    expect(isPhotoUploadFailure(error(500, 'SERVER_ERROR'), true)).toBe(false);
+    expect(isPhotoUploadFailure(error(400, 'VALIDATION_ERROR', { description: ['validation:request.descriptionTooShort'] }), true)).toBe(false);
+    // Too many photos is a message under the photos field.
+    expect(isPhotoUploadFailure(error(400, 'VALIDATION_ERROR', { photos: ['validation:request.tooManyPhotos'] }), true)).toBe(false);
+  });
+
+  it('blames a proxy’s own 413 (no API body) on the photos only while they are being sent', () => {
+    expect(isPhotoUploadFailure(error(413, 'VALIDATION_ERROR'), true)).toBe(true);
+    expect(isPhotoUploadFailure(error(413, 'VALIDATION_ERROR'), false)).toBe(false);
   });
 });
 

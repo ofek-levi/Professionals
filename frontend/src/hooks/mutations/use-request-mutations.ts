@@ -3,7 +3,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import { queryKeys } from '@/hooks/queries/query-keys';
 import { useQueryScope } from '@/hooks/queries/query-scope';
 import { api } from '@/services/api';
-import type { CancelRequestPayload, CreateServiceRequestPayload, RequestDetailsResponse, UpdateDraftRequestPayload } from '@/types/api';
+import type { CancelRequestPayload, CreateServiceRequestPayload, LocalImage, RequestDetailsResponse, UpdateDraftRequestPayload } from '@/types/api';
 import type { CustomerRequestView } from '@/types/domain';
 
 import { invalidateJobGraph, invalidateRequestGraph } from './invalidation';
@@ -13,12 +13,18 @@ function seedCustomerRequest(qc: QueryClient, userId: string | null, request: Cu
   qc.setQueryData<RequestDetailsResponse>(queryKeys.requests.detail(userId, request.id), { viewerRole: 'customer', request });
 }
 
-/** `POST /requests` – create (and by default publish) a request. `payload.publish: false` saves a draft. */
+interface CreateRequestVariables {
+  payload: CreateServiceRequestPayload;
+  /** Sent with the request (multipart). */
+  photos?: readonly LocalImage[];
+}
+
+/** `POST /requests` – create (and by default publish) a request with its photos. `payload.publish: false` saves a draft. */
 export function useCreateRequest() {
   const qc = useQueryClient();
   const { userId } = useQueryScope();
   return useMutation({
-    mutationFn: (payload: CreateServiceRequestPayload) => api.requests.createRequest(payload),
+    mutationFn: ({ payload, photos }: CreateRequestVariables) => api.requests.createRequest(payload, photos),
     onSuccess: (request) => {
       seedCustomerRequest(qc, userId, request);
       void invalidateRequestGraph(qc, userId, request.id);
@@ -30,14 +36,16 @@ export function useCreateRequest() {
 interface UpdateDraftRequestVariables {
   requestId: string;
   payload: UpdateDraftRequestPayload;
+  /** New photos, added after `payload.keepPhotos`. */
+  photos?: readonly LocalImage[];
 }
 
-/** `PATCH /requests/:id` – edit a draft. */
+/** `PATCH /requests/:id` – edit a draft (its fields and photos). */
 export function useUpdateDraftRequest() {
   const qc = useQueryClient();
   const { userId } = useQueryScope();
   return useMutation({
-    mutationFn: ({ requestId, payload }: UpdateDraftRequestVariables) => api.requests.updateDraftRequest(requestId, payload),
+    mutationFn: ({ requestId, payload, photos }: UpdateDraftRequestVariables) => api.requests.updateDraftRequest(requestId, payload, photos),
     onSuccess: (request) => {
       seedCustomerRequest(qc, userId, request);
       void invalidateRequestGraph(qc, userId, request.id);

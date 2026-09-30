@@ -14,7 +14,7 @@ without seeing each other's cache, rate limits, locks, push tickets or realtime 
 |---|---|---|---|
 | Missing provider credentials | Warning at startup, feature degraded | Refuses to start (lists every missing variable) | Refuses to start |
 | Email | Gmail SMTP (`SMTP_USER`/`SMTP_PASS`), else written to the log | Resend | Resend |
-| Image uploads without Cloudinary | 503 | — | — |
+| Images without Cloudinary | 503 for requests with photos and avatars (requests without photos work); or a local stub, `CLOUDINARY_UPLOAD_PREFIX` (§7) | — | — |
 | Google sign-in without client ids | 503 | — | — |
 | `CORS_ORIGINS` empty | allow every origin | allow none (warning at startup) | allow none (warning at startup) |
 | Default `LOG_LEVEL` | `debug` | `info` | `info` |
@@ -45,6 +45,7 @@ a list of every problem. Summary:
 | `GOOGLE_WEB_CLIENT_ID` | staging, production | — | Accepted audience of the web app's Google id tokens |
 | `GOOGLE_ANDROID_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID` | for each native app you ship | — | The Android / iOS build's id tokens carry this audience. Deployed without one, startup logs a warning: that app shows "Continue with Google" when it was built with its own id, and every attempt answers 401 `INVALID_GOOGLE_TOKEN`. The APKs of the Android workflow are the shipped native build, so set the Android id wherever they point |
 | `CLOUDINARY_URL` (or `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET`) | staging, production | — | Image storage |
+| `CLOUDINARY_UPLOAD_PREFIX` | never (development only; refused in staging/production) | — | Base URL the Cloudinary API calls go to instead of `https://api.cloudinary.com`: a local stub for live runs (§7) |
 | `RESEND_API_KEY`, `EMAIL_FROM` | staging, production | — | `EMAIL_FROM` like `Professionals <no-reply@your-domain>` on a verified domain |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | | `smtp.gmail.com`, `465` | Development only (ignored elsewhere) |
 | `EXPO_ACCESS_TOKEN` | when the Expo project enforces push security | — | Expo push |
@@ -58,6 +59,7 @@ a list of every problem. Summary:
 | `RATE_LIMIT_ENABLED` | | `true` | Keep `true` outside tests |
 | `PASSWORD_BREACH_CHECK` | | `true` | Reject new passwords found in data breaches (Pwned Passwords range API, fails open); `false` where the API is unreachable |
 | `SHUTDOWN_TIMEOUT_MS` | | `10000` | Graceful shutdown budget (1 000–60 000) |
+| `IMAGE_UPLOAD_MEMORY_MB` | | `256` | Memory for the bodies of image posts in flight, per instance (64–16 384): their files are held until stored; past it image posts answer 503 with `Retry-After` (§6). Size the container for it plus about 300 MB |
 
 Secrets (`JWT_ACCESS_SECRET`, `CLOUDINARY_*`, `RESEND_API_KEY`, `SMTP_PASS`, `EXPO_ACCESS_TOKEN`, the
 credentials inside `MONGODB_URI`/`REDIS_URL`) belong in the platform's secret store, never in the image
@@ -91,13 +93,17 @@ in **multi-document transactions**, which MongoDB only supports on a replica set
     drop it by hand: `db.<collection>.dropIndex('<name>')`.
   - Changing the options of an index under the same name makes creation fail (`index creation
     failed` in the log): give the new definition a new name, or drop the old index first.
-- Data that expires by itself (TTL indexes, no cron): sessions (90 days after the last refresh),
+- Data that expires by itself (TTL indexes, no cron): sessions with their push tokens (90 days after the last refresh),
   email links (verification 48 h, reset 1 h), notifications (90 days).
 - Indexes this release no longer declares (drop them once no older instance runs):
   `sessions.tokenHash_1` and `sessions.previousTokenHash_1` (refresh tokens now carry their session
-  id; sessions are read by `_id`) and `professionals` `serviceArea.center_2dsphere_categoryIds_1`
-  (public searches use `serviceArea.publicCenter`). Sessions created before this release have
-  refresh tokens in the old format: those users sign in again once.
+  id; sessions are read by `_id`), `sessions.user_1` (replaced by `user_1_pushToken_1`, which also
+  serves push fan-out), `requests.customer_1_clientRequestId_1` (replaced by `customer_clientRequestId`:
+  its `$type` filter kept the retry lookup of `POST /requests` from using it), `users.googleSub_1`
+  (replaced by `googleSub`, for the same reason: every Google sign-in scanned the users) and
+  `professionals.serviceArea.center_2dsphere_categoryIds_1` (public searches use
+  `serviceArea.publicCenter`). Sessions created before this release have refresh tokens in the old
+  format: those users sign in again once.
 - Documents written before this release: `professionals.serviceArea.publicCenter` is required; set it
   for existing professionals before deploying (none exist in production yet).
 
@@ -105,7 +111,7 @@ in **multi-document transactions**, which MongoDB only supports on a replica set
 
 Redis 6.2+ (tested on 7), shared by every API instance of an environment. It holds: cache (public
 profiles 60 s, geocoder: reverse lookups 30 days, searches 7 days, empty answers 1 day), rate-limit
-counters (also WebSocket upgrades per user, failed sign-ins, geocoder misses, upload bytes, reset and
+counters (also WebSocket upgrades per user, failed sign-ins, geocoder misses, reset and
 notification emails), "known" sign-in IPs per account (hashed email, 30 days), cron locks and tick
 claims, the geocoder's global request gate, explorer event windows (seconds), revoked session ids
 (31 min), pending Expo push tickets (sorted set pruned by the `push-receipts` job) and the realtime
@@ -148,6 +154,13 @@ Without Docker: `npm ci && npm run build && npm start` on Node ≥ 22.12.
   for carrier NAT (many subscribers behind one IPv4); see API.md, Rate limits.
 - The WebSocket endpoint `/v1/realtime` shares the HTTP port: allow `Upgrade` and use an idle timeout
   above 30 s (the server pings every 30 s).
+- **Image posts are large and slow**: `POST /v1/requests` and `PATCH /v1/requests/:id` carry up to 6
+  photos of up to 8 MB in one body (≈ 49 MB), `PUT /v1/me/avatar` one. Allow request bodies of at least
+  50 MB on these routes (nginx: `client_max_body_size 50m`, its default is 1 MB; a proxy's own 413 is
+  shown by the app as a photo that cannot be sent) and a request/read timeout of at least 10 min: the
+  app waits up to 90 s per photo, and the API accepts a body for 10 min (`requestTimeout`, above Node's
+  5 min default). Consider `proxy_request_buffering off` so the proxy streams the body instead of
+  spooling it first.
 - **Access logs of the load balancer, proxy or CDN must not keep query strings of `/v1/realtime`, nor
   its `Sec-WebSocket-Protocol` request header**: the current app sends the user's access token (a JWT
   valid up to 30 min) as the `bearer.<token>` subprotocol, and app versions released before that put
@@ -170,7 +183,7 @@ Without Docker: `npm ci && npm run build && npm start` on Node ≥ 22.12.
 1. `npm run typecheck && npm run lint && npm test` (needs a local MongoDB replica set + Redis, see the
    README), `npm run build`.
 2. Build and push the image; deploy staging with staging secrets; smoke test sign-up, a request, an
-   offer, chat (realtime) and an upload.
+   offer, chat (realtime) and a request with a photo.
 3. Deploy production with a rolling update; watch `/ready`, error rates and the logs.
 4. After the release before it is gone everywhere, drop the indexes startup reports as `stale
    indexes` (see §3, MongoDB).
@@ -186,12 +199,11 @@ keeps two runs of the same job from overlapping. Jobs are idempotent and resume 
 |---|---|---|
 | `offer-expiry` | every 5 min | Pending offers past `expiresAt` → `expired`, request counters recounted, professional notified |
 | `appointment-reminders` | every 15 min | Jobs starting within 2 h: one reminder per party, exactly once |
-| `push-receipts` | every 15 min | Expo push receipts: deletes `DeviceNotRegistered` tokens, logs other errors, drops old tickets |
-| `orphan-uploads` | daily 03:17 | Deletes uploads never attached to anything after 24 h: the documents first (still unattached), then only their images in Cloudinary, so an upload claimed meanwhile keeps its image; a Cloudinary failure is logged with the image ids |
+| `push-receipts` | every 15 min | Expo push receipts: removes `DeviceNotRegistered` tokens from their sessions, logs other errors, drops old tickets |
 
 To move scheduled work off the API instances, run one extra instance of the same image with
 `CRON_ENABLED=true` and set `CRON_ENABLED=false` on the others. `CRON_DISABLED_JOBS` switches off single
-jobs (e.g. `orphan-uploads` while investigating storage).
+jobs (e.g. `push-receipts` while investigating Expo).
 
 ## 6. Scaling
 
@@ -219,17 +231,47 @@ jobs (e.g. `orphan-uploads` while investigating storage).
   Nominatim-compatible provider (`GEOCODER_URL`) and raise its rate (`GEOCODER_MIN_INTERVAL_MS`).
   Expo push volume, and notification emails ("Email updates": at most 10 per user per hour, one per
   chat per 30 min; they count against the Resend plan).
+- **Image posts** hold their files in memory until they are stored at Cloudinary (up to ≈ 49 MB per
+  post). Each instance admits at most 2 image posts per user at once (429) and bodies of up to
+  `IMAGE_UPLOAD_MEMORY_MB` in all, by declared size (503 with `Retry-After`; the app shows its photo
+  message), and refuses a body larger than a post can be without reading it (413). Cloudinary cost is
+  bounded per user: 60 image posts per hour and 200 MB of stored images per day (429).
 - **Node**: one process per container; scale horizontally rather than with cluster mode.
 
 ## 7. Providers
 
-### Cloudinary (image uploads)
+### Cloudinary (images)
 
 1. Create an account (one product environment per `APP_ENV`, or one shared: images already go to
-   `professionals/<APP_ENV>/…` folders).
+   `professionals/<APP_ENV>/requests|avatars` folders).
 2. Copy the *API environment variable* (`cloudinary://<key>:<secret>@<cloud>`) into `CLOUDINARY_URL`.
 3. Nothing else to configure: uploads are signed server-side (the app never sees the secret), limited
-   to 2048 px and served over HTTPS; the `orphan-uploads` job deletes abandoned images.
+   to 2048 px and served over HTTPS. There is no cleanup job: an image is uploaded together with the
+   request or avatar that shows it and deleted when that stops showing it, one Upload API `destroy`
+   per image (not the hourly-limited Admin API) with `invalidate`, so the CDN stops serving it too.
+   This is best effort, so a few orphans are possible: a deletion that fails is logged as `images
+   could not be deleted from storage; delete them there` with the `publicIds`, and photos kept after a
+   save whose outcome was unknown as `photos of a failed save were kept`. A crash between an upload and
+   its save, or an upload that completed at Cloudinary after the API gave up on it, leaves no log
+   line: compare the `professionals/<APP_ENV>/requests|avatars` folders with the `publicId`s stored in
+   `requests.photos` and `users.avatar` to find them, or ignore a few.
+
+#### Images without Cloudinary (development)
+
+Without credentials, requests without photos work and anything with an image answers 503. For a live
+run with images, point the API at a local stub that answers like Cloudinary's upload and
+delete endpoints:
+
+```sh
+CLOUDINARY_URL=cloudinary://key:secret@local      # any values: the stub does not check the signature
+CLOUDINARY_UPLOAD_PREFIX=http://127.0.0.1:4700    # refused when APP_ENV is staging or production
+```
+
+The API then calls `POST <prefix>/v1_1/<cloud>/image/upload` (multipart, the image in `file`; answer
+`{ "public_id": "…", "secure_url": "…" }`) and, per deleted image, `POST <prefix>/v1_1/<cloud>/image/destroy`
+(multipart `public_id`, `invalidate=true`; answer `{ "result": "ok" }`). The `secure_url` the stub returns is what the app loads, so serve the
+images from the stub too (e.g. `http://127.0.0.1:4700/img/<id>.jpg`). Startup logs a warning while
+the prefix is set.
 
 ### Resend (email in staging/production)
 
@@ -262,7 +304,8 @@ jobs (e.g. `orphan-uploads` while investigating storage).
 
 ### Expo push notifications
 
-1. The app registers Expo push tokens (`ExponentPushToken[…]`) with `POST /v1/me/devices`.
+1. The app registers Expo push tokens (`ExponentPushToken[…]`) with `POST /v1/me/devices`; the token is
+   stored on the caller's session (`sessions.pushToken`) and goes away with it.
 2. Configure the credentials in Expo (EAS): FCM v1 service account for Android, APNs key for iOS
    (`eas credentials`).
 3. If *Enhanced security for push notifications* is enabled on the Expo project, create an access token

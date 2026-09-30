@@ -22,6 +22,8 @@ export interface RateLimitRule {
   limit: number;
   /** Bucket key; `null` skips the limiter for this request. Default: client IP. */
   key?: (req: Request) => string | null;
+  /** The error of a refused request. Default: a plain 429 `RATE_LIMITED`. */
+  refusal?: () => ApiError;
 }
 
 const MINUTE = 60_000;
@@ -57,10 +59,15 @@ export const RATE_LIMITS = {
   geoMissesPerIp: { windowMs: MINUTE, limit: 15 },
   /** …and per user when signed in. */
   geoMissesPerUser: { windowMs: MINUTE, limit: 30 },
-  uploadsPerUser: { windowMs: 10 * MINUTE, limit: 60 },
+  /**
+   * Posts that may carry images (new requests, draft edits, avatars; a request takes up to 6 photos).
+   * How many run at once and the bytes stored per day are limited too (`image-admission.ts`,
+   * `image-quota.ts`).
+   */
+  imagesPerUser: { windowMs: 60 * MINUTE, limit: 60 },
   /** WebSocket upgrades (outside Express, see `server.ts`); the app reconnects every 3 s at most. */
   realtimeUpgradesPerUser: { windowMs: MINUTE, limit: 60 },
-} as const satisfies Record<string, Omit<RateLimitRule, 'key'>>;
+} as const satisfies Record<string, Omit<RateLimitRule, 'key' | 'refusal'>>;
 
 type Redis = AppDeps['redis'];
 
@@ -119,7 +126,7 @@ export function rateLimit(deps: Pick<AppDeps, 'env' | 'redis' | 'keys'>, name: s
     store: createStore(deps.redis, `${deps.keys.key(KEY_SPACES.rateLimit, name)}:`),
     skip: (req) => keyFor(req) === null,
     keyGenerator: (req) => keyFor(req) ?? 'none',
-    handler: (_req, _res, next) => next(ApiError.rateLimited()),
+    handler: (_req, _res, next) => next(rule.refusal?.() ?? ApiError.rateLimited()),
   });
 }
 

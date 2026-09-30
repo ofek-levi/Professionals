@@ -302,10 +302,10 @@ describe('Google accounts', () => {
       status: 'signed_in',
       session: { accessToken: expect.stringMatching(/^access\./), user: { id: MAIN_CUSTOMER_IDS.noa, role: 'customer' } },
     });
-    // Pre-account hijacking: whoever held the account's sessions is signed out, devices included.
+    // Pre-account hijacking: whoever held the account's sessions is signed out, push token included.
     expect(await expectApiError(anonymous().refresh({ refreshToken: earlier.refreshToken }))).toMatchObject({ status: 401 });
-    expect(env.server.internals.db.devices.filter((device) => device.userId === MAIN_CUSTOMER_IDS.noa)).toEqual([]);
-    expect(env.server.internals.db.sessions.filter((session) => session.userId === MAIN_CUSTOMER_IDS.noa)).toHaveLength(1);
+    const noaSessions = env.server.internals.db.sessions.filter((session) => session.userId === MAIN_CUSTOMER_IDS.noa);
+    expect(noaSessions.map((session) => session.pushToken)).toEqual([null]);
     expect(env.server.internals.db.credentials.require('noa.levi@example.com', 'Credential').googleSubject).toBe(
       mockGoogleSubject('noa.levi@example.com'),
     );

@@ -5,10 +5,10 @@
 import * as ImagePicker from 'expo-image-picker';
 import { Linking, Platform } from 'react-native';
 
-import type { UploadImagePayload } from '@/types/api';
+import type { LocalImage } from '@/types/api';
 
-/** A locally picked image, ready for `POST /uploads/images`. */
-export type PickedPhoto = UploadImagePayload;
+/** A locally picked image, sent with the request or as the avatar. */
+export type PickedPhoto = LocalImage;
 
 export type PickImagesResult =
   | { status: 'picked'; photos: PickedPhoto[] }
@@ -22,8 +22,6 @@ const IMAGE_QUALITY = 0.8;
 function toPickedPhoto(asset: ImagePicker.ImagePickerAsset): PickedPhoto {
   return {
     uri: asset.uri,
-    width: asset.width || null,
-    height: asset.height || null,
     mimeType: asset.mimeType ?? null,
     fileName: asset.fileName ?? null,
     fileSize: asset.fileSize ?? null,

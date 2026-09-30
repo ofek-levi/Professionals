@@ -65,7 +65,7 @@ export async function resetLinkAccount(deps: Pick<AppDeps, 'clock'>, token: stri
 
 /**
  * Sets the new password. Opening the emailed link proves the mailbox, so the address becomes
- * verified too. Every session (and its push devices) is revoked, every other reset link of the
+ * verified too. Every session (and its push token) is revoked, every other reset link of the
  * account dies, and the failed sign-ins that block the account are forgotten: account-wide, and
  * from `clientIp` (the network the reset came from; see `login-throttle.ts`).
  */

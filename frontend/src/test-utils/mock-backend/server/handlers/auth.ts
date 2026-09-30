@@ -6,6 +6,7 @@ import type { CurrentUserResponse } from '@/types/api';
 import { SUPPORTED_LANGUAGES } from '@/types/domain';
 
 import { readBearerToken, type Actor } from '../auth';
+import { removeAvatar, setAvatar } from '../avatars';
 import type { ServerContext } from '../context';
 import { requireProfessional } from '../queries';
 import { created, route } from '../router';
@@ -57,13 +58,25 @@ function currentUser(ctx: ServerContext, actor: Actor): CurrentUserResponse {
   };
 }
 
-/** Upserts the token for the caller's session: a token of another account moves to the caller. */
+/**
+ * Stores the token on the caller's session (the platform is validated, not stored). A session has
+ * one token, so a new one replaces the old; a token held by another session (another account on
+ * the same phone) moves to the caller.
+ */
 function registerDevice(ctx: ServerContext, actor: Actor, body: unknown) {
-  const { pushToken, platform } = parseBody(registerDeviceSchema, body);
-  const existing = ctx.db.devices.find((device) => device.pushToken === pushToken);
-  const fields = { userId: actor.userId, sessionId: actor.sessionId, platform, registeredAt: ctx.nowIso() };
-  if (existing) ctx.db.devices.update(existing.id, fields);
-  else ctx.db.devices.insert({ id: ctx.newId('dev'), pushToken, ...fields });
+  const { pushToken } = parseBody(registerDeviceSchema, body);
+  ctx.db.sessions
+    .filter((session) => session.pushToken === pushToken && session.id !== actor.sessionId)
+    .forEach((session) => ctx.db.sessions.update(session.id, { pushToken: null }));
+  ctx.db.sessions.update(actor.sessionId, { pushToken });
+  return SUCCESS;
+}
+
+/** Removes the token from the caller's own sessions (idempotent; another account's is untouched). */
+function unregisterDevice(ctx: ServerContext, actor: Actor, pushToken: string) {
+  ctx.db.sessions
+    .filter((session) => session.pushToken === pushToken && session.userId === actor.userId)
+    .forEach((session) => ctx.db.sessions.update(session.id, { pushToken: null }));
   return SUCCESS;
 }
 
@@ -111,15 +124,24 @@ export const authRoutes = [
       return currentUser(ctx, actor);
     },
   }),
-  route({ method: 'POST', path: '/me/devices', auth: 'user', handler: ({ ctx, actor, body }) => registerDevice(ctx, actor, body) }),
   route({
-    method: 'DELETE',
-    path: '/me/devices/:token',
+    method: 'PUT',
+    path: '/me/avatar',
     auth: 'user',
-    handler: ({ ctx, actor, params }) => {
-      const device = ctx.db.devices.find((row) => row.pushToken === params.token && row.userId === actor.userId);
-      if (device) ctx.db.devices.delete(device.id);
-      return SUCCESS;
+    handler: ({ ctx, actor, body }) => {
+      setAvatar(ctx, actor, body);
+      return currentUser(ctx, actor);
     },
   }),
+  route({
+    method: 'DELETE',
+    path: '/me/avatar',
+    auth: 'user',
+    handler: ({ ctx, actor }) => {
+      removeAvatar(ctx, actor);
+      return currentUser(ctx, actor);
+    },
+  }),
+  route({ method: 'POST', path: '/me/devices', auth: 'user', handler: ({ ctx, actor, body }) => registerDevice(ctx, actor, body) }),
+  route({ method: 'DELETE', path: '/me/devices/:token', auth: 'user', handler: ({ ctx, actor, params }) => unregisterDevice(ctx, actor, params.token) }),
 ];

@@ -74,7 +74,6 @@ describe('offers', () => {
       location: { coordinates: { latitude: 31.87, longitude: 34.815 }, addressLine: 'Herzl St 1', city: 'Rehovot', neighborhood: null, details: null },
       urgency: 'normal',
       preferredSchedule: null,
-      photoIds: [],
       notes: null,
       publish: true,
     });

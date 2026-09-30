@@ -28,6 +28,8 @@ export const profile = {
     removePhoto: 'Remove',
     removePhotoTitle: 'Remove your profile photo?',
     photoFailed: 'We couldn’t open your photos. Please try again.',
+    photoUpdated: 'Profile photo updated',
+    photoRemoved: 'Profile photo removed',
     saved: 'Profile updated',
     fixFields: 'Please check the highlighted fields',
     keepEditing: 'Keep editing',

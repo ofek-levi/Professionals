@@ -47,7 +47,7 @@ computer; see [`frontend/README.md`](../frontend/README.md#quick-start)).
 | Missing | Behaviour in development |
 |---|---|
 | `SMTP_USER` / `SMTP_PASS` | Emails (with their verification/reset links) are written to the log |
-| Cloudinary | `POST /v1/uploads/images` answers 503 |
+| Cloudinary | Request photos and avatars answer 503 (or use a local stub: `CLOUDINARY_UPLOAD_PREFIX`, see OPERATIONS.md) |
 | Google client ids | `POST /v1/auth/google` (and Google sign-up) answer 503 |
 | Network access to Nominatim | `GET /v1/geo/*` answer 503 |
 
@@ -116,6 +116,6 @@ test/              per-file database/Redis setup, app factory with fakes, factor
 docs/              API.md, ARCHITECTURE.md, OPERATIONS.md, CONVENTIONS.md
 ```
 
-Modules: `auth`, `users` (me, devices), `catalog`, `geo`, `uploads`, `customers`, `professionals`,
+Modules: `auth` (+ sessions and their push tokens), `users` (me, avatar, device registration), `catalog`, `geo`, `customers`, `professionals`,
 `requests` (+ matching and the professional explorer), `offers`, `jobs`, `reviews`, `conversations`,
 `notifications` (+ push), `dashboard`, `health`.

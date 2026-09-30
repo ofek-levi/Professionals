@@ -87,7 +87,7 @@ function verifyGoogleIdToken(ctx: ServerContext, idToken: string): GoogleIdToken
  * 3. An email account signed in with Google for the first time gets the Google account linked.
  *    Google verified the address, so an unverified password on it is dropped: it may have been set
  *    by someone else who registered the address first ("pre-account hijacking"), and every earlier
- *    session (and its push devices) is revoked. The owner can set a new password with "Forgot
+ *    session (and its push token) is revoked. The owner can set a new password with "Forgot
  *    password?". Verified passwords keep working.
  * 4. Unknown → `registration_required` with the Google profile.
  */

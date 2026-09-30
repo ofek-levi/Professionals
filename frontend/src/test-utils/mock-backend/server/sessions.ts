@@ -6,7 +6,7 @@
  * - the refresh token is opaque, names its session and rotates on every `POST /auth/refresh`;
  * - the token the last refresh replaced, presented again within 30 s, is answered with the same new
  *   refresh token (concurrent refresh, lost response); any other earlier token of the session is a
- *   replay: the session is revoked (and its push devices removed);
+ *   replay: the session is revoked (and its push token goes with it);
  * - a forged token (bad signature) is refused and revokes nothing.
  *
  * Tokens are `<kind>.<session id>.<number>.<signature>`; the signature is a hash with a fixed test
@@ -76,6 +76,7 @@ export function startSession(ctx: ServerContext, userId: string): SessionTokens 
     rotatedAt: null,
     expiresAt: new Date(ctx.now().getTime() + REFRESH_TOKEN_TTL_MS).toISOString(),
     createdAt: ctx.nowIso(),
+    pushToken: null,
   });
   return { ...accessTokenFor(ctx, id), refreshToken };
 }
@@ -97,17 +98,15 @@ export function sessionOfAccessToken(db: MockDatabase, accessToken: string, now:
   return liveSession(db, parsed.sessionId, now);
 }
 
-/** Deletes the session and the push devices it registered; its sockets close with 4001. */
+/** Deletes the session (and with it its push token); its sockets close with 4001. */
 export function revokeSession(ctx: ServerContext, sessionId: string): void {
   if (!ctx.db.sessions.delete(sessionId)) return;
-  ctx.db.devices.filter((device) => device.sessionId === sessionId).forEach((device) => ctx.db.devices.delete(device.id));
   ctx.sessionRevoked(sessionId);
 }
 
 /** Signs the account out everywhere (e.g. the first Google link of a password account). */
 export function revokeAllSessions(ctx: ServerContext, userId: string): void {
   ctx.db.sessions.filter((session) => session.userId === userId).forEach((session) => revokeSession(ctx, session.id));
-  ctx.db.devices.filter((device) => device.userId === userId).forEach((device) => ctx.db.devices.delete(device.id));
 }
 
 const sessionExpired = () => DomainError.unauthorized('The session has expired, please sign in again');

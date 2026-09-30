@@ -76,6 +76,8 @@ export const professional = {
       change: 'Change photo',
       removeTitle: 'Remove your profile photo?',
       failed: 'We couldn’t open your photos. Please try again.',
+      updated: 'Profile photo updated',
+      removed: 'Profile photo removed',
     },
     identity: {
       title: 'About you',

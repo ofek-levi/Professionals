@@ -60,9 +60,23 @@ requestId → httpLogger → helmet → cors → compression → /health,/ready
 ## 4. Data
 
 MongoDB collections (one model file each, indexes declared next to the schema with the query they
-serve): `users`, `professionals` (1:1 with users, same `_id`), `sessions`, `emailTokens`, `devices`,
-`uploads`, `requests`, `offers`, `jobs`, `reviews`, `conversations`, `messages`, `notifications`.
+serve): `users`, `professionals` (1:1 with users, same `_id`), `sessions` (one per signed-in app
+install, with its Expo push token), `emailTokens`, `requests`, `offers`, `jobs`, `reviews`, `conversations`, `messages`, `notifications`.
 Categories are a code constant served from memory (`GET /catalog/categories`, ETag).
+
+- **Images** have no collection of their own: they are uploaded with the thing that owns them
+  (multipart `POST /requests` / `PATCH /requests/:id`, `PUT /me/avatar`; `middleware/multipart.ts`)
+  and stored only there, as `{ url, publicId }` (`requests.photos`, `users.avatar`; a Google avatar
+  has no `publicId`). Before a body is read, a user's image posts are rate limited and admitted
+  (`middleware/image-admission.ts`: 2 at once per user, a memory budget per process); refusals about
+  the images name the file field (`infra/storage/image-errors.ts`). `infra/storage/store-images.ts`
+  checks every file's bytes before storing any, charges them to the user's daily bytes
+  (`image-quota.ts`) and removes what it stored when the owner is not saved (unless the save's commit
+  may have happened: then the owner is read again first). An image the owner stops showing (removed
+  from a draft, draft deleted, request cancelled, avatar replaced) is deleted from Cloudinary after the
+  commit. Deletion is best effort, with no cleanup job: rare orphans (a failed delete, a crash between
+  upload and save, an upload that completed after we gave up) are logged with their `publicId`s or found
+  by comparing the Cloudinary folder with the database (OPERATIONS.md §7).
 
 - **Minimal fields**: no field that no endpoint or rule reads. Denormalized values exist only on hot
   paths, each with a comment: request offer counters (explorer filter/sort), professional stats and
@@ -79,8 +93,8 @@ Categories are a code constant served from memory (`GET /catalog/categories`, ET
   `deps.background` (awaited on shutdown), never delaying the response.
 - **Lists** are keyset-paginated (`lib/pagination.ts`): the cursor carries the last item's sort key
   and the first page's `totalCount`, so pages are stable under inserts and never use `skip`.
-- **Expiry without cron**: sessions, email tokens and notifications (90 days) are removed by TTL
-  indexes.
+- **Expiry without cron**: sessions (and with them their push tokens), email tokens and notifications
+  (90 days) are removed by TTL indexes.
 
 ## 5. Auth
 
@@ -108,10 +122,11 @@ Categories are a code constant served from memory (`GET /catalog/categories`, ET
   sockets of the addressed users. Revoked session ids travel on `${APP_ENV}:session-revoked`.
 - `createNotifications` is the single entry point for every producer: it honours the recipient's
   category toggles, stores the inbox item (in the caller's transaction), then publishes
-  `notification.created`, fans out Expo push (chunked, `pushEnabled`, only to devices whose
-  registering session is still live) and, for "Email updates",
+  `notification.created`, fans out Expo push (chunked, `pushEnabled`, to the push tokens of the
+  recipient's live sessions: a token lives on the session that registered it, so signing out,
+  revocation and expiry end the pushes with the session) and, for "Email updates",
   throttled emails to verified addresses. Push tickets wait in Redis for the receipts cron, which
-  deletes `DeviceNotRegistered` tokens.
+  removes `DeviceNotRegistered` tokens from their sessions.
 
 ## 7. Redis
 
@@ -125,7 +140,7 @@ gracefully where safe (rate limits and the denylist let requests pass; cache mis
 
 node-cron in every instance; each tick is claimed once across instances and each job runs under a
 Redis lock (`SET NX PX`, released by its owner). Jobs: `offer-expiry` (5 min), `appointment-reminders`
-(15 min, once per job via `reminderSentAt`), `push-receipts` (15 min), `orphan-uploads` (daily). They
+(15 min, once per job via `reminderSentAt`), `push-receipts` (15 min). They
 are idempotent, batch their work and can be disabled per process (`CRON_ENABLED`, `CRON_DISABLED_JOBS`).
 
 ## 9. Production hardening

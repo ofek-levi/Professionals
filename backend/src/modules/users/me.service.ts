@@ -13,7 +13,7 @@ type CurrentUser = UserForView & Pick<UserDoc, 'notificationPreferences' | 'defa
 
 const CURRENT_USER_PROJECTION = { ...USER_VIEW_PROJECTION, notificationPreferences: 1, defaultLocation: 1, updatedAt: 1, emailVerifiedAt: 1 } as const;
 
-function accountGone(): ApiError {
+export function accountGone(): ApiError {
   // 401 (not 404): the token outlived its account, so the app signs out.
   return ApiError.unauthorized('The account no longer exists');
 }

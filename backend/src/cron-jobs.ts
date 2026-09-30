@@ -4,8 +4,7 @@ import type { CronJob } from './infra/cron/index.js';
 import { jobJobs } from './modules/jobs/jobs.jobs.js';
 import { notificationJobs } from './modules/notifications/notifications.jobs.js';
 import { offerJobs } from './modules/offers/offers.jobs.js';
-import { uploadJobs } from './modules/uploads/uploads.jobs.js';
 
 export function allCronJobs(deps: AppDeps): CronJob[] {
-  return [...offerJobs(deps), ...jobJobs(deps), ...notificationJobs(deps), ...uploadJobs(deps)];
+  return [...offerJobs(deps), ...jobJobs(deps), ...notificationJobs(deps)];
 }

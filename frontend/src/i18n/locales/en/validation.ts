@@ -103,6 +103,8 @@ export const validation = {
   },
   upload: {
     invalid: 'This image can’t be uploaded',
+    rateLimited: 'Too many photos for now. Please try again later.',
+    unavailable: 'Photos can’t be uploaded right now. Please try again.',
   },
   auth: {
     emailRequired: 'Enter your email address',

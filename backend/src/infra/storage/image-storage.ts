@@ -1,19 +1,18 @@
 /**
  * Image storage (Cloudinary in every deployed environment). Images live under
- * `professionals/${APP_ENV}/<folder>` and are resized on upload; callers keep `publicId` to delete
- * them later (orphan-upload cron, replaced avatars).
+ * `professionals/${APP_ENV}/<folder>` and are resized on upload. An image is stored only on the
+ * document that shows it (`requests.photos`, `users.avatar`) with its `publicId`, which deletes it
+ * once that document no longer does.
  */
 export interface StoredImage {
   publicId: string;
   url: string;
-  width: number | null;
-  height: number | null;
 }
 
 export interface ImageUpload {
   buffer: Buffer;
   mimeType: string;
-  /** Sub-folder, e.g. `requests` or `avatars`. */
+  /** Sub-folder: `requests` or `avatars`. */
   folder: string;
 }
 

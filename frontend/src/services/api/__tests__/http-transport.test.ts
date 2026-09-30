@@ -52,11 +52,11 @@ describe('http transport', () => {
   });
 
   it('sends FormData untouched, so fetch writes the multipart content type with its boundary', async () => {
-    const calls = mockFetch(() => json(201, { id: 'upl_1', url: 'https://images.test/upl_1.jpg', width: 10, height: 10 }));
+    const calls = mockFetch(() => json(200, { user: { avatarUrl: 'https://images.test/avatars/a.jpg' } }));
     const transport = createHttpTransport({ baseUrl: BASE, timeoutMs: 1000 });
     const form = new FormData();
-    form.append('file', { uri: 'file:///a.jpg', name: 'a.jpg', type: 'image/jpeg' } as unknown as Blob);
-    await transport({ method: 'POST', path: '/uploads/images', body: form, headers: {} });
+    form.append('avatar', { uri: 'file:///a.jpg', name: 'a.jpg', type: 'image/jpeg' } as unknown as Blob);
+    await transport({ method: 'PUT', path: '/me/avatar', body: form, headers: {} });
     expect(calls[0].init.body).toBe(form);
     expect(calls[0].init.headers).not.toHaveProperty('Content-Type');
   });
@@ -91,7 +91,7 @@ describe('http transport', () => {
     });
   });
 
-  it('times out with 408 TIMEOUT (per-request limit for uploads)', async () => {
+  it('times out with 408 TIMEOUT (per-request limit for posts with photos)', async () => {
     jest.useFakeTimers();
     mockFetch(
       ({ init }) =>
@@ -100,7 +100,7 @@ describe('http transport', () => {
         }),
     );
     const transport = createHttpTransport({ baseUrl: BASE, timeoutMs: 1000 });
-    const pending = transport({ method: 'POST', path: '/uploads/images', body: {}, headers: {}, timeoutMs: 90_000 });
+    const pending = transport({ method: 'POST', path: '/requests', body: new FormData(), headers: {}, timeoutMs: 90_000 });
     jest.advanceTimersByTime(1000);
     await Promise.resolve();
     jest.advanceTimersByTime(89_000);

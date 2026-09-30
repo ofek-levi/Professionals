@@ -47,9 +47,6 @@ export function profileText({ min = 1, max, required, tooShort, tooLong, optiona
 export const personNameSchema = (required: 'profile.firstNameRequired' | 'profile.lastNameRequired') =>
   profileText({ max: PROFILE_LIMITS.nameMax, required: vm(required), tooLong: vm('profile.nameTooLong') });
 
-/** URL returned by `POST /uploads/images` (checked against the caller's uploads), or `null`. */
-export const avatarUrlSchema = z.string().trim().min(1, vm('invalid')).max(PROFILE_LIMITS.urlMax, vm('invalid')).nullable();
-
 export const notificationPreferencesSchema = z.object({
   pushEnabled: z.boolean(),
   emailEnabled: z.boolean(),

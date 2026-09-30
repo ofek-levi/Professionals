@@ -84,7 +84,9 @@ const userSchema = new Schema<UserDoc>(
 
 // Login, registration duplicate check, password reset request.
 userSchema.index({ email: 1 }, { unique: true });
-// Google sign-in: an account linked to a Google identity is matched by `sub` only.
-userSchema.index({ googleSub: 1 }, { unique: true, partialFilterExpression: { googleSub: { $type: 'string' } } });
+// Google sign-in and sign-up: an account linked to a Google identity is matched by `sub` only.
+// Partial on `$exists` (the field is never null): an equality lookup can use such an index, while a
+// `$type` filter kept it from being chosen (a collection scan per sign-in).
+userSchema.index({ googleSub: 1 }, { unique: true, partialFilterExpression: { googleSub: { $exists: true } }, name: 'googleSub' });
 
 export const UserModel = model<UserDoc>('User', userSchema);

@@ -1,11 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestDeps } from '../../../../test/app.js';
-import { createCustomer, createDevice, createOffer, createProfessional, createRequest, createSession } from '../../../../test/factories.js';
+import { createCustomer, createOffer, createProfessional, createPushSession, createRequest, createSession } from '../../../../test/factories.js';
 import { SessionModel } from '../../auth/session.model.js';
 import { withTransaction } from '../../../infra/mongo.js';
 import { newObjectId } from '../../../lib/ids.js';
-import { DeviceModel } from '../../users/device.model.js';
 import { UserModel } from '../../users/user.model.js';
 import { createNotification, createNotifications } from '../create-notification.service.js';
 import { NotificationModel } from '../notification.model.js';
@@ -27,10 +26,11 @@ describe('createNotification', () => {
     return { customer, professional, request, offer, input };
   }
 
-  it('stores the notification, publishes it and pushes to every device', async () => {
+  it('stores the notification, publishes it and pushes to every signed-in install', async () => {
     const { customer, request, offer, input } = await offerReceivedFixture();
-    const phone = await createDevice(customer);
-    const tablet = await createDevice(customer);
+    const phone = await createPushSession(customer);
+    const tablet = await createPushSession(customer);
+    await createSession(customer); // signed in, push not registered
 
     const created = await createNotification(deps, customer._id, input);
     await deps.background.drain();
@@ -46,7 +46,7 @@ describe('createNotification', () => {
     });
     expect(await NotificationModel.countDocuments({ user: customer._id })).toBe(1);
     expect(deps.realtime.eventsFor(customer._id.toHexString())).toEqual([{ type: 'notification.created', notification: created }]);
-    expect(deps.push.sent.map((message) => message.to).sort()).toEqual([phone.token, tablet.token].sort());
+    expect(deps.push.sent.map((message) => message.to).sort()).toEqual([phone.pushToken, tablet.pushToken].sort());
     expect(deps.push.sent[0]).toMatchObject({
       title: 'New offer: ₪450',
       body: 'Avi Fix sent an offer for your Plumbing request.'.replace('Avi Fix', '⁨Avi Fix⁩'),
@@ -60,7 +60,7 @@ describe('createNotification', () => {
     const { user, professional } = await createProfessional();
     const request = await createRequest(customer);
     const offer = await createOffer(request, professional);
-    await createDevice(user);
+    await createPushSession(user);
     await createNotification(deps, user._id, { type: 'offer_expired', offer, categoryId: 'plumbing' });
     await deps.background.drain();
     expect(deps.push.sent[0]).toMatchObject({ title: 'תוקף ההצעה פג', body: expect.stringContaining('אינסטלציה') });
@@ -68,7 +68,7 @@ describe('createNotification', () => {
 
   it('stores nothing when the category toggle is off, and skips push when push is off', async () => {
     const { customer, input } = await offerReceivedFixture();
-    await createDevice(customer);
+    await createPushSession(customer);
 
     await UserModel.updateOne({ _id: customer._id }, { $set: { 'notificationPreferences.jobUpdates': false } });
     expect(await createNotification(deps, customer._id, input)).toBeNull();
@@ -121,9 +121,9 @@ describe('createNotification', () => {
   it('batches recipients and drops tokens Expo reports as unregistered', async () => {
     const { customer, professional, offer, request } = await offerReceivedFixture();
     const other = await createCustomer({ notificationPreferences: { pushEnabled: true, emailEnabled: false, jobUpdates: false, messages: true, newRequests: true, reminders: true } });
-    const dead = await createDevice(customer);
-    deps.push.unregistered.add(dead.token);
-    await createDevice(customer, { token: 'not-an-expo-token' });
+    const dead = await createPushSession(customer);
+    deps.push.unregistered.add(dead.pushToken);
+    await createPushSession(customer, { pushToken: 'not-an-expo-token' });
 
     const results = await createNotifications(deps, [
       { userId: customer._id, input: { type: 'request_cancelled', request, customerName: 'Noa L.' } },
@@ -132,58 +132,36 @@ describe('createNotification', () => {
     await deps.background.drain();
 
     expect(results.map((result) => result?.type ?? null)).toEqual(['request_cancelled', null]);
-    expect(await DeviceModel.countDocuments({ user: customer._id })).toBe(0);
+    // The tokens go; the sessions stay signed in.
+    expect(await SessionModel.countDocuments({ user: customer._id, pushToken: { $exists: true } })).toBe(0);
+    expect(await SessionModel.countDocuments({ user: customer._id })).toBe(2);
   });
 
-  it('never pushes to a device whose session ended without a logout (TTL expiry, offline sign-out), and deletes it', async () => {
+  it('pushes only to live sessions: not to one past its expiry that the TTL monitor has not deleted yet', async () => {
     const { customer, input } = await offerReceivedFixture();
-    const live = await createDevice(customer);
-    // Its session expired (the TTL monitor has not deleted it yet).
-    await createDevice(customer, { session: (await createSession(customer, { expiresAt: new Date('2026-10-01T08:59:59.000Z') }))._id });
-    const deleted = await createDevice(customer);
-    await SessionModel.deleteOne({ _id: deleted.session }); // what the TTL monitor does
+    const live = await createPushSession(customer);
+    await createPushSession(customer, { expiresAt: new Date('2026-10-01T08:59:59.000Z') });
 
     await createNotification(deps, customer._id, input);
     await deps.background.drain();
 
-    expect(deps.push.sent.map((message) => message.to)).toEqual([live.token]);
-    expect((await DeviceModel.find({ user: customer._id }, { token: 1 }).lean()).map((device) => device.token)).toEqual([live.token]);
+    expect(deps.push.sent.map((message) => message.to)).toEqual([live.pushToken]);
   });
 
-  it('keeps a device that a new session registered again while the fan-out ran', async () => {
+  it('keeps the tokens and the other tickets when a request to Expo fails', async () => {
     const { customer, input } = await offerReceivedFixture();
-    const device = await createDevice(customer);
-    await SessionModel.deleteOne({ _id: device.session });
-    const renewed = await createSession(customer);
-    const deleteMany = DeviceModel.deleteMany.bind(DeviceModel);
-    // The phone signs in again (same token, new session) after the fan-out read its devices.
-    const spy = vi.spyOn(DeviceModel, 'deleteMany').mockImplementationOnce(((filter: Parameters<typeof deleteMany>[0]) =>
-      DeviceModel.updateOne({ _id: device._id }, { $set: { session: renewed._id } }).then(() => deleteMany(filter))) as never);
-    try {
-      await createNotification(deps, customer._id, input);
-      await deps.background.drain();
-      expect(spy).toHaveBeenCalledTimes(1);
-    } finally {
-      spy.mockRestore();
-    }
-    expect(deps.push.sent).toEqual([]);
-    expect(await DeviceModel.findById(device._id).lean()).toMatchObject({ session: renewed._id });
-  });
-
-  it('keeps devices and the other tickets when a request to Expo fails', async () => {
-    const { customer, input } = await offerReceivedFixture();
-    const reachable = await createDevice(customer);
-    const failing = await createDevice(customer);
-    deps.push.failing.add(failing.token);
+    const reachable = await createPushSession(customer);
+    const failing = await createPushSession(customer);
+    deps.push.failing.add(failing.pushToken);
     await deps.redis.del(deps.keys.key('push-tickets'));
 
     await createNotification(deps, customer._id, input);
     await deps.background.drain(); // the failure is logged by the background runner, not thrown here
 
-    expect(deps.push.sent.map((message) => message.to).sort()).toEqual([reachable.token, failing.token].sort());
-    expect(await DeviceModel.countDocuments({ user: customer._id })).toBe(2);
+    expect(deps.push.sent.map((message) => message.to).sort()).toEqual([reachable.pushToken, failing.pushToken].sort());
+    expect(await SessionModel.countDocuments({ user: customer._id, pushToken: { $exists: true } })).toBe(2);
     const tickets = await deps.redis.zrange(deps.keys.key('push-tickets'), '0', '-1');
     expect(tickets).toHaveLength(1);
-    expect(tickets[0]).toContain(reachable.token);
+    expect(tickets[0]).toContain(reachable.pushToken);
   });
 });

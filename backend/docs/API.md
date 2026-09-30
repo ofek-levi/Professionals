@@ -7,9 +7,9 @@ app's current types; then one section per module. Source of each rule: `src/` (s
 
 ## Contents
 
-- [General](#general): base URL, authentication, errors, pagination, rate limits, caching, realtime, health
+- [General](#general): base URL, authentication, errors, pagination, rate limits, caching, images, realtime, health
 - [Contract changes vs the app's types](#contract-changes-vs-the-apps-types) (summary)
-- [Auth](#auth) · [Users](#users) · [Profiles](#profiles-customers-professionals-geo-uploads) ·
+- [Auth](#auth) · [Users](#users) · [Profiles](#profiles-customers-professionals-geo) ·
   [Messaging](#messaging-conversations-notifications-push-realtime) ·
   [Marketplace](#marketplace-requests-offers-jobs-reviews-dashboard)
 
@@ -20,8 +20,8 @@ app's current types; then one section per module. Source of each rule: `src/` (s
 - Every endpoint lives under **`/v1`** (the app's `EXPO_PUBLIC_API_BASE_URL` ends in `/v1`), e.g.
   `https://api.example.com/v1/requests`. Health checks are outside it (`/health`, `/ready`).
 - Requests and responses are JSON (`Content-Type: application/json`, bodies up to 100 KB). Exceptions:
-  `POST /uploads/images` (multipart) and the email link pages (`/auth/verify-email`,
-  `/auth/reset-password`: HTML).
+  the routes that take images (`POST /requests`, `PATCH /requests/:id`, `PUT /me/avatar`: multipart,
+  see [Images](#images)) and the email link pages (`/auth/verify-email`, `/auth/reset-password`: HTML).
 - Ids are 24-character hex strings (MongoDB ObjectIds). Timestamps are ISO-8601 UTC strings; calendar
   dates (`preferredSchedule.date`, explorer date filters) are `YYYY-MM-DD` in the market's zone
   (`Asia/Jerusalem`). Money is `{ amount, currency: 'ILS' }`.
@@ -98,7 +98,7 @@ Every list is keyset-paginated: `?cursor=&limit=` → `{ items, nextCursor, tota
 
 Counted in Redis (shared by every instance; keys `${APP_ENV}:rl:*`). Over the limit → 429
 `RATE_LIMITED` with `RateLimit`/`RateLimit-Policy`/`Retry-After` headers (the service-level budgets
-marked * answer 429 without those headers). If Redis is unreachable, requests pass (availability first).
+marked * answer 429 without the `RateLimit` headers). If Redis is unreachable, requests pass (availability first).
 
 Signed-in traffic is limited **per user**: many mobile subscribers share one carrier IP (CGNAT), so
 per-IP limits are generous and meant for anonymous routes. Limits that name an account never let a
@@ -114,7 +114,7 @@ stranger lock its owner out (see the notes below the table).
 | `POST /auth/password-reset` | 30 / h per IP; reset emails*: 3 / h per address (past it: still 200, no email) |
 | `POST /auth/reset-password` | 300 / 15 min per IP |
 | `GET /geo/search`, `GET /geo/reverse` (together) | 60 / min per IP; cache misses* (provider calls): 15 / min per IP, or 30 / min per signed-in user |
-| `POST /uploads/images` | 60 / 10 min per user; quotas*: 20 unattached uploads, 200 MB / 24 h per user |
+| Routes that take images (`POST /requests`, `PATCH /requests/:id`, `PUT /me/avatar`, together) | 60 / h per user, counted before the body is read; 2 at once per user*; 200 MB of stored images / day per user* (see [Images](#images)) |
 | `POST /requests` | 30 / h per customer |
 | `POST /requests/:id/offers` | 60 / 10 min per professional |
 | `POST /conversations/:id/messages` | 60 / min per user |
@@ -147,6 +147,40 @@ OPERATIONS.md); `true` is refused, since it would let any client choose the IP t
   signed-in users.
 - Public professional profiles are cached 60 s in Redis and dropped on every profile or stats change.
 - Everything else is private and not cached (`Cache-Control` is not set; clients should not cache).
+
+### Images
+
+An image is sent **with the thing that owns it** and stored only there, as `{ url, publicId }`
+(`publicId` deletes it from storage).
+
+| Route | Body (`multipart/form-data`) | Stored on |
+|---|---|---|
+| `POST /requests`, `PATCH /requests/:id` | text field `data` = the JSON payload; files `photos` (0–6) | `requests.photos` |
+| `PUT /me/avatar` | one file `avatar` | `users.avatar` |
+
+- JPEG, PNG, WebP or HEIC/HEIF, at most **8 MB per file**; the type is read from the file's bytes, not
+  from the declared type or name. Stored on Cloudinary under `professionals/<APP_ENV>/requests|avatars`,
+  longest edge ≤ 2048 px.
+- Every file is checked, and the JSON payload validated, before anything is stored; if storing or
+  saving fails afterwards, what was stored is deleted again (unless the save may have been committed
+  after all: then only what the owner does not show is deleted). An image the owner no longer shows (a
+  photo removed from a draft, a deleted draft, a cancelled request, a replaced or removed avatar) is
+  deleted from storage, and from the CDN cache, after the change is committed (best effort: a failure
+  is logged with its public ids).
+- The whole body may take up to 10 min to arrive (the app allows 90 s per photo).
+- Errors, in the app's field format. **Every refusal about the images names the file field**
+  (`photos` or `avatar`) in `fieldErrors`, whatever its status; errors without it are about the rest
+  of the post (a form field, the `POST /requests` rate limit, …) and the app handles them as usual:
+
+| Status | Body | When |
+|---|---|---|
+| 400 | `fieldErrors.photos` / `.avatar = ['validation:upload.invalid']` | not an image (any file of the request), missing avatar, a second avatar |
+| 400 | `fieldErrors.photos = ['validation:request.tooManyPhotos']` | more than 6 photos on the request |
+| 400 | `fieldErrors.<name> = ['validation:upload.invalid']` | a file in another field |
+| 400 | `fieldErrors.data = ['validation:required' \| 'validation:invalid']` | not multipart, `data` missing, not a JSON object |
+| 413 | `fieldErrors.photos` / `.avatar = ['validation:upload.invalid']` | a file over 8 MB, or a declared body larger than a post can be (answered before reading it) |
+| 429 | `RATE_LIMITED`, `fieldErrors.photos` / `.avatar = ['validation:upload.rateLimited']`, `Retry-After` | 60 image posts / h per user, or 2 already running for this user (both before the body is read), or the post's files would pass 200 MB stored today (checked once the post is valid; a refused post is not counted) |
+| 503 | `SERVER_ERROR`, `fieldErrors.photos` / `.avatar = ['validation:upload.unavailable']` | storage not configured (development without Cloudinary: answered at the first file, before its bytes are read) or the provider failed; with `Retry-After` when the server is busy with other uploads (its memory budget for image posts in flight) |
 
 ### Realtime (WebSocket)
 
@@ -189,8 +223,8 @@ next phase has to adopt (details in each module's section):
 | Auth | `AuthSession` adds `accessTokenExpiresAt` + `refreshToken`; new `POST /auth/refresh` (rotating refresh token); `POST /auth/logout` takes `{ refreshToken? }`. | Store the refresh token in secure storage, single-flight refresh on 401 / before expiry, send it on logout. |
 | Auth | `POST /auth/register` answers 201; `VALIDATION_ERROR` is 400 (mock: 422). No demo endpoints. | None (the client handles both statuses). |
 | Users | New `PATCH /me { preferredLanguage }` and `DELETE /me/devices/:token`; `POST /me/devices` accepts only Expo push tokens. | Call `PATCH /me` when the language changes; register real Expo tokens only (not the simulated provider, not web). |
-| Uploads | `POST /uploads/images` is **multipart** (`file` field, JPEG/PNG/WebP/HEIC ≤ 8 MB), not JSON with a local `uri`. | `FormData.append('file', { uri, name, type })`. |
-| Profiles | `avatarUrl` must be the URL of one of the caller's own uploads (or the current avatar). `GET /geo/reverse` answers 404 where there is no address. | None (already the app's flow / error path). |
+| Images | Photos travel with `POST /requests` / `PATCH /requests/:id` (multipart `data` + `photos`), the avatar has `PUT`/`DELETE /me/avatar`; the profile PATCHes have no `avatarUrl`. `RequestPhoto` is `{ publicId, url }`. See [Images](#images). | Done in the app. |
+| Profiles | `GET /geo/reverse` answers 404 where there is no address. | None (already the app's error path). |
 | Lists | `GET /conversations`, `GET /requests/:id/offers`, `GET /jobs` return `Paginated<…>` instead of arrays. | Use infinite queries (cache helpers map `pages[].items`); `.items` of one page is enough only for offers (`limit=100`). The Work tab takes "earned this month" from the professional dashboard (marketplace change 2). |
 | Inbox | New `GET /conversations/unread-count` → `{ count }`. | The messages badge uses it instead of summing the paginated list. |
 | Push | Push `data` is `{ notificationId, notificationType, target }`. | The Expo provider copies it into `PushMessage`. |
@@ -214,10 +248,10 @@ Public endpoints (no `Authorization` needed) under `/v1/auth`. Source: `src/modu
 - **Refresh token**: opaque to the app (91 characters: `<session id>.<256-bit secret>.<server
   signature>`; store and send it as is), valid **90 days, sliding**: every refresh returns a new one
   and extends the session to now + 90 days. The server stores only SHA-256 hashes (`sessions`
-  collection, TTL-deleted when expired).
+  collection, one document per signed-in app install with its push token, TTL-deleted when expired).
 - **Reuse detection**: every token names its session and is signed by the server, so presenting
   **any** earlier token of a live session — however many rotations ago — means two parties hold it:
-  the whole session is revoked (and its push devices removed) and the answer is 401. A thief who
+  the whole session is revoked (with its push token) and the answer is 401. A thief who
   refreshes a stolen token (even several times) is cut off as soon as the owner's app presents its
   own token. A forged token naming someone's session is simply refused (401) and revokes nothing.
 - **Concurrent refresh / lost response**: presenting the token the last refresh replaced, while the
@@ -228,8 +262,8 @@ Public endpoints (no `Authorization` needed) under `/v1/auth`. Source: `src/modu
   a while), therefore end up with one token, never two diverging ones, and no false theft alarm. Once
   the new token has been used, or after 30 minutes, the old one is a replay (above). Clients should
   still refresh one at a time and store the new token before using it.
-- One session per sign-in (per device). Signing out deletes it; a password reset, or the first Google
-  link of a password account, deletes all sessions of the account.
+- One session per sign-in (per device). Signing out deletes it, and with it the install's push token;
+  a password reset, or the first Google link of a password account, deletes all sessions of the account.
 
 ### Contract changes vs the app's types (`frontend/src/types/api/auth.ts`)
 
@@ -288,7 +322,7 @@ Body `{ idToken }` (Google id token; signature, `aud` ∈ web/iOS/Android client
 2. an account with the email but linked to another `sub` → 401 `INVALID_GOOGLE_TOKEN`;
 3. an email + password account → linked and `signed_in`. Google proves who owns the address, not who
    holds the account's sessions (someone may have registered the address first: pre-account hijacking),
-   so **every earlier session and push device of the account is revoked** on this first link. If the
+   so **every earlier session of the account is revoked** (with its push token) on this first link. If the
    email was **not verified**, the password is removed too and the email marked verified; a verified
    account keeps its password (verifying takes a deliberate click, see the pages below);
 4. unknown → `{ status: 'registration_required', profile: { email, firstName, lastName, avatarUrl } }`.
@@ -305,8 +339,8 @@ Body `{ refreshToken }`. 401 `UNAUTHORIZED` for an unknown, expired, revoked, fo
 ### `POST /auth/logout` → 200 `{ success: true }`
 
 Body `{ refreshToken? }`; also reads an optional valid bearer token. Revokes that session (any refresh
-token the server issued for it works) and deletes the push devices it registered, so a
-signed-out phone stops receiving the account's notifications. Always succeeds (idempotent, no auth).
+token the server issued for it works) and with it the push token it registered, so a signed-out phone
+stops receiving the account's notifications. Always succeeds (idempotent, no auth).
 
 ### `POST /auth/password-reset` → 200 `{ success: true }`
 
@@ -341,7 +375,7 @@ refetches `/me`). 401 without a valid access token; 429 over 3/h per user.
     `fieldErrors.password` or `fieldErrors.token = ["validation:invalid"]` (invalid/expired/used link).
   - Both reject a breached password like sign-up does (the link stays usable).
   - Success: new argon2id hash, email marked verified (the link proves the mailbox), link consumed,
-    **every session and push device of the account revoked**, every other reset link ended, and the
+    **every session of the account revoked** (with its push token), every other reset link ended, and the
     account's failed sign-ins forgotten. 300/15 min per IP.
 
 No lists here, so no pagination.
@@ -367,25 +401,54 @@ Body `{ preferredLanguage: 'en' | 'he' }`. The language of push notifications an
 call it when the user switches language (it is otherwise the sign-up language). 400 for another value.
 Notification preferences stay on `PATCH /customer/profile` / `PATCH /professional/profile`.
 
+### `PUT /me/avatar` → 200 `CurrentUserResponse`
+
+Multipart with one image in the field `avatar` ([Images](#images)); stored as the account's
+`{ url, publicId }` under `…/avatars`. The previous avatar is deleted from storage when it was ours
+(a Google profile picture has no `publicId` and is only unlinked). Answers like `GET /me` (the new
+`user.avatarUrl`; for professionals also `professionalProfile.avatarUrl`). A professional's cached public
+profile is dropped and `profile.updated` goes to their apps. Concurrent changes: the last one wins and
+each deletes the image it replaced.
+
+```http
+PUT /v1/me/avatar
+Content-Type: multipart/form-data; boundary=…
+
+--…
+Content-Disposition: form-data; name="avatar"; filename="me.jpg"
+Content-Type: image/jpeg
+
+<bytes>
+```
+→ `200 { "user": { "id": "…", "avatarUrl": "https://res.cloudinary.com/…/avatars/abc.jpg", … }, "emailVerified": true, "customerProfile": { … }, "professionalProfile": null }`
+
+Errors: 400/413/429/503 as in [Images](#images); 401 (also when the account no longer exists).
+
+### `DELETE /me/avatar` → 200 `CurrentUserResponse`
+
+Removes the avatar (deleted from storage when it was ours); idempotent.
+
 ### `POST /me/devices` → 200 `{ success: true }`
 
-Body `{ pushToken, platform: 'ios' | 'android' | 'web' }` (`RegisterDeviceRequest`). Upserts the token:
-a token registered by another account moves to the caller (shared phone); concurrent registrations are
-safe. The device is tied to the caller's session and removed when that session signs out or is revoked;
-a session that ends otherwise (90 days without a refresh, a sign-out that never reached the server)
-gets no more pushes: fan-out skips and deletes devices whose session is gone.
-400 `fieldErrors.pushToken = ["validation:invalid"]` when it is not an Expo push token
-(`ExponentPushToken[…]`): the app's simulated provider (`simulated:*`) must not register in `http` mode,
-and web (no Expo push) should not register at all.
+Body `{ pushToken, platform: 'ios' | 'android' | 'web' }` (`RegisterDeviceRequest`). Stores the token
+on the caller's session (the one of the access token: one signed-in app install, one token; a new token
+from the same install replaces the previous one). A token registered by another session, e.g. another
+account on the same phone, moves to the caller; concurrent registrations are safe. The platform is
+validated but not stored. The token goes away with the session: signing out, a revocation or expiry (90
+days without a refresh) all stop the pushes. 400 `fieldErrors.pushToken = ["validation:invalid"]` when
+it is not an Expo push token (`ExponentPushToken[…]`): the app's simulated provider (`simulated:*`) must
+not register in `http` mode, and web (no Expo push) should not register at all. 401 when the caller's
+session has ended (like every authenticated endpoint).
 
 ### `DELETE /me/devices/:token` → 200 `{ success: true }` (addition)
 
-URL-encoded token. Removes the caller's device with that token; idempotent, never touches another
-account's device.
+URL-encoded token. Removes the token from the caller's session that holds it (any of the account's
+sessions; they stay signed in); idempotent, never touches another account's session.
 
-## Profiles (customers, professionals, geo, uploads)
+## Profiles (customers, professionals, geo)
 
-Module owners: `src/modules/customers`, `src/modules/professionals`, `src/modules/geo`, `src/modules/uploads`.
+Module owners: `src/modules/customers`, `src/modules/professionals`, `src/modules/geo` (the avatar is
+`PUT /me/avatar`, [Users](#users)).
 Types below are the app's (`frontend/src/types`); field errors carry `validation:*` keys as everywhere.
 
 ### `GET /customer/profile` — customer
@@ -395,10 +458,9 @@ Errors: 401, 403 (professional).
 
 ### `PATCH /customer/profile` — customer
 Body `UpdateCustomerProfilePayload`, every field optional: `firstName`, `lastName` (1–60, trimmed),
-`phone` (Israeli or E.164), `avatarUrl` (`string | null`, see *Avatars*), `defaultLocation`
-(`ServiceLocation` without `isApproximate`, or `null` to clear), `notificationPreferences` (all six
-booleans). Response as `GET`. Errors: 400 `VALIDATION_ERROR` (e.g. `defaultLocation.addressLine`,
-`notificationPreferences.messages`, `avatarUrl`), 401, 403.
+`phone` (Israeli or E.164), `defaultLocation` (`ServiceLocation` without `isApproximate`, or `null`
+to clear), `notificationPreferences` (all six booleans). Response as `GET`. Errors: 400
+`VALIDATION_ERROR` (e.g. `defaultLocation.addressLine`, `notificationPreferences.messages`), 401, 403.
 
 ### `GET /professional/profile` — professional
 `200 OwnProfessionalProfile` (exact base location, contact, notification settings).
@@ -413,7 +475,7 @@ them while empty), `categoryIds` (1–10 catalog ids, de-duplicated), `yearsOfEx
 `contact` (`phone`, `email` lower-cased, `website` stored with `https://`), `business`
 (`businessName` ≤ 80, `licenseNumber` letters/digits ≤ 30, `isInsured`, `languages` 1–20 ISO codes,
 lower-cased, de-duplicated), `startingPrice` (`{amount, currency}` with the offer price rules, or
-`null`), `notificationPreferences`, `avatarUrl`.
+`null`), `notificationPreferences`.
 `200 OwnProfessionalProfile`. Side effects: `fullName` → account first/last name (first word / the
 rest), `contact.phone` → account phone (the sign-in email never changes), realtime
 `profile.updated` to the professional, the cached public profile is dropped.
@@ -466,29 +528,6 @@ user placed), like the app's reference backend. Errors: 400 with
 `{ lat: ['validation:location.coordinatesInvalid'], lng: [same] }` for a missing/invalid pair,
 **404 `NOT_FOUND` when there is no address at that point** (the app shows its "type the address"
 hint), 429, 503.
-
-### `POST /uploads/images` — any signed-in user
-**Contract change:** `multipart/form-data` with the image in the field **`file`** (the app currently
-posts the JSON `UploadImagePayload` with a local `uri`; it must send
-`FormData.append('file', { uri, name: fileName ?? 'photo.jpg', type: mimeType ?? 'image/jpeg' })`).
-Other form fields are ignored. JPEG, PNG, WebP or HEIC/HEIF, ≤ 8 MB; the type is detected from the
-file's bytes, not from the declared type. Stored on Cloudinary under
-`professionals/<APP_ENV>/images`, longest edge ≤ 2048 px.
-`201 UploadedImage { id, url, width, height }` (dimensions of the stored image).
-Errors: 400 `{ file: ['validation:upload.invalid'] }` (missing, not an image, too large; a wrong
-field name is reported under that name), 401, 429 (60 uploads / 10 min per user; 20 uploads waiting to
-be attached to a request or profile; 200 MB per 24 h per user — checked before the file is read),
-503 `SERVER_ERROR` (storage not configured: development without Cloudinary credentials).
-Uploads nobody attaches within 24 h are deleted by the daily `orphan-uploads` cron (03:17 UTC).
-
-### Avatars
-There is no separate avatar endpoint (the app has none): upload with `POST /uploads/images`, then
-send the returned `url` as `avatarUrl` in `PATCH /customer/profile` or `PATCH /professional/profile`.
-**Stricter than the app's mock:** `avatarUrl` must be the URL of one of the caller's own uploads that
-is not used elsewhere (or the current avatar URL, a no-op); any other URL → 400
-`{ avatarUrl: ['validation:invalid'] }`, so a profile can never make other users' apps load an
-arbitrary URL. `null` removes the avatar. A replaced or removed avatar image is released to the
-orphan cron (Google profile pictures are left alone).
 
 ## Messaging (conversations, notifications, push, realtime)
 
@@ -595,17 +634,18 @@ the background (never delaying the response), sends push when `pushEnabled` and 
   in the app (inbox, push).
 
 ### Push (Expo)
-- Every device the recipient registered with `POST /me/devices` from a session that is still live gets
-  the notification (devices of ended sessions are deleted instead), localized in the
+- Every live session of the recipient with a push token (`POST /me/devices`) gets the notification;
+  ended sessions are gone together with their tokens. Localized in the
   user's language (en/he, the app's `notifications:types.*` texts; Latin names bidi-isolated in Hebrew),
   `sound: default`, `priority: high`, `data: { notificationId, notificationType, target }`.
 - Sent in chunks of 100 (Expo's limit; the SDK retries 429s). A failed chunk does not stop the others;
-  the failure is logged and those devices are kept.
-- Tokens that are not Expo push tokens, or that Expo answers `DeviceNotRegistered`, are deleted at once.
+  the failure is logged and those tokens are kept.
+- Tokens that are not Expo push tokens, or that Expo answers `DeviceNotRegistered`, are removed from
+  their session at once (the session stays signed in).
   Other tickets wait in Redis (`${APP_ENV}:push-tickets`, sorted set by send time; the key expires 24 h
   after the last push, so it cannot outlive its receipts even where no instance runs the cron). The
   `push-receipts` cron (every 15 min, Redis-locked) fetches receipts of tickets ≥ 15 min old in batches
-  of 1000 (up to 50 000 per run), deletes `DeviceNotRegistered` tokens, logs the other receipt errors
+  of 1000 (up to 50 000 per run), removes `DeviceNotRegistered` tokens, logs the other receipt errors
   by type, drops answered tickets and purges tickets older than a day.
 
 ### Realtime: `GET /v1/realtime` (WebSocket)
@@ -647,7 +687,7 @@ Lists are keyset-paginated (`?cursor=&limit=`, default 20, max 100; bad values �
 | 2 | `GET /jobs?scope=` is paginated → `Paginated<JobSummary>` (the app expects `JobSummary[]`). | `useJobs` becomes an **infinite query** (load more on scroll): reading only `.items` of the first page would cut the Work tab's completed list at 20. The Work tab's "earned this month" must not be summed from the loaded pages either: take `ProfessionalDashboard.earningsThisMonth` (computed over every job completed this month, `Asia/Jerusalem`). `scope=completed` is ordered by completion time, newest first, so a client that wants its own per-currency sum can load pages until `completedAt` falls before the month start. |
 | 3 | `GET /jobs?scope=all` is ordered by appointment, latest first (the mock: most recently updated). The app never requests `all`. | None. |
 | 4 | `CustomerDashboard.jobsAwaitingReview` holds at most the 20 most recently completed unreviewed jobs (the mock: all). | None in practice (the app shows the first one and marks requests in lists). |
-| 5 | `photoIds` must be ids returned by `POST /uploads/images` to the same customer and not used elsewhere; unknown/foreign ids → 400 `{ photoIds: ['validation:request.photoNotFound'] }`. Repeated ids are kept once. | Already the app's flow. |
+| 5 | `POST /requests` and `PATCH /requests/:id` are multipart (JSON `data` + files `photos`, [Images](#images)); `RequestPhoto` is `{ publicId, url }` (no width/height: the app never used them); a draft edit lists the photos it keeps (`keepPhotos`). | Done in the app. |
 | 6 | New limits: 30 new requests per hour per customer, 60 new offers per 10 minutes per professional → 429 `RATE_LIMITED`. | Show the generic error. |
 | 7 | `VALIDATION_ERROR` is 400 (the mock answers 422). The body is validated before ownership/state checks, so e.g. an invalid body on a published request answers 400 where the mock answered 409. | None (the client maps both). |
 | 8 | Calendar rules run in `Asia/Jerusalem` (the market's time zone): "today" for preferred dates, the day an emergency/urgent preferred date starts, "this month" for earnings. The mock used the device zone. | None for Israeli users. |
@@ -657,15 +697,38 @@ Lists are keyset-paginated (`?cursor=&limit=`, default 20, max 100; bad values �
 ### Requests
 
 #### `POST /requests` — customer → 201 `CustomerRequestView`
-Body `CreateServiceRequestPayload`: `categoryId` (catalog id; unknown → 422 `UNSUPPORTED_CATEGORY`),
+`multipart/form-data` ([Images](#images)): the text field **`data`** holds the JSON payload
+`CreateServiceRequestPayload`, the files **`photos`** (0–6, in display order) the photos.
+Payload: `categoryId` (catalog id; unknown → 422 `UNSUPPORTED_CATEGORY`),
 `description` (15–1000, trimmed), `location` (`coordinates`, `addressLine` ≤ 120, `city` ≤ 60,
 `neighborhood`, `details` ≤ 200), `urgency`, `preferredSchedule` (`{ date: YYYY-MM-DD, timeWindow }`
-or `null`, default `null`), `photoIds` (≤ 6, default `[]`), `notes` (≤ 500, empty → `null`),
-`publish` (default `true`; `false` saves a draft).
+or `null`, default `null`), `notes` (≤ 500, empty → `null`), `publish` (default `true`; `false` saves
+a draft), `clientRequestId` (optional, see below). Field errors are keyed as in a JSON body
+(`description`, `location.addressLine`, …); photo errors under `photos`.
 Preferred date rules (`fieldErrors['preferredSchedule.date']`): real day
 (`request.preferredDateInvalid`), not before today (`…InPast`), ≤ 60 days ahead (`…TooFar`), and
 starting before the latest start an offer may propose — emergency ≤ 24 h, urgent ≤ 72 h
-(`…BeyondUrgency`). Photos are attached (kept by the orphan cleanup).
+(`…BeyondUrgency`).
+Order: the payload is validated; a repeated `clientRequestId` answers with the first request; the
+date rules are checked; the photos are checked and stored; the request is created. Photos stored for
+a request that ends up not created (a failure, or a concurrent post with the same `clientRequestId`
+that won) are deleted again.
+
+```http
+POST /v1/requests
+Content-Type: multipart/form-data; boundary=…
+
+--…
+Content-Disposition: form-data; name="data"
+
+{"categoryId":"plumbing","description":"The kitchen sink is leaking under the cabinet.","location":{"coordinates":{"latitude":32.08,"longitude":34.78},"addressLine":"Dizengoff St 120","city":"Tel Aviv-Yafo","neighborhood":null,"details":null},"urgency":"normal","preferredSchedule":null,"notes":null,"publish":true,"clientRequestId":"k1x9…"}
+--…
+Content-Disposition: form-data; name="photos"; filename="sink.jpg"
+Content-Type: image/jpeg
+
+<bytes>
+```
+→ `201 { "id": "…", "status": "open", "photos": [{ "publicId": "professionals/production/requests/abc", "url": "https://res.cloudinary.com/…/abc.jpg" }], … }`
 Published: every matching professional (category + own service radius, haversine from the
 service-area center to the request's approximate pin) gets `new_matching_request` (`distanceKm`,
 customer short name) and `request.updated`. This fan-out runs right after the response (in the
@@ -675,8 +738,8 @@ When the fan-out is done, the request stores how many professionals it notified
 professional covers this category there yet) and the owner gets `request.updated` to refetch it.
 Idempotency: an optional `clientRequestId` (1–100 characters, one per form submission in the app)
 makes a repeated post (a retry after a lost or late response, a double tap) return the request the
-first one created (201, same body; nothing is created, claimed or notified again). The key is scoped
-to the customer; a new one creates a new request.
+first one created (201, same body; nothing is created, uploaded or notified again: the photos of the
+retry are read but not stored). The key is scoped to the customer; a new one creates a new request.
 
 #### `GET /requests/:requestId` — any role → `RequestDetailsResponse`
 - Owner customer: `{ viewerRole: 'customer', request: CustomerRequestView }` (`latestOfferAt` =
@@ -691,12 +754,27 @@ to the customer; a new one creates a new request.
   `isMatch`.
 
 #### `PATCH /requests/:requestId` — customer (drafts) → `CustomerRequestView`
-Body: any field of the create payload except `publish`. Not a draft → 409 `CONFLICT`; not the
-owner → 403. A new `urgency` or `preferredSchedule` re-checks the date rules; `photoIds` replaces
-the photos (removed uploads are released for the orphan cleanup).
+Multipart like `POST /requests`: `data` = any field of the create payload except `publish` and
+`clientRequestId`, plus **`keepPhotos`**: the `publicId`s of the draft's current photos to keep, in
+the new order (omitted = keep them all); the new files `photos` are added after them (at most 6 in
+all → 400 `photos: ['validation:request.tooManyPhotos']`; an id the draft does not have → 400
+`keepPhotos: ['validation:request.photoNotFound']`). Photos left out are deleted from storage after the
+commit. Because the payload lists every photo it keeps, a retried edit ends with the same photos (the
+first attempt's new ones are replaced, not duplicated). Not a draft → 409 `CONFLICT`; not the owner →
+403 — both answered before anything is uploaded. A new `urgency` or `preferredSchedule` re-checks the
+date rules.
+
+```http
+PATCH /v1/requests/66f…
+Content-Type: multipart/form-data; boundary=…
+data = {"description":"…","keepPhotos":["professionals/production/requests/abc"]}
+photos = <new.jpg>
+```
+→ `200 { …, "photos": [{ "publicId": "…/abc", "url": "…" }, { "publicId": "…/new", "url": "…" }] }`
 
 #### `DELETE /requests/:requestId` — customer (drafts) → `{ success: true }`
-Not a draft → 409 `CONFLICT`. Photos are released. `request.updated` to the owner.
+Not a draft → 409 `CONFLICT`. Its photos are deleted from storage after the commit.
+`request.updated` to the owner.
 
 #### `POST /requests/:requestId/publish` — customer → `CustomerRequestView`
 `draft → open`; date rules re-checked on today's date; notifications as for a published create.
@@ -712,6 +790,7 @@ request → `cancelled` with recounted `offerCount`/`pendingOfferCount`. `reques
 every professional with a rejected offer or the cancelled job; `offer.updated`/`job.updated` to the
 parties; `request.updated` to the owner, every offering professional and — when it was accepting
 offers — every matching professional (it leaves their explorer). An accepted offer stays `accepted`.
+The request's photos are removed (`photos: []`) and deleted from storage after the commit.
 
 #### `GET /customer/requests?section=&statuses=&cursor=&limit=` — customer → `Paginated<CustomerRequestView>`
 Most recently updated first (keyset `updatedAt, _id`). `section` ∈ `CUSTOMER_REQUEST_SECTIONS`

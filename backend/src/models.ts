@@ -12,6 +12,4 @@ export { OfferModel } from './modules/offers/offer.model.js';
 export { ProfessionalModel } from './modules/professionals/professional.model.js';
 export { RequestModel } from './modules/requests/request.model.js';
 export { ReviewModel } from './modules/reviews/review.model.js';
-export { UploadModel } from './modules/uploads/upload.model.js';
-export { DeviceModel } from './modules/users/device.model.js';
 export { UserModel } from './modules/users/user.model.js';

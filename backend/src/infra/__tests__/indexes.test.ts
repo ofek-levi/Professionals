@@ -25,7 +25,7 @@ describe('declared indexes exist after ensureIndexes', () => {
   it('creates every collection', async () => {
     const names = (await mongoose.connection.db?.listCollections().toArray())?.map((c) => c.name).sort();
     expect(names).toEqual(
-      ['conversations', 'devices', 'emailtokens', 'jobs', 'messages', 'notifications', 'offers', 'professionals', 'requests', 'reviews', 'sessions', 'uploads', 'users'],
+      ['conversations', 'emailtokens', 'jobs', 'messages', 'notifications', 'offers', 'professionals', 'requests', 'reviews', 'sessions', 'users'],
     );
   });
 
@@ -36,8 +36,14 @@ describe('declared indexes exist after ensureIndexes', () => {
     expect(await indexesOf('jobs')).toContainEqual(expect.objectContaining({ key: { request: 1 }, unique: true }));
     expect(await indexesOf('reviews')).toContainEqual(expect.objectContaining({ key: { job: 1 }, unique: true }));
     expect(await indexesOf('messages')).toContainEqual(expect.objectContaining({ key: { conversation: 1, sender: 1, clientMessageId: 1 }, unique: true }));
-    expect(await indexesOf('users')).toContainEqual(expect.objectContaining({ key: { googleSub: 1 }, unique: true }));
+    expect(await indexesOf('users')).toContainEqual(
+      expect.objectContaining({ key: { googleSub: 1 }, unique: true, partialFilterExpression: { googleSub: { $exists: true } } }),
+    );
     expect(await indexesOf('requests')).toContainEqual(expect.objectContaining({ key: { status: 1, categoryId: 1, publicPoint: '2dsphere' } }));
+    // `$exists` so that the retry lookup of POST /requests can use it (see query-plans.test.ts).
+    expect(await indexesOf('requests')).toContainEqual(
+      expect.objectContaining({ key: { customer: 1, clientRequestId: 1 }, unique: true, partialFilterExpression: { clientRequestId: { $exists: true } } }),
+    );
     expect(await indexesOf('professionals')).toContainEqual(
       expect.objectContaining({ key: { categoryIds: 1, 'serviceArea.radiusKm': 1, 'serviceArea.center': '2dsphere' } }),
     );
@@ -47,12 +53,13 @@ describe('declared indexes exist after ensureIndexes', () => {
     );
     expect(await indexesOf('professionals')).toContainEqual(expect.objectContaining({ key: { 'serviceArea.publicCenter': '2dsphere', categoryIds: 1 } }));
     expect(await indexesOf('professionals')).not.toContainEqual(expect.objectContaining({ key: { 'serviceArea.center': '2dsphere', categoryIds: 1 } }));
-    expect(await indexesOf('uploads')).toContainEqual(
-      expect.objectContaining({ key: { owner: 1 }, partialFilterExpression: { attachedAt: { $type: 'null' } } }),
-    );
     expect(await indexesOf('conversations')).toContainEqual(expect.objectContaining({ key: { 'participants.user': 1, 'participants.unreadCount': 1 } }));
     // Refresh tokens carry their session id: sessions are read by _id, no token-hash index.
-    expect((await indexesOf('sessions')).map((index) => Object.keys(index.key).join())).toEqual(['_id', 'user', 'expiresAt']);
+    expect((await indexesOf('sessions')).map((index) => Object.keys(index.key).join())).toEqual(['_id', 'user,pushToken', 'pushToken', 'expiresAt']);
+    // A push token belongs to one session; `$exists` so that equality and `$in` lookups can use it.
+    expect(await indexesOf('sessions')).toContainEqual(
+      expect.objectContaining({ key: { pushToken: 1 }, unique: true, partialFilterExpression: { pushToken: { $exists: true } } }),
+    );
     expect(await indexesOf('sessions')).toContainEqual(expect.objectContaining({ key: { expiresAt: 1 }, expireAfterSeconds: 0 }));
     expect(await indexesOf('emailtokens')).toContainEqual(expect.objectContaining({ key: { expiresAt: 1 }, expireAfterSeconds: 0 }));
     expect(await indexesOf('notifications')).toContainEqual(expect.objectContaining({ key: { createdAt: 1 }, expireAfterSeconds: 90 * 24 * 3600 }));

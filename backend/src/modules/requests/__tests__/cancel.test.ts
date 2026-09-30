@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { signInCustomer, signInProfessional } from '../../../../test/auth.js';
-import { RAMAT_GAN } from '../../../../test/factories.js';
+import { RAMAT_GAN, TEL_AVIV } from '../../../../test/factories.js';
+import { JPEG, PNG } from '../../../../test/images.js';
 import { ConversationModel } from '../../conversations/conversation.model.js';
 import { JobModel } from '../../jobs/job.model.js';
 import { OfferModel } from '../../offers/offer.model.js';
@@ -14,12 +15,14 @@ describe('POST /v1/requests/:id/cancel', () => {
   beforeEach(async () => {
     await clearDatabase();
     deps.realtime.clear();
+    deps.storage.images.clear();
   });
 
-  it('rejects pending offers, notifies their professionals and clears the explorers', async () => {
+  it('rejects pending offers, notifies their professionals, clears the explorers and deletes the photos', async () => {
     const customer = await signInCustomer(deps);
     const [pro, other, bystander] = [await signInProfessional(deps), await signInProfessional(deps, { center: RAMAT_GAN }), await signInProfessional(deps)];
-    const req = await postRequest(app, customer);
+    const req = await postRequest(app, customer, {}, TEL_AVIV, [JPEG, PNG]);
+    expect(deps.storage.images.size).toBe(2);
     const offers = [await postOffer(app, deps, pro, req.id), await postOffer(app, deps, other, req.id)];
     await request(app).post(`/v1/offers/${offers[1]?.id ?? ''}/withdraw`).set(other.headers).expect(200);
     deps.realtime.clear();
@@ -32,7 +35,11 @@ describe('POST /v1/requests/:id/cancel', () => {
       cancelledAt: deps.clock.now().toISOString(),
       pendingOfferCount: 0,
       offerCount: 1,
+      photos: [],
     });
+    // The images go from storage after the commit (in the background).
+    await deps.background.drain();
+    expect(deps.storage.images.size).toBe(0);
     expect(await OfferModel.findById(offers[0]?.id).lean()).toMatchObject({ status: 'rejected', statusReason: 'request_cancelled' });
     expect(notificationTypes(deps, pro.user._id.toHexString())).toEqual(['request_cancelled']);
     // The withdrawn offer's professional is not notified, but still hears about the request.
@@ -62,10 +69,10 @@ describe('POST /v1/requests/:id/cancel', () => {
     expect((await OfferModel.findOne({ request: req.id }).lean())?.status).toBe('accepted');
   });
 
-  it('refuses in-progress work, other customers and invalid reasons', async () => {
+  it('refuses in-progress work, other customers and invalid reasons (the photos stay)', async () => {
     const customer = await signInCustomer(deps);
     const pro = await signInProfessional(deps);
-    const req = await postRequest(app, customer);
+    const req = await postRequest(app, customer, {}, TEL_AVIV, [JPEG]);
     const accepted = await acceptOffer(app, customer, (await postOffer(app, deps, pro, req.id)).id);
     await request(app).post(`/v1/jobs/${accepted.job.id}/confirm`).set(pro.headers).expect(200);
     await request(app).post(`/v1/jobs/${accepted.job.id}/start`).set(pro.headers).expect(200);
@@ -76,5 +83,7 @@ describe('POST /v1/requests/:id/cancel', () => {
     const invalid = await request(app).post(`/v1/requests/${req.id}/cancel`).set(customer.headers).send({ reason: 'bored', comment: 'x'.repeat(301) }).expect(400);
     expect(invalid.body.fieldErrors).toEqual({ reason: ['validation:cancel.reasonRequired'], comment: ['validation:cancel.commentTooLong'] });
     await request(app).post(`/v1/requests/${req.id}/cancel`).set(pro.headers).send({ reason: 'other' }).expect(403);
+    await deps.background.drain();
+    expect(deps.storage.images.size).toBe(1);
   });
 });

@@ -7,7 +7,7 @@ import { CATEGORY_IDS } from '../../shared/catalog/index.js';
 import { vm } from '../../shared/validation-messages.js';
 import { categoryIdSchema, nullableText, serviceLocationInputSchema, serviceRadiusSchema } from '../auth/auth-fields.schemas.js';
 import { availabilitySchema, contactSchema, languagesSchema, startingPriceSchema } from './profile-business.schemas.js';
-import { PROFILE_LIMITS, avatarUrlSchema, notificationPreferencesSchema, profileText } from './profile-fields.schemas.js';
+import { PROFILE_LIMITS, notificationPreferencesSchema, profileText } from './profile-fields.schemas.js';
 
 export const professionalParams = z.object({ professionalId: z.string() });
 
@@ -31,12 +31,11 @@ const fullNameSchema = profileText({ max: PROFILE_LIMITS.nameMax, required: vm('
 /** Letters (Latin/Hebrew) and digits, optionally separated by spaces, dashes or slashes. */
 const LICENSE_PATTERN = /^[A-Za-z0-9א-ת][A-Za-z0-9א-ת\s\-/]{2,}$/;
 
-/** `PATCH /professional/profile` (every field optional). */
+/** `PATCH /professional/profile` (every field optional). The avatar is `PUT /me/avatar`. */
 export const updateProfessionalProfileBody = z
   .object({
     fullName: fullNameSchema,
     displayName: profileText({ max: PROFILE_LIMITS.displayNameMax, required: vm('profile.displayNameRequired'), tooLong: vm('profile.nameTooLong') }),
-    avatarUrl: avatarUrlSchema,
     // Sign-up does not ask for a headline or a bio: both may stay empty (the public profile hides them).
     headline: profileText({ max: PROFILE_LIMITS.headlineMax, required: vm('profile.headlineRequired'), tooLong: vm('profile.headlineTooLong'), optional: true }),
     bio: profileText({

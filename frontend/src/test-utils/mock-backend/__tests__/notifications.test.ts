@@ -62,7 +62,6 @@ describe('notifications API', () => {
       },
       urgency: 'normal',
       preferredSchedule: null,
-      photoIds: [],
       notes: null,
       publish: true,
     });

@@ -4,6 +4,8 @@
  * notifications + realtime events. Operations are atomic because the server runs each one inside
  * a database transaction (see `context.ts`).
  */
+import type { z } from 'zod';
+
 import { APP_CONFIG } from '@/constants/app-config';
 import { validateOfferAgainstRequest } from '@/features/offers/offer-rules';
 import { computeRequestOfferStats } from '../offer-counters';
@@ -29,7 +31,7 @@ import {
   updateDraftRequestSchema,
   validatePreferredDateForUrgency,
 } from '@/lib/validation/request';
-import type { AcceptOfferResponse, CreateServiceRequestPayload } from '@/types/api';
+import { MULTIPART_FIELDS, type AcceptOfferResponse, type CreateServiceRequestPayload } from '@/types/api';
 import type {
   CurrencyCode,
   ISODateTimeString,
@@ -45,6 +47,8 @@ import type {
 import type { Actor, CustomerActor, ProfessionalActor } from '../auth';
 import type { ServerContext } from '../context';
 import type { StoredJob } from '../db';
+import { storeImage } from '../images';
+import { imageFiles, readMultipart, type ImageFile, type UploadedFile } from '../multipart';
 import {
   activeOfferOf,
   customerShortName,
@@ -114,16 +118,32 @@ function toServiceLocation(location: CreateServiceRequestPayload['location']): S
   };
 }
 
-function resolvePhotos(ctx: ServerContext, ownerId: string, photoIds: readonly string[]): RequestPhoto[] {
-  const photos: RequestPhoto[] = [];
-  for (const photoId of photoIds) {
-    const upload = ctx.db.uploads.get(photoId);
-    if (!upload || upload.ownerId !== ownerId) {
-      throw DomainError.validation({ photoIds: [vm('request.photoNotFound')] }, `Unknown photo "${photoId}"`);
-    }
-    photos.push({ id: upload.id, url: upload.url, width: upload.width, height: upload.height });
+/** Request photos travel with the request (multipart `data` + `photos`, backend/docs/API.md → Images). */
+const REQUEST_FORM = {
+  field: MULTIPART_FIELDS.requestPhotos,
+  maxFiles: APP_CONFIG.maxRequestPhotos,
+  tooManyFiles: vm('request.tooManyPhotos'),
+  jsonField: MULTIPART_FIELDS.payload,
+} as const;
+
+function storePhotos(ctx: ServerContext, files: readonly ImageFile[]): RequestPhoto[] {
+  return files.map((file) => storeImage(ctx, 'requests', file));
+}
+
+/**
+ * A draft edit's photos: the kept ones (`keepPhotos`, in order; all when omitted), then the new ones.
+ * Unknown kept photos and too many photos are refused before the files' types are checked.
+ */
+function editedPhotos(ctx: ServerContext, current: readonly RequestPhoto[], keep: readonly string[] | undefined, files: readonly UploadedFile[]): RequestPhoto[] {
+  const kept = (keep ? [...new Set(keep)] : current.map((photo) => photo.publicId)).map((publicId) => {
+    const photo = current.find((candidate) => candidate.publicId === publicId);
+    if (!photo) throw DomainError.validation({ keepPhotos: [vm('request.photoNotFound')] }, `The request has no photo "${publicId}"`);
+    return photo;
+  });
+  if (kept.length + files.length > APP_CONFIG.maxRequestPhotos) {
+    throw DomainError.validation({ photos: [vm('request.tooManyPhotos')] }, 'Too many photos');
   }
-  return photos;
+  return [...kept, ...storePhotos(ctx, imageFiles(files, REQUEST_FORM.field))];
 }
 
 function assertPreferredSchedule(ctx: ServerContext, schedule: PreferredSchedule | null | undefined, urgency: UrgencyLevel): void {
@@ -184,13 +204,20 @@ function clientRequestKey(actor: CustomerActor, body: unknown): string | null {
   return typeof value === 'string' && value.trim() ? `${actor.userId}|${value.trim()}` : null;
 }
 
-/** `POST /requests` – creates a draft or a published request; idempotent with a `clientRequestId`. */
+/**
+ * `POST /requests` (multipart) – creates a draft or a published request with its photos; idempotent
+ * with a `clientRequestId`: a retry answers the first request and stores no photo again. Order as in
+ * the backend: the payload, the retry lookup, the date rules, then the photos' types.
+ */
 export function createRequest(ctx: ServerContext, actor: CustomerActor, body: unknown): ServiceRequest {
-  const key = clientRequestKey(actor, body);
+  const { data, files } = readMultipart(body, REQUEST_FORM);
+  const payload = parseBody(createServiceRequestSchema, data);
+  const key = clientRequestKey(actor, data);
   const known = key ? requestsByClientId.get(ctx.db)?.get(key) : undefined;
   const earlier = known ? ctx.db.requests.get(known) : undefined;
   if (earlier) return earlier;
-  const created = createNewRequest(ctx, actor, body);
+  assertPreferredSchedule(ctx, payload.preferredSchedule, payload.urgency);
+  const created = createNewRequest(ctx, actor, payload, imageFiles(files, REQUEST_FORM.field));
   if (key) {
     const byKey = requestsByClientId.get(ctx.db) ?? new Map<string, string>();
     byKey.set(key, created.id);
@@ -199,9 +226,12 @@ export function createRequest(ctx: ServerContext, actor: CustomerActor, body: un
   return created;
 }
 
-function createNewRequest(ctx: ServerContext, actor: CustomerActor, body: unknown): ServiceRequest {
-  const payload = parseBody(createServiceRequestSchema, body);
-  assertPreferredSchedule(ctx, payload.preferredSchedule, payload.urgency);
+function createNewRequest(
+  ctx: ServerContext,
+  actor: CustomerActor,
+  payload: z.output<typeof createServiceRequestSchema>,
+  files: readonly ImageFile[],
+): ServiceRequest {
   const now = ctx.nowIso();
   const draft = ctx.db.requests.insert({
     id: ctx.newId('req'),
@@ -211,7 +241,7 @@ function createNewRequest(ctx: ServerContext, actor: CustomerActor, body: unknow
     location: toServiceLocation(payload.location),
     urgency: payload.urgency,
     preferredSchedule: payload.preferredSchedule,
-    photos: resolvePhotos(ctx, actor.userId, payload.photoIds),
+    photos: storePhotos(ctx, files),
     notes: payload.notes,
     status: 'draft',
     offerCount: 0,
@@ -230,11 +260,15 @@ function createNewRequest(ctx: ServerContext, actor: CustomerActor, body: unknow
   return draft;
 }
 
-/** `PATCH /requests/:id` – drafts only. */
+/**
+ * `PATCH /requests/:id` (multipart like `POST /requests`) – drafts only. Order as in the backend: the
+ * payload, the owner, the draft state and date rules, the kept photos, then the new photos' types.
+ */
 export function updateDraftRequest(ctx: ServerContext, actor: CustomerActor, requestId: string, body: unknown): ServiceRequest {
+  const { data, files } = readMultipart(body, REQUEST_FORM);
+  const payload = parseBody(updateDraftRequestSchema, data);
   const request = requireOwnedRequest(ctx, actor, requestId);
   if (request.status !== 'draft') throw DomainError.conflict('Only drafts can be edited');
-  const payload = parseBody(updateDraftRequestSchema, body);
   if (payload.preferredSchedule !== undefined || payload.urgency !== undefined) {
     assertPreferredSchedule(
       ctx,
@@ -248,7 +282,7 @@ export function updateDraftRequest(ctx: ServerContext, actor: CustomerActor, req
     ...(payload.location !== undefined ? { location: toServiceLocation(payload.location) } : {}),
     ...(payload.urgency !== undefined ? { urgency: payload.urgency } : {}),
     ...(payload.preferredSchedule !== undefined ? { preferredSchedule: payload.preferredSchedule } : {}),
-    ...(payload.photoIds !== undefined ? { photos: resolvePhotos(ctx, actor.userId, payload.photoIds) } : {}),
+    ...(payload.keepPhotos !== undefined || files.length > 0 ? { photos: editedPhotos(ctx, request.photos, payload.keepPhotos, files) } : {}),
     ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
     updatedAt: ctx.nowIso(),
   });
@@ -303,7 +337,9 @@ export function cancelRequest(ctx: ServerContext, actor: CustomerActor, requestI
   }
 
   const stats = computeRequestOfferStats(offersForRequest(ctx.db, request.id));
+  // Its photos are deleted with the cancellation.
   const cancelled = setRequestStatus(ctx, request, 'cancelled', {
+    photos: [],
     cancelledAt: now,
     cancellationReason: payload.reason,
     cancellationComment: payload.comment,

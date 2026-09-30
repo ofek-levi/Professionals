@@ -17,6 +17,7 @@ import { createImageStorage, type ImageStorage } from './infra/storage/index.js'
 import { BackgroundTasks } from './lib/background.js';
 import { systemClock, type Clock } from './lib/clock.js';
 import type { Logger } from './lib/logger.js';
+import { ImagePostAdmission } from './middleware/image-admission.js';
 import { API_LIMITS } from './shared/limits.js';
 
 export interface AppDeps {
@@ -36,6 +37,12 @@ export interface AppDeps {
   passwordBreach: PasswordBreachChecker;
   realtime: RealtimePublisher;
   background: BackgroundTasks;
+  /** Image posts in flight in this process (`middleware/image-admission.ts`). */
+  imageAdmission: ImagePostAdmission;
+}
+
+export function createImageAdmission(env: Env): ImagePostAdmission {
+  return new ImagePostAdmission({ maxBytes: env.imageUploads.memoryBytes, postsPerUser: API_LIMITS.imagePostsInFlightPerUser });
 }
 
 /** Production wiring of the real providers. */
@@ -57,5 +64,6 @@ export function createDeps({ env, logger, redis }: { env: Env; logger: Logger; r
     passwordBreach: createPasswordBreachChecker(env, logger),
     realtime: new RedisRealtimePublisher(redis, keys.key(KEY_SPACES.realtimeChannel), logger),
     background: new BackgroundTasks(logger),
+    imageAdmission: createImageAdmission(env),
   };
 }

@@ -8,6 +8,7 @@ import { expect } from 'vitest';
 
 import type { TestDeps } from '../../../../test/app.js';
 import { TEL_AVIV } from '../../../../test/factories.js';
+import { withForm } from '../../../../test/images.js';
 import type { GeoCoordinates } from '../../../shared/contract/index.js';
 
 export const HOUR = 60 * 60_000;
@@ -20,7 +21,7 @@ export function inHours(deps: Pick<TestDeps, 'clock'>, hours: number): string {
   return new Date(deps.clock.now().getTime() + hours * HOUR).toISOString();
 }
 
-/** A valid `POST /requests` body (published, plumbing in Tel Aviv). */
+/** A valid `POST /requests` payload (the multipart `data`; published, plumbing in Tel Aviv). */
 export function requestBody(overrides: Record<string, unknown> = {}, coordinates: GeoCoordinates = TEL_AVIV): Record<string, unknown> {
   return {
     categoryId: 'plumbing',
@@ -28,7 +29,6 @@ export function requestBody(overrides: Record<string, unknown> = {}, coordinates
     location: { coordinates, addressLine: 'Dizengoff St 120', city: 'Tel Aviv-Yafo', neighborhood: 'Old North', details: 'Floor 3, apt 7' },
     urgency: 'normal',
     preferredSchedule: null,
-    photoIds: [],
     notes: 'Gate code 1234',
     publish: true,
     ...overrides,
@@ -40,13 +40,15 @@ export function offerBody(deps: Pick<TestDeps, 'clock'>, overrides: Record<strin
   return { price: 350, currency: 'ILS', proposedStartAt: inHours(deps, 48), estimatedDurationMinutes: 90, message: 'Can come with parts', ...overrides };
 }
 
+/** `POST /requests` as the app sends it (multipart: `data` + `photos`), expecting 201. */
 export async function postRequest(
   app: Express,
   customer: Caller,
   overrides: Record<string, unknown> = {},
   coordinates: GeoCoordinates = TEL_AVIV,
+  photos: readonly Buffer[] = [],
 ): Promise<{ id: string } & Record<string, unknown>> {
-  const res = await request(app).post('/v1/requests').set(customer.headers).send(requestBody(overrides, coordinates));
+  const res = await withForm(request(app).post('/v1/requests').set(customer.headers), requestBody(overrides, coordinates), photos);
   expect(res.status, JSON.stringify(res.body)).toBe(201);
   return res.body as { id: string };
 }

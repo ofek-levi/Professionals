@@ -78,7 +78,7 @@ Everything runs locally without accounts anywhere; these features need real cred
 |---|---|---|---|
 | Continue with Google | `EXPO_PUBLIC_GOOGLE_*_CLIENT_ID` for the platform | the same ids (`GOOGLE_*_CLIENT_ID`) | the button is hidden (and the backend answers 503) |
 | Push notifications (iOS/Android) | `EXPO_PUBLIC_EAS_PROJECT_ID`, Android also `google-services.json`; a development or release build | FCM / APNs credentials in Expo (`eas credentials`), optionally `EXPO_ACCESS_TOKEN` | no push; realtime still updates the open app |
-| Photos (requests, avatars) | – | Cloudinary | uploads fail (503 in development) |
+| Photos (requests, avatars) | – | Cloudinary (or a local stub in development: `CLOUDINARY_UPLOAD_PREFIX`) | requests and avatars with a photo fail (503 in development); requests without photos work |
 | Emails (verification, password reset) | – | Resend (staging/production) or Gmail SMTP (development) | development writes them to the log |
 | Address search and reverse geocoding | – | network access to Nominatim (or `GEOCODER_URL`) | address search is unavailable (503) |
 | Production map tiles | `EXPO_PUBLIC_MAP_TILE_URL` (+ attribution) | – | public OpenStreetMap tiles (light use only) |
@@ -309,7 +309,7 @@ Bottom tabs are the main navigation, one entry point per feature:
 ## Architecture
 
 See **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** for the layering rules, how the app talks to
-the backend (API client, token refresh, realtime, push, uploads), the domain and status models and
+the backend (API client, token refresh, realtime, push, images), the domain and status models and
 the UI conventions. The API itself is documented in [`backend/docs/API.md`](../backend/docs/API.md).
 
 ```
@@ -328,7 +328,7 @@ src/
   components/     design system (ui/) + shared domain components (categories, requests, offers,
                   professionals, jobs, location, map, forms)
   hooks/          React Query queries/mutations, centralized query keys and invalidation
-  services/       api (client, HTTP transport, endpoints, uploads), auth (session store, token
+  services/       api (client, HTTP transport, endpoints, multipart image bodies), auth (session store, token
                   refresh, Google sign-in), realtime (WebSocket), push (expo-notifications), location
   types/          domain entities and API DTOs
   constants/      category catalog, urgency levels, status models, notification types, app config
@@ -369,7 +369,8 @@ token manager, WebSocket client and screens run against an in-process test doubl
 importing it from app code, so it is never bundled). They cover the category catalog,
 sign-in/sign-up, sessions (secure storage, proactive and single-flight token refresh, sign-out when
 the refresh token is rejected, logout), realtime (4001 → refresh, backoff, foreground), push
-(registration, token changes, taps), multipart uploads, request/offer/profile validation, status
+(registration, token changes, taps), requests and avatars sent with their photos (multipart),
+request/offer/profile validation, status
 transitions, request filtering by category and service area, offers and their acceptance,
 cancellation cascades, notifications, role separation and address privacy, the React Query hooks,
 the navigation shell and role guards, the account screens, the map (bridge protocol, the Leaflet

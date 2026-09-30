@@ -11,7 +11,7 @@ import express, { type Express, type NextFunction, type Request, type Response }
 
 import { createApp } from '../src/app.js';
 import { parseEnv, type Env } from '../src/config/env.js';
-import type { AppDeps } from '../src/deps.js';
+import { createImageAdmission, type AppDeps } from '../src/deps.js';
 import { createCache } from '../src/infra/cache.js';
 import { CachedGeocoder, MemoryGeocoder } from '../src/infra/geo/index.js';
 import { MemoryGoogleVerifier } from '../src/infra/google/index.js';
@@ -91,6 +91,7 @@ export function createTestDeps(options: TestAppOptions = {}): TestDeps {
     passwordBreach: new MemoryPasswordBreachChecker(),
     realtime: new MemoryRealtimePublisher(),
     background: new BackgroundTasks(logger),
+    imageAdmission: createImageAdmission(env),
   };
   Object.assign(deps, options.deps);
   // Stored createdAt/updatedAt follow the fake clock too (also when no app is created).

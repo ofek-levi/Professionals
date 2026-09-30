@@ -14,12 +14,15 @@ import { JobModel } from '../src/modules/jobs/job.model.js';
 import { MessageModel } from '../src/modules/conversations/message.model.js';
 import { NotificationModel } from '../src/modules/notifications/notification.model.js';
 import { OfferModel } from '../src/modules/offers/offer.model.js';
-import { UploadModel } from '../src/modules/uploads/upload.model.js';
+import { RequestModel } from '../src/modules/requests/request.model.js';
+import { UserModel } from '../src/modules/users/user.model.js';
+import { requestBody } from '../src/modules/requests/__tests__/marketplace-fixtures.js';
 import { createChat } from '../src/modules/conversations/__tests__/chat-fixture.js';
 import { JOB_STATUSES, OFFER_STATUSES } from '../src/shared/statuses.js';
 import { clearDatabase, createTestApp } from './app.js';
 import { signInCustomer, signInProfessional } from './auth.js';
-import { createJob, createOffer, createRequest } from './factories.js';
+import { createCustomer, createJob, createOffer, createRequest } from './factories.js';
+import { withForm } from './images.js';
 import { on, profiled, type ProfiledOp } from './query-profile.js';
 
 const MINUTE = 60_000;
@@ -236,26 +239,29 @@ describe('query plans of per-user counters', () => {
     expect(query?.keysExamined).toBeLessThanOrEqual(4);
   });
 
-  it('the upload quota counts only the caller’s unattached uploads', async () => {
+  it('a retried POST /requests finds the first request by its clientRequestId index', async () => {
     const customer = await signInCustomer(deps);
-    await UploadModel.collection.insertMany(
-      Array.from({ length: FILLER }, (_, i) => ({
-        owner: customer.user._id,
-        publicId: `p${i}`,
-        url: `https://images.test/${i}.jpg`,
-        width: null,
-        height: null,
-        attachedAt: i < 5 ? null : new Date(i),
-        createdAt: new Date(i),
-      })),
+    await RequestModel.collection.insertMany(
+      Array.from({ length: FILLER }, (_, i) => ({ customer: customer.user._id, clientRequestId: `filler-${i}`, status: 'draft' })),
     );
+    const form = () => withForm(request(app).post('/v1/requests').set(customer.headers), requestBody({ clientRequestId: 'form-1' }));
+    await form().expect(201);
+    const ops = await profiled(() => form().expect(201));
+    const [lookup] = on(ops, 'requests', 'query').filter((op) => JSON.stringify(op.command).includes('form-1'));
+    expect(JSON.stringify(lookup?.execStats)).toContain('"indexName":"customer_clientRequestId"');
+    expect(lookup?.keysExamined).toBeLessThanOrEqual(1);
+  });
+
+  it('a Google sign-in finds the linked account by its googleSub index', async () => {
+    await UserModel.collection.insertMany(
+      Array.from({ length: FILLER }, (_, i) => ({ email: `filler-${i}@example.com`, role: 'customer', ...(i % 2 === 0 ? { googleSub: `filler-${i}` } : {}) })),
+    );
+    await createCustomer({ email: 'dana@example.com', googleSub: 'google-dana' });
     const ops = await profiled(() =>
-      request(app).post('/v1/uploads/images').set(customer.headers).attach('file', Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]), 'a.jpg').expect(201),
+      request(app).post('/v1/auth/google').send({ idToken: deps.google.issue({ email: 'dana@example.com', sub: 'google-dana' }) }).expect(200),
     );
-    // `countDocuments` is an aggregation: its profile has the plan summary, not the stages.
-    const count = on(ops, 'uploads').find((op) => JSON.stringify(op.command).includes('"$type":"null"'));
-    // The partial index holds only unattached uploads, so MongoDB counts its keys without fetching.
-    expect(count?.planSummary).toBe('COUNT_SCAN { owner: 1 }');
-    expect(count?.keysExamined).toBeLessThanOrEqual(6);
+    const [lookup] = on(ops, 'users', 'query').filter((op) => JSON.stringify(op.command.filter ?? {}).includes('google-dana'));
+    expect(JSON.stringify(lookup?.execStats)).toContain('"indexName":"googleSub"');
+    expect(lookup?.docsExamined).toBe(1);
   });
 });

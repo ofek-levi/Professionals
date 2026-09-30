@@ -9,10 +9,15 @@ import type { UserDoc } from '../src/modules/users/user.model.js';
 import type { TestDeps } from './app.js';
 import { createCustomer, createProfessional, type TestProfessional } from './factories.js';
 
-export function accessTokenFor(deps: Pick<TestDeps, 'env' | 'clock'>, user: Pick<UserDoc, '_id' | 'role'>): string {
+/** An access token of `user`, for a session that is not stored unless `sessionId` names one. */
+export function accessTokenFor(
+  deps: Pick<TestDeps, 'env' | 'clock'>,
+  user: Pick<UserDoc, '_id' | 'role'>,
+  sessionId: Types.ObjectId = new Types.ObjectId(),
+): string {
   return signAccessToken(
     deps.env.jwt,
-    { userId: user._id.toHexString(), role: user.role, sessionId: new Types.ObjectId().toHexString() },
+    { userId: user._id.toHexString(), role: user.role, sessionId: sessionId.toHexString() },
     deps.clock,
   ).token;
 }

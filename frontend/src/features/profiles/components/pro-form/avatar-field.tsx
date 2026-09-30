@@ -1,55 +1,29 @@
-/** Profile photo with change / remove actions (uploads through `useUploadImage`). */
+/** Profile photo with change / remove actions (saved at once through `PUT` / `DELETE /me/avatar`). */
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { pickImagesFromLibrary, useUploadErrorToast } from '@/components/forms';
-import { Avatar, Button, useConfirm, useToast } from '@/components/ui';
-import { useUploadImage } from '@/hooks';
+import { Avatar, Button } from '@/components/ui';
 import { makeStyles } from '@/theme';
+
+import { useAvatarActions } from '../use-avatar-actions';
 
 interface AvatarFieldProps {
   name: string;
   value: string | null;
   verified: boolean;
-  onChange: (url: string | null) => void;
 }
 
-export function AvatarField({ name, value, verified, onChange }: AvatarFieldProps) {
+export function AvatarField({ name, value, verified }: AvatarFieldProps) {
   const styles = useStyles();
   const { t } = useTranslation(['professional', 'common']);
-  const confirm = useConfirm();
-  const toast = useToast();
-  const showUploadError = useUploadErrorToast();
-  const upload = useUploadImage();
-
-  const pick = async () => {
-    const result = await pickImagesFromLibrary(1);
-    if (result.status === 'cancelled') return;
-    if (result.status !== 'picked') {
-      toast.show({ title: t('professional:form.photo.failed'), tone: 'warning' });
-      return;
-    }
-    const [photo] = result.photos;
-    try {
-      const uploaded = await upload.mutateAsync({
-        ...photo,
-        width: photo.width && photo.width > 0 ? photo.width : null,
-        height: photo.height && photo.height > 0 ? photo.height : null,
-      });
-      onChange(uploaded.url);
-    } catch (error) {
-      showUploadError(error);
-    }
-  };
-
-  const remove = async () => {
-    const ok = await confirm({
-      title: t('professional:form.photo.removeTitle'),
-      confirmLabel: t('common:actions.remove'),
-      destructive: true,
-    });
-    if (ok) onChange(null);
-  };
+  const avatar = useAvatarActions({
+    pickFailed: t('professional:form.photo.failed'),
+    removeTitle: t('professional:form.photo.removeTitle'),
+    removeLabel: t('common:actions.remove'),
+    updated: t('professional:form.photo.updated'),
+    removed: t('professional:form.photo.removed'),
+  });
+  const busy = avatar.uploading || avatar.removing;
 
   return (
     <View style={styles.container} testID="pro-form-photo">
@@ -59,10 +33,22 @@ export function AvatarField({ name, value, verified, onChange }: AvatarFieldProp
           label={value ? t('professional:form.photo.change') : t('professional:form.photo.add')}
           size="sm"
           variant="ghost"
-          loading={upload.isPending}
-          onPress={() => void pick()}
+          loading={avatar.uploading}
+          disabled={busy}
+          onPress={() => void avatar.pick()}
+          testID="pro-form-change-photo"
         />
-        {value ? <Button label={t('common:actions.remove')} size="sm" variant="ghost" onPress={() => void remove()} /> : null}
+        {value ? (
+          <Button
+            label={t('common:actions.remove')}
+            size="sm"
+            variant="ghost"
+            loading={avatar.removing}
+            disabled={busy}
+            onPress={() => void avatar.remove()}
+            testID="pro-form-remove-photo"
+          />
+        ) : null}
       </View>
     </View>
   );

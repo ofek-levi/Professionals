@@ -27,7 +27,7 @@ export function PhotoStrip({ photos, size = 76, style }: PhotoStripProps) {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} style={style}>
         {photos.map((photo, index) => (
           <Pressable
-            key={photo.id ?? `${index}-${photo.url}`}
+            key={`${index}-${photo.url}`}
             accessibilityRole="imagebutton"
             accessibilityLabel={t('a11y.openPhoto', { index: index + 1, total: photos.length })}
             onPress={() => viewer.open(index)}

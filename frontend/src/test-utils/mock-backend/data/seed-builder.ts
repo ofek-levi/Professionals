@@ -135,16 +135,9 @@ export class SeedBuilder {
     return locationFromPlace(placeId, streetIndex, houseNumber, details);
   }
 
-  /** Deterministic stock photo for a request (registered as the owner's upload so drafts can be edited). */
-  photo(requestId: string, index: number, ownerId: string, createdAt: ISODateTimeString): RequestPhoto {
-    const photo: RequestPhoto = {
-      id: `upl_${requestId}_${index}`,
-      url: `https://picsum.photos/seed/${requestId}-${index}/1200/900`,
-      width: 1200,
-      height: 900,
-    };
-    this.db.uploads.insert({ ...photo, ownerId, mimeType: 'image/jpeg', fileName: `photo-${index}.jpg`, createdAt });
-    return photo;
+  /** Deterministic stock photo for a request (stored on the request, like every request photo). */
+  photo(requestId: string, index: number): RequestPhoto {
+    return { publicId: `seed/requests/${requestId}-${index}`, url: `https://picsum.photos/seed/${requestId}-${index}/1200/900` };
   }
 
   request(input: RequestInput) {

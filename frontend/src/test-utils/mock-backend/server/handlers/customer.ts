@@ -6,7 +6,6 @@ import type { CustomerProfile, ServiceLocation, User } from '@/types/domain';
 import { compareIds } from '@/utils/id';
 
 import type { CustomerActor } from '../auth';
-import { assertAvatarUrl } from '../avatars';
 import type { ServerContext } from '../context';
 import { paginate } from '../pagination';
 import { route } from '../router';
@@ -24,7 +23,6 @@ function customerProfileResponse(ctx: ServerContext, userId: string): { user: Us
 
 function updateCustomerProfile(ctx: ServerContext, actor: CustomerActor, body: unknown) {
   const payload = parseBody(updateCustomerProfileSchema, body);
-  assertAvatarUrl(ctx, actor.userId, payload.avatarUrl);
   const now = ctx.nowIso();
   const user = ctx.db.users.require(actor.userId, 'User');
   const firstName = payload.firstName ?? user.firstName;
@@ -34,7 +32,6 @@ function updateCustomerProfile(ctx: ServerContext, actor: CustomerActor, body: u
     lastName,
     displayName: `${firstName} ${lastName}`,
     ...(payload.phone !== undefined ? { phone: payload.phone } : {}),
-    ...(payload.avatarUrl !== undefined ? { avatarUrl: payload.avatarUrl } : {}),
   });
   const profile = ctx.db.customerProfiles.require(actor.userId, 'Customer profile');
   const defaultLocation: ServiceLocation | null | undefined =

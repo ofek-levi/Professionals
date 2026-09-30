@@ -1,7 +1,8 @@
 /**
  * The idempotency key (`clientRequestId`) of posting the request form: the same key while the
- * payload is unchanged, so a retry after a timeout or a lost response gets the request the first
- * attempt created (with its photos) instead of a second one; a changed payload gets a new key.
+ * payload and the photos are unchanged, so a retry after a timeout or a lost response gets the
+ * request the first attempt created (with its photos, stored once) instead of a second one; a
+ * changed payload or photo set gets a new key.
  */
 import { createId } from '@/utils/id';
 

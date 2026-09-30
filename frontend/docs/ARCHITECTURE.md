@@ -57,7 +57,7 @@ src/
       screens/*.tsx         screen components rendered by src/app routes
       components/*.tsx      feature-private components
   services/
-    api/                    client.ts, transport.ts, http-transport.ts, upload-form.ts, endpoints/*,
+    api/                    client.ts, transport.ts, http-transport.ts, image-form.ts, endpoints/*,
                             config.ts, index.ts (the app's `api` and `sessionTokens`)
     auth/session-store.ts   the session (identity + tokens) and where it is stored
     auth/token-manager.ts   proactive / reactive access-token refresh (single flight)
@@ -153,15 +153,29 @@ instead of talking to the wrong server. The realtime URL is derived from the bas
 - The public auth endpoints (login, register, Google, refresh, logout, password reset) are sent
   with `anonymous: true`: no bearer token, and their 401 is the answer itself (wrong password, dead
   refresh token), never a reason to refresh.
-- Uploads (`POST /uploads/images`) are `multipart/form-data` with a `file` part (upload-form.ts: a
-  `{ uri, name, type }` part on iOS/Android, a `Blob` on the web) and a 90 s limit; the transport
-  sends `FormData` untouched so `fetch` sets the boundary. Request photos are uploaded before the
-  request is created and referenced by id.
+- Images travel with their owner, never on their own. `POST /requests` and `PATCH /requests/:id`
+  (a draft) are one `multipart/form-data` body: the JSON payload as the text field `data`, then the
+  photos as `photos`; a draft edit lists the stored photos it keeps (`keepPhotos`, by `publicId`) and
+  sends only the new ones. The avatar is `PUT /me/avatar` (one `avatar` part) and `DELETE /me/avatar`,
+  saved at once from the profile screens (`features/profiles/components/use-avatar-actions.ts`), not
+  with the profile form. `image-form.ts` builds the bodies (a `{ uri, name, type }` part on
+  iOS/Android, a `Blob` on the web, shrunk there when over 8 MB; refused before sending on
+  iOS/Android when the picker reports more) with `APP_CONFIG.photoUploadTimeoutMs` (90 s) per image,
+  below the API's 10 min body limit; the transport sends `FormData` untouched so `fetch` sets the
+  boundary. The field names are `MULTIPART_FIELDS` (`types/api/images.ts`), checked against the
+  backend's by its contract check. The request form posts through
+  `features/requests/components/create/use-submit-request.ts`: its idempotency key covers the fields
+  and the photos, so a retry after a timeout gets the request the first post created, without storing
+  its photos again; a draft's saved photos replace the local ones, so posting again after a failed
+  publish sends no file again.
 - Errors the UI explains: `VALIDATION_ERROR` (400) maps `fieldErrors` onto the form fields whatever
-  the status; `RATE_LIMITED` (429) says when to try again (`Retry-After`); a refused photo (400/413)
-  or the upload quota (429) get their own message, and so does a photo service that is down or not
-  configured (5xx: "try again later", plus "or remove the photos" where they are optional)
-  (`components/forms/use-upload-error-toast.ts`).
+  the status; `RATE_LIMITED` (429) says when to try again (`Retry-After`). The API names the photos
+  (`fieldErrors.photos` / `.avatar`: `upload.invalid`, `upload.rateLimited`, `upload.unavailable`) in
+  every refusal that is about them: a refused photo (400/413), the image limits (429) and a photo
+  service that is down, busy or not configured (503: "try again later", plus "or remove the photos"
+  where they are optional). Those, and a proxy's own 413 while photos are being sent, get the photo
+  toast (`components/forms/use-upload-error-toast.ts`, `isPhotoUploadFailure`); any other 429 or 503
+  of the same post (e.g. the request limit) gets the usual error toast.
 
 ### Session and tokens (src/services/auth)
 
@@ -188,13 +202,13 @@ instead of talking to the wrong server. The realtime URL is derived from the bas
 - Sign-out: the realtime socket is closed first (the server closes a revoked session's sockets with
   4001, which would otherwise be taken for an expired token and spend the revoked refresh token),
   then the local session is cleared at once (the entry screen shows without waiting for the
-  network). `POST /auth/logout { refreshToken }` (the server revokes the session and removes its
-  push devices) follows in the background through `services/auth/pending-logouts.ts`: the refresh
+  network). `POST /auth/logout { refreshToken }` (the server revokes the session, and with it the
+  install's push token) follows in the background through `services/auth/pending-logouts.ts`: the refresh
   token is queued in secure storage before the local sign-out and stays there until the server
   accepts it or refuses it for good (400/401/403/404); network errors, timeouts, 429 and 5xx keep it
   for the next try at launch, after a sign-in, on returning to the foreground and (web) when back
   online (`features/auth/pending-logout-retries.ts`). A session that ends without a logout (expired,
-  revoked) gets no push either: the server skips devices whose session is gone.
+  revoked) gets no push either: the server keeps the push token on the session, so it ends with it.
 - `features/auth/session-lifecycle.ts` reacts to every identity change (sign in/out, restored
   session, another tab, failed refresh) synchronously inside the store: it clears the query cache
   and disconnects/connects realtime, so no screen can see another user's data. The
@@ -233,7 +247,7 @@ open, `notification.created` also shows an in-app banner (`src/providers/realtim
   account has push enabled, asking for permission 1.5 s after the signed-in home appears (never on
   the entry screens), and again when the OS rotates the token. Turning push off in Settings calls
   `DELETE /me/devices/:token`; signing out needs nothing more (the server's logout, queued until it
-  succeeds, removes the devices, and push fan-out skips devices of ended sessions).
+  succeeds, ends the session and the push token stored on it; an expired session takes it along too).
 - A tapped notification (including the one that launched the app) is marked read and opens
   `notificationTargetToHref(data.target)`, like a tap in the inbox.
 
@@ -272,10 +286,10 @@ screens against an in-process implementation of the backend contract
 controllable clock, the shared state machines; request matching, approximate locations and offer
 counters, which only the server computes, live in `server/`). It follows `backend/docs/API.md`: sessions with
 30-minute access tokens and rotating refresh tokens (30 s replay window, reuse revokes the session
-and its devices), `POST /auth/refresh|logout`, `PATCH /me`, Expo-only `POST /me/devices` and
-`DELETE /me/devices/:token`, `VALIDATION_ERROR` as 400, register 201, paginated lists,
-`/conversations/unread-count`, multipart `POST /uploads/images` (field `file`) and own-upload
-avatars. `env.transport` (with a request log) replaces the app's HTTP transport
+and its push token), `POST /auth/refresh|logout`, `PATCH /me`, Expo-only `POST /me/devices` and
+`DELETE /me/devices/:token` (one push token per session, stored on it), `VALIDATION_ERROR` as 400, register 201, paginated lists,
+`/conversations/unread-count`, multipart `POST /requests` / `PATCH /requests/:id` (`data` +
+`photos`, `keepPhotos`) and `PUT` / `DELETE /me/avatar`. `env.transport` (with a request log) replaces the app's HTTP transport
 (`apiClient.setTransport`); `env.sockets.openSocket` is the realtime endpoint for the app's
 WebSocket client (4001 for bad, expired or revoked tokens, `dropAll(1001)` for a restart). App code
 cannot import it (ESLint), so it is never bundled. `jest.setup.ts` also installs in-memory

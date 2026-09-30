@@ -29,7 +29,6 @@ const validPayload = {
   location,
   urgency: 'urgent',
   preferredSchedule: { date: '2026-09-29', timeWindow: 'morning' },
-  photoIds: ['upl_1'],
   notes: 'Ring twice',
   publish: true,
 };
@@ -46,8 +45,8 @@ const validForm = (): RequestFormValues => ({
 
 describe('request payload schema', () => {
   it('accepts a valid payload and applies defaults', () => {
-    const parsed = createServiceRequestSchema.parse({ ...validPayload, notes: undefined, photoIds: undefined, publish: undefined });
-    expect(parsed).toMatchObject({ categoryId: 'plumbing', notes: null, photoIds: [], publish: true });
+    const parsed = createServiceRequestSchema.parse({ ...validPayload, notes: undefined, publish: undefined });
+    expect(parsed).toMatchObject({ categoryId: 'plumbing', notes: null, publish: true });
   });
 
   it('rejects categories outside the catalog', () => {
@@ -66,7 +65,6 @@ describe('request payload schema', () => {
       description: ' short ',
       location: { ...location, addressLine: '  ', coordinates: { latitude: 200, longitude: 0 } },
       urgency: 'whenever',
-      photoIds: Array.from({ length: APP_CONFIG.maxRequestPhotos + 1 }, (_, i) => `p${i}`),
       notes: 'x'.repeat(APP_CONFIG.notesMaxLength + 1),
     });
     expect(result.success).toBe(false);
@@ -76,15 +74,16 @@ describe('request payload schema', () => {
       'location.addressLine': ['validation:location.addressRequired'],
       'location.coordinates': ['validation:location.coordinatesInvalid'],
       urgency: ['validation:request.urgencyRequired'],
-      photoIds: ['validation:request.tooManyPhotos'],
       notes: ['validation:request.notesTooLong'],
     });
   });
 
-  it('keeps partial draft updates partial (no defaults)', () => {
+  it('keeps partial draft updates partial (no defaults); `keepPhotos` is bounded', () => {
     expect(updateDraftRequestSchema.parse({ description: 'A much longer description here' })).toEqual({
       description: 'A much longer description here',
     });
+    const tooMany = updateDraftRequestSchema.safeParse({ keepPhotos: Array.from({ length: APP_CONFIG.maxRequestPhotos + 1 }, (_, i) => `p${i}`) });
+    expect(!tooMany.success && zodIssuesToFieldErrors(tooMany.error)).toEqual({ keepPhotos: ['validation:request.tooManyPhotos'] });
   });
 
   it('validates preferred dates relative to now', () => {
@@ -104,19 +103,26 @@ describe('request wizard form', () => {
   it('accepts valid values and converts them to the payload', () => {
     const values = validForm();
     expect(schema.safeParse(values).success).toBe(true);
-    const payload = toCreateRequestPayload(values, ['upl_1'], false);
+    const payload = toCreateRequestPayload(values, false);
     expect(payload).toEqual({
       categoryId: 'plumbing',
       description: 'Water is leaking under the kitchen sink',
       location: { ...location },
       urgency: 'urgent',
       preferredSchedule: { date: values.preferredDate, timeWindow: 'morning' },
-      photoIds: ['upl_1'],
       notes: 'Ring twice',
       publish: false,
     });
     expect(createServiceRequestSchema.safeParse(payload).success).toBe(true);
-    expect(toUpdateDraftRequestPayload(values, [])).not.toHaveProperty('publish');
+    // A draft edit keeps the draft's stored photos by id (the new ones go as files).
+    const photos = [
+      { uri: 'https://cdn/1.jpg', mimeType: null, fileName: null, publicId: 'test/requests/1' },
+      { uri: 'file:///new.jpg', mimeType: 'image/jpeg', fileName: 'new.jpg', publicId: null },
+    ];
+    const update = toUpdateDraftRequestPayload({ ...values, photos });
+    expect(update).not.toHaveProperty('publish');
+    expect(update.keepPhotos).toEqual(['test/requests/1']);
+    expect(updateDraftRequestSchema.safeParse(update).success).toBe(true);
   });
 
   it('requires category, location and urgency', () => {
@@ -138,8 +144,6 @@ describe('request wizard form', () => {
       preferredDate: toDateKey(addDays(NOW, -2)),
       photos: Array.from({ length: APP_CONFIG.maxRequestPhotos + 1 }, (_, i) => ({
         uri: `file:///photo-${i}.jpg`,
-        width: 100,
-        height: 100,
         mimeType: 'image/jpeg',
         fileName: null,
       })),
@@ -168,13 +172,13 @@ describe('request wizard form', () => {
   });
 
   it('round-trips an existing draft', () => {
-    const payload = toCreateRequestPayload(validForm(), ['upl_1'], false);
+    const payload = toCreateRequestPayload(validForm(), false);
     const values = requestToFormValues({
       id: 'req_1',
       customerId: 'c',
       ...payload,
       location: { ...payload.location, isApproximate: false },
-      photos: [{ id: 'upl_1', url: 'https://example.com/1.jpg', width: 800, height: 600 }],
+      photos: [{ publicId: 'test/requests/1', url: 'https://example.com/1.jpg' }],
       status: 'draft',
       offerCount: 0,
       pendingOfferCount: 0,
@@ -187,8 +191,8 @@ describe('request wizard form', () => {
       createdAt: NOW.toISOString(),
       updatedAt: NOW.toISOString(),
     });
-    expect(values.photos[0]).toMatchObject({ uri: 'https://example.com/1.jpg', uploadId: 'upl_1' });
+    expect(values.photos[0]).toMatchObject({ uri: 'https://example.com/1.jpg', publicId: 'test/requests/1' });
     expect(values.notes).toBe('Ring twice');
-    expect(() => toCreateRequestPayload(createEmptyRequestFormValues(), [], true)).toThrow();
+    expect(() => toCreateRequestPayload(createEmptyRequestFormValues(), true)).toThrow();
   });
 });

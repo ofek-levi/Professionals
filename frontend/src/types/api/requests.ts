@@ -13,15 +13,16 @@ import { APP_CONFIG } from '@/constants/app-config';
 import type { CustomerRequestSection } from '@/constants/request-statuses';
 import type { PaginationParams } from './common';
 
-/** `POST /requests` */
+/**
+ * `POST /requests`: the JSON field `data` of the multipart body; the photos are its files
+ * (`api.requests.createRequest(payload, photos)`).
+ */
 export interface CreateServiceRequestPayload {
   categoryId: CategoryId;
   description: string;
   location: Omit<ServiceLocation, 'isApproximate'>;
   urgency: UrgencyLevel;
   preferredSchedule: PreferredSchedule | null;
-  /** Ids returned by `POST /uploads/images`. */
-  photoIds: string[];
   notes: string | null;
   /** `false` saves the request as a draft. Defaults to `true`. */
   publish: boolean;
@@ -32,8 +33,11 @@ export interface CreateServiceRequestPayload {
   clientRequestId?: string;
 }
 
-/** `PATCH /requests/:id` – only allowed while in `draft`. */
-export type UpdateDraftRequestPayload = Partial<Omit<CreateServiceRequestPayload, 'publish' | 'clientRequestId'>>;
+/** `PATCH /requests/:id` – only allowed while in `draft`; multipart like `POST /requests`. */
+export type UpdateDraftRequestPayload = Partial<Omit<CreateServiceRequestPayload, 'publish' | 'clientRequestId'>> & {
+  /** `publicId`s of the draft's photos to keep, in order (omitted = all); the new files are added after them. */
+  keepPhotos?: string[];
+};
 
 /** `POST /requests/:id/cancel` */
 export interface CancelRequestPayload {

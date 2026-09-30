@@ -1,7 +1,8 @@
 /**
  * `POST /requests/:id/cancel` (the mock's `cancelRequest`): in one transaction the pending offers
  * are rejected, an assigned job is cancelled (its chat closed) and the request is cancelled; every
- * affected professional is notified and the explorers of matching professionals drop it.
+ * affected professional is notified and the explorers of matching professionals drop it. Its
+ * photos are removed from the request and deleted from storage after the commit.
  */
 import type { Types } from 'mongoose';
 
@@ -18,11 +19,12 @@ import { rejectPendingOffers, syncRequestOfferCounters } from '../offers/offer-c
 import { publishOfferUpdated } from '../offers/offer-events.js';
 import { customerNameOf, loadOwnedRequest } from './request-access.js';
 import { publishRequestLeftExplorers, publishRequestUpdated } from './request-events.js';
+import { discardAfterCommit, publicIdsOf } from './request-photos.js';
 import { assertRequestTransition } from './request-rules.js';
 import type { RequestDoc } from './request.model.js';
 import type { CancelRequestInput } from './requests.schemas.js';
 
-type CancelDeps = Pick<AppDeps, 'env' | 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background'>;
+type CancelDeps = Pick<AppDeps, 'env' | 'logger' | 'clock' | 'realtime' | 'push' | 'mailer' | 'redis' | 'keys' | 'background' | 'storage'>;
 
 export function cancelRequest(deps: CancelDeps, auth: AuthContext, requestId: Types.ObjectId, input: CancelRequestInput): Promise<RequestDoc> {
   return withTransaction(deps.logger, async (tx) => {
@@ -40,7 +42,9 @@ export function cancelRequest(deps: CancelDeps, auth: AuthContext, requestId: Ty
       cancelledAt: now,
       cancellationReason: input.reason,
       cancellationComment: input.comment,
+      photos: [],
     });
+    discardAfterCommit(deps, tx, publicIdsOf(request.photos));
 
     const customerName = await customerNameOf(request.customer, tx.session);
     const affected = uniqueIds([...rejected.map((offer) => offer.professional), cancelledJob?.professional]);

@@ -8,7 +8,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestApp } from '../../../../test/app.js';
 import { signInCustomer, signInProfessional } from '../../../../test/auth.js';
-import { createDevice, HAIFA, RAMAT_GAN } from '../../../../test/factories.js';
+import { createPushSession, HAIFA, RAMAT_GAN } from '../../../../test/factories.js';
+import { JPEG, withForm } from '../../../../test/images.js';
 import { ConversationModel } from '../../conversations/conversation.model.js';
 import { OfferModel } from '../../offers/offer.model.js';
 import { ProfessionalModel } from '../../professionals/professional.model.js';
@@ -29,14 +30,15 @@ describe('marketplace lifecycle (HTTP)', () => {
     const rival = await signInProfessional(deps, { center: RAMAT_GAN });
     const faraway = await signInProfessional(deps, { center: HAIFA });
     const painter = await signInProfessional(deps, { professional: { categoryIds: ['painting'] } });
-    await createDevice(pro.user);
+    await createPushSession(pro.user);
     const customerId = customer.user._id.toHexString();
     const proId = pro.user._id.toHexString();
     const rivalId = rival.user._id.toHexString();
 
-    // Create + publish in one step: matching professionals are notified (not Haifa, not painters).
-    const created = await request(app).post('/v1/requests').set(customer.headers).send(requestBody()).expect(201);
+    // Create + publish in one step, with a photo: matching professionals are notified (not Haifa, not painters).
+    const created = await withForm(request(app).post('/v1/requests').set(customer.headers), requestBody(), [JPEG]).expect(201);
     expect(created.body).toMatchObject({ status: 'open', customerId, offerCount: 0, latestOfferAt: null, lowestOfferPrice: null });
+    expect(created.body.photos).toEqual([{ publicId: expect.stringMatching(/^test\/requests\//), url: expect.stringMatching(/^https:\/\/images\.test\//) }]);
     const requestId = created.body.id as string;
     expect(notificationTypes(deps, proId)).toEqual(['new_matching_request']);
     expect(notificationTypes(deps, rivalId)).toEqual(['new_matching_request']);

@@ -26,7 +26,6 @@ import { isObjectIdString } from '../../lib/ids.js';
 import type { UserRole } from '../../shared/domain.js';
 import type { RefreshResponse } from '../../shared/contract/index.js';
 import { API_LIMITS } from '../../shared/limits.js';
-import { DeviceModel } from '../users/device.model.js';
 import { UserModel } from '../users/user.model.js';
 import { mintRefreshToken, parseRefreshToken, refreshTokenKey, successorToken, type ParsedRefreshToken } from './refresh-token.js';
 import { SessionModel } from './session.model.js';
@@ -125,10 +124,9 @@ async function concurrentRefreshUser(
   throw ApiError.unauthorized('The session has expired, please sign in again');
 }
 
-/** Deletes a session and the push devices it registered; its access tokens stop working at once. */
+/** Deletes a session (and with it the install's push token); its access tokens stop working at once. */
 async function revokeSession(deps: RevokeDeps, sessionId: Types.ObjectId): Promise<void> {
   await SessionModel.deleteOne({ _id: sessionId });
-  await DeviceModel.deleteMany({ session: sessionId });
   await denySessions(deps, [sessionId.toHexString()]);
 }
 
@@ -140,7 +138,6 @@ async function revokeSession(deps: RevokeDeps, sessionId: Types.ObjectId): Promi
 export async function revokeAllSessions(deps: RevokeDeps, userId: Types.ObjectId, tx: Tx): Promise<void> {
   const sessions = await SessionModel.find({ user: userId }, { _id: 1 }, { session: tx.session }).lean();
   await SessionModel.deleteMany({ user: userId }, { session: tx.session });
-  await DeviceModel.deleteMany({ user: userId }, { session: tx.session });
   const sessionIds = sessions.map((found) => found._id.toHexString());
   tx.afterCommit(() => denySessions(deps, sessionIds));
 }

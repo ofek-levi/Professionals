@@ -19,7 +19,7 @@ src/modules/<module>/
   <module>.controller.ts   thin: validate → service → view
   <module>.routes.ts       create<Module>Router(deps): Router  (already exists as a stub — fill it)
   <module>.views.ts        pure DTO mappers + batch loaders
-  <module>.jobs.ts         cron jobs (offers, jobs, uploads, notifications)
+  <module>.jobs.ts         cron jobs (offers, jobs, notifications)
   __tests__/*.test.ts      vitest + supertest against real Mongo/Redis
 ```
 
@@ -34,10 +34,9 @@ and models. **Do not edit them**; fill your own files.
 | Module | Routes (all under `/v1`) |
 |---|---|
 | auth | `POST /auth/register`, `/auth/login`, `/auth/google`, `/auth/refresh`, `/auth/logout`, `/auth/password-reset`, `GET`+`POST /auth/verify-email`, `GET`+`POST /auth/reset-password` |
-| users | `GET`/`PATCH /me`, `POST /me/devices`, `DELETE /me/devices/:token` |
+| users | `GET`/`PATCH /me`, `PUT`/`DELETE /me/avatar`, `POST /me/devices`, `DELETE /me/devices/:token` |
 | catalog | `GET /catalog/categories` (done) |
 | geo | `GET /geo/search`, `GET /geo/reverse` |
-| uploads | `POST /uploads/images` |
 | customers | `GET`/`PATCH /customer/profile` |
 | professionals | `GET`/`PATCH /professional/profile`, `GET /professionals`, `GET /professionals/:id`, `GET /professionals/:id/reviews` |
 | requests | `POST /requests`, `GET`/`PATCH`/`DELETE /requests/:id`, `POST /requests/:id/publish`, `POST /requests/:id/cancel`, `GET /customer/requests`, `GET /professional/requests/nearby` |
@@ -49,8 +48,8 @@ and models. **Do not edit them**; fill your own files.
 | dashboard | `GET /customer/dashboard`, `GET /professional/dashboard` |
 
 Cron job names (fixed; `CRON_DISABLED_JOBS` uses them): `offer-expiry` (offers, every 5 min),
-`appointment-reminders` (jobs, every 15 min), `push-receipts` (notifications, done),
-`orphan-uploads` (uploads, daily).
+`appointment-reminders` (jobs, every 15 min), `push-receipts` (notifications, done). Images need
+no cleanup job (§11).
 
 ## 2. Routers
 
@@ -104,7 +103,7 @@ export const getOffer = (deps: AppDeps) => async (req: Request) => {
   a message fall back to `validation:required` (missing) / `validation:invalid`.
 - `validateRequest(req, { params, query, body })` returns typed values and throws **400
   `VALIDATION_ERROR`** with `fieldErrors` keyed by dotted path (`location.addressLine`,
-  `photoIds.2`, `limit`); errors of all parts are reported together. A category outside the catalog
+  `preferredSchedule.date`, `limit`); errors of all parts are reported together. A category outside the catalog
   (message `vm('category.unsupported')`) turns it into **422 `UNSUPPORTED_CATEGORY`**.
   `parseInput(schema, value)` validates anything else the same way.
 - Query strings: `queryEnumList`, `queryEnum`, `queryBoolean`, `queryNumber`, `queryString`
@@ -172,8 +171,9 @@ return withTransaction(deps.logger, async (tx) => {
   projection)` → `Map<hexId, doc>`, `src/lib/batch.ts`), then map in memory. Counts per item →
   one `$group` aggregation with `$in`.
 - Dashboards/counters: `countDocuments` on indexed filters or one aggregation; never load all rows.
-- Collections and ownership: users/devices (users), sessions/emailTokens (auth), professionals,
-  requests, offers, jobs, reviews, conversations/messages, notifications, uploads.
+- Collections and ownership: users (users), sessions/emailTokens (auth; a session holds its install's push token), professionals,
+  requests, offers, jobs, reviews, conversations/messages, notifications. Images are fields of their
+  owner (`requests.photos`, `users.avatar`: `{ url, publicId }`), not a collection.
 
 ## 8. Pagination (every list)
 
@@ -257,6 +257,17 @@ Always through `deps` (never import a provider): `deps.realtime`, `deps.push`, `
 `destroy(publicIds)`), `deps.geocoder` (`search`, `reverse`; cached + rate gated),
 `deps.google.verify(idToken)` → identity or `null` (throws 503 when not configured).
 Slow fire-and-forget work: `deps.background.run(label, fn)` (tests call `deps.background.drain()`).
+
+Images are uploaded with their owner, never on their own: the route takes `imageMultipart(deps, {
+field, maxFiles, tooManyFiles, jsonField? })` (`middleware/multipart.ts`: per-user image rate limit,
+admission of posts in flight, multipart parsing, JSON `data` → `req.body`), the controller passes
+`uploadedImages(req)` to the service, which validates everything else first, then
+`storeImages(deps, ownerId, files, { folder, field })` (`infra/storage/store-images.ts`: file types,
+daily bytes, upload) and saves `{ url, publicId }` on the owner; on failure it calls
+`discardImages(deps, publicIds)` (requests: `discardUnsavedPhotos`, which keeps what a possibly
+committed save shows), and images the owner no longer shows are discarded after the commit
+(`tx.afterCommit` → `deps.background`). Errors about the images use `imageErrors` (they carry the
+file field in `fieldErrors`, which is how the app tells them from other errors of the post).
 
 ## 12. Cron jobs
 
@@ -350,7 +361,8 @@ describe('POST /v1/widgets', () => {
   Options: `{ env: {...}, now: ISO, deps: {...} }`. `createTestDeps()` gives deps without an app.
 - `beforeEach(clearDatabase)` for isolation between tests of a file.
 - Data: `test/factories.ts` (`createCustomer`, `createProfessional`, `createRequest`, `createOffer`,
-  `createJob`, `createDevice`, `createUpload`, `testLocation`, `TEL_AVIV`…); callers:
+  `createJob`, `createSession`, `createPushSession`, `testLocation`, `TEL_AVIV`…); images and multipart
+  bodies: `test/images.ts` (`JPEG`, `PNG`, …, `withForm(test, data, photos)`); callers:
   `test/auth.ts` (`signInCustomer(deps)`, `signInProfessional(deps, options)`, `accessTokenFor`,
   `bearer`). Realtime: `test/realtime.ts` (`startRealtimeServer`, `connectSocket`).
 - Push is delivered in the background: `await deps.background.drain()` before asserting on it.

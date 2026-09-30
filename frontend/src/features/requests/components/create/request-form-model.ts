@@ -7,8 +7,9 @@ import type { Href } from 'expo-router';
 import type { PickedPhoto } from '@/components/forms';
 import type { CategoryGroupId } from '@/constants/professional-categories';
 import { routes } from '@/lib/routes';
-import { validatePreferredDateForUrgency, type RequestFormLocation, type RequestFormPhoto, type RequestFormValues } from '@/lib/validation';
-import type { UploadImagePayload } from '@/types/api';
+import { vm, validatePreferredDateForUrgency, type RequestFormLocation, type RequestFormPhoto, type RequestFormValues } from '@/lib/validation';
+import type { ApiError } from '@/services/api/errors';
+import type { LocalImage } from '@/types/api';
 import type { ServiceLocation, UrgencyLevel } from '@/types/domain';
 
 /** Fields the form shows, top to bottom (errors scroll to the first one). */
@@ -26,7 +27,7 @@ export function postedRequestHref(requestId: string): Href {
   return `${String(routes.request(requestId))}?${POSTED_PARAM}=1` as Href;
 }
 
-/** Maps a server field path (`location.addressLine`, `photoIds.2`) to a visible form field. */
+/** Maps a server field path (`location.addressLine`, `photos`, `keepPhotos`) to a visible form field. */
 export function apiFieldToFormField(path: string): RequestFormField | null {
   const [head] = path.split('.');
   switch (head) {
@@ -36,7 +37,7 @@ export function apiFieldToFormField(path: string): RequestFormField | null {
     case 'urgency':
     case 'photos':
       return head;
-    case 'photoIds':
+    case 'keepPhotos':
       return 'photos';
     default:
       return null;
@@ -62,34 +63,31 @@ export function withDefaultUrgency(values: RequestFormValues): RequestFormValues
   return values.urgency ? values : { ...values, urgency: DEFAULT_URGENCY };
 }
 
-/** Newly picked photos → form photos (not uploaded yet). */
+/** Newly picked photos → form photos (sent with the post). */
 export function pickedPhotosToForm(picked: readonly PickedPhoto[]): RequestFormPhoto[] {
-  return picked.map((photo) => ({
-    uri: photo.uri,
-    mimeType: photo.mimeType,
-    width: photo.width ?? 0,
-    height: photo.height ?? 0,
-    fileName: photo.fileName,
-    fileSize: photo.fileSize ?? null,
-    uploadId: null,
-  }));
+  return picked.map((photo) => ({ uri: photo.uri, mimeType: photo.mimeType, fileName: photo.fileName, fileSize: photo.fileSize ?? null, publicId: null }));
 }
 
-/** Upload payload of a form photo (the API rejects non-positive dimensions). */
-export function toUploadPayload(photo: RequestFormPhoto): UploadImagePayload {
-  return {
-    uri: photo.uri,
-    mimeType: photo.mimeType,
-    width: photo.width > 0 ? photo.width : null,
-    height: photo.height > 0 ? photo.height : null,
-    fileName: photo.fileName,
-    fileSize: photo.fileSize ?? null,
-  };
+/** The photos to send with the post as files: those not stored on the draft yet. */
+export function newPhotoFiles(photos: readonly RequestFormPhoto[]): LocalImage[] {
+  return photos
+    .filter((photo) => !photo.publicId)
+    .map((photo) => ({ uri: photo.uri, mimeType: photo.mimeType, fileName: photo.fileName, fileSize: photo.fileSize ?? null }));
 }
 
-/** Photos that still need uploading (a draft's photos are already uploaded). */
-export function photosToUpload(photos: readonly RequestFormPhoto[]): RequestFormPhoto[] {
-  return photos.filter((photo) => !photo.uploadId);
+/** What the API answers in `fieldErrors.photos` when it refuses the photos themselves. */
+const PHOTO_REFUSALS: readonly string[] = [vm('upload.invalid'), vm('upload.rateLimited'), vm('upload.unavailable')];
+
+/**
+ * Whether a failed post is about its photos, which get the photo toast: the API names the photos in
+ * every such refusal (a file that is not an image or is over 8 MB, the image limits, the photo
+ * service), whatever the status. A proxy in front of the API may refuse a large body itself (413
+ * without the API's body), which only photos still being sent (`sendingPhotos`) explain. Anything
+ * else (a field, the request limit, the connection) is handled as for a post without photos.
+ */
+export function isPhotoUploadFailure(error: ApiError, sendingPhotos: boolean): boolean {
+  if (error.fieldErrors?.photos?.some((message) => PHOTO_REFUSALS.includes(message))) return true;
+  return sendingPhotos && error.status === 413 && error.fieldErrors === undefined;
 }
 
 /** Description placeholder flavor per catalog group (`requests:form.placeholders.<key>`). */

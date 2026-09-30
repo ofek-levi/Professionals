@@ -28,25 +28,13 @@ import { APP_CONFIG } from '@/constants/app-config';
 import { isSupportedCategoryId } from '@/constants/professional-categories';
 import type { RequestStatus } from '@/constants/request-statuses';
 import { useSession } from '@/features/auth/session-provider';
-import {
-  useCreateRequest,
-  useCustomerProfile,
-  useDeleteDraftRequest,
-  usePublishRequest,
-  useRequest,
-  useRouteParam,
-  useUpdateCustomerProfile,
-  useUpdateDraftRequest,
-  useUploadImage,
-} from '@/hooks';
+import { useCustomerProfile, useDeleteDraftRequest, useRequest, useRouteParam, useUpdateCustomerProfile } from '@/hooks';
 import { useCategory } from '@/i18n/hooks';
 import { routes } from '@/lib/routes';
 import {
   createEmptyRequestFormValues,
   requestFormSchema,
   requestToFormValues,
-  toCreateRequestPayload,
-  toUpdateDraftRequestPayload,
   vm,
   type RequestFormLocation,
   type RequestFormValues,
@@ -66,15 +54,13 @@ import {
   firstErrorMessage,
   firstFormField,
   keepPreferredDate,
-  photosToUpload,
   postedRequestHref,
-  toUploadPayload,
   withDefaultUrgency,
   type RequestFormField,
 } from '../components/create/request-form-model';
 import { ServiceField } from '../components/create/service-field';
-import { createSubmissionKeys } from '../components/create/submission-key';
 import { UrgencyOptions } from '../components/create/urgency-options';
+import { useSubmitRequest } from '../components/create/use-submit-request';
 
 /** Map zoom around the customer's default address. */
 const DEFAULT_ADDRESS_RADIUS_KM = 2;
@@ -210,13 +196,9 @@ function RequestForm({ draft, defaultValues, initialRegion, saveAddressAsDefault
   const translateError = useTranslatedError();
   const scrollRef = useRef<ScrollView>(null);
   const positions = useRef<Partial<Record<RequestFormField, number>>>({});
-  const upload = useUploadImage();
-  const createRequest = useCreateRequest();
-  const updateDraft = useUpdateDraftRequest();
-  const publishRequest = usePublishRequest();
+  const submitRequest = useSubmitRequest(draft);
   const deleteDraft = useDeleteDraftRequest();
   const updateProfile = useUpdateCustomerProfile();
-  const submissionKeys = useRef(createSubmissionKeys()).current;
 
   const form = useForm<RequestFormValues, unknown, RequestFormOutput>({
     resolver: zodResolver(requestFormSchema),
@@ -296,49 +278,25 @@ function RequestForm({ draft, defaultValues, initialRegion, saveAddressAsDefault
 
   const post = async (values: RequestFormOutput) => {
     setBusy('post');
-    try {
-      // 1. Upload new photos (uploaded ones keep their id, also across retries).
-      let photos = getValues('photos');
-      const pending = photosToUpload(photos);
-      if (pending.length > 0) setUploading(true);
-      for (const photo of pending) {
-        const uploaded = await upload.mutateAsync(toUploadPayload(photo)).catch((error: unknown) => {
-          showUploadError(error);
-          return null;
-        });
-        if (!uploaded) {
-          // Explained by the toast (the photo, the limits or the photo service); the form scrolls to the
-          // photos, and uploaded ones keep their id for the retry.
-          scrollToField('photos');
-          return;
-        }
-        photos = photos.map((item) => (item.uri === photo.uri ? { ...item, uploadId: uploaded.id } : item));
-        setValue('photos', photos);
-      }
-      setUploading(false);
-      const photoIds = photos.flatMap((photo) => (photo.uploadId ? [photo.uploadId] : []));
-      const formValues: RequestFormValues = { ...values, photos };
-
-      // 2. Post: create a published request, or save the draft and publish it.
-      let saved: CustomerRequestView;
-      if (draft) {
-        await updateDraft.mutateAsync({ requestId: draft.id, payload: toUpdateDraftRequestPayload(formValues, photoIds) });
-        saved = await publishRequest.mutateAsync(draft.id);
-      } else {
-        // Idempotent: a retry of the same form after a timeout returns the request already created.
-        const payload = toCreateRequestPayload(formValues, photoIds, true);
-        saved = await createRequest.mutateAsync({ ...payload, clientRequestId: submissionKeys.keyFor(payload) });
-      }
-      if (saveAddressAsDefault) updateProfile.mutate({ defaultLocation: saved.location });
+    // The new photos go with the request in one multipart post (a draft's stored ones are kept by id).
+    const outcome = await submitRequest(
+      { ...values, photos: getValues('photos') },
+      { onUploading: setUploading, onPhotosSaved: (photos) => setValue('photos', photos) },
+    );
+    setBusy(null);
+    if (outcome.ok) {
+      if (saveAddressAsDefault) updateProfile.mutate({ defaultLocation: outcome.request.location });
       // A new request lands on its page with the "posted" banner; a draft returns to its page as it
       // was (no banner), so only it gets the toast.
       if (draft) toast.show({ title: t('requests:submit.posted'), tone: 'success' });
-      setCompletion({ kind: 'posted', requestId: saved.id });
-    } catch (error) {
-      applyServerErrors(error);
-    } finally {
-      setBusy(null);
-      setUploading(false);
+      setCompletion({ kind: 'posted', requestId: outcome.request.id });
+    } else if (outcome.photoFailure) {
+      // Explained by the photo toast (the photo, the limits or the photo service); the form scrolls
+      // to the photos, which can be changed or removed before posting again.
+      showUploadError(outcome.error);
+      scrollToField('photos');
+    } else {
+      applyServerErrors(outcome.error);
     }
   };
 

@@ -7,6 +7,6 @@ export * from './profiles';
 export * from './notifications';
 export * from './messaging';
 export * from './dashboard';
-export * from './uploads';
+export * from './images';
 export * from './geo';
 export * from './queries';

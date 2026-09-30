@@ -3,7 +3,6 @@
  * code/status; known framework errors are mapped; anything else is a logged 500 without details.
  */
 import type { NextFunction, Request, Response } from 'express';
-import multer from 'multer';
 
 import { ApiError, isApiError } from '../lib/errors.js';
 import type { Logger } from '../lib/logger.js';
@@ -17,9 +16,6 @@ interface HttpLikeError {
 
 function toApiError(error: unknown): ApiError | null {
   if (isApiError(error)) return error;
-  if (error instanceof multer.MulterError) {
-    return ApiError.validation({ [error.field ?? 'file']: [vm('upload.invalid')] }, 'The uploaded file was rejected');
-  }
   const httpError = (error ?? {}) as HttpLikeError;
   // body-parser: malformed JSON / body over the limit.
   if (httpError.type === 'entity.parse.failed') return ApiError.validation({ root: [vm('invalid')] }, 'Malformed JSON body');

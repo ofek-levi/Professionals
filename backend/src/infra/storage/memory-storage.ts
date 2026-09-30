@@ -8,7 +8,7 @@ export class MemoryImageStorage implements ImageStorage {
 
   upload(input: ImageUpload): Promise<StoredImage> {
     const publicId = `test/${input.folder}/img-${this.next++}`;
-    const image = { publicId, url: `https://images.test/${publicId}.jpg`, width: 800, height: 600 };
+    const image = { publicId, url: `https://images.test/${publicId}.jpg` };
     this.images.set(publicId, { ...image, folder: input.folder, bytes: input.buffer.length });
     return Promise.resolve(image);
   }

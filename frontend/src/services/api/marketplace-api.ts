@@ -10,7 +10,6 @@ import { createNotificationsApi } from './endpoints/notifications';
 import { createOffersApi } from './endpoints/offers';
 import { createProfessionalsApi } from './endpoints/professionals';
 import { createRequestsApi } from './endpoints/requests';
-import { createUploadsApi } from './endpoints/uploads';
 import { createUsersApi } from './endpoints/users';
 
 /** Builds the full typed API surface on top of an `ApiClient` (dependency injection friendly). */
@@ -27,7 +26,6 @@ export function createMarketplaceApi(client: ApiClient) {
     dashboard: createDashboardApi(client),
     notifications: createNotificationsApi(client),
     conversations: createConversationsApi(client),
-    uploads: createUploadsApi(client),
     geo: createGeoApi(client),
   };
 }

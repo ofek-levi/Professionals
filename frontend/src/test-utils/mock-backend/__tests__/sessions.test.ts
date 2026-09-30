@@ -1,5 +1,5 @@
 /**
- * Sessions, tokens, `/me` and devices of the double follow the backend contract
+ * Sessions, tokens, `/me` and push tokens of the double follow the backend contract
  * (backend/docs/API.md → Auth → Tokens and sessions, Users).
  */
 import { MAIN_CUSTOMER_IDS, PRO_IDS } from '../data/seed';
@@ -11,6 +11,8 @@ const NOA = MAIN_CUSTOMER_IDS.noa;
 let env: TestEnvironment;
 const auth = () => env.as(null).auth;
 const db = () => env.server.internals.db;
+/** The push tokens stored on sessions (at most one per session, like the backend). */
+const pushTokens = () => db().sessions.all().flatMap(({ userId, pushToken }) => (pushToken ? [{ userId, pushToken }] : []));
 
 beforeEach(() => {
   env = createTestEnvironment();
@@ -66,7 +68,7 @@ describe('POST /auth/refresh', () => {
     await expect(auth().refresh({ refreshToken: first.refreshToken })).resolves.toMatchObject({ refreshToken: expect.any(String) });
   });
 
-  it('revokes the whole session (and its devices) when an older token is reused', async () => {
+  it('revokes the whole session (and its push token) when an older token is reused', async () => {
     const session = await auth().login({ email: SEED_CUSTOMER_EMAIL, password: SEED_PASSWORD });
     await env.transport({
       method: 'POST',
@@ -83,7 +85,7 @@ describe('POST /auth/refresh', () => {
     // The thief and the owner are both out: the current token and access token stop working.
     expect(await expectApiError(auth().refresh({ refreshToken: first.refreshToken }))).toMatchObject({ status: 401 });
     expect(await meWith(first.accessToken)).toMatchObject({ status: 401 });
-    expect(db().devices.find((device) => device.pushToken === 'ExponentPushToken[noa-phone]')).toBeUndefined();
+    expect(pushTokens()).toEqual([]);
   });
 
   it('refuses a missing, unknown or forged token without revoking anything', async () => {
@@ -97,7 +99,7 @@ describe('POST /auth/refresh', () => {
 });
 
 describe('POST /auth/logout', () => {
-  it('ends the session of the refresh token and removes only its devices', async () => {
+  it('ends the session of the refresh token and removes only its push token', async () => {
     const phone = await auth().login({ email: SEED_CUSTOMER_EMAIL, password: SEED_PASSWORD });
     const tablet = await auth().login({ email: SEED_CUSTOMER_EMAIL, password: SEED_PASSWORD });
     const register = (accessToken: string, pushToken: string) =>
@@ -113,7 +115,7 @@ describe('POST /auth/logout', () => {
     await expect(auth().logout({ refreshToken: phone.refreshToken })).resolves.toEqual({ success: true });
     expect(await meWith(phone.accessToken)).toMatchObject({ status: 401 });
     expect(await expectApiError(auth().refresh({ refreshToken: phone.refreshToken }))).toMatchObject({ status: 401 });
-    expect(db().devices.all().map((device) => device.pushToken)).toEqual(['ExponentPushToken[tablet]']);
+    expect(pushTokens().map(({ pushToken }) => pushToken)).toEqual(['ExponentPushToken[tablet]']);
     // The other sign-in is untouched; logging out twice is fine.
     expect(await meWith(tablet.accessToken)).toMatchObject({ status: 200 });
     await expect(auth().logout({ refreshToken: phone.refreshToken })).resolves.toEqual({ success: true });
@@ -144,8 +146,7 @@ describe('/me', () => {
     expect(invalid).toMatchObject({ status: 400, fieldErrors: { preferredLanguage: ['validation:invalid'] } });
   });
 
-  it('registers Expo push tokens only, per session, and moves a token to the account that registers it', async () => {
-    const devices = () => db().devices.all().map(({ userId, pushToken, platform }) => ({ userId, pushToken, platform }));
+  it('keeps one Expo push token per session, and moves a token to the account that registers it', async () => {
     await expect(env.as(NOA).users.registerDevice({ pushToken: 'ExponentPushToken[shared]', platform: 'ios' })).resolves.toEqual({
       success: true,
     });
@@ -155,14 +156,18 @@ describe('/me', () => {
       status: 400,
       fieldErrors: { platform: ['validation:invalid'] },
     });
+    expect(pushTokens()).toEqual([{ userId: NOA, pushToken: 'ExponentPushToken[shared]' }]);
     // Another account signs in on the same phone.
     await env.as(PRO_IDS.avi).users.registerDevice({ pushToken: 'ExponentPushToken[shared]', platform: 'ios' });
-    expect(devices()).toEqual([{ userId: PRO_IDS.avi, pushToken: 'ExponentPushToken[shared]', platform: 'ios' }]);
-    // Removing is idempotent and never touches another account's device.
+    expect(pushTokens()).toEqual([{ userId: PRO_IDS.avi, pushToken: 'ExponentPushToken[shared]' }]);
+    // Removing is idempotent and never touches another account's token.
     await expect(env.as(NOA).users.unregisterDevice('ExponentPushToken[shared]')).resolves.toEqual({ success: true });
-    expect(devices()).toHaveLength(1);
-    await expect(env.as(PRO_IDS.avi).users.unregisterDevice('ExponentPushToken[shared]')).resolves.toEqual({ success: true });
-    expect(devices()).toEqual([]);
-    expect(env.log.to('/me/devices/ExponentPushToken%5Bshared%5D', 'DELETE')).toHaveLength(2);
+    expect(pushTokens()).toHaveLength(1);
+    // A new token from the OS replaces the session's old one.
+    await env.as(PRO_IDS.avi).users.registerDevice({ pushToken: 'ExponentPushToken[rotated]', platform: 'android' });
+    expect(pushTokens()).toEqual([{ userId: PRO_IDS.avi, pushToken: 'ExponentPushToken[rotated]' }]);
+    await expect(env.as(PRO_IDS.avi).users.unregisterDevice('ExponentPushToken[rotated]')).resolves.toEqual({ success: true });
+    expect(pushTokens()).toEqual([]);
+    expect(env.log.to('/me/devices/ExponentPushToken%5Bshared%5D', 'DELETE')).toHaveLength(1);
   });
 });

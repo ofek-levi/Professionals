@@ -19,7 +19,6 @@ import { createOffersRouter } from './modules/offers/offers.routes.js';
 import { createProfessionalsRouter } from './modules/professionals/professionals.routes.js';
 import { createRequestsRouter } from './modules/requests/requests.routes.js';
 import { createReviewsRouter } from './modules/reviews/reviews.routes.js';
-import { createUploadsRouter } from './modules/uploads/uploads.routes.js';
 import { createUsersRouter } from './modules/users/users.routes.js';
 
 export function createV1Router(deps: AppDeps): Router {
@@ -31,7 +30,6 @@ export function createV1Router(deps: AppDeps): Router {
     createUsersRouter,
     createCatalogRouter,
     createGeoRouter,
-    createUploadsRouter,
     createCustomersRouter,
     createProfessionalsRouter,
     createRequestsRouter,

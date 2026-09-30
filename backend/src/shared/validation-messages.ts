@@ -82,6 +82,8 @@ export const VALIDATION_MESSAGE_KEYS = [
   'cancel.reasonRequired',
   'cancel.commentTooLong',
   'upload.invalid',
+  'upload.rateLimited',
+  'upload.unavailable',
   'auth.emailRequired',
   'auth.emailInvalid',
   'auth.emailTaken',

@@ -9,7 +9,6 @@ import type { OwnProfessionalProfile } from '@/types/domain';
 import { isValidDateKey } from '@/utils/dates';
 
 import type { ProfessionalActor } from '../auth';
-import { assertAvatarUrl } from '../avatars';
 import type { ServerContext } from '../context';
 import { paginate } from '../pagination';
 import { requireProfessional } from '../queries';
@@ -51,13 +50,11 @@ function splitFullName(fullName: string): { firstName: string; lastName: string 
 
 function updateOwnProfile(ctx: ServerContext, actor: ProfessionalActor, body: unknown): OwnProfessionalProfile {
   const payload = parseBody(updateProfessionalProfileSchema, body);
-  assertAvatarUrl(ctx, actor.userId, payload.avatarUrl);
   const current = requireProfessional(ctx.db, actor.professional.id);
   const now = ctx.nowIso();
   const updated = ctx.db.professionals.update(current.id, {
     ...(payload.fullName !== undefined ? { fullName: payload.fullName } : {}),
     ...(payload.displayName !== undefined ? { displayName: payload.displayName } : {}),
-    ...(payload.avatarUrl !== undefined ? { avatarUrl: payload.avatarUrl } : {}),
     ...(payload.headline !== undefined ? { headline: payload.headline } : {}),
     ...(payload.bio !== undefined ? { bio: payload.bio } : {}),
     ...(payload.categoryIds !== undefined ? { categoryIds: [...new Set(payload.categoryIds)] } : {}),

@@ -34,7 +34,7 @@ export function toServiceRequestDto(request: RequestDoc): ServiceRequest {
     location: toServiceLocation(request.location),
     urgency: request.urgency,
     preferredSchedule: request.preferredSchedule ? { date: request.preferredSchedule.date, timeWindow: request.preferredSchedule.timeWindow } : null,
-    photos: request.photos.map((photo) => ({ id: photo.upload.toHexString(), url: photo.url, width: photo.width, height: photo.height })),
+    photos: request.photos.map((photo) => ({ publicId: photo.publicId, url: photo.url })),
     notes: request.notes,
     status: request.status,
     offerCount: request.offerCount,

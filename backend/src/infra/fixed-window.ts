@@ -1,6 +1,6 @@
 /**
  * Fixed-window counters on Redis for limits outside express-rate-limit (WebSocket upgrades, failed
- * sign-ins, geocoder misses, upload bytes): `INCRBY` and, on the window's first hit, `PEXPIRE`,
+ * sign-ins, geocoder misses, image bytes per day): `INCRBY` and, on the window's first hit, `PEXPIRE`,
  * atomically in one script so a key can never be left without a TTL.
  */
 import type { Redis } from './redis.js';

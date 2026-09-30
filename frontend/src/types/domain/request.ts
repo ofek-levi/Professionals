@@ -20,11 +20,10 @@ export interface PreferredSchedule {
   timeWindow: PreferredTimeWindow;
 }
 
+/** A photo uploaded with the request; `publicId` names it when a draft edit keeps it (`keepPhotos`). */
 export interface RequestPhoto {
-  id: EntityId;
+  publicId: string;
   url: string;
-  width: number | null;
-  height: number | null;
 }
 
 export const REQUEST_CANCELLATION_REASONS = [

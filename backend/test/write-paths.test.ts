@@ -50,8 +50,8 @@ describe('chat write path', () => {
     expect(on(ops, 'conversations').map((op) => op.op)).toEqual(['query', 'command']);
     // Before: conversation, sent-message lookup and sender name (in parallel); inside the
     // transaction: insert, conversation update, recipient preferences, notification insert. (The
-    // push fan-out reads `devices` in the background, after the response.)
-    const onRequestPath = ops.filter((op) => !op.ns.endsWith('.devices'));
+    // push fan-out reads the recipient's `sessions` in the background, after the response.)
+    const onRequestPath = ops.filter((op) => !op.ns.endsWith('.sessions'));
     expect(onRequestPath).toHaveLength(7);
 
     // The reply reads the customer's message: now the receipt runs (and only then).

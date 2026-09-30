@@ -2,7 +2,10 @@
  * Compile-time contract check against the app's own types (`frontend/src/types`), run by
  * `npm run typecheck:contract` (skipped when the frontend is not next to the backend; CI runs it).
  * - Responses: every DTO the server returns must be assignable to the type the app reads.
- * - Payloads: every body the app sends must be accepted by the server's zod input type.
+ * - Payloads: every body the app sends must be accepted by the server's zod input type (for the
+ *   multipart routes: the JSON field `data`); `PayloadKeyChecks`: the app sends no key the server
+ *   drops (zod strips unknown keys, so a removed field would otherwise be ignored silently);
+ *   `MultipartFieldChecks`: both sides name the multipart fields alike.
  * - Queries: every query parameter the app sends (`WireQueries`, by wire name) must be a key of the
  *   server's query schema. zod strips unknown keys, so a renamed parameter would otherwise be
  *   ignored silently (no 400) instead of failing here.
@@ -15,6 +18,7 @@ import type { PushData as AppPushData } from '@/services/push/types';
 import type { RealtimeEvent as AppRealtimeEvent } from '@/services/realtime/types';
 
 import type { CategoryCatalog } from '../../src/shared/catalog/index.js';
+import type { MULTIPART_FIELDS } from '../../src/shared/multipart-fields.js';
 import type * as Api from '../../src/shared/contract/index.js';
 import type { registerBody, loginBody, googleBody, passwordResetBody, refreshBody, logoutBody } from '../../src/modules/auth/auth.schemas.js';
 import type { registerDeviceBody, updateMeBody } from '../../src/modules/users/users.schemas.js';
@@ -58,7 +62,6 @@ export type ResponseChecks = [
   Check<Assignable<Api.Paginated<Api.Review> & { breakdown: Api.RatingBreakdown }, App.Paginated<AppDomain.Review> & { breakdown: AppDomain.RatingBreakdown }>>,
   Check<Assignable<CategoryCatalog, AppDomain.CategoryCatalog>>,
   Check<Assignable<Api.PlaceSuggestion, AppDomain.PlaceSuggestion>>,
-  Check<Assignable<Api.UploadedImage, App.UploadedImage>>,
   Check<Assignable<Api.CustomerRequestView, AppDomain.CustomerRequestView>>,
   Check<Assignable<Api.ProfessionalRequestView, AppDomain.ProfessionalRequestView>>,
   Check<Assignable<Api.RequestDetailsResponse, App.RequestDetailsResponse>>,
@@ -102,6 +105,20 @@ export type PayloadChecks = [
   Check<Accepts<typeof updateOfferBody, App.UpdateOfferPayload>>,
   Check<Accepts<typeof createReviewBody, App.CreateReviewPayload>>,
   Check<Accepts<typeof sendMessageBody, App.SendMessagePayload>>,
+];
+
+/** Payloads whose fields changed shape (the avatar left the profile PATCHes, photos became files). */
+export type PayloadKeyChecks = [
+  Check<ReadsKeys<typeof updateCustomerProfileBody, App.UpdateCustomerProfilePayload>>,
+  Check<ReadsKeys<typeof updateProfessionalProfileBody, App.UpdateProfessionalProfilePayload>>,
+  Check<ReadsKeys<typeof createRequestBody, App.CreateServiceRequestPayload>>,
+  Check<ReadsKeys<typeof updateDraftRequestBody, App.UpdateDraftRequestPayload>>,
+];
+
+/** Field names of the multipart routes: the same on both sides (a renamed field would pass every app test against the double). */
+export type MultipartFieldChecks = [
+  Check<Assignable<typeof MULTIPART_FIELDS, typeof App.MULTIPART_FIELDS>>,
+  Check<Assignable<typeof App.MULTIPART_FIELDS, typeof MULTIPART_FIELDS>>,
 ];
 
 /** Query parameters by wire name (`frontend/src/types/api/queries.ts`, used with `satisfies`). */

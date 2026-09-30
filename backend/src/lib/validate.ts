@@ -1,6 +1,6 @@
 /**
  * Request validation with zod. Failures become 400 `VALIDATION_ERROR` with `fieldErrors` keyed by
- * dotted path (`location.addressLine`, `photoIds.2`, `limit`) and `validation:<key>` messages, the
+ * dotted path (`location.addressLine`, `keepPhotos.2`, `limit`) and `validation:<key>` messages, the
  * format the app maps onto its form fields. A catalog-unknown category answers 422
  * `UNSUPPORTED_CATEGORY` instead (same rule as the mock backend).
  */

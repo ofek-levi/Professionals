@@ -17,6 +17,11 @@ export const APP_CONFIG = {
   maxRequestPhotos: 6,
   /** Largest photo the API accepts (8 MiB): bigger ones are shrunk (web) or refused before the upload. */
   maxUploadBytes: 8 * 1024 * 1024,
+  /**
+   * How long a post waits per photo it carries (a request's photos go in one body; the API allows a
+   * body at least `maxRequestPhotos` times this).
+   */
+  photoUploadTimeoutMs: 90_000,
   descriptionMinLength: 15,
   descriptionMaxLength: 1000,
   notesMaxLength: 500,

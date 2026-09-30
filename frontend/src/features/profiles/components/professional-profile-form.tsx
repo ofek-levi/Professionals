@@ -99,7 +99,6 @@ function ProfessionalProfileFormContent({ profile, focus }: { profile: OwnProfes
     defaultValues: defaults,
     mode: 'onTouched',
   });
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile.avatarUrl);
   const [saved, setSaved] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
@@ -109,8 +108,7 @@ function ProfessionalProfileFormContent({ profile, focus }: { profile: OwnProfes
     focused.current = true;
     scrollRef.current?.scrollTo({ y: event.nativeEvent.layout.y, animated: false });
   };
-  const avatarChanged = avatarUrl !== profile.avatarUrl;
-  const hasChanges = formState.isDirty || avatarChanged;
+  const hasChanges = formState.isDirty;
 
   usePreventRemove(hasChanges && !saved, ({ data }) => {
     void confirm({
@@ -134,10 +132,7 @@ function ProfessionalProfileFormContent({ profile, focus }: { profile: OwnProfes
   const save = handleSubmit(
     async (values) => {
       try {
-        await update.mutateAsync({
-          ...toUpdateProfessionalProfilePayload(values as ProfessionalProfileFormValues),
-          ...(avatarChanged ? { avatarUrl } : {}),
-        });
+        await update.mutateAsync(toUpdateProfessionalProfilePayload(values as ProfessionalProfileFormValues));
         toast.show({ title: t('professional:form.saved'), tone: 'success' });
         setSaved(true);
       } catch (error) {
@@ -172,7 +167,7 @@ function ProfessionalProfileFormContent({ profile, focus }: { profile: OwnProfes
       scrollRef={scrollRef}
       testID="pro-profile-form"
     >
-      <AvatarField name={profile.displayName} value={avatarUrl} verified={profile.isVerified} onChange={setAvatarUrl} />
+      <AvatarField name={profile.displayName} value={profile.avatarUrl} verified={profile.isVerified} />
 
       <FormSection title={t('professional:form.identity.title')} variant="plain">
         <FormTextField control={control} name="fullName" label={t('professional:form.identity.fullName')} required autoComplete="name" maxLength={PROFILE_LIMITS.nameMax} testID="pro-form-full-name" />

@@ -101,6 +101,8 @@ export const validation: LocaleNamespace<typeof envalidation> = {
   },
   upload: {
     invalid: 'לא ניתן להעלות את התמונה הזו',
+    rateLimited: 'יותר מדי תמונות כרגע. נסו שוב מאוחר יותר.',
+    unavailable: 'אי אפשר להעלות תמונות כרגע. נסו שוב.',
   },
   auth: {
     emailRequired: 'יש להזין כתובת אימייל',

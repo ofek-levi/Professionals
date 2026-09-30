@@ -1,5 +1,5 @@
 /** Composite response bodies of specific endpoints. */
-import type { EntityId, ISODateTimeString } from './common.js';
+import type { ISODateTimeString } from './common.js';
 import type { Job, JobSummary } from './job.js';
 import type { AppNotification } from './notification.js';
 import type { Offer, OfferWithRequest } from './offer.js';
@@ -52,13 +52,6 @@ export interface AcceptOfferResponse {
   offer: Offer;
   request: ServiceRequest;
   job: Job;
-}
-
-export interface UploadedImage {
-  id: EntityId;
-  url: string;
-  width: number | null;
-  height: number | null;
 }
 
 /** `GET` and `PATCH /customer/profile` */

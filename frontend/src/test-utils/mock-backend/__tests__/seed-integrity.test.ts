@@ -34,7 +34,7 @@ describe('seed data integrity', () => {
         expect(accepted?.status).toBe('accepted');
       }
       if (request.jobId) expect(jobs.get(request.jobId)?.requestId).toBe(request.id);
-      for (const photo of request.photos) expect(db().uploads.get(photo.id)?.ownerId).toBe(request.customerId);
+      for (const photo of request.photos) expect(photo).toEqual({ publicId: expect.any(String), url: expect.stringMatching(/^https:\/\//) });
     }
     for (const offer of offers.all()) {
       expect(requests.has(offer.requestId)).toBe(true);
@@ -129,7 +129,6 @@ describe('seed data integrity', () => {
     }
     // Nobody is signed in at seed time.
     expect(db().sessions.size).toBe(0);
-    expect(db().devices.size).toBe(0);
   });
 
   it('gives every main professional at least 3 matching open requests', async () => {

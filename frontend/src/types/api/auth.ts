@@ -29,7 +29,7 @@ export interface RefreshSessionRequest {
   refreshToken: string;
 }
 
-/** `POST /auth/logout` – ends that session and removes its push devices. */
+/** `POST /auth/logout` – ends that session (and with it the session's push token). */
 export interface LogoutRequest {
   refreshToken: string;
 }
@@ -111,7 +111,7 @@ export interface UpdateMeRequest {
   preferredLanguage: AppLanguage;
 }
 
-/** `POST /me/devices` – registers an Expo push token (`ExponentPushToken[…]`) for this session. */
+/** `POST /me/devices` – stores an Expo push token (`ExponentPushToken[…]`) on this session (one per session). */
 export interface RegisterDeviceRequest {
   pushToken: string;
   platform: 'ios' | 'android' | 'web';

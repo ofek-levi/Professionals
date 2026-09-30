@@ -31,6 +31,8 @@ export const profile: LocaleNamespace<typeof enprofile> = {
     removePhoto: 'הסרה',
     removePhotoTitle: 'להסיר את תמונת הפרופיל?',
     photoFailed: 'לא הצלחנו לפתוח את התמונות. נסו שוב.',
+    photoUpdated: 'תמונת הפרופיל עודכנה',
+    photoRemoved: 'תמונת הפרופיל הוסרה',
     saved: 'הפרופיל עודכן',
     fixFields: 'נא לבדוק את השדות המסומנים',
     keepEditing: 'המשך עריכה',

@@ -57,6 +57,8 @@ const rawEnvSchema = z.object({
   CLOUDINARY_CLOUD_NAME: optionalString,
   CLOUDINARY_API_KEY: optionalString,
   CLOUDINARY_API_SECRET: optionalString,
+  /** Development only: where Cloudinary API calls go instead (a local stub for live runs). */
+  CLOUDINARY_UPLOAD_PREFIX: z.url().optional(),
   RESEND_API_KEY: optionalString,
   EMAIL_FROM: optionalString,
   SMTP_HOST: z.string().default('smtp.gmail.com'),
@@ -75,6 +77,11 @@ const rawEnvSchema = z.object({
   RATE_LIMIT_ENABLED: booleanString(true),
   PASSWORD_BREACH_CHECK: booleanString(true),
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
+  /**
+   * Memory for the bodies of image posts in flight, per process (their files are held until they are
+   * stored); past it posts answer 503. At least one post with every photo (≈ 49 MB).
+   */
+  IMAGE_UPLOAD_MEMORY_MB: z.coerce.number().int().min(64).max(16_384).default(256),
   /** Window in which explorer refresh events to one professional are merged (0 = send each at once). */
   EXPLORER_EVENT_WINDOW_MS: z.coerce.number().int().min(0).max(10_000).default(2000),
 });
@@ -84,6 +91,8 @@ export interface CloudinaryConfig {
   cloudName: string;
   apiKey: string;
   apiSecret: string;
+  /** `CLOUDINARY_UPLOAD_PREFIX` (development only); `null` = the real Cloudinary API. */
+  uploadPrefix: string | null;
 }
 
 export interface SmtpConfig {
@@ -118,6 +127,7 @@ export interface Env {
   passwordBreachCheck: boolean;
   shutdownTimeoutMs: number;
   realtime: { explorerEventWindowMs: number };
+  imageUploads: { memoryBytes: number };
 }
 
 export type GooglePlatform = 'web' | 'ios' | 'android';
@@ -130,14 +140,15 @@ export class EnvError extends Error {
 }
 
 function parseCloudinary(raw: RawEnv): CloudinaryConfig | null {
+  const uploadPrefix = raw.CLOUDINARY_UPLOAD_PREFIX?.replace(/\/+$/, '') ?? null;
   if (raw.CLOUDINARY_URL) {
     // cloudinary://<api_key>:<api_secret>@<cloud_name>
     const match = /^cloudinary:\/\/([^:]+):([^@]+)@(.+)$/.exec(raw.CLOUDINARY_URL);
     if (!match?.[1] || !match[2] || !match[3]) return null;
-    return { apiKey: match[1], apiSecret: match[2], cloudName: match[3] };
+    return { apiKey: match[1], apiSecret: match[2], cloudName: match[3], uploadPrefix };
   }
   if (raw.CLOUDINARY_CLOUD_NAME && raw.CLOUDINARY_API_KEY && raw.CLOUDINARY_API_SECRET) {
-    return { cloudName: raw.CLOUDINARY_CLOUD_NAME, apiKey: raw.CLOUDINARY_API_KEY, apiSecret: raw.CLOUDINARY_API_SECRET };
+    return { cloudName: raw.CLOUDINARY_CLOUD_NAME, apiKey: raw.CLOUDINARY_API_KEY, apiSecret: raw.CLOUDINARY_API_SECRET, uploadPrefix };
   }
   return null;
 }
@@ -153,6 +164,11 @@ function missingForDeployedEnv(raw: RawEnv, cloudinary: CloudinaryConfig | null)
   if (!raw.GEOCODER_EMAIL) missing.push('GEOCODER_EMAIL');
   if (!raw.GEOCODER_USER_AGENT) missing.push('GEOCODER_USER_AGENT');
   return missing.map((name) => `${name} is required when APP_ENV=${raw.APP_ENV}`);
+}
+
+/** Settings for local testing that staging/production refuse (images must reach the real Cloudinary). */
+function developmentOnlyIssues(raw: RawEnv): string[] {
+  return raw.CLOUDINARY_UPLOAD_PREFIX ? [`CLOUDINARY_UPLOAD_PREFIX is for local testing only (refused when APP_ENV=${raw.APP_ENV})`] : [];
 }
 
 /**
@@ -177,7 +193,7 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
   const deployed = raw.APP_ENV !== 'development';
   const trustProxy = parseTrustProxy(raw.TRUST_PROXY, deployed);
   const issues = [
-    ...(deployed ? [...missingForDeployedEnv(raw, cloudinary), ...deployedSecretIssues(raw.JWT_ACCESS_SECRET)] : []),
+    ...(deployed ? [...missingForDeployedEnv(raw, cloudinary), ...developmentOnlyIssues(raw), ...deployedSecretIssues(raw.JWT_ACCESS_SECRET)] : []),
     ...trustProxy.issues,
   ];
   if (issues.length > 0) throw new EnvError(issues);
@@ -226,6 +242,7 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
     passwordBreachCheck: raw.PASSWORD_BREACH_CHECK,
     shutdownTimeoutMs: raw.SHUTDOWN_TIMEOUT_MS,
     realtime: { explorerEventWindowMs: raw.EXPLORER_EVENT_WINDOW_MS },
+    imageUploads: { memoryBytes: raw.IMAGE_UPLOAD_MEMORY_MB * 1024 * 1024 },
   };
 }
 
@@ -242,7 +259,8 @@ function developmentWarnings(env: Env): string[] {
   const warnings: string[] = [];
   if (isPlaceholderSecret(env.jwt.accessSecret)) warnings.push('JWT_ACCESS_SECRET is the example placeholder (refused in staging/production)');
   if (!env.mail.smtp) warnings.push('SMTP_USER/SMTP_PASS not set: emails are written to the log instead of being sent');
-  if (!env.cloudinary) warnings.push('Cloudinary is not configured: POST /v1/uploads/images answers 503');
+  if (!env.cloudinary) warnings.push('Cloudinary is not configured: photos (request photos, avatars) are refused with 503');
+  if (env.cloudinary?.uploadPrefix) warnings.push(`CLOUDINARY_UPLOAD_PREFIX is set: images go to ${env.cloudinary.uploadPrefix}, not to Cloudinary`);
   if (env.googleClientIds.length === 0) warnings.push('Google client ids are not configured: Google sign-in answers 503');
   return warnings;
 }

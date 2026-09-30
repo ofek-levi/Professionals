@@ -78,6 +78,8 @@ export const professional: LocaleNamespace<typeof enprofessional> = {
       change: 'החלפת תמונה',
       removeTitle: 'להסיר את תמונת הפרופיל?',
       failed: 'לא הצלחנו לפתוח את התמונות שלך. כדאי לנסות שוב.',
+      updated: 'תמונת הפרופיל עודכנה',
+      removed: 'תמונת הפרופיל הוסרה',
     },
     identity: {
       title: 'עליך',

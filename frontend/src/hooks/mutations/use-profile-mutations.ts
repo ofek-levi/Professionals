@@ -89,9 +89,9 @@ interface CustomerSnapshot {
 }
 
 function applyCustomerPatch(data: CustomerProfileData, payload: UpdateCustomerProfilePayload): CustomerProfileData {
-  const { firstName, lastName, phone, avatarUrl, defaultLocation, notificationPreferences } = payload;
+  const { firstName, lastName, phone, defaultLocation, notificationPreferences } = payload;
   return {
-    user: mergeDefined(data.user, { firstName, lastName, phone, avatarUrl }),
+    user: mergeDefined(data.user, { firstName, lastName, phone }),
     profile: mergeDefined(data.profile, { defaultLocation, notificationPreferences }),
   };
 }

@@ -9,10 +9,11 @@ interface UploadErrorToastOptions {
 }
 
 /**
- * Toast for a failed `POST /uploads/images`: the photo itself was refused (400/413: not a JPEG,
- * PNG, WebP or HEIC image, or over 8 MB), the upload limits were reached (429, with when to try
- * again when the server says), the photo service failed or is not set up (5xx: nothing is wrong
- * with the photo, and optional photos can be removed), or any other error as usual.
+ * Toast for photos that could not be sent (a request posted with photos, `PUT /me/avatar`): the
+ * photo itself was refused (400/413: not a JPEG, PNG, WebP or HEIC image, or over 8 MB), the image
+ * limit was reached (429, with when to try again when the server says), the photo service failed
+ * or is not set up (5xx: nothing is wrong with the photo, and optional photos can be removed), or
+ * any other error as usual.
  */
 export function useUploadErrorToast({ photosOptional = false }: UploadErrorToastOptions = {}): (error: unknown) => void {
   const { t } = useTranslation('errors');

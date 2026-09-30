@@ -1,7 +1,9 @@
+import { MULTIPART_FIELDS } from '@/types/api';
 import type {
   CancelRequestPayload,
   CreateServiceRequestPayload,
   CustomerRequestsParams,
+  LocalImage,
   NearbyRequestsParams,
   Paginated,
   RequestDetailsResponse,
@@ -11,21 +13,31 @@ import type {
 } from '@/types/api';
 import type { CustomerRequestView, ProfessionalRequestView } from '@/types/domain';
 import type { ApiClient } from '../client';
+import { buildImageForm, imageTimeoutMs } from '../image-form';
 
 const id = (value: string) => encodeURIComponent(value);
 
 export function createRequestsApi(client: ApiClient) {
   return {
-    /** `POST /requests` (customer) */
-    createRequest: (payload: CreateServiceRequestPayload) => client.post<CustomerRequestView>('/requests', payload),
+    /**
+     * `POST /requests` (customer): multipart, the payload as `data` and the photos as `photos`.
+     * Refusals about the photos name them (`fieldErrors.photos`): 400/413 for a photo the API
+     * refuses, 429 over the image limits, 503 when the photo service is down, busy or not set up.
+     */
+    createRequest: async (payload: CreateServiceRequestPayload, photos: readonly LocalImage[] = []) =>
+      client.post<CustomerRequestView>('/requests', await buildImageForm({ data: payload, field: MULTIPART_FIELDS.requestPhotos, images: photos }), {
+        timeoutMs: imageTimeoutMs(photos.length),
+      }),
 
     /** `GET /requests/:id` – role aware (professionals receive a redacted view). */
     getRequestById: (requestId: string, signal?: AbortSignal) =>
       client.get<RequestDetailsResponse>(`/requests/${id(requestId)}`, { signal }),
 
-    /** `PATCH /requests/:id` (customer, drafts only) */
-    updateDraftRequest: (requestId: string, payload: UpdateDraftRequestPayload) =>
-      client.patch<CustomerRequestView>(`/requests/${id(requestId)}`, payload),
+    /** `PATCH /requests/:id` (customer, drafts only): multipart like `createRequest`; new photos go after `keepPhotos`. */
+    updateDraftRequest: async (requestId: string, payload: UpdateDraftRequestPayload, photos: readonly LocalImage[] = []) =>
+      client.patch<CustomerRequestView>(`/requests/${id(requestId)}`, await buildImageForm({ data: payload, field: MULTIPART_FIELDS.requestPhotos, images: photos }), {
+        timeoutMs: imageTimeoutMs(photos.length),
+      }),
 
     /** `POST /requests/:id/publish` (customer) */
     publishRequest: (requestId: string) => client.post<CustomerRequestView>(`/requests/${id(requestId)}/publish`),

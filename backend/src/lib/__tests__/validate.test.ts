@@ -21,18 +21,18 @@ const schema = z.object({
   categoryId: z.enum(CATEGORY_IDS, { error: vm('category.unsupported') }),
   description: z.string().min(15, vm('request.descriptionTooShort')),
   location: z.object({ addressLine: z.string().min(1, vm('location.addressRequired')), city: z.string() }),
-  photoIds: z.array(z.string().length(24)).max(6),
+  keepPhotos: z.array(z.string().length(24)).max(6),
 });
 
 describe('parseInput', () => {
   it('returns the parsed value', () => {
-    const value = { categoryId: 'plumbing', description: 'x'.repeat(20), location: { addressLine: 'A 1', city: 'TLV' }, photoIds: [] };
+    const value = { categoryId: 'plumbing', description: 'x'.repeat(20), location: { addressLine: 'A 1', city: 'TLV' }, keepPhotos: [] };
     expect(parseInput(schema, value)).toEqual(value);
   });
 
   it('keys field errors by dotted path with i18n message keys', () => {
     const error = failure(() =>
-      parseInput(schema, { categoryId: 'plumbing', description: 'short', location: { addressLine: '' }, photoIds: ['a'] }),
+      parseInput(schema, { categoryId: 'plumbing', description: 'short', location: { addressLine: '' }, keepPhotos: ['a'] }),
     );
     expect(error.status).toBe(400);
     expect(error.toBody()).toEqual({
@@ -42,13 +42,13 @@ describe('parseInput', () => {
         description: ['validation:request.descriptionTooShort'],
         'location.addressLine': ['validation:location.addressRequired'],
         'location.city': ['validation:required'],
-        'photoIds.0': ['validation:invalid'],
+        'keepPhotos.0': ['validation:invalid'],
       },
     });
   });
 
   it('reports an unknown category as 422 UNSUPPORTED_CATEGORY', () => {
-    const error = failure(() => parseInput(schema, { categoryId: 'astrology', description: 'x'.repeat(20), location: { addressLine: 'a', city: 'b' }, photoIds: [] }));
+    const error = failure(() => parseInput(schema, { categoryId: 'astrology', description: 'x'.repeat(20), location: { addressLine: 'a', city: 'b' }, keepPhotos: [] }));
     expect(error.code).toBe('UNSUPPORTED_CATEGORY');
     expect(error.status).toBe(422);
     expect(error.fieldErrors).toEqual({ categoryId: ['validation:category.unsupported'] });

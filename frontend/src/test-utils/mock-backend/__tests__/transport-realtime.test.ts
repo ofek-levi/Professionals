@@ -48,15 +48,15 @@ describe('test transport', () => {
     expect(env.log.requests[0].body).not.toBe(body);
 
     const form = new FormData();
-    form.append('file', { uri: 'file:///leak.jpg', name: 'leak.jpg', type: 'image/jpeg' } as unknown as Blob);
-    const upload = await env.transport({
-      method: 'POST',
-      path: '/uploads/images',
+    form.append('avatar', { uri: 'file:///me.jpg', name: 'me.jpg', type: 'image/jpeg' } as unknown as Blob);
+    const avatar = await env.transport({
+      method: 'PUT',
+      path: '/me/avatar',
       body: form,
       headers: { Authorization: `Bearer ${env.accessTokenFor(NOA)}` },
     });
-    expect(upload.status).toBe(201);
-    expect(env.log.to('/uploads/images')[0].body).toBe(form);
+    expect(avatar.status).toBe(200);
+    expect(env.log.to('/me/avatar')[0].body).toBe(form);
 
     const aborted = new AbortController();
     aborted.abort();

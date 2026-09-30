@@ -6,7 +6,6 @@ import { withTransaction } from '../../infra/mongo.js';
 import { ApiError } from '../../lib/errors.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type { OwnProfessionalProfile } from '../../shared/contract/index.js';
-import { changeAvatar } from '../uploads/avatar.service.js';
 import { UserModel, type UserDoc } from '../users/user.model.js';
 import { ProfessionalModel, type ProfessionalDoc } from './professional.model.js';
 import { invalidatePublicProfessionalProfile } from './professional-cache.js';
@@ -37,18 +36,8 @@ export async function getOwnProfessionalProfile(auth: AuthContext): Promise<OwnP
   return toOwnProfessionalProfile(loaded.pro, loaded.user);
 }
 
-async function saveProfile(
-  deps: Pick<AppDeps, 'clock'>,
-  id: Types.ObjectId,
-  input: UpdateProfessionalProfileInput,
-  session?: ClientSession,
-): Promise<LoadedProfile> {
+async function saveProfile(id: Types.ObjectId, input: UpdateProfessionalProfileInput, session?: ClientSession): Promise<LoadedProfile> {
   const account = accountChanges(input);
-  if (input.avatarUrl !== undefined) {
-    const current = await UserModel.findById(id, { avatar: 1 }, { session }).lean<Pick<UserDoc, 'avatar'>>();
-    if (!current) throw ApiError.notFound('Professional profile');
-    account.avatar = await changeAvatar(id, current.avatar, input.avatarUrl, deps.clock.now(), session);
-  }
   const pro = await ProfessionalModel.findOneAndUpdate({ _id: id }, { $set: professionalChanges(id, input) }, { session, returnDocument: 'after' }).lean<ProfessionalDoc>();
   const user =
     Object.keys(account).length > 0
@@ -59,18 +48,21 @@ async function saveProfile(
 }
 
 export async function updateOwnProfessionalProfile(
-  deps: Pick<AppDeps, 'clock' | 'logger' | 'cache' | 'realtime'>,
+  deps: Pick<AppDeps, 'logger' | 'cache' | 'realtime'>,
   auth: AuthContext,
   input: UpdateProfessionalProfileInput,
 ): Promise<OwnProfessionalProfile> {
   const id = auth.userId;
   // Profile and account change together only when the account is touched too (name, phone,
-  // settings, avatar claim); a profile-only edit is a single-document write.
-  const touchesAccount = input.avatarUrl !== undefined || Object.keys(accountChanges(input)).length > 0;
-  const saved = touchesAccount
-    ? await withTransaction(deps.logger, ({ session }) => saveProfile(deps, id, input, session))
-    : await saveProfile(deps, id, input);
+  // settings); a profile-only edit is a single-document write.
+  const touchesAccount = Object.keys(accountChanges(input)).length > 0;
+  const saved = touchesAccount ? await withTransaction(deps.logger, ({ session }) => saveProfile(id, input, session)) : await saveProfile(id, input);
+  await announceProfileChange(deps, id);
+  return toOwnProfessionalProfile(saved.pro, saved.user);
+}
+
+/** A changed profile (or avatar): the cached public profile is dropped and the professional's apps refresh it. */
+export async function announceProfileChange(deps: Pick<AppDeps, 'cache' | 'realtime'>, id: Types.ObjectId): Promise<void> {
   await invalidatePublicProfessionalProfile(deps, id);
   await deps.realtime.publish([id.toHexString()], { type: 'profile.updated', professionalId: id.toHexString() });
-  return toOwnProfessionalProfile(saved.pro, saved.user);
 }

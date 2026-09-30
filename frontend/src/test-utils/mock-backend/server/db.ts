@@ -42,17 +42,6 @@ export interface StoredConversation {
   updatedAt: ISODateTimeString;
 }
 
-interface StoredUpload {
-  id: EntityId;
-  ownerId: EntityId;
-  url: string;
-  width: number | null;
-  height: number | null;
-  mimeType: string | null;
-  fileName: string | null;
-  createdAt: ISODateTimeString;
-}
-
 /**
  * Sign-in credentials of an account, keyed by the lower-cased email. Plaintext passwords are never
  * stored – only a salted hash (see `server/passwords.ts`).
@@ -76,16 +65,6 @@ export interface StoredCredential {
   updatedAt: ISODateTimeString;
 }
 
-/** A registered push token; it belongs to the session that registered it (logout removes it). */
-export interface StoredDevice {
-  id: EntityId;
-  userId: EntityId;
-  sessionId: EntityId;
-  pushToken: string;
-  platform: 'ios' | 'android' | 'web';
-  registeredAt: ISODateTimeString;
-}
-
 /**
  * A signed-in session (one per sign-in), like the backend's `sessions` collection: the current
  * refresh token, the one the last refresh replaced (answered again within the replay window) and
@@ -100,6 +79,12 @@ export interface StoredSession {
   rotatedAt: ISODateTimeString | null;
   expiresAt: ISODateTimeString;
   createdAt: ISODateTimeString;
+  /**
+   * Expo push token of the install (`POST /me/devices`), `null` until one is registered. It goes
+   * away with the session, and a token is on at most one session (like the backend's
+   * `sessions.pushToken`).
+   */
+  pushToken: string | null;
 }
 
 export interface DatabaseTables {
@@ -113,8 +98,6 @@ export interface DatabaseTables {
   notifications: AppNotification[];
   conversations: StoredConversation[];
   messages: Message[];
-  uploads: StoredUpload[];
-  devices: StoredDevice[];
   sessions: StoredSession[];
   credentials: StoredCredential[];
 }
@@ -133,8 +116,6 @@ export function emptyTables(): DatabaseTables {
     notifications: [],
     conversations: [],
     messages: [],
-    uploads: [],
-    devices: [],
     sessions: [],
     credentials: [],
   };
@@ -253,8 +234,6 @@ export class MockDatabase {
   readonly notifications: Table<AppNotification>;
   readonly conversations: Table<StoredConversation>;
   readonly messages: Table<Message>;
-  readonly uploads: Table<StoredUpload>;
-  readonly devices: Table<StoredDevice>;
   readonly sessions: Table<StoredSession>;
   readonly credentials: Table<StoredCredential>;
 
@@ -269,8 +248,6 @@ export class MockDatabase {
     this.notifications = new Table('notifications', byId);
     this.conversations = new Table('conversations', byId);
     this.messages = new Table('messages', byId);
-    this.uploads = new Table('uploads', byId);
-    this.devices = new Table('devices', byId);
     this.sessions = new Table('sessions', byId);
     this.credentials = new Table('credentials', (row) => row.email);
   }
@@ -287,8 +264,6 @@ export class MockDatabase {
       notifications: this.notifications,
       conversations: this.conversations,
       messages: this.messages,
-      uploads: this.uploads,
-      devices: this.devices,
       sessions: this.sessions,
       credentials: this.credentials,
     };
@@ -316,8 +291,6 @@ export class MockDatabase {
       notifications: all.notifications.all(),
       conversations: all.conversations.all(),
       messages: all.messages.all(),
-      uploads: all.uploads.all(),
-      devices: all.devices.all(),
       sessions: all.sessions.all(),
       credentials: all.credentials.all(),
     });

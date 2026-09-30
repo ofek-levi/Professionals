@@ -18,6 +18,7 @@ import { closeRedis, createRedis } from './infra/redis.js';
 import { isSessionDenied, sessionRevokedChannel } from './infra/session-denylist.js';
 import { createLogger, type Logger } from './lib/logger.js';
 import { realtimeUpgradeLimiter } from './middleware/rate-limit.js';
+import { applyServerTimeouts } from './server-timeouts.js';
 
 function loadEnv(): Env {
   try {
@@ -44,9 +45,7 @@ async function main(): Promise<void> {
   const deps = createDeps({ env, logger, redis });
   const app = createApp(deps);
   const server = createServer(app);
-  // Slightly above typical load-balancer idle timeouts so the LB closes idle sockets first.
-  server.keepAliveTimeout = 65_000;
-  server.headersTimeout = 66_000;
+  applyServerTimeouts(server);
 
   const realtime = await attachRealtimeServer({
     httpServer: server,

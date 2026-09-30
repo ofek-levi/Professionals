@@ -273,12 +273,11 @@ export function toUpdateProfessionalProfilePayload(
   };
 }
 
-/** `PATCH /professional/profile` payload (every field optional). */
+/** `PATCH /professional/profile` payload (every field optional; the avatar is `PUT /me/avatar`). */
 export const updateProfessionalProfileSchema = z
   .object({
     fullName: fullNameSchema,
     displayName: displayNameSchema,
-    avatarUrl: z.string().trim().min(1, vm('invalid')).nullable(),
     headline: headlineSchema,
     bio: bioSchema,
     categoryIds: z
@@ -360,13 +359,12 @@ export function toUpdateCustomerProfilePayload(values: CustomerProfileFormValues
   };
 }
 
-/** `PATCH /customer/profile` payload (every field optional). */
+/** `PATCH /customer/profile` payload (every field optional; the avatar is `PUT /me/avatar`). */
 export const updateCustomerProfileSchema = z
   .object({
     firstName: personNameSchema('profile.firstNameRequired'),
     lastName: personNameSchema('profile.lastNameRequired'),
     phone: phoneSchema,
-    avatarUrl: z.string().trim().min(1, vm('invalid')).nullable(),
     defaultLocation: serviceLocationInputSchema.nullable(),
     notificationPreferences: notificationPreferencesSchema,
   })

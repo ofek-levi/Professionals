@@ -21,7 +21,6 @@ const payload = (overrides: Partial<CreateServiceRequestPayload> = {}): CreateSe
   location: florentin,
   urgency: 'normal',
   preferredSchedule: null,
-  photoIds: [],
   notes: null,
   publish: true,
   ...overrides,
@@ -111,18 +110,18 @@ describe('service requests', () => {
     expect((await expectApiError(api.getRequestById(second.id))).status).toBe(404);
   });
 
-  it('attaches uploaded photos and rejects unknown ones', async () => {
+  it('stores the photos sent with the request (multipart) and deletes them with a cancellation', async () => {
     const noa = env.as(NOA);
-    const photo = await noa.uploads.uploadImage({ uri: 'file:///leak.jpg', mimeType: 'image/jpeg', width: 800, height: 600, fileName: 'leak.jpg' });
-    expect(photo).toEqual({ id: expect.stringMatching(/^upl_/), url: `https://images.test/${photo.id}.jpg`, width: 1600, height: 1200 });
-    const created = await noa.requests.createRequest(payload({ photoIds: [photo.id] }));
-    expect(created.photos).toEqual([photo]);
-    const error = await expectApiError(noa.requests.createRequest(payload({ photoIds: ['upl_missing'] })));
-    expect(error).toMatchObject({ status: 400, code: 'VALIDATION_ERROR' });
-    expect(error.fieldErrors?.photoIds).toEqual(['validation:request.photoNotFound']);
-    // Photos uploaded by someone else cannot be attached.
-    const danielsPhoto = await env.as(DANIEL).uploads.uploadImage({ uri: 'file:///x.jpg', mimeType: null, width: null, height: null, fileName: null });
-    expect((await expectApiError(noa.requests.createRequest(payload({ photoIds: [danielsPhoto.id] })))).status).toBe(400);
+    const created = await noa.requests.createRequest(payload(), [
+      { uri: 'file:///leak.jpg', mimeType: 'image/jpeg', fileName: 'leak.jpg' },
+      { uri: 'file:///pipe.png', mimeType: 'image/png', fileName: null },
+    ]);
+    expect(created.photos).toEqual([
+      { publicId: expect.stringMatching(/^test\/requests\//), url: expect.stringMatching(/^https:\/\/images\.test\/.+\.jpg$/) },
+      { publicId: expect.stringMatching(/^test\/requests\//), url: expect.stringMatching(/\.png$/) },
+    ]);
+    const cancelled = await noa.requests.cancelRequest(created.id, { reason: 'no_longer_needed' });
+    expect(cancelled.photos).toEqual([]);
   });
 
   it('validates payloads with field errors', async () => {

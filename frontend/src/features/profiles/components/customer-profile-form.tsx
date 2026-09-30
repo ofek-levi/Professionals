@@ -1,6 +1,7 @@
 /**
- * Edit the signed-in customer's profile: photo, name, phone and default service address (a row
- * that opens the location picker in a sheet). Rendered by `/profile/edit` for customers.
+ * Edit the signed-in customer's profile: photo (saved at once, `use-avatar-actions.ts`), name, phone
+ * and default service address (a row that opens the location picker in a sheet). Rendered by
+ * `/profile/edit` for customers.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigation, useRouter } from 'expo-router';
@@ -11,7 +12,7 @@ import { Pressable, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import type { z } from 'zod';
 
-import { FormSection, FormTextField, pickImagesFromLibrary, useTranslatedError, useUploadErrorToast } from '@/components/forms';
+import { FormSection, FormTextField, useTranslatedError } from '@/components/forms';
 import { LocationPicker } from '@/components/location';
 import {
   AppText,
@@ -27,7 +28,7 @@ import {
   useErrorToast,
   useToast,
 } from '@/components/ui';
-import { useCustomerProfile, useUpdateCustomerProfile, useUploadImage } from '@/hooks';
+import { useCustomerProfile, useUpdateCustomerProfile } from '@/hooks';
 import { routes } from '@/lib/routes';
 import {
   customerProfileFormSchema,
@@ -39,6 +40,8 @@ import { toApiError } from '@/services/api/errors';
 import { makeStyles } from '@/theme';
 import type { CustomerProfile, ServiceLocation, User } from '@/types/domain';
 import { regionForRadius } from '@/utils/geo';
+
+import { useAvatarActions } from './use-avatar-actions';
 
 type CustomerProfileFormOutput = z.output<typeof customerProfileFormSchema>;
 type FormField = keyof CustomerProfileFormValues;
@@ -95,19 +98,23 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
   const confirm = useConfirm();
   const toast = useToast();
   const showError = useErrorToast();
-  const showUploadError = useUploadErrorToast();
-  const upload = useUploadImage();
   const update = useUpdateCustomerProfile();
+  const avatar = useAvatarActions({
+    pickFailed: t('profile:edit.photoFailed'),
+    removeTitle: t('profile:edit.removePhotoTitle'),
+    removeLabel: t('common:actions.remove'),
+    updated: t('profile:edit.photoUpdated'),
+    removed: t('profile:edit.photoRemoved'),
+  });
+  const avatarBusy = avatar.uploading || avatar.removing;
   const { control, handleSubmit, setError, formState } = useForm<CustomerProfileFormValues, unknown, CustomerProfileFormOutput>({
     resolver: zodResolver(customerProfileFormSchema),
     defaultValues: customerProfileToFormValues(user, profile),
     mode: 'onTouched',
   });
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(user.avatarUrl);
   const [saved, setSaved] = useState(false);
   const [addressOpen, setAddressOpen] = useState(false);
-  const avatarChanged = avatarUrl !== user.avatarUrl;
-  const hasChanges = formState.isDirty || avatarChanged;
+  const hasChanges = formState.isDirty;
   const fullName = `${user.firstName} ${user.lastName}`.trim() || user.displayName;
 
   usePreventRemove(hasChanges && !saved, ({ data }) => {
@@ -129,42 +136,9 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
     else router.replace(routes.customer.profile);
   }, [saved, router]);
 
-  const pickAvatar = async () => {
-    const result = await pickImagesFromLibrary(1);
-    if (result.status === 'cancelled') return;
-    if (result.status !== 'picked') {
-      toast.show({ title: t('profile:edit.photoFailed'), tone: 'warning' });
-      return;
-    }
-    const [photo] = result.photos;
-    try {
-      const uploaded = await upload.mutateAsync({
-        ...photo,
-        width: photo.width && photo.width > 0 ? photo.width : null,
-        height: photo.height && photo.height > 0 ? photo.height : null,
-      });
-      setAvatarUrl(uploaded.url);
-    } catch (error) {
-      showUploadError(error);
-    }
-  };
-
-  const confirmRemoveAvatar = async () => {
-    const confirmed = await confirm({
-      title: t('profile:edit.removePhotoTitle'),
-      confirmLabel: t('common:actions.remove'),
-      destructive: true,
-      icon: 'image-remove',
-    });
-    if (confirmed) setAvatarUrl(null);
-  };
-
   const save = handleSubmit(async (values) => {
     try {
-      await update.mutateAsync({
-        ...toUpdateCustomerProfilePayload(values),
-        ...(avatarChanged ? { avatarUrl } : {}),
-      });
+      await update.mutateAsync(toUpdateCustomerProfilePayload(values));
       toast.show({ title: t('profile:edit.saved'), tone: 'success', icon: 'check-circle-outline' });
       setSaved(true);
     } catch (error) {
@@ -191,7 +165,7 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
           size="lg"
           fullWidth
           loading={update.isPending}
-          disabled={upload.isPending || (!hasChanges && !update.isPending)}
+          disabled={!hasChanges && !update.isPending}
           onPress={() => void save()}
           testID="profile-save"
         />
@@ -199,18 +173,27 @@ function CustomerProfileFormContent({ user, profile }: { user: User; profile: Cu
       testID="customer-profile-form"
     >
       <View style={styles.avatarBlock}>
-        <Avatar name={fullName} uri={avatarUrl} size="xl" />
+        <Avatar name={fullName} uri={user.avatarUrl} size="xl" />
         <View style={styles.avatarActions}>
           <Button
-            label={avatarUrl ? t('profile:edit.changePhoto') : t('profile:edit.addPhoto')}
+            label={user.avatarUrl ? t('profile:edit.changePhoto') : t('profile:edit.addPhoto')}
             variant="ghost"
             size="sm"
-            loading={upload.isPending}
-            onPress={() => void pickAvatar()}
+            loading={avatar.uploading}
+            disabled={avatarBusy}
+            onPress={() => void avatar.pick()}
             testID="profile-change-photo"
           />
-          {avatarUrl ? (
-            <Button label={t('profile:edit.removePhoto')} variant="ghost" size="sm" onPress={() => void confirmRemoveAvatar()} />
+          {user.avatarUrl ? (
+            <Button
+              label={t('profile:edit.removePhoto')}
+              variant="ghost"
+              size="sm"
+              loading={avatar.removing}
+              disabled={avatarBusy}
+              onPress={() => void avatar.remove()}
+              testID="profile-remove-photo"
+            />
           ) : null}
         </View>
       </View>

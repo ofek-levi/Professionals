@@ -40,27 +40,22 @@ const preferredScheduleSchema = z.object({
   timeWindow: z.enum(PREFERRED_TIME_WINDOWS, { error: vm('request.timeWindowInvalid') }),
 });
 
-const photoIdsSchema = z
-  .array(z.string().trim().min(1, vm('request.photoInvalid')))
-  .max(APP_CONFIG.maxRequestPhotos, vm('request.tooManyPhotos'));
-
 const requestFields = {
   categoryId: categoryIdSchema,
   description: descriptionSchema,
   location: serviceLocationInputSchema,
   urgency: z.enum(URGENCY_LEVELS, { error: vm('request.urgencyRequired') }),
   preferredSchedule: preferredScheduleSchema.nullable(),
-  photoIds: photoIdsSchema,
   notes: nullableText(APP_CONFIG.notesMaxLength, vm('request.notesTooLong')),
 };
 
 /**
- * `POST /requests` (`publish: false` saves a draft). `clientRequestId` (optional) makes it
- * idempotent: a retry with the same id returns the request the first attempt created.
+ * `POST /requests` (multipart: this is the JSON field `data`, the photos are the files `photos`;
+ * `publish: false` saves a draft). `clientRequestId` (optional) makes it idempotent: a retry with
+ * the same id returns the request the first attempt created, without storing its photos again.
  */
 export const createRequestBody = z.object({
   ...requestFields,
-  photoIds: photoIdsSchema.default([]),
   notes: requestFields.notes.default(null),
   preferredSchedule: requestFields.preferredSchedule.default(null),
   publish: z.boolean({ error: vm('invalid') }).default(true),
@@ -68,8 +63,17 @@ export const createRequestBody = z.object({
 });
 export type CreateRequestInput = z.output<typeof createRequestBody>;
 
-/** `PATCH /requests/:id` (drafts only): every field optional. */
-export const updateDraftRequestBody = z.object(requestFields).partial();
+/**
+ * `PATCH /requests/:id` (drafts only; multipart like `POST /requests`): every field optional.
+ * `keepPhotos`: public ids of the current photos to keep, in order (omitted = all); the new files
+ * `photos` are added after them. Listing every kept photo makes a retried edit safe.
+ */
+export const updateDraftRequestBody = z
+  .object({
+    ...requestFields,
+    keepPhotos: z.array(z.string({ error: vm('request.photoNotFound') })).max(APP_CONFIG.maxRequestPhotos, vm('request.tooManyPhotos')),
+  })
+  .partial();
 export type UpdateDraftRequestInput = z.output<typeof updateDraftRequestBody>;
 
 /** `POST /requests/:id/cancel` */

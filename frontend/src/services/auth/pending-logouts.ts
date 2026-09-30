@@ -1,6 +1,6 @@
 /**
  * Server sign-outs this device still owes. Signing out ends the session here at once; the server
- * logout (`POST /auth/logout`, which also removes the session's push devices) is sent afterwards.
+ * logout (`POST /auth/logout`, which also removes the session's push token) is sent afterwards.
  * Until the server confirms it, the refresh token stays in this queue, persisted next to the
  * session, and is sent again on the next launch, the next sign-in and whenever the app returns to
  * the foreground. Without it, signing out offline (or with a server too slow to answer) would leave

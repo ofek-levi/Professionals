@@ -100,7 +100,7 @@ describe('parseEnv', () => {
       trustProxy: 1,
       logLevel: 'info',
       googleClientIds: ['web', 'ios', 'android'],
-      cloudinary: { cloudName: 'cloud', apiKey: 'key', apiSecret: 'secret' },
+      cloudinary: { cloudName: 'cloud', apiKey: 'key', apiSecret: 'secret', uploadPrefix: null },
       mail: { resendApiKey: 're_123', smtp: null },
       cron: { enabled: true, disabledJobs: ['push-receipts'] },
     });
@@ -169,5 +169,24 @@ describe('parseEnv', () => {
 
   it('rejects a malformed CLOUDINARY_URL', () => {
     expect(errorOf({ ...DEPLOYED, APP_ENV: 'staging', CLOUDINARY_URL: 'https://nope' }).issues.join()).toContain('CLOUDINARY_URL');
+  });
+
+  it('takes CLOUDINARY_UPLOAD_PREFIX (a local stub) in development only', () => {
+    const stub = { CLOUDINARY_URL: 'cloudinary://key:secret@cloud', CLOUDINARY_UPLOAD_PREFIX: 'http://127.0.0.1:4700/' };
+    const env = parseEnv({ ...BASE, APP_ENV: 'development', ...stub });
+    expect(env.cloudinary).toEqual({ cloudName: 'cloud', apiKey: 'key', apiSecret: 'secret', uploadPrefix: 'http://127.0.0.1:4700' });
+    expect(envWarnings(env)).toContain('CLOUDINARY_UPLOAD_PREFIX is set: images go to http://127.0.0.1:4700, not to Cloudinary');
+    for (const appEnv of ['staging', 'production']) {
+      expect(errorOf({ ...DEPLOYED, APP_ENV: appEnv, ...stub }).issues).toEqual([
+        `CLOUDINARY_UPLOAD_PREFIX is for local testing only (refused when APP_ENV=${appEnv})`,
+      ]);
+    }
+    expect(errorOf({ ...BASE, APP_ENV: 'development', CLOUDINARY_UPLOAD_PREFIX: 'stub' }).issues.join()).toContain('CLOUDINARY_UPLOAD_PREFIX');
+  });
+
+  it('sizes the memory of image posts in flight (MB, at least one post with every photo)', () => {
+    expect(parseEnv({ ...BASE, APP_ENV: 'development' }).imageUploads).toEqual({ memoryBytes: 256 * 1024 * 1024 });
+    expect(parseEnv({ ...BASE, APP_ENV: 'development', IMAGE_UPLOAD_MEMORY_MB: '1024' }).imageUploads.memoryBytes).toBe(1024 * 1024 * 1024);
+    expect(errorOf({ ...BASE, APP_ENV: 'development', IMAGE_UPLOAD_MEMORY_MB: '32' }).issues.join()).toContain('IMAGE_UPLOAD_MEMORY_MB');
   });
 });

@@ -175,7 +175,7 @@ export function PhotosField({ value, onChange }: PhotosFieldProps) {
 
       <PhotoViewer
         visible={viewer.index !== null}
-        photos={value.map((photo) => ({ url: photo.uri, width: photo.width, height: photo.height }))}
+        photos={value.map((photo) => ({ url: photo.uri }))}
         initialIndex={viewer.index ?? 0}
         onClose={viewer.close}
       />

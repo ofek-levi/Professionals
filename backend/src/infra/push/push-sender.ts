@@ -1,7 +1,7 @@
 /**
  * Push delivery (Expo push service). One message per device token; the sender chunks requests.
  * A ticket id is later exchanged for a receipt (`notifications.jobs.ts` checks them every 15 min and
- * deletes tokens Expo reports as `DeviceNotRegistered`).
+ * removes tokens Expo reports as `DeviceNotRegistered` from their session).
  */
 export interface PushMessage {
   /** Expo push token (`ExponentPushToken[…]`). */

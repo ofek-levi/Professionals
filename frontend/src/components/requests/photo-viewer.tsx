@@ -13,10 +13,7 @@ const IS_WEB = Platform.OS === 'web';
 
 /** Minimal photo shape accepted by `PhotoStrip` / `PhotoViewer` (compatible with `RequestPhoto`). */
 export interface ViewerPhoto {
-  id?: string;
   url: string;
-  width?: number | null;
-  height?: number | null;
 }
 
 interface PhotoViewerProps {
@@ -107,7 +104,7 @@ function ViewerContent({ photos, initialIndex, onClose }: { photos: readonly Vie
           style={styles.pager}
           initialScrollIndex={safeInitial}
           getItemLayout={(_, itemIndex) => ({ length: width, offset: width * itemIndex, index: itemIndex })}
-          keyExtractor={(photo, itemIndex) => photo.id ?? `${itemIndex}-${photo.url}`}
+          keyExtractor={(photo, itemIndex) => `${itemIndex}-${photo.url}`}
           showsHorizontalScrollIndicator={false}
           scrollEventThrottle={32}
           onScroll={(event) => {
@@ -157,7 +154,7 @@ function ViewerContent({ photos, initialIndex, onClose }: { photos: readonly Vie
       {photos.length > 1 ? (
         <View style={[styles.dots, { bottom: insets.bottom + 20 }]}>
           {photos.map((photo, dotIndex) => (
-            <View key={photo.id ?? `${dotIndex}`} style={[styles.dot, dotIndex === index ? styles.dotActive : null]} />
+            <View key={`${dotIndex}-${photo.url}`} style={[styles.dot, dotIndex === index ? styles.dotActive : null]} />
           ))}
         </View>
       ) : null}

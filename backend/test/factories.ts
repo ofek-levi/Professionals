@@ -11,8 +11,6 @@ import { JobModel, type JobDoc } from '../src/modules/jobs/job.model.js';
 import { OfferModel, type OfferDoc } from '../src/modules/offers/offer.model.js';
 import { ProfessionalModel, type ProfessionalDoc } from '../src/modules/professionals/professional.model.js';
 import { RequestModel, type RequestDoc } from '../src/modules/requests/request.model.js';
-import { UploadModel, type UploadDoc } from '../src/modules/uploads/upload.model.js';
-import { DeviceModel, type DeviceDoc } from '../src/modules/users/device.model.js';
 import { UserModel, type UserDoc } from '../src/modules/users/user.model.js';
 import { modelNow } from '../src/infra/model-clock.js';
 import { toLocationDoc, type LocationDoc } from '../src/infra/schema-parts.js';
@@ -171,27 +169,11 @@ export async function createSession(user: Pick<UserDoc, '_id'>, overrides: Overr
   return doc.toObject<SessionDoc>();
 }
 
-/** A push device registered by a new live session of `user` (or by `overrides.session`). */
-export async function createDevice(user: Pick<UserDoc, '_id'>, overrides: Overrides<DeviceDoc> = {}): Promise<DeviceDoc> {
-  const session = overrides.session ?? (await createSession(user))._id;
-  const doc = await DeviceModel.create({
-    user: user._id,
-    session,
-    token: `ExponentPushToken[test-${next()}]`,
-    ...overrides,
-  });
-  return doc.toObject<DeviceDoc>();
-}
-
-export async function createUpload(owner: Pick<UserDoc, '_id'>, overrides: Overrides<UploadDoc> = {}): Promise<UploadDoc> {
-  const n = next();
-  const doc = await UploadModel.create({
-    owner: owner._id,
-    publicId: `test/requests/img-f${n}`,
-    url: `https://images.test/test/requests/img-f${n}.jpg`,
-    width: 800,
-    height: 600,
-    ...overrides,
-  });
-  return doc.toObject<UploadDoc>();
+/** A live session of `user` whose app install registered an Expo push token. */
+export async function createPushSession(
+  user: Pick<UserDoc, '_id'>,
+  overrides: Overrides<SessionDoc> = {},
+): Promise<SessionDoc & { pushToken: string }> {
+  const pushToken = overrides.pushToken ?? `ExponentPushToken[test-${next()}]`;
+  return { ...(await createSession(user, { ...overrides, pushToken })), pushToken };
 }
