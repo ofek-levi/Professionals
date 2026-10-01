@@ -128,9 +128,9 @@ describe('account deletion: what changes for everyone', () => {
     expect(notificationTypes(deps, pro.user._id.toHexString())).toEqual(['request_cancelled', 'request_cancelled']);
     expect(notificationTypes(deps, other.user._id.toHexString())).toEqual(['request_cancelled', 'request_cancelled']);
     const stored = await NotificationModel.find({ user: pro.user._id, type: 'request_cancelled' }).lean();
-    expect(stored.map((notification) => notification.params.customerName)).toEqual(['', '']);
-    // The professional's push is in Hebrew: "…cancelled by a customer".
-    expect(deps.push.sent.map((push) => push.body)).toEqual(Array(2).fill('הבקשה בנושא אינסטלציה בוטלה על ידי לקוח.'));
+    expect(stored.map((notification) => notification.params)).toEqual(Array(2).fill({ categoryId: 'plumbing', customerName: '', reason: 'account_deleted' }));
+    // The professional's push is in Hebrew and says why: the customer deleted their account.
+    expect(deps.push.sent.map((push) => push.body)).toEqual(Array(2).fill('הלקוח מחק את החשבון, ולכן הבקשה בנושא אינסטלציה בוטלה.'));
 
     // What professionals keep: the request without the exact address, notes, comment or photos.
     const kept = await RequestModel.findById(done._id).lean();

@@ -8,7 +8,7 @@ import type { Job, UserRole } from '@/types/domain';
 
 // ─────────────────────────────── Progress ───────────────────────────────
 
-export type JobTimelineStepKey = 'accepted' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+export type JobTimelineStepKey = 'accepted' | 'confirmed' | 'in_progress' | 'completed';
 
 /**
  * - `done`: reached (check mark, with its timestamp when known)
@@ -16,9 +16,8 @@ export type JobTimelineStepKey = 'accepted' | 'confirmed' | 'in_progress' | 'com
  * - `next`: the next expected step (highlighted)
  * - `upcoming`: later steps
  * - `skipped`: the job was completed without being started separately
- * - `cancelled`: terminal cancellation step
  */
-export type JobTimelineStepState = 'done' | 'active' | 'next' | 'upcoming' | 'skipped' | 'cancelled';
+export type JobTimelineStepState = 'done' | 'active' | 'next' | 'upcoming' | 'skipped';
 
 export interface JobTimelineStep {
   key: JobTimelineStepKey;
@@ -27,9 +26,10 @@ export interface JobTimelineStep {
   at: string | null;
 }
 
-type TimelineJob = Pick<Job, 'status' | 'createdAt' | 'confirmedAt' | 'startedAt' | 'completedAt' | 'cancelledAt'>;
+type TimelineJob = Pick<Job, 'status' | 'createdAt' | 'confirmedAt' | 'startedAt' | 'completedAt'>;
 
-export function getJobTimeline(job: TimelineJob): JobTimelineStep[] {
+/** The progress steps, or `null` for a cancelled job: it shows none, its headline says what happened. */
+export function getJobTimeline(job: TimelineJob): JobTimelineStep[] | null {
   const accepted: JobTimelineStep = { key: 'accepted', state: 'done', at: job.createdAt };
   switch (job.status) {
     case 'awaiting_confirmation':
@@ -60,14 +60,8 @@ export function getJobTimeline(job: TimelineJob): JobTimelineStep[] {
         job.startedAt ? { key: 'in_progress', state: 'done', at: job.startedAt } : { key: 'in_progress', state: 'skipped', at: null },
         { key: 'completed', state: 'done', at: job.completedAt },
       ];
-    case 'cancelled': {
-      // An account deletion also cancels a job already in progress.
-      const steps: JobTimelineStep[] = [accepted];
-      if (job.confirmedAt) steps.push({ key: 'confirmed', state: 'done', at: job.confirmedAt });
-      if (job.startedAt) steps.push({ key: 'in_progress', state: 'done', at: job.startedAt });
-      steps.push({ key: 'cancelled', state: 'cancelled', at: job.cancelledAt });
-      return steps;
-    }
+    case 'cancelled':
+      return null;
   }
 }
 

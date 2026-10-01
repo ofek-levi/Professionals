@@ -6,6 +6,7 @@ export const messaging: LocaleNamespace<typeof enmessaging> = {
     you: 'אתם: {{text}}',
     youPrefix: 'אתם:',
     noMessages: 'עדיין אין הודעות. תגידו שלום!',
+    closed: 'הצ׳אט סגור',
     unread_one: 'הודעה אחת שלא נקראה',
     unread_two: 'שתי הודעות שלא נקראו',
     unread_other: '{{count}} הודעות שלא נקראו',

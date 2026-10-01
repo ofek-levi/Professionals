@@ -89,7 +89,13 @@ export function getNotificationContent(
     case 'offer_expired':
       return content(t('types.offer_expired.title'), t('types.offer_expired.body', { price, category }));
     case 'request_cancelled':
-      return content(t('types.request_cancelled.title'), t('types.request_cancelled.body', { customerName, category }));
+      // Cancelled by the customer's account deletion (the server sends no name then).
+      return content(
+        t('types.request_cancelled.title'),
+        params.reason === 'account_deleted'
+          ? t('types.request_cancelled.bodyAccountDeleted', { category })
+          : t('types.request_cancelled.body', { customerName, category }),
+      );
     case 'job_confirmed':
       return content(
         t('types.job_confirmed.title'),

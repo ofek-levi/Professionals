@@ -73,6 +73,8 @@ export const notifications = {
     request_cancelled: {
       title: 'Request cancelled',
       body: '{{customerName}} cancelled the {{category}} request.',
+      /** `params.reason === 'account_deleted'`: the customer did not cancel it themselves. */
+      bodyAccountDeleted: 'The customer deleted their account, so the {{category}} request was cancelled.',
     },
     job_confirmed: {
       title: 'Appointment confirmed',
@@ -93,7 +95,7 @@ export const notifications = {
     },
     job_cancelled: {
       title: 'Job cancelled',
-      body: 'Your {{category}} job on {{date}} was cancelled because the professional closed their account.',
+      body: 'Your {{category}} job on {{date}} was cancelled because the professional deleted their account.',
     },
     review_received: {
       title_one: 'New {{count}}-star review',

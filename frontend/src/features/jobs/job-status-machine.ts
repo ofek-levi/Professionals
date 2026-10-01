@@ -43,21 +43,26 @@ export interface JobActions {
   canComplete: boolean;
   /** Customer reviews a completed job once. */
   canReview: boolean;
-  /** Chat stays available unless the job was cancelled. */
+  /** Chat stays available unless the job was cancelled or either party deleted their account (the chat is closed then). */
   canMessage: boolean;
 }
+
+type ActionsJob = Pick<JobDetails, 'status' | 'canReview'> & {
+  professional: Pick<JobDetails['professional'], 'accountDeleted'>;
+  customer: Pick<JobDetails['customer'], 'accountDeleted'>;
+};
 
 /**
  * Whether a review can be left follows the server's `JobDetails.canReview`, which also knows whether the job was reviewed and whether the
  * professional deleted their account.
  */
-export function getJobActions(job: Pick<JobDetails, 'status' | 'canReview'>, role: UserRole): JobActions {
+export function getJobActions(job: ActionsJob, role: UserRole): JobActions {
   const isPro = role === 'professional';
   return {
     canConfirm: isPro && job.status === 'awaiting_confirmation',
     canStart: isPro && job.status === 'scheduled',
     canComplete: canTransitionJob(job.status, 'completed'),
     canReview: role === 'customer' && job.status === 'completed' && job.canReview,
-    canMessage: job.status !== 'cancelled',
+    canMessage: job.status !== 'cancelled' && !job.professional.accountDeleted && !job.customer.accountDeleted,
   };
 }

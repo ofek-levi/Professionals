@@ -27,6 +27,7 @@ export interface NotificationParams {
   rating?: number;
   messagePreview?: string;
   distanceKm?: number;
+  reason?: 'account_deleted';
 }
 
 export interface AppNotification {

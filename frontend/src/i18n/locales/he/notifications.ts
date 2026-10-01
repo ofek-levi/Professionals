@@ -68,6 +68,7 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
     request_cancelled: {
       title: 'הבקשה בוטלה',
       body: 'הבקשה בנושא {{category}} בוטלה על ידי {{customerName}}.',
+      bodyAccountDeleted: 'הלקוח מחק את החשבון, ולכן הבקשה בנושא {{category}} בוטלה.',
     },
     job_confirmed: {
       title: 'מועד הביקור אושר',

@@ -20,7 +20,10 @@ interface ConversationRowProps {
 
 const AVATAR_SIZE = 48;
 
-/** Conversation list item: counterpart avatar and name, last message, time and unread count. */
+/**
+ * Conversation list item: counterpart avatar and name, last message (or "Chat closed" for a closed
+ * chat without one), time and unread count.
+ */
 export function ConversationRow({ conversation, currentUserId, now, onPress, first = false }: ConversationRowProps) {
   const styles = useStyles();
   const { t } = useTranslation(['messaging', 'common']);
@@ -40,7 +43,11 @@ export function ConversationRow({ conversation, currentUserId, now, onPress, fir
         ? t('common:time.yesterday')
         : format.date(activityAt, timeKind === 'weekday' ? 'weekdayShort' : 'dayMonth');
 
-  const previewText = preview ? preview.text : t('messaging:conversations.noMessages');
+  const previewText = preview
+    ? preview.text
+    : conversation.isOpen
+      ? t('messaging:conversations.noMessages')
+      : t('messaging:conversations.closed');
   const textVariant = unread ? 'bodyStrong' : 'body';
 
   return (

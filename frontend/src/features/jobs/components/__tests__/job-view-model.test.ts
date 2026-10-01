@@ -3,7 +3,7 @@ import type { Job, JobStatus, UserRole } from '@/types/domain';
 
 import { getJobTimeline, planJobActions } from '../job-view-model';
 
-type TimelineJob = Pick<Job, 'status' | 'createdAt' | 'confirmedAt' | 'startedAt' | 'completedAt' | 'cancelledAt'>;
+type TimelineJob = Pick<Job, 'status' | 'createdAt' | 'confirmedAt' | 'startedAt' | 'completedAt'>;
 
 function job(status: JobStatus, overrides: Partial<TimelineJob> = {}): TimelineJob {
   return {
@@ -12,12 +12,11 @@ function job(status: JobStatus, overrides: Partial<TimelineJob> = {}): TimelineJ
     confirmedAt: null,
     startedAt: null,
     completedAt: null,
-    cancelledAt: null,
     ...overrides,
   };
 }
 
-const states = (timeline: ReturnType<typeof getJobTimeline>) => timeline.map((step) => `${step.key}:${step.state}`);
+const states = (timeline: ReturnType<typeof getJobTimeline>) => timeline?.map((step) => `${step.key}:${step.state}`);
 
 describe('getJobTimeline', () => {
   it('highlights the next expected step while the job is active', () => {
@@ -35,7 +34,7 @@ describe('getJobTimeline', () => {
     ]);
     const inProgress = getJobTimeline(job('in_progress', { confirmedAt: 'c', startedAt: 's' }));
     expect(states(inProgress)).toEqual(['accepted:done', 'confirmed:done', 'in_progress:active', 'completed:next']);
-    expect(inProgress[2].at).toBe('s');
+    expect(inProgress?.[2].at).toBe('s');
   });
 
   it('marks the start as skipped when a scheduled job was completed directly', () => {
@@ -45,26 +44,20 @@ describe('getJobTimeline', () => {
       'in_progress:skipped',
       'completed:done',
     ]);
-    expect(states(getJobTimeline(job('completed', { confirmedAt: 'c', startedAt: 's', completedAt: 'd' })))[2]).toBe('in_progress:done');
+    expect(states(getJobTimeline(job('completed', { confirmedAt: 'c', startedAt: 's', completedAt: 'd' })))?.[2]).toBe('in_progress:done');
   });
 
-  it('ends with a cancellation step and keeps only the steps that happened', () => {
-    expect(states(getJobTimeline(job('cancelled', { cancelledAt: 'x' })))).toEqual(['accepted:done', 'cancelled:cancelled']);
-    expect(states(getJobTimeline(job('cancelled', { confirmedAt: 'c', cancelledAt: 'x' })))).toEqual([
-      'accepted:done',
-      'confirmed:done',
-      'cancelled:cancelled',
-    ]);
-    // An account deletion cancels a job in progress: the start stays on the record.
-    const cancelledInProgress = getJobTimeline(job('cancelled', { confirmedAt: 'c', startedAt: 's', cancelledAt: 'x' }));
-    expect(states(cancelledInProgress)).toEqual(['accepted:done', 'confirmed:done', 'in_progress:done', 'cancelled:cancelled']);
-    expect(cancelledInProgress[2].at).toBe('s');
+  it('has no progress once cancelled (the headline says why)', () => {
+    expect(getJobTimeline(job('cancelled'))).toBeNull();
+    // Also a job an account deletion cancelled while in progress.
+    expect(getJobTimeline(job('cancelled', { confirmedAt: 'c', startedAt: 's' }))).toBeNull();
   });
 });
 
 describe('planJobActions', () => {
+  const parties = { professional: { accountDeleted: false }, customer: { accountDeleted: false } };
   const plan = (status: JobStatus, role: UserRole, canReview = status === 'completed') =>
-    planJobActions({ status }, role, getJobActions({ status, canReview }, role));
+    planJobActions({ status }, role, getJobActions({ status, canReview, ...parties }, role));
 
   it('walks the professional through confirm → start → complete', () => {
     expect(plan('awaiting_confirmation', 'professional')).toEqual({ primary: 'confirm', secondary: [], message: true });

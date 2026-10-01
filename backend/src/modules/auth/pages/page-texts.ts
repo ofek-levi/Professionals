@@ -71,7 +71,7 @@ export const PAGE_TEXTS: Record<AppLanguage, PageTexts> = {
       title: 'אישור כתובת האימייל',
       message: 'אשרו שזו כתובת האימייל שלכם בחשבון Professionals:',
       submit: 'אישור כתובת האימייל',
-      notYou: 'לא פתחתם חשבון ב-Professionals? אל תאשרו, פשוט התעלמו מהאימייל הזה.',
+      notYou: 'לא פתחתם חשבון ב־\u2060Professionals? אל תאשרו, פשוט התעלמו מהאימייל הזה.',
     },
     emailVerified: {
       title: 'כתובת האימייל אושרה',

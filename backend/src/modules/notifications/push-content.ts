@@ -67,6 +67,7 @@ export function pushContent(
   const useAlt =
     (type === 'new_matching_request' && params.distanceKm === undefined) ||
     (type === 'job_completed' && !params.professionalName) ||
+    (type === 'request_cancelled' && params.reason === 'account_deleted') ||
     (type === 'new_message' && !params.messagePreview);
   return { title: fill(entry.title, values), body: fill(useAlt && entry.altBody ? entry.altBody : entry.body, values) };
 }

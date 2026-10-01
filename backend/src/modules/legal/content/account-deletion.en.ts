@@ -22,7 +22,7 @@ export const accountDeletionEn: LegalDocumentContent = {
             "**Without the app:** email [{{contactEmail}}](mailto:{{contactEmail}}) from your account's email address. We reply to confirm, and delete the account within 30 days of your confirmation.",
             '**What we delete:** your name, contact details, password, photos, addresses and professional profile, and the requests that no professional made an offer on.',
             '**What stays:** records that other users also rely on, such as jobs, ratings without their comments and messages you sent. They no longer show your name: you appear as “Deleted user”. They are deleted once everyone involved has deleted their account.',
-            '**Copies deleted later:** notifications sent to other users within 90 days, sign-in security records within 30 days, server logs within {{logRetentionDays}} days, backups within {{backupRetentionDays}} days, and emails you sent us within 24 months after the matter is closed.',
+            '**Copies deleted later:** notifications sent to other users within 90 days, sign-in protection records within 30 days, server logs within {{logRetentionDays}} days, backups within {{backupRetentionDays}} days, and emails you sent us within 24 months after the matter is closed.',
           ],
         },
       ],
@@ -195,7 +195,7 @@ export const accountDeletionEn: LegalDocumentContent = {
               text: 'They can include your name or a short preview of a message you sent. They are deleted automatically 90 days after they were created.',
             },
             {
-              term: 'Sign-in security records',
+              term: 'Sign-in protection records',
               text: 'They contain a hash of your email address and the IP address you signed in from, and expire within 30 days. Other short-lived security and cache entries expire within hours.',
             },
             {

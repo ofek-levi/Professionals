@@ -598,7 +598,7 @@ export const privacyEn: LegalDocumentContent = {
             'Your name, email address, phone number, password, Google link, profile photo and default address.',
             'Your professional profile details: display name, headline, bio, contact details, business details, base address, exact service-area point, starting price and service categories. Your profile and its reviews are no longer shown.',
             'Your requests that no professional made an offer on. From your other requests: all photos, the street address, apartment, floor and entrance details, exact map point and cancellation comments.',
-            'The messages attached to your offers, and the comments in your reviews.',
+            'The messages attached to your offers, and the comments of the reviews you wrote.',
             'Your notifications, sign-in sessions, push tokens and email links. You are signed out on all devices.',
           ],
         },

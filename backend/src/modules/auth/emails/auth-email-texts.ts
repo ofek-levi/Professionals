@@ -28,11 +28,11 @@ export const VERIFY_EMAIL_TEXTS: Record<AppLanguage, ActionEmailTexts> = {
     subject: 'אישור כתובת האימייל שלכם',
     heading: 'אישור כתובת האימייל',
     greeting: (firstName) => `היי ${firstName},`,
-    body: (email) => `תודה שהצטרפתם ל-Professionals. אשרו בבקשה ש-${email} היא כתובת האימייל שלכם.`,
+    body: (email) => `תודה שהצטרפתם ל־\u2060Professionals. אשרו בבקשה ש-${email} היא כתובת האימייל שלכם.`,
     action: 'אישור כתובת האימייל',
     linkHint: 'או לפתוח את הקישור הזה:',
     expiry: 'הקישור תקף ל-48 שעות.',
-    ignore: 'אם לא יצרתם חשבון ב-Professionals, אפשר להתעלם מההודעה.',
+    ignore: 'אם לא יצרתם חשבון ב־\u2060Professionals, אפשר להתעלם מההודעה.',
   },
 };
 
@@ -51,7 +51,7 @@ export const RESET_PASSWORD_TEXTS: Record<AppLanguage, ActionEmailTexts> = {
     subject: 'איפוס הסיסמה שלכם',
     heading: 'איפוס סיסמה',
     greeting: (firstName) => `היי ${firstName},`,
-    body: (email) => `קיבלנו בקשה לאפס את הסיסמה של החשבון ${email} ב-Professionals.`,
+    body: (email) => `קיבלנו בקשה לאפס את הסיסמה של החשבון ${email} ב־\u2060Professionals.`,
     action: 'בחירת סיסמה חדשה',
     linkHint: 'או לפתוח את הקישור הזה:',
     expiry: 'הקישור תקף ל-60 דקות ולשימוש חד-פעמי. בחירת סיסמה חדשה תנתק את החשבון בכל המכשירים.',

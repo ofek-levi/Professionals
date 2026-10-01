@@ -525,7 +525,8 @@ One MongoDB transaction does everything (all or nothing); the other parties are 
 empty name, so their texts say "A customer" / "A professional":
 - **Customer**: every active request cancelled (`cancellationReason: account_deleted`) as
   `POST /requests/:id/cancel` does: pending offers `rejected` (`request_cancelled`), an active job —
-  `in_progress` too — `cancelled` and its chat closed, `request_cancelled` to those professionals;
+  `in_progress` too — `cancelled` and its chat closed, `request_cancelled` to those professionals
+  (`params.reason: 'account_deleted'`: the text says the customer deleted their account);
   then every request no professional made an offer on (drafts too, whatever its status) is deleted
   with its photos: it is in nobody else's history (a professional who opens it later gets 404).
 - **Professional**: every pending offer `withdrawn` (`withdrawn_by_professional`), `offer_withdrawn` to
@@ -571,10 +572,11 @@ After the commit a confirmation email goes to the address the account had, in it
 effort. It says who asked ("As you asked in the app"; the operator's deletions say "As you asked by
 email", or, for an account closed under the Terms, only that it was deleted), what was closed (only
 when something was: the customer's requests, the offers declined and the jobs cancelled; the
-professional's offers withdrawn and jobs cancelled), what was deleted, what stays, and the operator's
-contact address from `src/config/legal.ts`. The operator runs the same deletion with
-`src/delete-account.ts` (OPERATIONS.md §9), without the email when re-applying it after a backup
-restore.
+professional's offers withdrawn and jobs cancelled), what was deleted and what stays (for the
+account's role), and the operator's contact address from `src/config/legal.ts`, with "if you did not
+ask for this deletion, write to us right away" unless the account was closed under the Terms. The
+operator runs the same deletion with `src/delete-account.ts` (OPERATIONS.md §9), without the email
+when re-applying it after a backup restore.
 
 ## Profiles (customers, professionals, geo)
 
@@ -1096,7 +1098,7 @@ those without an active offer of theirs), `pendingOffersCount` + `pendingOffers`
 | Review | `review_received` (professional) | `job.updated`, `profile.updated` |
 | Offer expiry cron | `offer_expired` (professional) | `offer.updated`, `request.updated` |
 | Reminder cron | `appointment_reminder` (both) | — |
-| Account deletion (`POST /me/deletion`) | customer deleted: `request_cancelled` (the professionals, `customerName: ''`); professional deleted: `offer_withdrawn` (`professionalName: ''`) and `job_cancelled` (the customer of each active job; `params { categoryId, scheduledAt }`, no name) | as for cancel / withdraw |
+| Account deletion (`POST /me/deletion`) | customer deleted: `request_cancelled` (the professionals, `customerName: ''`, `reason: 'account_deleted'`); professional deleted: `offer_withdrawn` (`professionalName: ''`) and `job_cancelled` (the customer of each active job; `params { categoryId, scheduledAt }`, no name) | as for cancel / withdraw |
 
 `request.updated` always reaches the owner and every professional who ever sent an offer on the
 request. Notifications honour the recipients' preference toggles and fan out to push.

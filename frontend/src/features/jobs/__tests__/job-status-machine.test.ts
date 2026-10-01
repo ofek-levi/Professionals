@@ -11,6 +11,14 @@ const EXPECTED: Record<JobStatus, JobStatus[]> = {
   cancelled: [],
 };
 
+/** A job of two parties who still have their accounts, unless `deleted` names the one who deleted theirs. */
+const job = (status: JobStatus, canReview = false, deleted?: 'professional' | 'customer') => ({
+  status,
+  canReview,
+  professional: { accountDeleted: deleted === 'professional' },
+  customer: { accountDeleted: deleted === 'customer' },
+});
+
 describe('job status machine', () => {
   it('matches the documented transitions', () => {
     for (const from of JOB_STATUSES) {
@@ -31,28 +39,32 @@ describe('job status machine', () => {
   });
 
   it('derives role-specific actions', () => {
-    expect(getJobActions({ status: 'awaiting_confirmation', canReview: false }, 'professional')).toEqual({
+    expect(getJobActions(job('awaiting_confirmation'), 'professional')).toEqual({
       canConfirm: true,
       canStart: false,
       canComplete: false,
       canReview: false,
       canMessage: true,
     });
-    expect(getJobActions({ status: 'awaiting_confirmation', canReview: false }, 'customer')).toMatchObject({
+    expect(getJobActions(job('awaiting_confirmation'), 'customer')).toMatchObject({
       canConfirm: false,
     });
-    expect(getJobActions({ status: 'scheduled', canReview: false }, 'professional')).toMatchObject({
+    expect(getJobActions(job('scheduled'), 'professional')).toMatchObject({
       canStart: true,
       canComplete: true,
     });
-    expect(getJobActions({ status: 'in_progress', canReview: false }, 'customer')).toMatchObject({
+    expect(getJobActions(job('in_progress'), 'customer')).toMatchObject({
       canComplete: true,
       canStart: false,
     });
-    expect(getJobActions({ status: 'completed', canReview: true }, 'customer').canReview).toBe(true);
+    expect(getJobActions(job('completed', true), 'customer').canReview).toBe(true);
     // The server's verdict: already reviewed, or the professional deleted their account.
-    expect(getJobActions({ status: 'completed', canReview: false }, 'customer').canReview).toBe(false);
-    expect(getJobActions({ status: 'completed', canReview: true }, 'professional').canReview).toBe(false);
-    expect(getJobActions({ status: 'cancelled', canReview: false }, 'customer').canMessage).toBe(false);
+    expect(getJobActions(job('completed'), 'customer').canReview).toBe(false);
+    expect(getJobActions(job('completed', true), 'professional').canReview).toBe(false);
+    expect(getJobActions(job('cancelled'), 'customer').canMessage).toBe(false);
+    // The chat closes when either party deletes their account, also on a completed job.
+    expect(getJobActions(job('completed', false, 'professional'), 'customer').canMessage).toBe(false);
+    expect(getJobActions(job('completed', false, 'customer'), 'professional').canMessage).toBe(false);
+    expect(getJobActions(job('completed'), 'professional').canMessage).toBe(true);
   });
 });

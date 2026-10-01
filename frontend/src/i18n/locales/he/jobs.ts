@@ -25,14 +25,16 @@ export const jobs: LocaleNamespace<typeof enjobs> = {
         customer: 'העבודה בוטלה. הביקור לא יתקיים והצ׳אט נסגר.',
         professional: 'הלקוח ביטל את העבודה. הביקור לא יתקיים והצ׳אט נסגר.',
       },
-      cancelledCustomerDeleted: 'העבודה בוטלה כי הלקוח מחק את החשבון. הביקור לא יתקיים והצ׳אט נסגר.',
+      cancelledAccountDeleted: {
+        customer: 'העבודה בוטלה כי בעל המקצוע מחק את החשבון. הביקור לא יתקיים והצ׳אט נסגר.',
+        professional: 'העבודה בוטלה כי הלקוח מחק את החשבון. הביקור לא יתקיים והצ׳אט נסגר.',
+      },
     },
     progress: {
       accepted: 'הוזמן',
       confirmed: 'אושר',
       in_progress: 'בביצוע',
       completed: 'הושלם',
-      cancelled: 'בוטל',
     },
     appointment: {
       title: 'מועד הביקור',

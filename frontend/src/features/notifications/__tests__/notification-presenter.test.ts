@@ -27,7 +27,12 @@ const INPUTS: Record<NotificationType, NotificationInput> = {
   offer_accepted: { type: 'offer_accepted', offer, job, customerName: 'Noa Levi' },
   offer_not_selected: { type: 'offer_not_selected', offer, categoryId: 'plumbing' },
   offer_expired: { type: 'offer_expired', offer, categoryId: 'plumbing' },
-  request_cancelled: { type: 'request_cancelled', request: { id: 'req_1', categoryId: 'plumbing' }, customerName: 'Noa Levi' },
+  request_cancelled: {
+    type: 'request_cancelled',
+    request: { id: 'req_1', categoryId: 'plumbing' },
+    customerName: 'Noa Levi',
+    reason: 'no_longer_needed',
+  },
   job_confirmed: { type: 'job_confirmed', job, professionalName: 'Yossi Mizrahi' },
   job_started: { type: 'job_started', job, professionalName: 'Yossi Mizrahi' },
   appointment_reminder: { type: 'appointment_reminder', job, recipientRole: 'customer', counterpartName: 'Yossi Mizrahi' },
@@ -119,11 +124,27 @@ describe('getNotificationContent', () => {
   it('explains a job cancelled because the professional deleted their account', () => {
     expect(contentFor('job_cancelled', 'en')).toEqual({
       title: 'Job cancelled',
-      body: 'Your PLUMBING job on WED 10:00 was cancelled because the professional closed their account.',
+      body: 'Your PLUMBING job on WED 10:00 was cancelled because the professional deleted their account.',
       icon: 'calendar-remove',
       tone: 'danger',
     });
     expect(contentFor('job_cancelled', 'he').body).toBe('העבודה שלכם בנושא PLUMBING (WED 10:00) בוטלה כי החשבון של בעל המקצוע נמחק.');
+  });
+
+  it('says a request was cancelled because the customer deleted their account, not by the customer', () => {
+    expect(contentFor('request_cancelled', 'en').body).toBe(`${isolateText('Noa Levi')} cancelled the PLUMBING request.`);
+    const deleted = buildNotification(
+      { type: 'request_cancelled', request: { id: 'req_1', categoryId: 'plumbing' }, customerName: '', reason: 'account_deleted' },
+      { id: 'n', userId: 'u', now: '2026-09-27T07:00:00.000Z' },
+    );
+    const content = (language: AppLanguage) => getNotificationContent(deleted, i18n.getFixedT(language, 'notifications'), lookups);
+    expect(content('en')).toEqual({
+      title: 'Request cancelled',
+      body: 'The customer deleted their account, so the PLUMBING request was cancelled.',
+      icon: 'cancel',
+      tone: 'danger',
+    });
+    expect(content('he').body).toBe('הלקוח מחק את החשבון, ולכן הבקשה בנושא PLUMBING בוטלה.');
   });
 
   it('pluralizes review stars (including the Hebrew dual)', () => {

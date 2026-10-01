@@ -22,6 +22,8 @@ export interface NotificationParams {
   rating?: number;
   messagePreview?: string;
   distanceKm?: number;
+  /** `request_cancelled`: set when the request was cancelled because the customer deleted their account. */
+  reason?: 'account_deleted';
 }
 
 /**

@@ -365,7 +365,7 @@ export function cancelRequestAndItsWork(
   });
 
   professionalsToNotify.forEach((userId) =>
-    notify(ctx, userId, { type: 'request_cancelled', request: cancelled, customerName }),
+    notify(ctx, userId, { type: 'request_cancelled', request: cancelled, customerName, reason }),
   );
   changedOffers.forEach((offer) => emitOfferUpdated(ctx, offer));
   if (cancelledJob) emitJobUpdated(ctx, cancelledJob);

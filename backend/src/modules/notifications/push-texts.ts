@@ -9,7 +9,7 @@ import type { NotificationType } from '../../shared/notification-types.js';
 interface TypeTexts {
   title: string;
   body: string;
-  /** Alternative body (no distance, completed-for-professional, empty preview). */
+  /** Alternative body (no distance, completed-for-professional, cancelled by an account deletion, empty preview). */
   altBody?: string;
 }
 
@@ -31,7 +31,11 @@ const en: PushTexts = {
     },
     offer_not_selected: { title: 'Offer not selected', body: 'The customer chose another professional for the {{category}} request.' },
     offer_expired: { title: 'Your offer expired', body: 'Your {{price}} offer for the {{category}} request expired without a response.' },
-    request_cancelled: { title: 'Request cancelled', body: '{{customerName}} cancelled the {{category}} request.' },
+    request_cancelled: {
+      title: 'Request cancelled',
+      body: '{{customerName}} cancelled the {{category}} request.',
+      altBody: 'The customer deleted their account, so the {{category}} request was cancelled.',
+    },
     job_confirmed: { title: 'Appointment confirmed', body: '{{professionalName}} confirmed your {{category}} appointment for {{date}}.' },
     job_started: { title: 'Work has started', body: '{{professionalName}} started working on your {{category}} job.' },
     appointment_reminder: { title: 'Upcoming appointment', body: 'Reminder: {{category}} with {{name}} on {{date}}.' },
@@ -42,7 +46,7 @@ const en: PushTexts = {
     },
     job_cancelled: {
       title: 'Job cancelled',
-      body: 'Your {{category}} job on {{date}} was cancelled because the professional closed their account.',
+      body: 'Your {{category}} job on {{date}} was cancelled because the professional deleted their account.',
     },
     review_received: { title: 'New {{stars}} review', body: '{{customerName}} reviewed your {{category}} work.' },
     new_message: { title: 'New message from {{name}}', body: '{{preview}}', altBody: 'Open the chat to read it.' },
@@ -62,7 +66,11 @@ const he: PushTexts = {
     },
     offer_not_selected: { title: 'ההצעה לא נבחרה', body: 'נבחר בעל מקצוע אחר לבקשה בנושא {{category}}.' },
     offer_expired: { title: 'תוקף ההצעה פג', body: 'תוקף ההצעה שלכם על סך {{price}} לבקשה בנושא {{category}} פג ללא מענה.' },
-    request_cancelled: { title: 'הבקשה בוטלה', body: 'הבקשה בנושא {{category}} בוטלה על ידי {{customerName}}.' },
+    request_cancelled: {
+      title: 'הבקשה בוטלה',
+      body: 'הבקשה בנושא {{category}} בוטלה על ידי {{customerName}}.',
+      altBody: 'הלקוח מחק את החשבון, ולכן הבקשה בנושא {{category}} בוטלה.',
+    },
     job_confirmed: { title: 'מועד הביקור אושר', body: 'מועד הביקור של {{professionalName}} ({{category}}) אושר: {{date}}.' },
     job_started: { title: 'העבודה התחילה', body: 'העבודה בנושא {{category}} עם {{professionalName}} התחילה.' },
     appointment_reminder: { title: 'ביקור מתקרב', body: 'תזכורת: ביקור בנושא {{category}} עם {{name}}, {{date}}.' },
@@ -71,7 +79,7 @@ const he: PushTexts = {
       body: 'העבודה בנושא {{category}} עם {{name}} הושלמה. איך היה? נשמח לביקורת שלכם.',
       altBody: 'העבודה בנושא {{category}} עבור {{name}} הושלמה. עבודה מצוינת!',
     },
-    job_cancelled: { title: 'העבודה בוטלה', body: 'העבודה בנושא {{category}} ({{date}}) בוטלה כי החשבון של בעל המקצוע נסגר.' },
+    job_cancelled: { title: 'העבודה בוטלה', body: 'העבודה שלכם בנושא {{category}} ({{date}}) בוטלה כי החשבון של בעל המקצוע נמחק.' },
     review_received: { title: 'ביקורת חדשה: {{stars}}', body: 'ביקורת חדשה מאת {{customerName}} על העבודה בנושא {{category}}.' },
     new_message: { title: 'הודעה חדשה מאת {{name}}', body: '{{preview}}', altBody: 'פתחו את הצ׳אט כדי לקרוא אותה.' },
   },

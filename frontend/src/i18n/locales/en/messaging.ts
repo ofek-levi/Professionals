@@ -4,6 +4,8 @@ export const messaging = {
     you: 'You: {{text}}',
     youPrefix: 'You:',
     noMessages: 'No messages yet. Say hello!',
+    /** A closed chat without messages (its row, and the chat itself): nobody can say hello there. */
+    closed: 'Chat closed',
     unread_one: '{{count}} unread message',
     unread_other: '{{count}} unread messages',
     empty: 'No conversations yet',

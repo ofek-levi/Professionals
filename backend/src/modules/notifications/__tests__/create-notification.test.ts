@@ -90,13 +90,16 @@ describe('createNotification', () => {
     });
     expect(deps.push.sent[0]).toMatchObject({
       title: 'Job cancelled',
-      body: expect.stringMatching(/^Your Plumbing job on .+ was cancelled because the professional closed their account\.$/),
+      body: expect.stringMatching(/^Your Plumbing job on .+ was cancelled because the professional deleted their account\.$/),
     });
 
     await UserModel.updateOne({ _id: customer._id }, { $set: { language: 'he' } });
     await createNotification(deps, customer._id, { type: 'job_cancelled', job });
     await deps.background.drain();
-    expect(deps.push.sent[1]).toMatchObject({ title: 'העבודה בוטלה', body: expect.stringContaining('החשבון של בעל המקצוע נסגר') });
+    expect(deps.push.sent[1]).toMatchObject({
+      title: 'העבודה בוטלה',
+      body: expect.stringMatching(/^העבודה שלכם בנושא אינסטלציה \(.+\) בוטלה כי החשבון של בעל המקצוע נמחק\.$/),
+    });
 
     await UserModel.updateOne({ _id: customer._id }, { $set: { 'notificationPreferences.jobUpdates': false } });
     expect(await createNotification(deps, customer._id, { type: 'job_cancelled', job })).toBeNull();
@@ -172,12 +175,14 @@ describe('createNotification', () => {
     await createPushSession(customer, { pushToken: 'not-an-expo-token' });
 
     const results = await createNotifications(deps, [
-      { userId: customer._id, input: { type: 'request_cancelled', request, customerName: 'Noa L.' } },
+      { userId: customer._id, input: { type: 'request_cancelled', request, customerName: 'Noa L.', reason: 'other' } },
       { userId: other._id, input: { type: 'offer_withdrawn', offer, categoryId: 'plumbing', professionalName: professional.displayName } },
     ]);
     await deps.background.drain();
 
     expect(results.map((result) => result?.type ?? null)).toEqual(['request_cancelled', null]);
+    // The customer's own reason is not sent (only an account deletion is: account-deletion-effects).
+    expect(results[0]?.params).not.toHaveProperty('reason');
     // The tokens go; the sessions stay signed in.
     expect(await SessionModel.countDocuments({ user: customer._id, pushToken: { $exists: true } })).toBe(0);
     expect(await SessionModel.countDocuments({ user: customer._id })).toBe(2);

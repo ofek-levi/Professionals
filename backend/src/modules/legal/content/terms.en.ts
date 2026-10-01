@@ -327,7 +327,7 @@ export const termsEn: LegalDocumentContent = {
         {
           type: 'list',
           items: [
-            'Only the customer of a job can review it, only after the job is marked as completed, and only once. A review has a star rating from 1 to 5 and an optional comment of up to 800 characters.',
+            'Only the customer of a job can review it, only after the job is marked as completed and while the professional still has an account, and only once. If we remove a review (see below), the customer can write a new one. A review has a star rating from 1 to 5 and an optional comment of up to 800 characters.',
             "Reviews appear on the professional's profile with the reviewer's short name and profile photo, and count toward the professional's average rating.",
             "**Be honest.** Describe only your own experience of the job, and don't include personal information, insults or anything unlawful.",
             "**No incentives or pressure.** Professionals must not offer or give anything (such as money, a discount or a free service) for a review or for a better review, and must not pressure customers about their review. Customers must not ask for anything in exchange for a review, or threaten to write a bad one. Nobody may review their own business, or a competitor's, through another account.",

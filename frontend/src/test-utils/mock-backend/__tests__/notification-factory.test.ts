@@ -35,7 +35,7 @@ const INPUTS: Record<NotificationType, NotificationInput> = {
   offer_accepted: { type: 'offer_accepted', offer, job, customerName: 'Noa L.' },
   offer_not_selected: { type: 'offer_not_selected', offer, categoryId: 'plumbing', customerName: 'Noa L.' },
   offer_expired: { type: 'offer_expired', offer, categoryId: 'plumbing' },
-  request_cancelled: { type: 'request_cancelled', request, customerName: 'Noa L.' },
+  request_cancelled: { type: 'request_cancelled', request, customerName: 'Noa L.', reason: 'no_longer_needed' },
   job_confirmed: { type: 'job_confirmed', job, professionalName: 'AquaFix Plumbing' },
   job_started: { type: 'job_started', job, professionalName: 'AquaFix Plumbing' },
   appointment_reminder: { type: 'appointment_reminder', job, recipientRole: 'customer', counterpartName: 'AquaFix Plumbing' },
@@ -94,6 +94,13 @@ describe('notification factory', () => {
     expect(build('job_completed').params).toMatchObject({ customerName: 'Noa L.', price: 450 });
     // No name: the professional deleted their account.
     expect(build('job_cancelled').params).toEqual({ categoryId: 'plumbing', scheduledAt: job.scheduledStartAt });
+    // The customer's own reason is not sent; an account deletion is.
+    expect(build('request_cancelled').params).toEqual({ categoryId: 'plumbing', customerName: 'Noa L.' });
+    const deleted = buildNotification(
+      { type: 'request_cancelled', request, customerName: '', reason: 'account_deleted' },
+      { id: 'n', userId: 'u', now: NOW },
+    );
+    expect(deleted.params).toEqual({ categoryId: 'plumbing', customerName: '', reason: 'account_deleted' });
     expect(build('new_message').params).toMatchObject({
       professionalName: 'AquaFix Plumbing',
       messagePreview: 'See you tomorrow at 9!',

@@ -119,15 +119,18 @@ function ChatView({ conversation }: { conversation: Conversation }) {
       <MessageBubble row={item} counterpartName={counterpartName} onRetry={sender.retry} onDiscard={(message) => void discardFailed(message)} />
     );
 
+  // An empty chat invites a first message, unless it is closed (the footer says why).
   const intro = (
-    <View style={styles.intro}>
+    <View style={styles.intro} testID="chat-intro">
       <Avatar name={counterpartName} uri={counterpart?.avatarUrl} size="lg" decorative />
       <AppText variant="subheading" align="center">
-        {t('messaging:chat.beginningTitle', { name: isolateText(counterpartName) })}
+        {isOpen ? t('messaging:chat.beginningTitle', { name: isolateText(counterpartName) }) : t('messaging:conversations.closed')}
       </AppText>
-      <AppText variant="caption" color="secondary" align="center" style={styles.introText}>
-        {t('messaging:chat.beginningDescription')}
-      </AppText>
+      {isOpen ? (
+        <AppText variant="caption" color="secondary" align="center" style={styles.introText}>
+          {t('messaging:chat.beginningDescription')}
+        </AppText>
+      ) : null}
     </View>
   );
 

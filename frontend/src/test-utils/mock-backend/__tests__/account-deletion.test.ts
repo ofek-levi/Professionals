@@ -136,10 +136,10 @@ describe('account deletion', () => {
       location: { addressLine: '', details: null, isApproximate: true },
     });
 
-    // The professionals are told, without a name.
+    // The professionals are told why, without a name.
     for (const userId of [...leakPros, yael]) {
       const notifications = await env.as(userId).notifications.getNotifications();
-      expect(notifications.items[0]).toMatchObject({ type: 'request_cancelled', params: { customerName: '' } });
+      expect(notifications.items[0]).toMatchObject({ type: 'request_cancelled', params: { customerName: '', reason: 'account_deleted' } });
     }
 
     // Shown as "Deleted user" wherever the others meet the customer.

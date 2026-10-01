@@ -34,9 +34,10 @@ interface HiredProCardProps {
 
 /**
  * After an offer was accepted: the hired pro, the appointment and price, "View job", a call button
- * (their phone comes with their profile while the job is not cancelled) and a message button. Once
- * the job is done and not reviewed yet, "Leave a review" takes the lead instead. A pro who deleted
- * their account shows as "Deleted user", without a profile to open.
+ * (their phone comes with their profile while the job is not cancelled) and a message button
+ * while their chat is open. Once the job is done and not reviewed yet, "Leave a review" takes the
+ * lead instead. A pro who deleted their account shows as "Deleted user", without a profile to open
+ * or a chat.
  */
 export function HiredProCard({ job, error, loading, onRetry }: HiredProCardProps) {
   const styles = useStyles();

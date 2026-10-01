@@ -21,6 +21,9 @@ interface ImpactGroup {
   list?: DeletionImpactList<string>;
 }
 
+/** The changes that reach another person, who is notified (unless they turned "Offers & job updates" off). */
+const NOTIFYING: ReadonlySet<ImpactGroup['key']> = new Set(['offersDeclined', 'customerJobs', 'offersWithdrawn', 'professionalJobs']);
+
 /** The kinds of change that apply, in reading order. */
 function impactGroups(impact: AccountDeletionImpact): ImpactGroup[] {
   const groups: ImpactGroup[] =
@@ -38,7 +41,10 @@ function impactGroups(impact: AccountDeletionImpact): ImpactGroup[] {
   return groups.filter((group) => group.count > 0);
 }
 
-/** "What happens now": one card per kind of change; "nothing in progress" when there is none. */
+/**
+ * "What happens now": one card per kind of change, then one line on who is notified when a change
+ * reaches someone else; "nothing in progress" when there is none.
+ */
 export function DeletionChanges({ impact }: { impact: AccountDeletionImpact }) {
   const styles = useStyles();
   const { t } = useTranslation('settings');
@@ -68,6 +74,11 @@ export function DeletionChanges({ impact }: { impact: AccountDeletionImpact }) {
           ))}
         </Card>
       )}
+      {groups.some((group) => NOTIFYING.has(group.key)) ? (
+        <AppText variant="caption" color="muted" testID="deletion-notified">
+          {t('deleteAccount.notifiedHint')}
+        </AppText>
+      ) : null}
     </View>
   );
 }

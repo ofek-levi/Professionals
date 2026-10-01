@@ -95,16 +95,21 @@ describe('delete account', () => {
 
     expect(screen.getByText('This can’t be undone')).toBeOnTheScreen();
     const group = (key: string) => within(screen.getByTestId(`deletion-${key}`));
-    expect(group('requests').getByText(`${active.length} requests will be cancelled`)).toBeOnTheScreen();
+    // Those nobody made an offer on are deleted rather than kept as cancelled.
     expect(
-      group('offersDeclined').getByText(`${pendingOffers} offers on them will be declined – the professionals are notified`),
+      group('requests').getByText(`${active.length} requests will be cancelled (those without offers are deleted)`),
     ).toBeOnTheScreen();
-    expect(group('customerJobs').getByText('1 job will be cancelled – the professional is notified')).toBeOnTheScreen();
+    expect(group('offersDeclined').getByText(`${pendingOffers} offers on them will be declined`)).toBeOnTheScreen();
+    expect(group('customerJobs').getByText('1 job will be cancelled')).toBeOnTheScreen();
     // The job's category, date and the hired professional's name.
     const lighting = db.jobs.require(SEED_IDS.jobs.noaLighting, 'Job');
     const pro = db.professionals.require(lighting.professionalId, 'Professional').displayName;
     expect(group('customerJobs').getByText(new RegExp(` · ${pro}$`))).toBeOnTheScreen();
     expect(group('drafts').getByText('1 draft will be deleted')).toBeOnTheScreen();
+    // One line for everyone notified: nothing reaches those who turned the category off.
+    expect(screen.getByTestId('deletion-notified')).toHaveTextContent(
+      'The other people involved are notified, unless they turned off “Offers & job updates” notifications.',
+    );
 
     // What stays: the records the account-deletion page lists.
     const keeps = screen.getByTestId('deletion-keeps');
@@ -112,7 +117,9 @@ describe('delete account', () => {
     expect(
       row('jobs').getByText('Your jobs, including completed and cancelled ones, stay in the professionals’ history, with you shown as “Deleted user”.'),
     ).toBeOnTheScreen();
-    expect(row('requests').getByText(/^Requests that received offers stay .*without the address, photos or notes\.$/)).toBeOnTheScreen();
+    expect(
+      row('requests').getByText(/^Requests that received offers stay .*without the street address, apartment details, photos or cancellation comments\.$/),
+    ).toBeOnTheScreen();
     expect(within(keeps).getByText('Your ratings stay, without your comments.')).toBeOnTheScreen();
     expect(within(keeps).getByTestId('deletion-keeps-messages')).toBeOnTheScreen();
     expect(within(keeps).queryByTestId('deletion-keeps-offers')).toBeNull();
@@ -125,7 +132,8 @@ describe('delete account', () => {
     await openDeleteAccount(PRO_IDS.avi);
     const pending = env.server.internals.db.offers.count((offer) => offer.professionalId === PRO_IDS.avi && offer.status === 'pending');
     const offers = within(screen.getByTestId('deletion-offersWithdrawn'));
-    expect(offers.getByText(new RegExp(`^${pending} offers? will be withdrawn – the customers? (is|are) notified$`))).toBeOnTheScreen();
+    expect(offers.getByText(new RegExp(`^${pending} offers? will be withdrawn$`))).toBeOnTheScreen();
+    expect(screen.getByTestId('deletion-notified')).toBeOnTheScreen();
     expect(offers.getByText(/ · Noa L\.$/)).toBeOnTheScreen();
     expect(screen.queryByTestId('deletion-drafts')).toBeNull();
 
@@ -284,6 +292,7 @@ describe('delete account', () => {
   it('asks a Google-only account to confirm with Google (unavailable without a Google client id)', async () => {
     await openDeleteAccount(await registerWithGoogle());
     expect(screen.getByTestId('deletion-nothing')).toHaveTextContent(/^Nothing is in progress/);
+    expect(screen.queryByTestId('deletion-notified')).toBeNull();
     expect(screen.queryByTestId('delete-account-password')).toBeNull();
     expect(screen.queryByTestId('delete-account-submit')).toBeNull();
     expect(screen.getByText(/Confirming with Google isn’t available here/)).toBeOnTheScreen();
@@ -294,7 +303,11 @@ describe('delete account', () => {
     await sessionStore.signIn(env.signIn(NOA));
     await renderApp('/settings/delete-account');
     expect(await screen.findByText('אי אפשר לבטל את המחיקה', {}, TIMEOUT)).toBeOnTheScreen();
-    expect(within(screen.getByTestId('deletion-customerJobs')).getByText('עבודה אחת תבוטל – בעל המקצוע יקבל הודעה')).toBeOnTheScreen();
+    expect(within(screen.getByTestId('deletion-requests')).getByText(/ יבוטלו \(אלה שלא התקבלו עליהן הצעות יימחקו\)$/)).toBeOnTheScreen();
+    expect(within(screen.getByTestId('deletion-customerJobs')).getByText('עבודה אחת תבוטל')).toBeOnTheScreen();
+    expect(screen.getByTestId('deletion-notified')).toHaveTextContent(
+      'המשתמשים האחרים המעורבים מקבלים על כך התראה, אלא אם כיבו את ההתראות ״הצעות ועדכוני עבודות״.',
+    );
     expect(within(screen.getByTestId('deletion-drafts')).getByText('טיוטה אחת תימחק')).toBeOnTheScreen();
   });
 });

@@ -168,11 +168,14 @@ describe('account deletion: impact and confirmation', () => {
     await request(app).post('/v1/me/deletion').set(customer.headers).send({ password: STRONG_PASSWORD }).expect(200);
     await deps.background.drain();
     const mail = deps.mailer.lastTo('noa@example.com');
-    expect(mail).toMatchObject({ subject: 'החשבון שלכם ב-Professionals נמחק' });
+    // Maqaf + word joiner: "ב־" never breaks away from "Professionals".
+    expect(mail).toMatchObject({ subject: 'החשבון שלכם ב־\u2060Professionals נמחק' });
     expect(mail?.html).toContain('<span dir="ltr">noa@example.com</span>');
     expect(mail?.html).toContain('dir="rtl"');
     expect(mail?.text).toContain('היי Noa,');
     expect(mail?.text).toContain('לבקשתכם באפליקציה, החשבון');
+    // The holder asked: if it was not them, they should write at once.
+    expect(mail?.text).toContain('אם לא ביקשתם את המחיקה, כתבו לנו מיד.');
     // Nothing was in progress: no sentence about cancellations.
     expect(mail?.text).not.toContain('בוטלו');
     expect(mail?.html).not.toContain('בוטלו');
@@ -183,7 +186,51 @@ describe('account deletion: impact and confirmation', () => {
     await request(app).post('/v1/me/deletion').set(pro.headers).send({ password: STRONG_PASSWORD }).expect(200);
     await deps.background.drain();
     expect(deps.mailer.lastTo('avi@example.com')).toMatchObject({ subject: 'Your Professionals account was deleted' });
-    expect(deps.mailer.lastTo('avi@example.com')?.text).toContain('Server logs are overwritten within 30 days and backups within 30 days.');
+    expect(deps.mailer.lastTo('avi@example.com')?.text).toContain('Server logs are deleted within 30 days, and backups are overwritten within 30 days.');
+  });
+
+  it("lists what was deleted and what stays for the account's role", async () => {
+    const bullets = (email: string) => (deps.mailer.lastTo(email)?.text ?? '').split('\n').filter((line) => line.startsWith('- '));
+    const customer = await signInCustomer(deps, { passwordHash, email: 'noa@example.com', language: 'en' });
+    await request(app).post('/v1/me/deletion').set(customer.headers).send({ password: STRONG_PASSWORD }).expect(200);
+    const pro = await signInProfessional(deps, { user: { passwordHash, email: 'avi@example.com', language: 'en' } });
+    await request(app).post('/v1/me/deletion').set(pro.headers).send({ password: STRONG_PASSWORD }).expect(200);
+    const hePro = await signInProfessional(deps, { user: { passwordHash, email: 'dan@example.com', language: 'he' } });
+    await request(app).post('/v1/me/deletion').set(hePro.headers).send({ password: STRONG_PASSWORD }).expect(200);
+    await deps.background.drain();
+
+    expect(bullets('noa@example.com')).toEqual([
+      '- Your name, email address, phone number, password, Google sign-in and profile photo.',
+      '- Your saved address, the requests no professional made an offer on, and the photos, exact addresses and apartment, floor and entrance details of your other requests.',
+      '- Your notifications, the comments of the reviews you wrote, and your sign-ins on every device.',
+      '- Your jobs (service, dates, agreed price) stay in the other person’s history, shown as “Deleted user”.',
+      '- The ratings you gave (without comments), the descriptions of your requests that received offers and the chat messages you sent stay visible to the people involved, as you wrote them, from “Deleted user”.',
+      '- These records are deleted once everyone involved has deleted their account.',
+      '- Notifications other people received with your name in them are deleted within 90 days.',
+      '- Server logs are deleted within 30 days, and backups are overwritten within 30 days.',
+    ]);
+    expect(bullets('avi@example.com')).toEqual([
+      '- Your name, email address, phone number, password, Google sign-in and profile photo.',
+      '- Your business profile, your contact details and the messages of your offers.',
+      '- Your notifications and your sign-ins on every device.',
+      '- Your jobs (service, dates, agreed price) stay in the other person’s history, shown as “Deleted user”.',
+      '- Your offers keep their price and dates, without your message.',
+      '- Reviews about you stay only in the customers’ job history; they’re no longer shown publicly.',
+      '- The chat messages you sent stay visible to the people involved, as you wrote them, from “Deleted user”.',
+      '- These records are deleted once everyone involved has deleted their account.',
+      '- Notifications other people received with your name in them are deleted within 90 days.',
+      '- Server logs are deleted within 30 days, and backups are overwritten within 30 days.',
+    ]);
+    const hebrew = bullets('dan@example.com');
+    expect(hebrew).toEqual(
+      expect.arrayContaining([
+        '- פרופיל העסק, פרטי הקשר וההודעות שצירפתם להצעות.',
+        '- ההצעות שלכם נשארות עם המחיר והמועדים, בלי ההודעה שכתבתם.',
+        '- ביקורות עליכם נשארות רק בהיסטוריית העבודות של הלקוחות ולא מוצגות עוד בפומבי.',
+      ]),
+    );
+    // Nothing a professional never had: no saved address or requests, no ratings or reviews written.
+    expect(hebrew.join('\n')).not.toMatch(/הכתובת השמורה|הדירוגים שנתתם|הביקורות שכתבתם/);
   });
 });
 
@@ -269,9 +316,14 @@ describe('account deletion by the operator', () => {
     const emailed = deps.mailer.lastTo('noa@example.com');
     expect(emailed?.text).toContain('As you asked by email, the Professionals account \u2068noa@example.com\u2069 was deleted.');
     expect(emailed?.html).toContain('As you asked by email, the Professionals account <span dir="ltr">noa@example.com</span> was deleted.');
+    expect(emailed?.text).toContain('If you did not ask for this deletion, write to us right away.');
     const closed = deps.mailer.lastTo('avi@example.com');
-    expect(closed?.text).toContain('\nהחשבון \u2068avi@example.com\u2069 ב-Professionals נמחק. אי אפשר לבטל את המחיקה.\n');
+    expect(closed?.text).toContain('\nהחשבון \u2068avi@example.com\u2069 ב־\u2060Professionals נמחק. אי אפשר לבטל את המחיקה.\n');
     expect(closed?.text).not.toContain('לבקשתכם');
+    // Nobody asked: the questions line only, without "if you did not ask for this deletion".
+    expect(closed?.text).toMatch(/\nיש לכם שאלות\? כתבו לנו לכתובת \u2068.+\u2069\.\n/);
+    expect(closed?.text).not.toContain('אם לא ביקשתם');
+    expect(closed?.html).not.toContain('אם לא ביקשתם');
   });
 
   it('deletes again without any email after a backup restore (--no-email)', async () => {

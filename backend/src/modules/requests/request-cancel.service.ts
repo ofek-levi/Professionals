@@ -70,7 +70,7 @@ export async function cancelRequestInTx(deps: CancelDeps, request: RequestDoc, c
     deps,
     affected.map((professionalId) => ({
       userId: professionalId,
-      input: { type: 'request_cancelled', request: cancelled, customerName: cancellation.customerName },
+      input: { type: 'request_cancelled', request: cancelled, customerName: cancellation.customerName, reason: cancellation.reason },
     })),
     tx,
   );

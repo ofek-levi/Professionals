@@ -22,7 +22,7 @@ export function getCounterpart(
 
 // ─────────────────────────────── Status ───────────────────────────────
 
-/** Category, one status sentence and a slim progress indicator. */
+/** Category, one status sentence and a slim progress indicator (none once cancelled). */
 export function JobStatusHeader({ job, role }: { job: JobDetails; role: UserRole }) {
   const styles = useStyles();
   const { t } = useTranslation(['jobs', 'common']);
@@ -34,8 +34,9 @@ export function JobStatusHeader({ job, role }: { job: JobDetails; role: UserRole
     job.status === 'completed'
       ? format.date(job.completedAt ?? job.updatedAt, 'dayMonth')
       : format.dateTime(job.scheduledStartAt, { casing: 'inline' });
-  // The professional's job was cancelled by the customer's account deletion, not by the customer.
-  const customerDeleted = role === 'professional' && job.status === 'cancelled' && job.request.cancellationReason === 'account_deleted';
+  // Cancelled by the other party's account deletion (the viewer still has theirs), not by the customer.
+  const counterpartDeleted = job.status === 'cancelled' && job.request.cancellationReason === 'account_deleted';
+  const steps = getJobTimeline(job);
 
   return (
     <View style={styles.header} testID="job-status">
@@ -44,12 +45,12 @@ export function JobStatusHeader({ job, role }: { job: JobDetails; role: UserRole
           {categoryName}
         </AppText>
         <AppText variant="body" color={job.status === 'cancelled' ? 'danger' : 'secondary'}>
-          {customerDeleted
-            ? t('jobs:details.headline.cancelledCustomerDeleted')
+          {counterpartDeleted
+            ? t(`jobs:details.headline.cancelledAccountDeleted.${role}`)
             : t(`jobs:details.headline.${job.status}.${role}`, { name, date: headlineDate })}
         </AppText>
       </View>
-      {job.status === 'cancelled' ? null : <JobProgress steps={getJobTimeline(job)} />}
+      {steps ? <JobProgress steps={steps} /> : null}
     </View>
   );
 }

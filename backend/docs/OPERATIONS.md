@@ -371,7 +371,8 @@ professional made an offer on, erases the personal data and leaves an anonymous 
 chats and reviews keep working with "Deleted user"; a record whose every party has now deleted their
 account (a job with its review and chat, the offers between them, a request left without an offer)
 is deleted in the same transaction. The images go from Cloudinary, and a confirmation email goes to
-the address the account had: it says who asked and names only what was actually closed. What is
+the address the account had: it says who asked, names only what was actually closed and lists what
+was deleted and what stays for the account's role (customer or professional). What is
 erased and what stays is listed in [API.md](API.md#post-medeletion--200--success-true--addition),
 `src/modules/users/account-erasure.ts` and `account-purge.ts`; the Privacy Policy and the
 account-deletion page say the same, so change them together.
@@ -411,7 +412,8 @@ good, so first remove specific content where that is enough (below). Otherwise e
 address the reason and give them at least 14 days to respond (unless a court or the law requires
 acting at once, or a user's safety is at immediate risk); review any objection and answer it with
 your reasons; then run `node dist/delete-account.js <email> --closure`. The confirmation email then
-says only that the account was deleted (not that they asked).
+says only that the account was deleted: not that they asked, and without the "if you did not ask for
+this deletion, write to us right away" line that the other confirmations end with.
 
 **Removing content** (a report by email, a court order; the Terms promise content removal is real):
 - A review: `node dist/remove-review.js <review id>` (the id is `items[].id` of

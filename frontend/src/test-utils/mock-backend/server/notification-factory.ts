@@ -15,6 +15,7 @@ import type {
   NotificationParams,
   NotificationTarget,
   Offer,
+  RequestCancellationReason,
   Review,
   ServiceRequest,
   UserRole,
@@ -34,7 +35,7 @@ export type NotificationInput =
   | { type: 'offer_accepted'; offer: OfferRef; job: JobRef; customerName: string }
   | { type: 'offer_not_selected'; offer: OfferRef; categoryId: CategoryId; customerName?: string }
   | { type: 'offer_expired'; offer: OfferRef; categoryId: CategoryId }
-  | { type: 'request_cancelled'; request: RequestRef; customerName: string }
+  | { type: 'request_cancelled'; request: RequestRef; customerName: string; reason: RequestCancellationReason }
   | { type: 'job_confirmed' | 'job_started'; job: JobRef; professionalName: string }
   | { type: 'appointment_reminder' | 'job_completed'; job: JobRef; recipientRole: UserRole; counterpartName: string }
   | { type: 'job_cancelled'; job: JobRef }
@@ -122,7 +123,12 @@ function buildNotificationContent(input: NotificationInput): { params: Notificat
       };
     case 'request_cancelled':
       return {
-        params: { categoryId: input.request.categoryId, customerName: input.customerName },
+        params: {
+          categoryId: input.request.categoryId,
+          customerName: input.customerName,
+          // Only an account deletion changes the text; the customer's own reason is not sent.
+          reason: input.reason === 'account_deleted' ? 'account_deleted' : undefined,
+        },
         target: requestTarget(input.request),
       };
     case 'job_confirmed':

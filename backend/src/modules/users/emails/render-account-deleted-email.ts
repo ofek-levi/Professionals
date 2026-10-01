@@ -18,9 +18,9 @@ export interface AccountDeletedEmailInput {
   to: string;
   firstName: string;
   language: AppLanguage;
-  /** Who asked for the deletion (the first sentence). */
+  /** Who asked for the deletion (the first and the last sentence). */
   via: DeletionOrigin;
-  /** What the deletion closed (a sentence only when it closed something). */
+  /** What the deletion closed (a sentence only when it closed something); its role picks the lists. */
   closed: DeletionClosed;
   /** Where to write with questions (the operator's address). */
   contactEmail: string;
@@ -37,14 +37,16 @@ function withAddress(sentence: (email: string) => string, email: string): { html
 
 export function renderAccountDeletedEmail(input: AccountDeletedEmailInput): MailMessage {
   const texts = ACCOUNT_DELETED_TEXTS[input.language];
-  const kept = texts.kept({
+  const { role } = input.closed;
+  const removed = texts.removed(role);
+  const kept = texts.kept(role, {
     notificationDays: API_LIMITS.notificationTtlDays,
     logDays: LEGAL_CONFIG.retention.serverLogsDays,
     backupDays: LEGAL_CONFIG.retention.backupsDays,
   });
   const intro = withAddress(texts.intro[input.via], input.to);
   const closed = texts.closed(input.closed);
-  const contact = withAddress(texts.contact, input.contactEmail);
+  const contact = withAddress(texts.contact[input.via], input.contactEmail);
   const dir = directionOf(input.language);
   const align = startSideOf(input.language);
   const paragraph = `margin:0 0 16px;font-size:16px;line-height:24px;color:${BRAND.text};text-align:${align};`;
@@ -67,7 +69,7 @@ export function renderAccountDeletedEmail(input: AccountDeletedEmailInput): Mail
 <p style="${paragraph}">${intro.html}</p>
 ${closed === null ? '' : `<p style="${paragraph}">${escapeHtml(closed)}</p>`}
 <h2 style="${subheading}">${escapeHtml(texts.removedHeading)}</h2>
-${list(texts.removed)}
+${list(removed)}
 <h2 style="${subheading}">${escapeHtml(texts.keptHeading)}</h2>
 ${list(kept)}
 <p style="${paragraph}margin-bottom:0;">${contact.html}</p>
@@ -86,7 +88,7 @@ ${list(kept)}
     '',
     ...(closed === null ? [] : [closed, '']),
     `${texts.removedHeading}:`,
-    ...bullets(texts.removed),
+    ...bullets(removed),
     '',
     `${texts.keptHeading}:`,
     ...bullets(kept),

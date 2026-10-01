@@ -3,8 +3,9 @@
  * The other party of a job with the real route tree (`src/app`) against the test double: a hired
  * professional's contact details (job details, their profile with the license number) reach only
  * the customer who hired them; someone who deleted their account shows as "Deleted user", without
- * a profile link, and their chat says why it is closed. A deleted professional's jobs take no
- * review; a professional is told when the customer's account deletion cancelled a job or a request.
+ * a profile link, and their chat says why it is closed (no "Message" action leads there, and an
+ * empty one invites no hello). A deleted professional's jobs take no review; each party is told
+ * when the other's account deletion cancelled a job or a request.
  */
 import { Linking } from 'react-native';
 import { act, cleanup, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
@@ -129,6 +130,17 @@ describe('a deleted account', () => {
     await renderAs(NOA, `/requests/${SEED_IDS.requests.noaLighting}`);
     expect(await screen.findByText(/The professional deleted their account/, {}, TIMEOUT)).toBeOnTheScreen();
     expect(screen.queryByTestId('hired-pro-call')).toBeNull();
+    expect(screen.queryByTestId('hired-pro-message')).toBeNull();
+  });
+
+  it('says why the job of a deleted professional was cancelled, without progress', async () => {
+    await env.as(YAEL).users.deleteAccount({ password: SEED_PASSWORD });
+    await renderAs(NOA, `/jobs/${JOB}`);
+    expect(await screen.findByTestId('job-status', {}, TIMEOUT)).toHaveTextContent(
+      /This job was cancelled because the professional deleted their account\. The appointment is off and messaging is closed\./,
+    );
+    expect(screen.queryByTestId('job-progress')).toBeNull();
+    expect(screen.queryByTestId('job-action-message')).toBeNull();
   });
 
   it('closes the chat with a deleted counterpart and says why', async () => {
@@ -151,13 +163,15 @@ describe('a deleted account', () => {
     await screen.findByTestId('job-details', {}, TIMEOUT);
     expect(screen.queryByTestId('job-action-review')).toBeNull();
     expect(screen.queryByText('Leave a review')).toBeNull();
-    expect(screen.getByTestId('job-action-message')).toBeOnTheScreen();
+    // Their chat is closed: no "Message" either.
+    expect(screen.queryByTestId('job-action-message')).toBeNull();
 
     // Nor on the hired-pro card of the request.
     await act(async () => getRouter().push(`/requests/${SEED_IDS.requests.noaDishwasher}`));
     await waitFor(() => expect(app.getPathname()).toBe(`/requests/${SEED_IDS.requests.noaDishwasher}`), TIMEOUT);
     expect(await screen.findByTestId('hired-pro-view-job', {}, TIMEOUT)).toBeOnTheScreen();
     expect(screen.queryByTestId('hired-pro-review')).toBeNull();
+    expect(screen.queryByTestId('hired-pro-message')).toBeNull();
 
     // The review screen, opened anyway (a stale link), says reviews are closed.
     await act(async () => getRouter().push(`/jobs/${SEED_IDS.jobs.noaDishwasher}/review`));
@@ -165,6 +179,30 @@ describe('a deleted account', () => {
     expect(within(closed).getByText('Reviews are closed')).toBeOnTheScreen();
     expect(within(closed).getByText('This professional deleted their account, so this job can no longer be reviewed.')).toBeOnTheScreen();
     expect(screen.queryByTestId('review-form')).toBeNull();
+  });
+
+  it('offers the professional no chat on a completed job of a deleted customer', async () => {
+    await env.as(NOA).users.deleteAccount({ password: SEED_PASSWORD });
+    await renderAs(PRO_IDS.moshe, `/jobs/${SEED_IDS.jobs.noaDishwasher}`);
+    expect(await screen.findByTestId('job-status', {}, TIMEOUT)).toHaveTextContent(/Great work! Job completed on/);
+    expect(screen.queryByTestId('job-action-message')).toBeNull();
+  });
+
+  it('shows a closed chat without messages as "Chat closed", without inviting a hello', async () => {
+    // A new job (its chat still empty) whose professional then deletes their account.
+    const { job } = await env.as(NOA).offers.acceptOffer(SEED_IDS.offers.leakAvi);
+    await env.as(PRO_IDS.avi).users.deleteAccount({ password: SEED_PASSWORD });
+    const app = await renderAs(NOA, '/customer/inbox?tab=messages');
+    const row = await screen.findByTestId(`conversation-${job.conversationId}`, {}, TIMEOUT);
+    expect(within(row).getByText('Chat closed')).toBeOnTheScreen();
+    expect(within(row).queryByText(/Say hello/)).toBeNull();
+
+    await fireEvent.press(row);
+    await waitFor(() => expect(app.getPathname()).toBe(`/conversations/${job.conversationId}`), TIMEOUT);
+    expect(within(await screen.findByTestId('chat-intro', {}, TIMEOUT)).getByText('Chat closed')).toBeOnTheScreen();
+    expect(screen.queryByText(/Say hello/)).toBeNull();
+    expect(screen.queryByText(/Use this chat to agree on the details/)).toBeNull();
+    expect(screen.getByTestId('chat-closed')).toHaveTextContent('This chat is closed because the other person deleted their account.');
   });
 
   it('names a deleted professional in the conversations list', async () => {
