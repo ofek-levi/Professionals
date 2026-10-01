@@ -85,6 +85,7 @@ export const auth: LocaleNamespace<typeof enauth> = {
       orEmail: 'או הרשמה עם אימייל',
       signInInstead: 'התחברות עם האימייל הזה',
       emailFromGoogle: 'מחשבון ה-Google שלכם',
+      emailHelperProfessional: 'האימייל יוצג גם ללקוחות שיבחרו בכם. אפשר להגדיר אימייל אחר ליצירת קשר בפרופיל.',
       phonePlaceholder: '050-1234567',
       phoneHelperCustomer: 'המספר לא מוצג למשתמשים אחרים.',
       phoneHelperProfessional: 'המספר יוצג ללקוחות שיבחרו בכם.',

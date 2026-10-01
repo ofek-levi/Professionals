@@ -67,7 +67,7 @@ function Overlays({ children }: { children: ReactNode }) {
 const renderField = (value: string | null) =>
   renderWithProviders(
     <Overlays>
-      <AvatarField name="Avi Levi" value={value} verified={false} />
+      <AvatarField name="Avi Levi" value={value} />
     </Overlays>,
   );
 

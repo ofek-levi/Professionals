@@ -6,10 +6,26 @@
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
+/** Tasks running with the notice off (`suppressWhile`). */
+let suppressed = 0;
 
 export const sessionEnded = {
   notify(): void {
+    if (suppressed > 0) return;
     listeners.forEach((listener) => listener());
+  },
+
+  /**
+   * Runs `task` without notifying: its caller explains the end of the session itself (deleting the
+   * account finds it already deleted elsewhere).
+   */
+  async suppressWhile<T>(task: () => Promise<T>): Promise<T> {
+    suppressed += 1;
+    try {
+      return await task();
+    } finally {
+      suppressed -= 1;
+    }
   },
 
   subscribe(listener: Listener): () => void {

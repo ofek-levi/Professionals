@@ -5,7 +5,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
 import { ApiError, isApiError } from '../lib/errors.js';
-import type { Logger } from '../lib/logger.js';
+import { redactUrl, type Logger } from '../lib/logger.js';
 import { vm } from '../shared/validation-messages.js';
 
 interface HttpLikeError {
@@ -41,7 +41,8 @@ export function errorHandler(logger: Logger) {
       res.status(apiError.status).json(apiError.toBody());
       return;
     }
-    logger.error({ err: error, reqId: req.id, method: req.method, path: req.path }, 'unhandled error');
+    // The full URL, masked like the request line (a push token in the path, searches in the query).
+    logger.error({ err: error, reqId: req.id, method: req.method, path: redactUrl(req.originalUrl) }, 'unhandled error');
     res.err = error instanceof Error ? error : new Error('Non-error value thrown');
     if (res.headersSent) return;
     res.status(500).json({ code: 'SERVER_ERROR', message: 'Something went wrong. Please try again.' });

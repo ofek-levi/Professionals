@@ -64,7 +64,7 @@ function JobDetailsView({
   const styles = useStyles();
   const router = useRouter();
   const { t } = useTranslation(['jobs', 'common']);
-  const actions = getJobActions(job, role, { hasReview: job.review !== null || job.reviewId !== null });
+  const actions = getJobActions(job, role);
   const plan = planJobActions(job, role, actions);
   const runner = useJobActionRunner(job, role);
   const busy = runner.pending !== null;

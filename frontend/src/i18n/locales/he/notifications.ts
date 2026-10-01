@@ -88,7 +88,7 @@ export const notifications: LocaleNamespace<typeof ennotifications> = {
     },
     job_cancelled: {
       title: 'העבודה בוטלה',
-      body: 'העבודה בנושא {{category}} ({{date}}) בוטלה כי החשבון של בעל המקצוע נסגר.',
+      body: 'העבודה שלכם בנושא {{category}} ({{date}}) בוטלה כי החשבון של בעל המקצוע נמחק.',
     },
     review_received: {
       title_one: 'ביקורת חדשה: כוכב אחד',

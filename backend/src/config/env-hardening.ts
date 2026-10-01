@@ -40,11 +40,17 @@ function isRepetition(value: string): boolean {
   return false;
 }
 
-/** Problems of `JWT_ACCESS_SECRET` for a deployed environment (anyone who knows it can sign in as anyone). */
-export function deployedSecretIssues(secret: string): string[] {
-  if (PLACEHOLDER_MARKERS.test(secret)) return ['JWT_ACCESS_SECRET is a placeholder: generate one with `openssl rand -base64 48`'];
+/**
+ * `LOCATION_PRIVACY_SECRET` of a development setup that does not set one. Public (it is in the
+ * repository), so refused when deployed.
+ */
+export const DEVELOPMENT_LOCATION_PRIVACY_SECRET = 'development-only-location-privacy-secret';
+
+/** Problems of the secret in variable `name` for a deployed environment: a placeholder, too short or guessable. */
+export function deployedSecretIssues(name: string, secret: string): string[] {
+  if (PLACEHOLDER_MARKERS.test(secret)) return [`${name} is a placeholder: generate one with \`openssl rand -base64 48\``];
   if (secret.length < DEPLOYED_SECRET_MIN_LENGTH || estimatedEntropyBits(secret) < DEPLOYED_SECRET_MIN_BITS || isRepetition(secret)) {
-    return ['JWT_ACCESS_SECRET is too weak for a deployed environment: use at least 32 random bytes (`openssl rand -base64 48`)'];
+    return [`${name} is too weak for a deployed environment: use at least 32 random bytes (\`openssl rand -base64 48\`)`];
   }
   return [];
 }
@@ -54,14 +60,24 @@ export function isPlaceholderSecret(secret: string): boolean {
   return PLACEHOLDER_MARKERS.test(secret);
 }
 
-/** Problems of `LOCATION_PRIVACY_SECRET` when deployed (whoever knows it can undo the offset of approximate locations). */
+/**
+ * Problems of `LOCATION_PRIVACY_SECRET` when deployed: the same strength rules as the access-token
+ * secret (whoever knows or guesses it can undo the offset of every approximate location, and a
+ * hired professional knows pairs of exact and approximate points to test guesses against), and
+ * never the development key. A missing one is reported with the other required settings.
+ */
 export function locationSecretIssues(secret: string | undefined): string[] {
-  return secret && isPlaceholderSecret(secret) ? ['LOCATION_PRIVACY_SECRET is a placeholder: generate one with `openssl rand -base64 48`'] : [];
+  if (secret === undefined) return [];
+  if (secret === DEVELOPMENT_LOCATION_PRIVACY_SECRET) {
+    return ['LOCATION_PRIVACY_SECRET is the development key: generate one with `openssl rand -base64 48`'];
+  }
+  return deployedSecretIssues('LOCATION_PRIVACY_SECRET', secret);
 }
 
 /** The operator fields of `src/config/legal.ts` the published documents cannot do without. */
 export interface LegalOperator {
   name: { en: string; he: string };
+  registration: { label: { en: string; he: string }; number: string };
   address: { en: string; he: string };
   email: string;
 }
@@ -69,23 +85,34 @@ export interface LegalOperator {
 const LEGAL_CONFIG_FILE = 'backend/src/config/legal.ts';
 const EMAIL_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** The names of the blank fields. */
+function blankFields(fields: Record<string, string>): string[] {
+  return Object.entries(fields)
+    .filter(([, value]) => !value.trim())
+    .map(([field]) => field);
+}
+
 /** Problems of the operator details for a deployed environment: the documents must say who runs the service and how to reach them. */
 export function legalOperatorIssues(operator: LegalOperator, appEnv: string): string[] {
-  const empty = Object.entries({
+  const empty = blankFields({
     'operator.name.en': operator.name.en,
     'operator.name.he': operator.name.he,
     'operator.address.en': operator.address.en,
     'operator.address.he': operator.address.he,
     'operator.email': operator.email,
-  })
-    .filter(([, value]) => !value.trim())
-    .map(([field]) => field);
+  });
   const issues =
     empty.length > 0
       ? [`${LEGAL_CONFIG_FILE}: fill in ${empty.join(', ')} (the Terms of Use and the Privacy Policy name the operator; required when APP_ENV=${appEnv})`]
       : [];
   const email = operator.email.trim();
   if (email && !EMAIL_ADDRESS.test(email)) issues.push(`${LEGAL_CONFIG_FILE}: operator.email is not an email address: ${email}`);
+  const { label, number } = operator.registration;
+  // The number alone does not say the legal form (company, dealer, non-profit…).
+  const unlabelled = number.trim() ? blankFields({ 'operator.registration.label.en': label.en, 'operator.registration.label.he': label.he }) : [];
+  if (unlabelled.length > 0) {
+    issues.push(`${LEGAL_CONFIG_FILE}: fill in ${unlabelled.join(', ')} (what operator.registration.number is, e.g. "Company No." / "ח.פ.")`);
+  }
   return issues;
 }
 

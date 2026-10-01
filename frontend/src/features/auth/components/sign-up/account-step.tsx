@@ -56,6 +56,12 @@ export function AccountStep({
   const [email, role] = useWatch({ control, name: ['email', 'role'] });
   // The server answered "already registered": offer to sign in right where the error shows.
   const emailTaken = errors.email?.message === vm('auth.emailTaken');
+  const emailHelper = [
+    withGoogle ? t('signUp.account.emailFromGoogle') : null,
+    role === 'professional' ? t('signUp.account.emailHelperProfessional') : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
   const anchorNames = (event: LayoutChangeEvent) => {
     anchor('firstName')(event);
     anchor('lastName')(event);
@@ -107,7 +113,7 @@ export function AccountStep({
           name="email"
           label={t('fields.email')}
           disabled={withGoogle}
-          helperText={withGoogle ? t('signUp.account.emailFromGoogle') : undefined}
+          helperText={emailHelper || undefined}
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}

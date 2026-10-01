@@ -43,7 +43,7 @@ a list of every problem. Summary:
 | `REDIS_URL` | always | — | `redis://` or `rediss://` (TLS) |
 | `JWT_ACCESS_SECRET` | always | — | `openssl rand -base64 48`; one per environment. Development accepts ≥ 32 characters (the `.env.example` placeholder, with a warning); staging/production refuse placeholders (`change-me`, `example`, …), secrets under 43 characters (32 random bytes) and low-entropy ones. Also signs refresh tokens (derived key) |
 | `JWT_ISSUER` / `JWT_AUDIENCE` | | `professionals-api:<APP_ENV>` / `professionals-app:<APP_ENV>` | Access token `iss` / `aud`; the environment in the defaults makes one environment's tokens useless in another |
-| `LOCATION_PRIVACY_SECRET` | staging, production | a fixed development key | `openssl rand -base64 48`; one per environment, ≥ 32 characters, placeholders refused when deployed. Key of the approximate locations (request pins, professionals' service-area centers, 250–450 m from the real point): the offset is an HMAC of the record id, so without the key it cannot be undone. Keep it: the approximate points are stored (`requests.publicPoint`, `professionals.serviceArea.publicCenter`) when a location is saved, while the views derive the ones they show with the current key, so a new key makes them disagree until each location is saved again. Points stored before the key existed (unkeyed offsets) stay as they are; there was no production data then |
+| `LOCATION_PRIVACY_SECRET` | staging, production | a fixed development key | `openssl rand -base64 48`; one per environment. Development accepts ≥ 32 characters; staging/production refuse the development key, placeholders and weak secrets (the same rules as `JWT_ACCESS_SECRET`). Key of the approximate locations (request pins, professionals' service-area centers, 250–450 m from the real point): the offset is an HMAC of the record id, so without the key it cannot be undone. The approximate points are stored when a location is saved (`requests.publicPoint`, `professionals.serviceArea.publicCenter`) and every view shows the stored point. Keep the key: a new one moves a point only when its location is saved again, but whoever saw the same address under both keys can combine the two pins. Points stored before the key existed (unkeyed offsets) stay as they are; there was no production data then |
 | `GOOGLE_WEB_CLIENT_ID` | staging, production | — | Accepted audience of the web app's Google id tokens |
 | `GOOGLE_ANDROID_CLIENT_ID`, `GOOGLE_IOS_CLIENT_ID` | for each native app you ship | — | The Android / iOS build's id tokens carry this audience. Deployed without one, startup logs a warning: that app shows "Continue with Google" when it was built with its own id, and every attempt answers 401 `INVALID_GOOGLE_TOKEN`. The APKs of the Android workflow are the shipped native build, so set the Android id wherever they point |
 | `CLOUDINARY_URL` (or `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_API_KEY` + `CLOUDINARY_API_SECRET`) | staging, production | — | Image storage |
@@ -187,11 +187,12 @@ Without Docker: `npm ci && npm run build && npm start` on Node ≥ 22.12.
 
 1. Before the first staging/production deploy: fill in the operator of the service in
    [`src/config/legal.ts`](../src/config/legal.ts) (legal name and postal address in English and
-   Hebrew, the contact email; the company/business number is optional) and check `retention` against
-   the hosting setup. The Terms of Use and the Privacy Policy publish these details, so staging and
-   production refuse to start while one is empty. `effectiveDate` is the version users accept at
-   sign-up (`users.termsAcceptance`). The rest of the pre-launch list (store listings, retention at the
-   hosting provider, processing agreements) is in [§10](#10-legal-documents).
+   Hebrew, the contact email; the registration number is optional, with its label in both languages)
+   and check `retention` against the hosting setup. The Terms of Use and the Privacy Policy publish
+   these details, so staging and production refuse to start while one is empty. `effectiveDate` is the version users accept at
+   sign-up (`users.termsAcceptance`). The rest of the pre-launch list (store listings and privacy
+   answers, retention at the hosting provider, processing agreements, the Data Security Regulations,
+   in-app reporting and blocking) is in [§10](#pre-launch-checklist).
 2. `npm run typecheck && npm run lint && npm test` (needs a local MongoDB replica set + Redis, see the
    README), `npm run build`.
 3. Build and push the image; deploy staging with staging secrets; smoke test sign-up, a request, an
@@ -343,8 +344,10 @@ unreachable the geo endpoints answer 503 and the app lets the user type the addr
 ## 8. Logs and monitoring
 
 - JSON logs on stdout (pino), one line per request with method, path, status, duration and request id
-  (`X-Request-Id`). Authorization headers, passwords, refresh tokens, `?token=` query values and the
-  push token in the path of `DELETE /v1/me/devices/:token` are redacted, and other request headers (such as `Sec-WebSocket-Protocol`) are not logged; request/response bodies are not logged. This covers the API's own log only: logs of
+  (`X-Request-Id`). Authorization headers, passwords, refresh tokens, `?token=` query values, the
+  push token in the path of `DELETE /v1/me/devices/:token` and the `q`, `lat` and `lng` query values
+  (typed address searches, map points; on every path) are redacted, on the request line and on the
+  unhandled-error line alike, and other request headers (such as `Sec-WebSocket-Protocol`) are not logged; request/response bodies are not logged. This covers the API's own log only: logs of
   anything in front of it record the realtime URL with its token unless configured not to (see §4,
   load balancer).
 - Startup warnings (`warn`) in staging/production: an empty `CORS_ORIGINS` (the web app cannot reach
@@ -354,38 +357,106 @@ unreachable the geo endpoints answer 503 and the app lets the user type the addr
 - Suggested alerts: `/ready` failing, 5xx rate, `unhandled error` lines, `cron job failed`, push send
   failures (`Expo push request failed`), `refresh token reuse: session revoked` spikes (token theft or a
   client bug).
-- Each account deletion logs `account deleted` (`info`) with the user id and role, nothing personal;
-  §9 uses these lines after restoring a backup.
+- Each account deletion logs `account deleted` (`info`) with the user id, the role and who asked
+  (`via`: `app`, `email` or `operator`), nothing personal; §9 uses these lines after restoring a
+  backup.
 
-## 9. Account deletion
+## 9. Account deletion and privacy requests
 
 Users delete their account in the app (Settings → Delete account: `GET /v1/me/deletion-impact`, then
 `POST /v1/me/deletion` with their password or Google account). It is immediate: one transaction
-cancels or withdraws what is in progress (the other parties are notified), erases the personal data
-and leaves an anonymous tombstone (`users.deletedAt`, and `professionals.deletedAt` for a
-professional) so the other parties' jobs, chats and reviews keep working with "Deleted user"; the
-images go from Cloudinary, and a confirmation email goes to the address the account had. What is
-erased and what stays is listed in [API.md](API.md#post-medeletion--200--success-true--addition) and
-`src/modules/users/account-erasure.ts`; the Privacy Policy and the account-deletion page say the same,
-so change them together.
+cancels or withdraws what is in progress (the other parties are notified), deletes the requests no
+professional made an offer on, erases the personal data and leaves an anonymous tombstone
+(`users.deletedAt`, and `professionals.deletedAt` for a professional) so the other parties' jobs,
+chats and reviews keep working with "Deleted user"; a record whose every party has now deleted their
+account (a job with its review and chat, the offers between them, a request left without an offer)
+is deleted in the same transaction. The images go from Cloudinary, and a confirmation email goes to
+the address the account had: it says who asked and names only what was actually closed. What is
+erased and what stays is listed in [API.md](API.md#post-medeletion--200--success-true--addition),
+`src/modules/users/account-erasure.ts` and `account-purge.ts`; the Privacy Policy and the
+account-deletion page say the same, so change them together.
 
-**Requests by email.** The public account-deletion page lets people who cannot use the app ask by
-email (`LEGAL_CONFIG.operator.email`), and promises the deletion within 30 days with a confirmation:
-1. Check that the request comes from the account's sign-in address (for a Google account, its Google
-   address); if in doubt, reply to that address and wait for the answer.
-2. Run the same deletion from a machine that has the environment's variables:
-   `node dist/delete-account.js <email>` in the API image (or `npm run delete-account -- <email>` in a
-   checkout with a `.env`). It prints the deleted account's id and sends the confirmation email.
-   "No account" means the address signs in to none (or it was deleted already). It also takes a user
-   id instead of the email.
+The operator commands below run from a machine that has the environment's variables:
+`node dist/<command>.js …` in the API image (`docker exec` / `docker run --env-file`), or
+`npm run <command> -- …` in a checkout with a `.env`. They exit 0 when done, 1 when there was nothing
+to act on (or it failed), 2 on wrong usage. The ones that write a file create it readable by its owner
+only and never overwrite one: in the image, write to `/tmp` and `docker cp` it out, then delete it.
+
+| Command | What |
+|---|---|
+| `delete-account <email or id> [--via-email \| --closure] [--no-email]` | Deletes the account exactly as the app does |
+| `remove-review <review id>` | Removes one review and recounts the professional's rating |
+| `export-account <email or id> [file]` | Writes everything stored about the account to a JSON file |
+| `change-email <current email or id> <new email>` | Changes the sign-in email |
+| `list-user-emails [file]` | Writes the address, language, first name and role of every account to a CSV file ([§10](#publishing-a-new-version)) |
+
+**Verifying who asks.** Every request by email (deletion, access, correction) is answered only after
+confirming it with the account: write a **new message to the account's sign-in address** (the
+`users.email`; for a Google account, the address it signed up with), not a reply to the sender, and
+act only on a confirming answer from that address. Never act on the From header alone: it can be
+forged. The documents promise an answer within 30 days, in the user's language. Keep the
+correspondence up to 24 months after the matter is closed (the Privacy Policy says so), then delete it.
+
+**Deletion requests by email.** The public account-deletion page lets people who cannot use the app
+ask by email (`LEGAL_CONFIG.operator.email`), and promises the deletion within 30 days of their
+confirmation, with a confirmation email:
+1. Verify the request as above.
+2. `node dist/delete-account.js <email>` (or the user id). `--via-email` is the default: the
+   confirmation email says "As you asked by email". It prints the deleted account's id; "No account"
+   means the address signs in to none (or it was deleted already).
+
+**Closing an account** (the Terms, "Removing content and closing accounts": someone under 18, serious
+or repeated breaches, fraud, a taken-over account, a court order). Closing deletes the account for
+good, so first remove specific content where that is enough (below). Otherwise email the account's
+address the reason and give them at least 14 days to respond (unless a court or the law requires
+acting at once, or a user's safety is at immediate risk); review any objection and answer it with
+your reasons; then run `node dist/delete-account.js <email> --closure`. The confirmation email then
+says only that the account was deleted (not that they asked).
+
+**Removing content** (a report by email, a court order; the Terms promise content removal is real):
+- A review: `node dist/remove-review.js <review id>` (the id is `items[].id` of
+  `GET /v1/professionals/:id/reviews`, or a job's `reviewId`). The review is deleted, the professional's
+  rating is recounted from the remaining reviews, and the job's customer can review it again. The
+  `review_received` notification the professional got expires with the 90-day TTL.
+- Anything else, by hand with `mongosh` (nothing else depends on these fields): a chat message
+  `db.messages.updateOne({ _id: ObjectId('…') }, { $set: { text: '[removed]' } })` (and the
+  conversation's `lastMessage.text` when it is the last one); an offer's message
+  `db.offers.updateOne({ _id: … }, { $set: { message: null } })`; a request photo
+  `db.requests.updateOne({ _id: … }, { $pull: { photos: { publicId: '…' } } })` and then delete the image
+  in Cloudinary (Media Library, or the Admin API by its public id); a professional's headline or bio
+  `db.professionals.updateOne({ _id: … }, { $set: { bio: '' } })` (the public profile cache shows the
+  old text for up to 60 s). Tell the reporter and the author, as the Terms describe.
+
+**Privacy requests** (Privacy Protection Law: access, section 13; correction, section 14). Verify the
+request as above first.
+- **Access:** `node dist/export-account.js <email or id> /tmp/<name>.json`. The file holds every
+  document stored about the account, by user id, from every collection (account, professional
+  profile, requests, offers, jobs, reviews, chats with all their messages, notifications, sessions with
+  their push tokens, pending email links), without the password hash, the Google account id or token
+  hashes, and lists the image links (avatar, request photos). Send it only to the account's address,
+  then delete your copy. Not in the export, so say so in the answer: server and edge logs and backups
+  (kept as described below), the hashed sign-in throttle keys in Redis (up to 30 days), and the emails they
+  sent us (search the mailbox).
+- **Correction:** most details are edited in the app (profile, settings). The sign-in email is not:
+  confirm the request from the current address and from the new one, then
+  `node dist/change-email.js <current email or id> <new email>`. It checks and lower-cases the new
+  address and refuses one another account uses; the account becomes unverified, the links already sent
+  to the old address stop working, and a verification link goes to the new one. A professional's
+  contact email follows when it still was the old sign-in address. Sessions stay signed in (the holder
+  asked for the change); if the old address may be compromised, ask them to reset their password
+  ("Forgot password?"), which signs out every device. An account linked to Google keeps signing in
+  with that Google account (it is matched by its Google id, not by the address).
 
 **Retention outside the database** (must match what `src/config/legal.ts` → `retention` promises,
 and the Privacy Policy publishes):
-- Logs: keep the API's logs (and those of anything in front of it) for at most `serverLogsDays`.
+- Logs: keep the API's logs, and the access logs of everything in front of it (load balancer, proxy,
+  CDN, the web app's host), for at most `serverLogsDays`.
 - Backups: keep MongoDB backups (e.g. the Atlas backup policy) for at most `backupsDays`.
 - **Restoring a backup** brings back the accounts deleted after it was taken: before the restored
-  database serves users, run `node dist/delete-account.js <user id>` for every `account deleted` log
-  line since the backup's time.
+  database serves users, run `node dist/delete-account.js <user id> --no-email` for every
+  `account deleted` log line since the backup's time. `--no-email` sends no second confirmation; the
+  other parties are notified of the cancellations again (their notifications from the first deletion
+  were lost with the restore).
 - Redis: the only personal leftovers are login-throttle keys (a hashed email and an IP, up to 30 days);
   everything else expires within hours.
 - Copies of a deleted person's name or message previews inside other users' notifications expire with
@@ -418,34 +489,78 @@ anyone can open the public pages below (API.md, [Legal](API.md#legal)).
 ### Pre-launch checklist
 
 1. Fill in `src/config/legal.ts`: the operator's legal name and postal address in English and Hebrew,
-   the contact email and, if there is one, the company number (ח.פ.) or business id (ע.מ.), shown as
-   "Company No." / "ח.פ." when it starts with 5, otherwise "Licensed Dealer No." / "ע.מ.". Staging and
-   production refuse to start while a required field is empty. The documents publish the email for
-   privacy requests, account deletion by email (§9) and reports of abuse, and promise an answer within
-   30 days: make sure someone reads it.
+   the contact email and, if there is one, `registration`: the number and what it is, in both
+   languages (e.g. `{ en: 'Company No.', he: 'ח.פ.' }`, `Licensed Dealer No.` / `ע.מ.`, `Exempt Dealer
+   No.` / `ע.פ.`, `Non-profit No.` / `ע״ר`), shown as "(Company No. 51-…)" after the name. The label is
+   never guessed from the number: staging and production refuse to start while a required field is
+   empty, or a number has no label. The documents publish the email for privacy requests, account
+   deletion by email (§9) and reports of abuse, and promise an answer within 30 days: make sure
+   someone reads it and follows §9.
 2. Give the three URLs above to App Store Connect, the Google Play Console (the privacy policy and the
    Data safety account deletion URL) and the Google OAuth consent screen.
-3. Set the log retention of the hosting provider (the API's logs and those of the load balancer, proxy
-   or CDN in front of it) to at most `retention.serverLogsDays`, and the retention of MongoDB backups
-   to at most `retention.backupsDays`. If the hosting cannot, change the numbers in `legal.ts` to what
-   it does: the Privacy Policy and the account-deletion page publish them.
-4. Sign data processing agreements with Cloudinary, Resend, Expo and the hosting provider(s) (servers,
-   MongoDB, Redis). The Privacy Policy names these agreements as the safeguard for storing personal
-   data outside Israel. Note here which hosting provider and regions are used.
+3. Set the log retention of the hosting provider (the API's logs and the access logs of the load
+   balancer, proxy or CDN in front of it, and of the web app's host) to at most
+   `retention.serverLogsDays`, and the retention of MongoDB backups to at most `retention.backupsDays`.
+   If the hosting cannot, change the numbers in `legal.ts` to what it does: the Privacy Policy and the
+   account-deletion page publish them. Make sure nothing in front of the API or the web app sets
+   cookies (the Privacy Policy says there are none: no CDN bot-management or load-balancer stickiness
+   cookies).
+4. Sign data processing agreements with Cloudinary, Resend, Expo, Google (Firebase Cloud Messaging),
+   the hosting provider(s) (servers, MongoDB, Redis) and the mailbox provider of the contact address.
+   The Privacy Policy names these agreements as the safeguard for storing personal data outside
+   Israel. Note here which hosting provider and regions are used.
 5. On the production Cloudinary account, post a request with a photo that carries GPS data (EXIF, e.g.
    a phone photo taken with location tagging on), download the stored image (its `url`) and check its
    metadata (`exiftool <file>`). The Privacy Policy does not claim that photos lose their metadata;
    if the location is kept, consider removing metadata at upload before the documents promise it.
+6. **Expect a store rejection over user-generated content:** Apple's guideline 1.2 and Google Play's
+   UGC policy require reporting objectionable content and users in the app, and blocking abusive users
+   in one-to-one chat. Reviews, profiles and chats are user-generated, and the app has neither a report
+   nor a block action (the Terms, "Reporting problems and abuse", send reports by email). Build them
+   before submitting the apps.
+7. **Data Security Regulations** (Privacy Protection (Data Security) Regulations, 5777-2017, which
+   the Privacy Policy cites): have counsel set the database's security level (basic, or medium if
+   chats and photos are treated as sensitive). Before launch, write the database definitions document
+   (מסמך הגדרות מאגר); list who has production access (MongoDB, Redis, Cloudinary, Resend, Expo,
+   Google Cloud, the logs, the mailbox) and with which permissions, and review the list when people
+   change; keep a security-incident log; put the outsourcing terms of regulation 15 into the
+   agreements of item 4. Once a year, check that the data kept is not more than the purposes need. At
+   the medium level, also write a security procedure and keep access logs of the database, and report
+   a severe security incident to the Privacy Protection Authority immediately.
+8. **Store privacy answers and listings:** answer App Store Connect's App Privacy and Google Play's
+   Data safety from [PRIVACY-DATA-MAP.md](PRIVACY-DATA-MAP.md) (it follows the Privacy Policy; no
+   tracking, no sharing, encrypted in transit, deletion in the app and at the account-deletion URL).
+   Google Play wants the deletion page to name the app or the developer exactly as the store listing
+   does: list the app as "Professionals" and use the operator name of `legal.ts` as the developer
+   name (the page shows both).
+9. **Google OAuth consent screen:** app name "Professionals", the contact email as the support and
+   developer contact email, the scopes `openid`, `email` and `profile` only, the privacy policy and
+   terms links above, and as the home page a public page on an authorized domain that describes
+   Professionals and links to `/legal/privacy` and `/legal/terms` (the API has no such page, and the
+   web app's root is a sign-in screen: publish one, e.g. on the web app's domain). Add every domain used
+   (the API's, the home page's) to the authorized domains.
+10. **Accessibility statement:** publish one (הצהרת נגישות, Equal Rights for Persons with Disabilities
+    (Service Accessibility Adjustments) Regulations, regulation 35) with an accessibility contact, and
+    link it from the Terms' contact section, unless counsel confirms the operator is exempt.
 
 ### Publishing a new version
 
 1. Edit the texts in `src/modules/legal/content/<document>.en.ts` and `<document>.he.ts` together:
    the same section ids in the same order, `**bold**` and `[label](url)` only, and only the
-   placeholders listed in `legal-placeholders.ts` (`npm test` checks all of this).
+   placeholders listed in `legal-placeholders.ts` (`npm test` checks all of this). Prepare the change
+   on a branch: **don't deploy it before its effective date.** The app and the pages serve one version,
+   the documents promise that the version in force is always available, and sign-ups record
+   `effectiveDate` as the version they accepted.
 2. Set `effectiveDate` in `src/config/legal.ts` to the day the new versions take effect (one date for
-   all three documents). It is the "Effective date" the documents show and the version recorded when
-   someone signs up (`users.termsAcceptance.version`).
-3. The Terms of Use promise at least 14 days' notice of a change, by email or with a notice in the app
-   (the API has no tool for announcing to every user): publish the new texts with the future date and
-   tell users before it arrives. A significant change of the Privacy Policy also needs notice first.
-4. Deploy. The app and the pages show the new texts within 5 minutes (they may be cached that long).
+   all three documents), at least 14 days after the notice of step 3. It is the "Effective date" the
+   documents show and the version recorded when someone signs up (`users.termsAcceptance.version`).
+3. **Notice, at least 14 days before that date** (the Terms and the Privacy Policy promise it; the app
+   has no in-app notice): email every account. `node dist/list-user-emails.js /tmp/user-emails.csv`
+   writes the address, language, first name and role of every account that is not deleted. Send each
+   one, in its language, through Resend (the provider of the app's emails, e.g. a broadcast to an
+   audience imported from the file): what changes, the effective date, and the full new text (a link to
+   it, or attached). Then delete the file. A change that needs consent (a new use of the data) needs
+   more than notice: ask counsel.
+4. Deploy on the effective date. The app and the pages show the new texts within 5 minutes (they may
+   be cached that long). When the Privacy Policy changes what is collected or who receives it, update
+   [PRIVACY-DATA-MAP.md](PRIVACY-DATA-MAP.md) and the store answers (item 8 of the checklist).

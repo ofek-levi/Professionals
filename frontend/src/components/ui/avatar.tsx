@@ -1,13 +1,11 @@
 import { Image } from 'expo-image';
 import { useState } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
-import { useTranslation } from 'react-i18next';
 
 import { makeStyles, useTheme } from '@/theme';
 
 import { AppText } from './app-text';
 import { DECORATIVE_TONES, hashToIndex } from './colors';
-import { Icon } from './icon';
 
 type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
@@ -18,8 +16,6 @@ interface AvatarProps {
   name: string;
   uri?: string | null;
   size?: AvatarSize | number;
-  /** Shows a verified check on the bottom-end corner. */
-  verified?: boolean;
   /** Hide from screen readers when the name is already announced next to it. */
   decorative?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -34,23 +30,21 @@ function getInitials(name: string): string {
   return letters.join('').toUpperCase();
 }
 
-export function Avatar({ name, uri, size = 'md', verified = false, decorative = false, style, testID }: AvatarProps) {
+export function Avatar({ name, uri, size = 'md', decorative = false, style, testID }: AvatarProps) {
   const theme = useTheme();
   const styles = useStyles();
-  const { t } = useTranslation('common');
   const [failedUri, setFailedUri] = useState<string | null>(null);
   const dimension = typeof size === 'number' ? size : SIZES[size];
   const tone = theme.colors.tones[DECORATIVE_TONES[hashToIndex(name, DECORATIVE_TONES.length)]];
   const showImage = Boolean(uri) && failedUri !== uri;
   const fontSize = Math.round(dimension * 0.38);
-  const badgeSize = Math.max(14, Math.round(dimension * 0.34));
 
   return (
     <View
       testID={testID}
       accessible={!decorative}
       accessibilityRole={decorative ? undefined : 'image'}
-      accessibilityLabel={decorative ? undefined : verified ? `${name}, ${t('verified')}` : name}
+      accessibilityLabel={decorative ? undefined : name}
       importantForAccessibility={decorative ? 'no-hide-descendants' : 'yes'}
       style={[{ width: dimension, height: dimension }, style]}
     >
@@ -81,31 +75,13 @@ export function Avatar({ name, uri, size = 'md', verified = false, decorative = 
           </AppText>
         )}
       </View>
-      {verified ? (
-        <View
-          style={[
-            styles.verified,
-            { width: badgeSize, height: badgeSize, borderRadius: badgeSize / 2 },
-          ]}
-        >
-          <Icon name="check-decagram" size={badgeSize - 2} color={theme.colors.primary} />
-        </View>
-      ) : null}
     </View>
   );
 }
 
-const useStyles = makeStyles((t) => ({
+const useStyles = makeStyles(() => ({
   circle: {
     overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  verified: {
-    position: 'absolute',
-    bottom: -1,
-    end: -1,
-    backgroundColor: t.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -48,6 +48,7 @@ const errorOf = (source: Record<string, string>) => envErrorOf(() => parseEnv(so
 
 const OPERATOR = {
   name: { en: 'Example Services Ltd', he: 'דוגמה שירותים בע״מ' },
+  registration: { label: { en: '', he: '' }, number: '' },
   address: { en: '1 Example St, Tel Aviv', he: 'רחוב הדוגמה 1, תל אביב' },
   email: 'privacy@example.com',
 };
@@ -138,6 +139,18 @@ describe('parseEnv', () => {
     expect(errorOf({ ...DEPLOYED, APP_ENV: 'staging', LOCATION_PRIVACY_SECRET: placeholder }).issues).toEqual([
       'LOCATION_PRIVACY_SECRET is a placeholder: generate one with `openssl rand -base64 48`',
     ]);
+    // The development fallback is public (it is in the repository).
+    const developmentKey = parseEnv({ ...BASE, APP_ENV: 'development' }).locationPrivacySecret;
+    expect(errorOf({ ...DEPLOYED, APP_ENV: 'production', LOCATION_PRIVACY_SECRET: developmentKey }).issues).toEqual([
+      'LOCATION_PRIVACY_SECRET is the development key: generate one with `openssl rand -base64 48`',
+    ]);
+    // The access-token secret's strength rules: a weak key can be guessed against known exact/approximate pairs.
+    for (const weak of ['0'.repeat(32), 'a'.repeat(32), 'abcdefgh'.repeat(6), 'short-but-32-characters-long-okk']) {
+      expect(errorOf({ ...DEPLOYED, APP_ENV: 'staging', LOCATION_PRIVACY_SECRET: weak }).issues).toEqual([
+        'LOCATION_PRIVACY_SECRET is too weak for a deployed environment: use at least 32 random bytes (`openssl rand -base64 48`)',
+      ]);
+    }
+    parseEnv({ ...DEPLOYED, APP_ENV: 'staging', LOCATION_PRIVACY_SECRET: '9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08' });
     expect(errorOf({ ...BASE, APP_ENV: 'development', LOCATION_PRIVACY_SECRET: 'short' }).issues.join()).toContain(
       'LOCATION_PRIVACY_SECRET must be at least 32 characters',
     );
@@ -149,7 +162,7 @@ describe('parseEnv', () => {
   });
 
   it('refuses a deployed start until the operator details of the legal documents are filled in', () => {
-    const empty = { name: { en: '', he: '' }, address: { en: '', he: '' }, email: '' };
+    const empty = { name: { en: '', he: '' }, registration: { label: { en: '', he: '' }, number: '' }, address: { en: '', he: '' }, email: '' };
     // Development renders placeholders instead.
     assertLegalConfigured({ appEnv: 'development' }, empty);
     for (const appEnv of ['staging', 'production'] as const) {
@@ -165,6 +178,12 @@ describe('parseEnv', () => {
       'backend/src/config/legal.ts: fill in operator.name.he (the Terms of Use and the Privacy Policy name the operator; required when APP_ENV=staging)',
       'backend/src/config/legal.ts: operator.email is not an email address: privacy at example.com',
     ]);
+    // A registration number needs its label (the number does not say the legal form); none needs none.
+    const numbered = { ...OPERATOR, registration: { label: { en: 'Company No.', he: ' ' }, number: '51-123456-7' } };
+    expect(envErrorOf(() => assertLegalConfigured({ appEnv: 'production' }, numbered)).issues).toEqual([
+      'backend/src/config/legal.ts: fill in operator.registration.label.he (what operator.registration.number is, e.g. "Company No." / "ח.פ.")',
+    ]);
+    assertLegalConfigured({ appEnv: 'production' }, { ...numbered, registration: { label: { en: 'Company No.', he: 'ח.פ.' }, number: '51-123456-7' } });
   });
 
   it('scopes token issuer and audience to the environment by default', () => {

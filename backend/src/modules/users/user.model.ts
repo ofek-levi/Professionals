@@ -44,6 +44,12 @@ export interface UserDoc {
   /** Set at sign-up (password or Google); absent on accounts created before it was recorded. */
   termsAcceptance?: TermsAcceptanceDoc;
   /**
+   * Means nothing by itself: bumped (`updatedAt` untouched) at the start of every transaction that
+   * creates something for the account (`lockActiveAccount`), a write on the document the deletion
+   * writes first, so the two transactions conflict and the later one sees the other's result.
+   */
+  writeSeq?: number;
+  /**
    * The account was deleted (`account-deletion.service.ts`): the document stays as a tombstone
    * (id, role, language, dates) so the other parties' jobs, chats and reviews keep resolving it;
    * everything personal is gone and the email is a placeholder (the real one can sign up again).
@@ -95,6 +101,7 @@ const userSchema = new Schema<UserDoc>(
     termsAcceptance: {
       type: new Schema<TermsAcceptanceDoc>({ version: { type: String, required: true }, acceptedAt: { type: Date, required: true } }, { _id: false }),
     },
+    writeSeq: { type: Number },
     deletedAt: { type: Date },
   },
   // createdAt = `User.createdAt` / `memberSince`; updatedAt = `CustomerProfile.updatedAt`.

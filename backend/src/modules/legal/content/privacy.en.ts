@@ -70,7 +70,7 @@ export const privacyEn: LegalDocumentContent = {
         },
         {
           type: 'paragraph',
-          text: "You can read this policy at any time: on the app's sign-in screen, in Settings under Legal, and at [{{privacyUrl}}]({{privacyUrl}}).",
+          text: "You can read this policy at any time: on the app's welcome and sign-in screens, in Settings under Legal, and at [{{privacyUrl}}]({{privacyUrl}}).",
         },
       ],
     },
@@ -84,7 +84,7 @@ export const privacyEn: LegalDocumentContent = {
           items: [
             {
               term: 'Account (everyone)',
-              text: "Your role (customer or professional), first and last name, email address, phone number, password, and the app language you use (English or Hebrew). We store your password only as a one-way hash (argon2id), so nobody can read it. If you sign up with Google, you don't need a password.",
+              text: "Your role (customer or professional), first and last name, email address, phone number, password, and the app language you use (English or Hebrew). We store your password only as a one-way hash (argon2id), so nobody can read it. If you sign up with Google, you don't need a password. We use your phone number to contact you about your account, a job or a report if we can't reach you by email. A customer's phone number isn't shown to other users; a professional's is also their contact phone (see “What other users can see”).",
             },
             {
               term: 'Terms acceptance',
@@ -98,7 +98,7 @@ export const privacyEn: LegalDocumentContent = {
             },
             {
               term: 'Customers: requests',
-              text: 'The service category, a description of the problem, the address and its point on the map, optional apartment, floor and entrance details, the urgency, and optional photos (up to 6). A request can also hold a preferred date and time window and access notes for the professional.',
+              text: 'The service category, a description of the problem, the address and its point on the map, optional apartment, floor and entrance details, the urgency, and optional photos (up to 6).',
             },
             {
               term: 'Customers: cancellations and reviews',
@@ -110,7 +110,7 @@ export const privacyEn: LegalDocumentContent = {
             },
             {
               term: 'Professionals: offers',
-              text: 'The price, the proposed start time, an estimated duration and an optional message to the customer.',
+              text: 'The price, the proposed start time and an optional message to the customer.',
             },
             {
               term: 'Messages',
@@ -131,11 +131,11 @@ export const privacyEn: LegalDocumentContent = {
       blocks: [
         {
           type: 'paragraph',
-          text: 'If you choose “Continue with Google”, Google asks you to let Professionals see your basic profile. Google then sends us your name, your email address (only if Google has verified it), your Google account ID and a link to your Google profile photo. We never see your Google password.',
+          text: 'If you choose “Continue with Google”, Google asks you to let Professionals see your basic profile. Google then sends us your name, your email address and whether Google has verified it, your Google account ID and a link to your Google profile photo. We accept Google sign-in only for email addresses that Google has verified. We never see your Google password.',
         },
         {
           type: 'paragraph',
-          text: 'We use this to create your account or to sign you in. Your Google profile photo becomes your profile photo until you change or remove it.',
+          text: "We use this to create your account or to sign you in. If you sign up with Google, your Google profile photo becomes your profile photo until you change or remove it. Linking Google to an existing account doesn't change your profile photo.",
         },
         {
           type: 'paragraph',
@@ -176,15 +176,15 @@ export const privacyEn: LegalDocumentContent = {
             { term: 'Location', text: 'Only when you tap “Use my current location”. See “Device permissions”.' },
             {
               term: 'Address lookups',
-              text: 'When you type an address or move the pin on a map, the app sends the text or the point to our server to find matching addresses.',
+              text: 'When you type an address or move the pin on a map, the app sends the text or the point to our server to find matching addresses. We keep the searches and the addresses found in a cache, without any link to you or your account, for up to 30 days (text searches for up to 7 days).',
             },
             {
               term: 'IP address',
-              text: "Our servers receive your device's IP address when the app connects. Apart from delivering the connection, we use it only to limit repeated or abusive requests and to protect sign-in against password guessing. For this, it is kept in short-lived counters: from minutes to hours in general, and up to 30 days in sign-in protection records (together with a hash of the account's email address, not the email address itself).",
+              text: "Our servers receive your device's IP address when the app connects. Apart from delivering the connection and the access logs described under “Server logs”, we use it only to limit repeated or abusive requests and to protect sign-in against password guessing. For this, it is kept in short-lived counters: from minutes to hours in general, and up to 30 days in sign-in protection records (together with a hash of the account's email address, not the email address itself).",
             },
             {
               term: 'Server logs',
-              text: "For each request to our server, we log the time, the type of request, the web address requested (with secret tokens masked), the result and how long it took. The web address can include text typed into an address search, map coordinates and internal record numbers. Apart from that, the logs don't include what you send (such as messages, photos or passwords), and they don't include your IP address. Error entries may include internal account numbers.",
+              text: "For each request to our server, we log the time, the type of request, the web address requested, the result and how long it took. In the logged web address, secret tokens, address searches and map coordinates are masked; it can still include internal record numbers. Apart from that, our server's own logs don't include what you send (such as messages, photos or passwords) or your IP address. Some entries, such as errors, security warnings and account deletions, include internal account numbers. The hosting and network services in front of our servers (such as a load balancer, a proxy or a content delivery network) and the host of the web version may record your IP address and the full web address requested (including an address search or map coordinates in it) in their own access logs. We keep those logs for no more than {{logRetentionDays}} days.",
             },
           ],
         },
@@ -214,9 +214,9 @@ export const privacyEn: LegalDocumentContent = {
           type: 'list',
           items: [
             'your profile photo;',
-            'for requests: apartment, floor and entrance details, access notes, a preferred date and time, and photos;',
+            'for requests: apartment, floor and entrance details, and photos;',
             'for professionals: business name, headline, bio, years of experience, license number, insurance, website and starting price;',
-            "an offer's message and duration, and review and cancellation comments;",
+            "an offer's message, and review and cancellation comments;",
             'every device permission (location, camera, photos, notifications).',
           ],
         },
@@ -241,7 +241,8 @@ export const privacyEn: LegalDocumentContent = {
             'To show your request to professionals whose services and area match it, and to show professionals the requests in their area.',
             'To let customers and professionals send and compare offers, agree on a job, chat, schedule and complete the job, and leave a review.',
             'To show professional profiles, ratings and reviews.',
-            'To send notifications about your requests, offers, jobs and messages, appointment reminders, and account emails (email verification, password reset and account deletion).',
+            'To send notifications about requests (for professionals, also new requests in their area), offers, jobs and messages, appointment reminders, and account emails (email verification, password reset and account deletion).',
+            "To contact you about your account, a job or a report: by email, or by phone if we can't reach you by email.",
             'To keep the service safe: to protect accounts, limit abuse and repeated attempts, check new passwords against known leaked passwords, and investigate problems.',
             'To answer your questions and handle your requests, including requests to use your rights.',
             'To comply with the law, and to establish or defend legal claims.',
@@ -249,7 +250,7 @@ export const privacyEn: LegalDocumentContent = {
         },
         {
           type: 'paragraph',
-          text: "We don't use your data for advertising or marketing, and we don't build profiles about you for any other purpose.",
+          text: "We don't use your data for advertising or marketing. The only information we calculate about users is statistics, such as a professional's average rating, number of reviews and completed jobs and typical response time, and a customer's number of completed jobs. Other users can see these statistics (see “What other users can see”), and ratings are also used to order offers and professionals in the app (the Terms of Use explain how).",
         },
       ],
     },
@@ -268,7 +269,7 @@ export const privacyEn: LegalDocumentContent = {
         {
           type: 'list',
           items: [
-            'the category, description, photos, urgency and preferred date and time;',
+            'the category, description, photos and urgency;',
             "the city and neighbourhood, and an approximate point on the map placed 250–450 metres from the real address (the exact offset comes from a secret key, so your address can't be calculated back from it);",
             'your short name (first name and last initial, like “Noa L.”), your profile photo, when you joined and how many jobs you have completed;',
             'if you cancel the request, the reason and your comment.',
@@ -276,11 +277,11 @@ export const privacyEn: LegalDocumentContent = {
         },
         {
           type: 'paragraph',
-          text: "They don't see the street address, the apartment, floor and entrance details, or your access notes, unless you hire them.",
+          text: "They don't see the street address or the apartment, floor and entrance details unless you hire them.",
         },
         {
           type: 'paragraph',
-          text: '**After you accept an offer,** the professional you hire also sees the exact address, the apartment, floor and entrance details, your access notes, and your full name in the chat. This stays in their job record after the job is completed or cancelled. See “Deleting your account” for what happens when you delete your account.',
+          text: '**After you accept an offer,** the professional you hire also sees the exact address, the apartment, floor and entrance details, and your full name in the chat. This stays in their job record after the job is completed or cancelled. See “Deleting your account” for what happens when you delete your account.',
         },
         {
           type: 'definitions',
@@ -296,11 +297,11 @@ export const privacyEn: LegalDocumentContent = {
             },
             {
               term: "Professionals' contact details",
-              text: "A professional's contact phone, email and website are shown only to customers who hired them: from the moment the customer accepts the offer, and afterwards, unless that job was cancelled.",
+              text: "A professional's contact phone, email and website are shown only to customers who hired them: from the moment the customer accepts the offer, and afterwards, unless that job was cancelled. Unless the professional changes them in their profile, the contact phone and email are the phone number and email address they signed up with (the contact phone is also the account's phone number).",
             },
             {
               term: 'Offers',
-              text: 'The customer who posted a request sees each offer on it: the price, proposed start time, estimated duration and message, and a summary of the professional (display name, photo, headline, categories, experience, rating, number of reviews and completed jobs, and city).',
+              text: 'The customer who posted a request sees each offer on it: the price, proposed start time and message, and a summary of the professional (display name, photo, headline, categories, experience, rating, number of reviews and completed jobs, and city).',
             },
             {
               term: 'Reviews',
@@ -344,7 +345,7 @@ export const privacyEn: LegalDocumentContent = {
             },
             {
               term: 'Expo push service, Apple Push Notification service and Firebase Cloud Messaging (Google)',
-              text: "Deliver push notifications to phones. They receive the push token and the notification's title and text. When you allow notifications, your phone also registers with Expo and with Apple or Google to get a push token.",
+              text: "Deliver push notifications to phones. They receive the push token, the notification's title and text, and internal record numbers that let the app open the right screen. When you allow notifications, your phone also registers with Expo and with Apple or Google to get a push token.",
             },
             {
               term: 'Google',
@@ -352,7 +353,7 @@ export const privacyEn: LegalDocumentContent = {
             },
             {
               term: 'OpenStreetMap Foundation: address search',
-              text: 'Our server uses its Nominatim service to look up addresses. It receives only the text typed into an address search, or map coordinates rounded to about 11 metres, never your name, your account or your IP address. We keep lookup results in a cache, without any link to you, for up to 30 days.',
+              text: 'Our server uses its Nominatim service to look up addresses. It receives only the text typed into an address search, or map coordinates rounded to about 11 metres, never your name, your account or your IP address. We keep lookup results in a cache, without any link to you, for up to 30 days (text searches for up to 7 days).',
             },
             {
               term: 'OpenStreetMap Foundation: maps',
@@ -362,11 +363,15 @@ export const privacyEn: LegalDocumentContent = {
               term: 'Have I Been Pwned (Pwned Passwords)',
               text: 'When you choose a new password, our server checks whether it appears in known data breaches. It sends only the first 5 characters of a hash of the password, never the password itself or your email address.',
             },
+            {
+              term: 'Our mailbox provider',
+              text: 'Hosts our mailbox at {{contactEmail}}, so it receives the emails you send us and our replies.',
+            },
           ],
         },
         {
           type: 'paragraph',
-          text: 'Our cloud hosting providers, Cloudinary, Resend and Expo process data on our behalf under agreements with us. Google, Apple, the OpenStreetMap Foundation and Have I Been Pwned provide their services under their own terms and privacy policies.',
+          text: "Our cloud hosting providers, our mailbox provider, Cloudinary, Resend, Expo and Google (for Firebase Cloud Messaging) process data on our behalf, as holders of the database within the meaning of the Privacy Protection Law, under agreements with us. In these agreements they undertake to protect the data at least as well as this policy describes and to use it only to provide their service to us. Apple delivers push notifications to iPhones under Apple's developer terms. Google (for sign-in), the OpenStreetMap Foundation and Have I Been Pwned provide their services under their own terms and privacy policies, and receive only the data described above.",
         },
         {
           type: 'paragraph',
@@ -384,11 +389,11 @@ export const privacyEn: LegalDocumentContent = {
       blocks: [
         {
           type: 'paragraph',
-          text: 'Some of our service providers store or process personal data outside Israel, in particular in the United States, the European Union and the United Kingdom. Our database, the images you upload, our emails and push notifications may therefore be held or handled abroad.',
+          text: 'Some of our service providers store or process personal data outside Israel, in particular in the United States, the European Union and the United Kingdom. Our database, the images you upload, our emails (including the emails you send us) and push notifications, with their content, may therefore be held or handled abroad.',
         },
         {
           type: 'paragraph',
-          text: 'We transfer personal data abroad in accordance with the Privacy Protection (Transfer of Data to Databases Abroad) Regulations, 5761-2001. For the providers that process data on our behalf, we rely on agreements in which they undertake to protect the data and to use it only to provide their service to us.',
+          text: "We transfer personal data abroad in accordance with the Privacy Protection (Transfer of Data to Databases Abroad) Regulations, 5761-2001. For the providers that process data on our behalf, including Google for Firebase Cloud Messaging, we rely on agreements in which they undertake to protect the data at least as well as this policy describes and to use it only to provide their service to us. Apple's push service delivers notifications to iPhones under Apple's developer terms.",
         },
       ],
     },
@@ -410,7 +415,7 @@ export const privacyEn: LegalDocumentContent = {
             },
             {
               term: 'Email updates',
-              text: 'Off by default. If you turn them on, we send the same notifications by email, and only to a verified email address.',
+              text: 'Off by default. If you turn them on, we also send your notifications by email, only to a verified email address and at most 10 an hour (for each chat, at most one email every 30 minutes).',
             },
             {
               term: 'Account emails',
@@ -441,7 +446,7 @@ export const privacyEn: LegalDocumentContent = {
           items: [
             {
               term: 'Location',
-              text: "Used only when you tap “Use my current location” while entering an address. The app gets your position once, while you are using it, and never in the background. It doesn't track your location. The point is sent to our server to find the address, and it is stored only if you save that address. Without this permission, you can type the address or pick it on the map.",
+              text: "Used only when you tap “Use my current location” while entering an address. The app gets your position once, while you are using it, and never in the background. It doesn't track your location. The point is sent to our server to look up the address. It is saved in your account only if you save that address. The lookup itself isn't linked to your account: the point, rounded to about 11 metres, and the address found are kept in a cache for up to 30 days (see “Information collected automatically”). Without this permission, you can type the address or pick it on the map.",
             },
             { term: 'Camera', text: 'Used only when you choose “Take a photo” to add a photo to a request (phones only).' },
             {
@@ -524,11 +529,11 @@ export const privacyEn: LegalDocumentContent = {
             { term: 'Account and profile', text: 'As long as your account exists. See “Deleting your account” for what happens when you delete it.' },
             {
               term: 'Requests, offers, jobs, messages and reviews',
-              text: "As long as your account exists. They are also the other party's records, so part of them stays after you delete your account, without your personal details.",
+              text: "As long as your account exists. They are also the other party's records, so part of them stays after you delete your account, without your name, contact details or photo, until everyone else involved has deleted their account too (see “Deleting your account”).",
             },
             {
               term: 'Photos',
-              text: "A request's photos are deleted when you cancel the request or delete the draft. A profile photo is deleted when you replace or remove it. Other photos are kept as long as your account exists.",
+              text: "A request's photos are deleted when the request is cancelled (by you, or because the professional you hired deleted their account) and when you delete your account. A profile photo is deleted when you replace or remove it. Other photos are kept as long as your account exists.",
             },
             {
               term: 'Sign-in sessions and push tokens',
@@ -536,9 +541,26 @@ export const privacyEn: LegalDocumentContent = {
             },
             { term: 'Email links', text: 'Email verification links expire after 48 hours, and password reset links after 1 hour.' },
             { term: 'In-app notifications', text: 'Deleted automatically after 90 days.' },
-            { term: 'IP addresses', text: 'From minutes to hours in rate-limit counters, and up to 30 days in sign-in protection records.' },
-            { term: 'Server logs', text: 'Kept for {{logRetentionDays}} days, then deleted.' },
-            { term: 'Backups', text: 'Kept for {{backupRetentionDays}} days, then overwritten. Data you delete can remain in a backup until then.' },
+            {
+              term: 'Address lookups',
+              text: 'Address searches and map points, with the addresses found, are kept in a cache without a link to you for up to 30 days (text searches for up to 7 days).',
+            },
+            {
+              term: 'IP addresses',
+              text: 'From minutes to hours in rate-limit counters, up to 30 days in sign-in protection records, and up to {{logRetentionDays}} days in the access logs of the services in front of our servers.',
+            },
+            {
+              term: 'Server logs',
+              text: 'Kept for {{logRetentionDays}} days, then deleted. The access logs of the services in front of our servers are kept no longer.',
+            },
+            {
+              term: 'Emails to us',
+              text: 'Kept for up to 24 months after the matter is closed, unless we need them longer to establish or defend a legal claim or to comply with a legal duty.',
+            },
+            {
+              term: 'Backups',
+              text: 'Kept for {{backupRetentionDays}} days, then overwritten by newer backups. Data you delete can remain in a backup until then.',
+            },
           ],
         },
         {
@@ -557,16 +579,16 @@ export const privacyEn: LegalDocumentContent = {
         },
         {
           type: 'paragraph',
-          text: "**Without the app:** email [{{contactEmail}}](mailto:{{contactEmail}}) from your account's email address and ask us to delete your account. The result is the same as deleting it in the app. The [account deletion page]({{deletionUrl}}) explains the steps. Deleting the app from your phone doesn't delete your account.",
+          text: "**Without the app:** email [{{contactEmail}}](mailto:{{contactEmail}}) from your account's email address and ask us to delete your account. We reply to that address to confirm the request, and we delete the account only after you confirm from it (the sender of an email can be forged). We delete it within 30 days of your confirmation, with the same result as deleting it in the app, and email you when it's done. The [account deletion page]({{deletionUrl}}) explains the steps. Deleting the app from your phone doesn't delete your account.",
         },
         { type: 'paragraph', text: '**What happens to open items:**' },
         {
           type: 'list',
           items: [
-            'Customers: your drafts are deleted, your other open requests are cancelled, and all pending offers on them are declined.',
+            'Customers: your open requests are cancelled, and all pending offers on them are declined.',
             'Professionals: all your pending offers are withdrawn.',
             'Both roles: your active jobs are cancelled, including jobs already in progress.',
-            'The other people involved are notified.',
+            'The other people involved are notified, unless they turned off “Offers & job updates” notifications.',
           ],
         },
         { type: 'paragraph', text: '**What we delete:**' },
@@ -575,28 +597,32 @@ export const privacyEn: LegalDocumentContent = {
           items: [
             'Your name, email address, phone number, password, Google link, profile photo and default address.',
             'Your professional profile details: display name, headline, bio, contact details, business details, base address, exact service-area point, starting price and service categories. Your profile and its reviews are no longer shown.',
-            "All photos of your requests, and your requests' street address, apartment, floor and entrance details, access notes, exact map point and cancellation comments.",
+            'Your requests that no professional made an offer on. From your other requests: all photos, the street address, apartment, floor and entrance details, exact map point and cancellation comments.',
             'The messages attached to your offers, and the comments in your reviews.',
             'Your notifications, sign-in sessions, push tokens and email links. You are signed out on all devices.',
           ],
         },
         {
           type: 'paragraph',
-          text: '**What stays, without your personal details:** the people you worked with keep a record of what you did together, where you are shown as “Deleted user”.',
+          text: '**What stays, without your name, contact details or photo:** the people you worked with keep a record of what you did together, where you are shown as “Deleted user”. Texts you wrote in these records, such as request descriptions and chat messages, stay as you wrote them.',
         },
         {
           type: 'list',
           items: [
             "Jobs (service category, status, dates and agreed price) stay in the other party's history.",
-            'Your requests keep their description, category, dates, city, neighbourhood and approximate point. Your offers keep their price and dates.',
+            'Your requests that received offers keep their description, category, urgency, dates, city, neighbourhood and approximate point. Your offers keep their price and dates.',
             "Your review ratings stay, without the comment, so professionals' ratings don't change. Reviews that customers wrote about you stay in those customers' own job history.",
             'Messages you sent stay visible to the other person in the chat. All your chats are closed, so no new messages can be sent.',
-            'A minimal account record without your name or contact details (an internal number, your role, your language, and the dates the account was created and deleted), so these records keep working. For professionals, it also keeps profile settings that are not contact details (such as years of experience, weekly availability, and the approximate area and radius you served) and your rating statistics.',
+            'A minimal account record without your name or contact details (an internal number, your role, your language, and the dates the account was created and deleted), so these records keep working. For professionals, it also keeps profile settings that are not contact details (years of experience, weekly availability and whether you take emergency calls, and the approximate centre and radius of your service area) and your rating and job statistics (ratings per star, average rating, number of reviews and completed jobs, response time, and the ranking score calculated from them). Customers who dealt with you still see your rating and statistics with your offers and jobs.',
           ],
         },
         {
           type: 'paragraph',
-          text: '**Copies that expire later:** notifications already sent to other users can include your name or a message preview until they are deleted after 90 days. Sign-in protection records (which contain a hash of your email address) expire within 30 days, and other short-lived security and cache entries within hours. Server logs are kept for {{logRetentionDays}} days and backups for {{backupRetentionDays}} days; after that, they are deleted or overwritten.',
+          text: 'These records have no fixed deletion date: they stay while anyone else involved in them still has an account, and they are deleted once everyone involved has deleted their account. The minimal account record has no fixed deletion date either.',
+        },
+        {
+          type: 'paragraph',
+          text: '**Copies that expire later:** notifications already sent to other users can include your name or a message preview until they are deleted after 90 days. Sign-in protection records (which contain a hash of your email address) expire within 30 days, and other short-lived security and cache entries within hours. Server logs are kept for {{logRetentionDays}} days and backups for {{backupRetentionDays}} days; after that, they are deleted or overwritten by newer backups. Emails you sent us, such as a deletion request, are kept for up to 24 months after the matter is closed (see “How long we keep information”).',
         },
         {
           type: 'paragraph',
@@ -636,7 +662,7 @@ export const privacyEn: LegalDocumentContent = {
         },
         {
           type: 'paragraph',
-          text: "For anything else, such as inspecting your data or changing the email address you sign in with, email [{{contactEmail}}](mailto:{{contactEmail}}) from your account's email address. We may ask you to confirm your identity. We answer within 30 days.",
+          text: "For anything else, such as getting a copy of your data or changing the email address you sign in with, email [{{contactEmail}}](mailto:{{contactEmail}}) from your account's email address. We reply to that address to confirm the request before we act on it, and we answer within 30 days.",
         },
         {
           type: 'paragraph',
@@ -694,7 +720,7 @@ export const privacyEn: LegalDocumentContent = {
         {
           type: 'list',
           items: [
-            'We use this data only to create your account, to sign you in and, until you change it, to use your Google profile photo as your profile photo.',
+            'We use this data only to create your account, to sign you in and, if you sign up with Google, to use your Google profile photo as your profile photo until you change it.',
             "We don't sell it or use it for advertising, and we share it only as this policy describes (for example, your profile photo and name are shown to other users as described in “What other users can see”).",
             "We never receive your Google password, and we don't store Google access tokens. We don't access your Gmail, contacts, files or any other Google data.",
             'Our use of information received from Google follows the [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy), including its Limited Use requirements.',
@@ -713,9 +739,12 @@ export const privacyEn: LegalDocumentContent = {
         { type: 'paragraph', text: 'We may update this policy, for example when we add features or when the law changes.' },
         {
           type: 'paragraph',
-          text: 'If we make a significant change, we will tell you in the app or by email before it takes effect. If a change needs your consent, for example a new use of your data, we will ask for it.',
+          text: "We will email you about a change at least 14 days before it takes effect, at your account's email address. The email will explain what is changing and when, and include the new text. If a change needs your consent, for example a new use of your data, we will ask for it.",
         },
-        { type: 'paragraph', text: 'This version takes effect on {{effectiveDate}}.' },
+        {
+          type: 'paragraph',
+          text: 'The version in force and its effective date are always available at [{{privacyUrl}}]({{privacyUrl}}) and in the app. A new version is published there on the day it takes effect. This version takes effect on {{effectiveDate}}.',
+        },
       ],
     },
     {

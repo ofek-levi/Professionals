@@ -10,13 +10,18 @@ import { BRAND, directionOf, escapeHtml, startSideOf } from '../../../lib/html.j
 import { isolateText } from '../../../lib/text.js';
 import type { AppLanguage } from '../../../shared/domain.js';
 import { API_LIMITS } from '../../../shared/limits.js';
-import { ACCOUNT_DELETED_TEXTS } from './account-deleted-texts.js';
+import type { DeletionClosed } from '../account-deletion.impact.js';
+import { ACCOUNT_DELETED_TEXTS, type DeletionOrigin } from './account-deleted-texts.js';
 
 export interface AccountDeletedEmailInput {
   /** The address the account had (it is erased from the account itself). */
   to: string;
   firstName: string;
   language: AppLanguage;
+  /** Who asked for the deletion (the first sentence). */
+  via: DeletionOrigin;
+  /** What the deletion closed (a sentence only when it closed something). */
+  closed: DeletionClosed;
   /** Where to write with questions (the operator's address). */
   contactEmail: string;
 }
@@ -37,7 +42,8 @@ export function renderAccountDeletedEmail(input: AccountDeletedEmailInput): Mail
     logDays: LEGAL_CONFIG.retention.serverLogsDays,
     backupDays: LEGAL_CONFIG.retention.backupsDays,
   });
-  const intro = withAddress(texts.intro, input.to);
+  const intro = withAddress(texts.intro[input.via], input.to);
+  const closed = texts.closed(input.closed);
   const contact = withAddress(texts.contact, input.contactEmail);
   const dir = directionOf(input.language);
   const align = startSideOf(input.language);
@@ -59,7 +65,7 @@ export function renderAccountDeletedEmail(input: AccountDeletedEmailInput): Mail
 <tr><td><h1 style="margin:0 0 20px;font-size:22px;line-height:30px;color:${BRAND.text};text-align:${align};">${escapeHtml(texts.subject)}</h1>
 <p style="${paragraph}">${escapeHtml(texts.greeting(input.firstName))}</p>
 <p style="${paragraph}">${intro.html}</p>
-<p style="${paragraph}">${escapeHtml(texts.closed)}</p>
+${closed === null ? '' : `<p style="${paragraph}">${escapeHtml(closed)}</p>`}
 <h2 style="${subheading}">${escapeHtml(texts.removedHeading)}</h2>
 ${list(texts.removed)}
 <h2 style="${subheading}">${escapeHtml(texts.keptHeading)}</h2>
@@ -78,8 +84,7 @@ ${list(kept)}
     '',
     intro.text,
     '',
-    texts.closed,
-    '',
+    ...(closed === null ? [] : [closed, '']),
     `${texts.removedHeading}:`,
     ...bullets(texts.removed),
     '',

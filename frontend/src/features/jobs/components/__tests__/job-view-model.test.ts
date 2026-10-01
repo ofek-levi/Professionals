@@ -55,12 +55,16 @@ describe('getJobTimeline', () => {
       'confirmed:done',
       'cancelled:cancelled',
     ]);
+    // An account deletion cancels a job in progress: the start stays on the record.
+    const cancelledInProgress = getJobTimeline(job('cancelled', { confirmedAt: 'c', startedAt: 's', cancelledAt: 'x' }));
+    expect(states(cancelledInProgress)).toEqual(['accepted:done', 'confirmed:done', 'in_progress:done', 'cancelled:cancelled']);
+    expect(cancelledInProgress[2].at).toBe('s');
   });
 });
 
 describe('planJobActions', () => {
-  const plan = (status: JobStatus, role: UserRole, hasReview = false) =>
-    planJobActions({ status }, role, getJobActions({ status }, role, { hasReview }));
+  const plan = (status: JobStatus, role: UserRole, canReview = status === 'completed') =>
+    planJobActions({ status }, role, getJobActions({ status, canReview }, role));
 
   it('walks the professional through confirm → start → complete', () => {
     expect(plan('awaiting_confirmation', 'professional')).toEqual({ primary: 'confirm', secondary: [], message: true });
@@ -74,7 +78,8 @@ describe('planJobActions', () => {
     expect(plan('scheduled', 'customer')).toEqual({ primary: null, secondary: ['complete'], message: true });
     expect(plan('in_progress', 'customer')).toEqual({ primary: 'complete', secondary: [], message: true });
     expect(plan('completed', 'customer')).toEqual({ primary: 'review', secondary: [], message: true });
-    expect(plan('completed', 'customer', true)).toEqual({ primary: null, secondary: [], message: true });
+    // Reviewed already, or the professional deleted their account (the server's `canReview`).
+    expect(plan('completed', 'customer', false)).toEqual({ primary: null, secondary: [], message: true });
   });
 
   it('offers nothing but information once cancelled', () => {

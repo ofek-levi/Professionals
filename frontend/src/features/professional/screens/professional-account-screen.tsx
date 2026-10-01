@@ -38,7 +38,6 @@ export default function ProfessionalAccountScreen() {
         <AccountHeader
           name={profile.displayName}
           avatarUrl={profile.avatarUrl}
-          verified={profile.isVerified}
           subtitle={
             <View style={styles.meta}>
               {rating !== null ? <Icon name="star" size={14} color={theme.colors.star} /> : null}

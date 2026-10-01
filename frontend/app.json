@@ -11,7 +11,7 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.professionals.marketplace",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Your location is used to set the service address and to show nearby jobs.",
+        "NSLocationWhenInUseUsageDescription": "Your location is used only when you tap “Use my current location”, to fill in an address.",
         "NSPhotoLibraryUsageDescription": "Photos help professionals understand the job before sending an offer.",
         "NSCameraUsageDescription": "Take photos of the problem to attach them to your request."
       }
@@ -66,7 +66,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Your location is used to set the service address and to show nearby jobs.",
+          "locationWhenInUsePermission": "Your location is used only when you tap “Use my current location”, to fill in an address.",
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false,
           "motionUsagePermission": false

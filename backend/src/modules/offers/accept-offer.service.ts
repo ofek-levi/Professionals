@@ -4,7 +4,8 @@
  * `professional_selected`. Concurrency: every step is a conditional write on documents a competing
  * acceptance also writes (the request above all), so the loser hits a write conflict, is retried
  * by the driver, re-reads the request and fails with 409; the unique `jobs.request` index is the
- * last line of defence.
+ * last line of defence. The customer's account is locked first (`lockActiveAccount`): a deletion
+ * from another device and the acceptance never both commit unseen.
  */
 import type { Types } from 'mongoose';
 
@@ -22,6 +23,7 @@ import { customerNameOf, loadOwnedRequest } from '../requests/request-access.js'
 import { publishRequestLeftExplorers } from '../requests/request-events.js';
 import type { RequestDoc } from '../requests/request.model.js';
 import { assertRequestTransition } from '../requests/request-rules.js';
+import { lockActiveAccount } from '../users/me.service.js';
 import { rejectPendingOffers, syncRequestOfferCounters } from './offer-counters.service.js';
 import { publishOfferUpdated } from './offer-events.js';
 import { assertOfferAcceptable, assertOfferTransition } from './offer-rules.js';
@@ -40,6 +42,7 @@ const alreadyAccepted = () => ApiError.conflict('An offer has already been accep
 export async function acceptOffer(deps: AcceptDeps, auth: AuthContext, offerId: Types.ObjectId): Promise<AcceptedOffer> {
   try {
     return await withTransaction(deps.logger, async (tx) => {
+      await lockActiveAccount(auth.userId, tx);
       const offer = await OfferModel.findById(offerId).session(tx.session).lean<OfferDoc>();
       if (!offer) throw ApiError.notFound('Offer');
       const request = await loadOwnedRequest(auth, offer.request, tx.session);

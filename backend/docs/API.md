@@ -523,15 +523,20 @@ linked Google account. Refusals are **400, never 401** (the app refreshes the ac
 
 One MongoDB transaction does everything (all or nothing); the other parties are notified with an
 empty name, so their texts say "A customer" / "A professional":
-- **Customer**: drafts deleted; every other active request cancelled (`cancellationReason:
-  account_deleted`) as `POST /requests/:id/cancel` does: pending offers `rejected`
-  (`request_cancelled`), an active job — `in_progress` too — `cancelled` and its chat closed,
-  `request_cancelled` to those professionals.
+- **Customer**: every active request cancelled (`cancellationReason: account_deleted`) as
+  `POST /requests/:id/cancel` does: pending offers `rejected` (`request_cancelled`), an active job —
+  `in_progress` too — `cancelled` and its chat closed, `request_cancelled` to those professionals;
+  then every request no professional made an offer on (drafts too, whatever its status) is deleted
+  with its photos: it is in nobody else's history (a professional who opens it later gets 404).
 - **Professional**: every pending offer `withdrawn` (`withdrawn_by_professional`), `offer_withdrawn` to
   the customer; every active job (`in_progress` too) and its request `cancelled`
   (`account_deleted`; the request's photos deleted), `job_cancelled` to the customer.
 - **Both**: every chat of the user closed (also those of completed jobs); the user's notifications,
   email links and sessions (push tokens) deleted, open sockets closed; the avatar deleted from storage.
+- **Meanwhile, from another device**: a request, offer, review or acceptance being created writes the
+  account first, as the deletion does, so the two never both commit unseen: either it answers 401 (the
+  account is gone, photos already uploaded are deleted again), or it commits first and the deletion
+  handles it like the rest (cancels the request, withdraws the offer, removes the review's comment).
 
 What stays, without the person (the Privacy Policy says exactly this):
 - The account becomes a tombstone: `_id`, `role`, `language`, `createdAt`, `deletedAt`; the email is
@@ -541,8 +546,9 @@ What stays, without the person (the Privacy Policy says exactly this):
   credentials answers like an unknown account.
 - Other users see the person as **"Deleted user"** with `accountDeleted: true`
   (`customerAccountDeleted` on reviews) and no avatar, in jobs, offers, requests, chats and reviews.
-- A customer's requests keep their description, category, dates, status, city and neighbourhood and
-  the approximate pin; the exact point, street address, access details, notes, cancellation comment,
+- A customer's requests that received offers keep their description, category, dates, status, city
+  and neighbourhood and the approximate pin (the same one professionals saw before, `isApproximate: true` for everyone,
+  the hired professional too); the exact point, street address, access details, notes, cancellation comment,
   photos (deleted from storage) and idempotency key are removed. Completed jobs (category, dates,
   agreed price) stay in the professional's history. Their reviews keep the rating (the professional's
   stats do not change) and lose the comment.
@@ -552,12 +558,23 @@ What stays, without the person (the Privacy Policy says exactly this):
   longer be reviewed (`canReview: false`, `POST /jobs/:id/review` → 409). Their offers keep price and
   dates and lose the message.
 - Chat messages the person sent stay visible to the other participant.
+- These records stay while another party to them has an account. When the deleted account's other
+  party is deleted already, the deletion also deletes what only the two shared: their jobs with the
+  reviews of those jobs, their chats with every message, the offers between them, and the deleted
+  customer's requests left without an offer (`account-purge.ts`). A request that still has an offer of
+  a professional with an account stays for them (its accepted offer and job may be gone).
 - Copies of the person's name or message previews inside other users' notifications expire with the
   90-day notification TTL; login-throttle keys (hashed email) within 30 days; logs and backups as in
   OPERATIONS.md.
 
-After the commit a confirmation email goes to the address the account had, in its language (what was
-deleted, what stays, the operator's contact address from `src/config/legal.ts`); best effort.
+After the commit a confirmation email goes to the address the account had, in its language; best
+effort. It says who asked ("As you asked in the app"; the operator's deletions say "As you asked by
+email", or, for an account closed under the Terms, only that it was deleted), what was closed (only
+when something was: the customer's requests, the offers declined and the jobs cancelled; the
+professional's offers withdrawn and jobs cancelled), what was deleted, what stays, and the operator's
+contact address from `src/config/legal.ts`. The operator runs the same deletion with
+`src/delete-account.ts` (OPERATIONS.md §9), without the email when re-applying it after a backup
+restore.
 
 ## Profiles (customers, professionals, geo)
 
@@ -597,9 +614,10 @@ Errors: 400 `VALIDATION_ERROR`, 422 `UNSUPPORTED_CATEGORY` (`categoryIds.<i>`), 
 
 ### `GET /professionals/:professionalId` — any signed-in user
 `200 ProfessionalProfile` as the viewer may see it (same rules as the app's `views.ts`):
-- everyone but the owner: approximate `baseLocation` (no street, no details, `isApproximate: true`)
-  and approximate `serviceArea.center` (deterministic 250–450 m offset, the same for every viewer,
-  derived from `LOCATION_PRIVACY_SECRET` so it cannot be undone from the id);
+- everyone but the owner: approximate `serviceArea.center` (deterministic 250–450 m offset, the same
+  for every viewer, derived from `LOCATION_PRIVACY_SECRET` so it cannot be undone from the id; stored
+  when the area is saved) and approximate `baseLocation` at that same point (no street, no details,
+  `isApproximate: true`);
 - `contact` is `null` unless the viewer is a customer who hired the professional: a job with them in
   `awaiting_confirmation`, `scheduled`, `in_progress` or `completed` (not after a cancellation);
 - `fullName` and `notificationPreferences` are never included (also not for the owner; both are in
@@ -869,9 +887,9 @@ retry are read but not stored). The key is scoped to the customer; a new one cre
   = professionals notified at publication, see `POST /requests`). Another customer → 403.
 - Professional: 404 for drafts; 403 unless the request matches their categories and service area or
   they sent an offer on it. `{ viewerRole: 'professional', request: ProfessionalRequestView }` with
-  the privacy view until their offer is accepted: `location` approximate (deterministic 250–450 m
-  offset derived from the request id and `LOCATION_PRIVACY_SECRET`, no street, no details,
-  `isApproximate: true`), `notes: null`,
+  the privacy view until their offer is accepted: `location` approximate (the request's stored pin:
+  deterministic 250–450 m offset derived from the request id and `LOCATION_PRIVACY_SECRET`, no
+  street, no details, `isApproximate: true`), `notes: null`,
   `jobId: null`. Plus `distanceKm` (0.1 km, from the service-area center to the approximate pin),
   `customer` (`CustomerSummary`: short name, avatar, member since, completed jobs; nothing of the
   customer's own address), `myOffer` (their active offer, else their newest),
@@ -1037,6 +1055,9 @@ account → 409 `CONFLICT`; another customer → 403.
 One transaction stores the review, links it on the job and recomputes the professional's
 `averageRating` (0.1 precision), `reviewCount` and search rank; the cached public profile is dropped,
 `profile.updated` and `review_received` go to the professional, `job.updated` to both parties.
+There is no endpoint to edit or delete a review; the operator removes one with `src/remove-review.ts`
+(OPERATIONS.md §9): the review is deleted, the job's `reviewId` becomes `null` (its customer may
+review it again) and the rating is recounted from the remaining reviews.
 
 ### Dashboards
 

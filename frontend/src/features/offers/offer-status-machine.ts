@@ -8,7 +8,7 @@ import type { RequestStatus } from '@/constants/request-statuses';
 import { URGENCY_META, type UrgencyLevel } from '@/constants/urgency-levels';
 import { requestAcceptsOffers } from '@/features/requests/request-status-machine';
 import { assertTransition, type TransitionTable } from '@/features/shared/state-machine';
-import type { ISODateTimeString, Offer, ServiceRequest } from '@/types/domain';
+import type { ISODateTimeString, Offer, OfferStatusReason, ServiceRequest } from '@/types/domain';
 import { toDate, type DateInput } from '@/utils/dates';
 
 const OFFER_TRANSITIONS: TransitionTable<OfferStatus> = {
@@ -97,9 +97,17 @@ export function canCustomerAcceptOffer(
  * How an offer reads for the professional who sent it. `accepted` is terminal in the offer machine,
  * so when the customer later cancels the request (and with it the job) the offer stays `accepted`;
  * the request status turns it into `job_cancelled` so the UI never celebrates a cancelled job.
+ * A pending offer declined because the request was cancelled (also by the customer's account
+ * deletion) is `request_cancelled`, not "Not selected" (`statusReason`, when known).
  */
-export type ProfessionalOfferOutcome = OfferStatus | 'job_cancelled';
+export type ProfessionalOfferOutcome = OfferStatus | 'job_cancelled' | 'request_cancelled';
 
-export function getProfessionalOfferOutcome(offerStatus: OfferStatus, requestStatus: RequestStatus): ProfessionalOfferOutcome {
-  return offerStatus === 'accepted' && requestStatus === 'cancelled' ? 'job_cancelled' : offerStatus;
+export function getProfessionalOfferOutcome(
+  offerStatus: OfferStatus,
+  requestStatus: RequestStatus,
+  statusReason: OfferStatusReason | null = null,
+): ProfessionalOfferOutcome {
+  if (offerStatus === 'accepted' && requestStatus === 'cancelled') return 'job_cancelled';
+  if (offerStatus === 'rejected' && statusReason === 'request_cancelled') return 'request_cancelled';
+  return offerStatus;
 }

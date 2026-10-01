@@ -30,12 +30,16 @@ export interface RequestDoc {
   customer: Types.ObjectId;
   categoryId: CategoryId;
   description: string;
-  /** Exact location; professionals get `approximateLocation(…, requestId)` until hired. */
+  /**
+   * Exact location (professionals see `publicPoint` until hired); once its customer deleted their
+   * account, the approximate pin marked `approximate` (`account-erasure.ts`).
+   */
   location: LocationDoc;
   /**
    * The approximate pin professionals see (`approximateCoordinates(location, id)`), stored so that
-   * every professional-facing geo query (matching, explorer, distances) runs on it: no filter or
-   * distance ever answers anything about the exact address. Kept in sync by `requestPublicPoint`.
+   * every professional-facing view and geo query (matching, explorer, distances) uses it: no filter
+   * or distance ever answers anything about the exact address, and the pin never moves unless the
+   * location does. Kept in sync by `requestPublicPoint`.
    */
   publicPoint: GeoPoint;
   urgency: UrgencyLevel;

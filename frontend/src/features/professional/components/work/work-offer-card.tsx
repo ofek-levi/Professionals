@@ -23,9 +23,14 @@ export function WorkOfferCard({ offer, showStatus = true, onPress, testID }: Wor
   const { t } = useTranslation(['offers', 'common']);
   const format = useFormatters();
   const category = useCategoryName(offer.request.categoryId) || t('common:category.unknown');
-  const outcome = getProfessionalOfferOutcome(offer.status, offer.request.status);
+  const outcome = getProfessionalOfferOutcome(offer.status, offer.request.status, offer.statusReason);
   const terms = [format.currency(offer.price, offer.currency), format.dateTime(offer.proposedStartAt)].join(' · ');
-  const statusLabel = outcome === 'job_cancelled' ? t('offers:jobCancelled.badge') : t(`common:offerStatus.${outcome}`);
+  const statusLabel =
+    outcome === 'job_cancelled'
+      ? t('offers:jobCancelled.badge')
+      : outcome === 'request_cancelled'
+        ? t('offers:requestCancelled.badge')
+        : t(`common:offerStatus.${outcome}`);
 
   return (
     <Card onPress={onPress} padding="none" accessibilityLabel={[category, statusLabel, terms].join(', ')} testID={testID}>

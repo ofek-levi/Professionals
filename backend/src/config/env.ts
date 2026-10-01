@@ -6,6 +6,7 @@
 import { z } from 'zod';
 
 import {
+  DEVELOPMENT_LOCATION_PRIVACY_SECRET,
   deployedSecretIssues,
   isPlaceholderSecret,
   legalOperatorIssues,
@@ -20,9 +21,6 @@ const APP_ENVS = ['development', 'staging', 'production'] as const;
 export type AppEnv = (typeof APP_ENVS)[number];
 
 const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
-
-/** `LOCATION_PRIVACY_SECRET` of a development setup that does not set one (staging/production must). */
-const DEVELOPMENT_LOCATION_PRIVACY_SECRET = 'development-only-location-privacy-secret';
 
 const optionalString = z
   .string()
@@ -217,7 +215,7 @@ export function parseEnv(source: Record<string, string | undefined> = process.en
       ? [
           ...missingForDeployedEnv(raw, cloudinary),
           ...developmentOnlyIssues(raw),
-          ...deployedSecretIssues(raw.JWT_ACCESS_SECRET),
+          ...deployedSecretIssues('JWT_ACCESS_SECRET', raw.JWT_ACCESS_SECRET),
           ...locationSecretIssues(raw.LOCATION_PRIVACY_SECRET),
         ]
       : []),

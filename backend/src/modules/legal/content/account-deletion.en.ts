@@ -19,10 +19,10 @@ export const accountDeletionEn: LegalDocumentContent = {
           type: 'list',
           items: [
             '**In the app:** Profile → Settings → **Delete account**. Your account is deleted immediately.',
-            "**Without the app:** email [{{contactEmail}}](mailto:{{contactEmail}}) from your account's email address. We delete the account within 30 days.",
-            '**What we delete:** your name, contact details, password, photos, addresses and professional profile.',
-            '**What stays:** records that other users also rely on, such as jobs, ratings without their comments and messages you sent. They no longer show your name: you appear as “Deleted user”.',
-            '**Copies deleted later:** notifications sent to other users within 90 days, sign-in security records within 30 days, server logs within {{logRetentionDays}} days, backups within {{backupRetentionDays}} days.',
+            "**Without the app:** email [{{contactEmail}}](mailto:{{contactEmail}}) from your account's email address. We reply to confirm, and delete the account within 30 days of your confirmation.",
+            '**What we delete:** your name, contact details, password, photos, addresses and professional profile, and the requests that no professional made an offer on.',
+            '**What stays:** records that other users also rely on, such as jobs, ratings without their comments and messages you sent. They no longer show your name: you appear as “Deleted user”. They are deleted once everyone involved has deleted their account.',
+            '**Copies deleted later:** notifications sent to other users within 90 days, sign-in security records within 30 days, server logs within {{logRetentionDays}} days, backups within {{backupRetentionDays}} days, and emails you sent us within 24 months after the matter is closed.',
           ],
         },
       ],
@@ -38,11 +38,11 @@ export const accountDeletionEn: LegalDocumentContent = {
             { term: 'Step 2', text: 'Choose **Settings**, then **Delete account**.' },
             {
               term: 'Step 3',
-              text: 'Check what will happen. Before anything is deleted, the app shows which of your requests, offers and jobs will be cancelled, declined or withdrawn, and what stays after deletion.',
+              text: 'Check what will happen. Before anything is deleted, the app shows how many of your requests, offers and jobs will be cancelled, declined or withdrawn, with a list of the requests, jobs and withdrawn offers concerned (up to 20 of each), and what stays after deletion.',
             },
             {
               term: 'Step 4',
-              text: "Confirm it's you: enter your password. If your account has no password (for example, because you signed up with Google), confirm with your Google account instead.",
+              text: "Confirm it's you: enter your password. If your account has no password (for example, because you signed up with Google), confirm with your Google account instead. If confirming with Google isn't available in the app you're using, ask us by email (see “If you can't use the app”).",
             },
             { term: 'Step 5', text: "Confirm the deletion. Your account is deleted immediately and you're signed out." },
           ],
@@ -70,7 +70,7 @@ export const accountDeletionEn: LegalDocumentContent = {
         },
         {
           type: 'paragraph',
-          text: "We check that the request comes from the account's email address, and we may reply to confirm it before we delete anything. We delete the account within 30 days of receiving your request, with the same result as deleting it in the app (described below), and we let you know by email when it's done.",
+          text: "We reply to the account's email address to confirm the request, and we delete the account only after you confirm from that address (the sender of an email can be forged). We delete it within 30 days of your confirmation, with the same result as deleting it in the app (described below). When it's done, we email you a confirmation that the account was deleted at your request by email.",
         },
         {
           type: 'paragraph',
@@ -102,15 +102,18 @@ export const accountDeletionEn: LegalDocumentContent = {
           items: [
             {
               term: "If you're a customer",
-              text: "Your draft requests are deleted. Your other active requests (open, with offers, or with a job that isn't finished) are cancelled, and all pending offers on them are declined. The professionals who sent those offers are notified.",
+              text: "Your active requests (open, with offers, or with a job that isn't finished) are cancelled, and all pending offers on them are declined. The professionals who sent those offers are notified, unless they turned off “Offers & job updates” notifications. Requests that no professional made an offer on are deleted (see “What we delete”).",
             },
-            { term: "If you're a professional", text: 'All your pending offers are withdrawn, and the customers who received them are notified.' },
+            {
+              term: "If you're a professional",
+              text: 'All your pending offers are withdrawn, and the customers who received them are notified, unless they turned off “Offers & job updates” notifications.',
+            },
             {
               term: 'Active jobs (both roles)',
-              text: "Jobs that are awaiting confirmation, scheduled or in progress are cancelled, even if the work has already started. The job's request is cancelled too, and the other person is notified.",
+              text: "Jobs that are awaiting confirmation, scheduled or in progress are cancelled, even if the work has already started. The job's request is cancelled too, and the other person is notified, unless they turned off “Offers & job updates” notifications.",
             },
             { term: 'Chats', text: 'All your chats are closed, so no new messages can be sent in them.' },
-            { term: 'Completed jobs', text: "They stay in the other person's history (see “What we keep”)." },
+            { term: 'Completed jobs', text: "They stay in the other person's history (see “What we keep, and why”)." },
           ],
         },
         { type: 'paragraph', text: "The notifications that other users receive about these changes don't include your name." },
@@ -126,7 +129,7 @@ export const accountDeletionEn: LegalDocumentContent = {
           items: [
             '**Account details:** your name, email address, phone number, password, the link to your Google account, profile photo, default address, and the record of when you accepted our terms.',
             '**Professional profile:** display or business name, headline, bio, contact phone, email and website, license number, insurance declaration, languages, base address, exact service-area point, starting price and service categories. Your public profile and its list of reviews are removed, you no longer appear in search results, and you stop receiving new requests.',
-            '**Requests (customers):** your draft requests, and from all your other requests: their photos, street address, apartment, floor and entrance details, notes, exact map point and cancellation comments.',
+            '**Requests (customers):** the requests that no professional made an offer on, in full. From your other requests: their photos, street address, apartment, floor and entrance details, exact map point and cancellation comments.',
             '**Offers (professionals):** the messages you wrote in your offers.',
             '**Reviews you wrote:** their comments. The star rating stays (see below).',
             "**Your notifications, sign-in sessions and push notification tokens,** and any email verification or password reset links. You're signed out on every device.",
@@ -148,13 +151,13 @@ export const accountDeletionEn: LegalDocumentContent = {
           items: [
             {
               term: 'Jobs',
-              text: 'Your jobs with other users, including completed ones, stay in their history: service category, status, dates and the agreed price.',
+              text: 'Your jobs with other users, including completed and cancelled ones, stay in their history: service category, status, dates and the agreed price.',
             },
             {
               term: 'Requests (customers)',
-              text: 'The description, service category, urgency, dates, city, neighbourhood and approximate location, for the professionals who made offers on them or worked on them.',
+              text: 'Requests that received offers keep their description, service category, urgency, dates, city, neighbourhood and approximate location. The professionals who made offers on them or worked on them can still see them, and so can other professionals whose services and area match a request if they open it, for example from an earlier notification about it.',
             },
-            { term: 'Offers (professionals)', text: 'The price, proposed time and duration, for the customers who received them.' },
+            { term: 'Offers (professionals)', text: 'The price and proposed start time, for the customers who received them.' },
             {
               term: 'Ratings you gave',
               text: "The star rating, without the comment, stays in the professional's reviews, so their rating doesn't change.",
@@ -169,13 +172,13 @@ export const accountDeletionEn: LegalDocumentContent = {
             },
             {
               term: 'Minimal account record',
-              text: "An internal account number, your role, your language, and the dates the account was created and deleted, so the records above keep working. For professionals, it also keeps profile settings that aren't contact details (years of experience, weekly availability, the approximate area and radius you served) and your rating statistics.",
+              text: "An internal account number, your role, your language, and the dates the account was created and deleted, so the records above keep working. For professionals, it also keeps profile settings that aren't contact details (years of experience, weekly availability and whether you take emergency calls, and the approximate centre and radius of your service area) and your rating and job statistics (ratings per star, average rating, number of reviews and completed jobs, response time, and the ranking score calculated from them). Customers who dealt with you still see your rating and statistics with your offers and jobs.",
             },
           ],
         },
         {
           type: 'paragraph',
-          text: "**How long:** these records don't have a fixed deletion date, because they are part of other users' history. They don't include your name, contact details or photos, but texts you wrote, such as request descriptions and chat messages, stay as you wrote them.",
+          text: "**How long:** these records stay while anyone else involved in them still has an account, and they are deleted once everyone involved has deleted their account; until then, they don't have a fixed deletion date. The minimal account record doesn't have a fixed deletion date either. The records don't include your name, contact details or photos, but texts you wrote, such as request descriptions and chat messages, stay as you wrote them.",
         },
       ],
     },
@@ -195,8 +198,18 @@ export const accountDeletionEn: LegalDocumentContent = {
               term: 'Sign-in security records',
               text: 'They contain a hash of your email address and the IP address you signed in from, and expire within 30 days. Other short-lived security and cache entries expire within hours.',
             },
-            { term: 'Server logs', text: 'Kept for {{logRetentionDays}} days, then deleted.' },
-            { term: 'Backups', text: 'Kept for {{backupRetentionDays}} days, then overwritten. Until then, your data can remain in a backup copy.' },
+            {
+              term: 'Server logs',
+              text: 'Kept for {{logRetentionDays}} days, then deleted. The access logs of the services in front of our servers are kept no longer.',
+            },
+            {
+              term: 'Backups',
+              text: 'Kept for {{backupRetentionDays}} days, then overwritten by newer backups. Until then, your data can remain in a backup copy.',
+            },
+            {
+              term: 'Emails you sent us',
+              text: 'Such as a deletion request. Kept for up to 24 months after the matter is closed, unless we need them longer to establish or defend a legal claim or to comply with a legal duty.',
+            },
           ],
         },
         {

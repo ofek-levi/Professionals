@@ -22,6 +22,22 @@ export type DeletionImpact =
   | { role: 'customer'; drafts: RequestDoc[]; requests: RequestDoc[]; jobs: JobDoc[] }
   | { role: 'professional'; offers: OfferDoc[]; jobs: JobDoc[] };
 
+/** How many of each the deletion closes (the confirmation email names only what happened). */
+export type DeletionClosed =
+  | { role: 'customer'; requests: number; offers: number; jobs: number }
+  | { role: 'professional'; offers: number; jobs: number };
+
+/** The pending offers on the customer's requests to cancel: they are declined with them. */
+export function pendingOffersOn(requests: readonly Pick<RequestDoc, 'pendingOfferCount'>[]): number {
+  return requests.reduce((sum, request) => sum + request.pendingOfferCount, 0);
+}
+
+export function closedBy(impact: DeletionImpact): DeletionClosed {
+  return impact.role === 'customer'
+    ? { role: 'customer', requests: impact.requests.length, offers: pendingOffersOn(impact.requests), jobs: impact.jobs.length }
+    : { role: 'professional', offers: impact.offers.length, jobs: impact.jobs.length };
+}
+
 /** Soonest first (`{customer|professional, status, scheduledStartAt, _id}` indexes). */
 function activeJobs(party: 'customer' | 'professional', userId: Types.ObjectId, session: ClientSession | null): Promise<JobDoc[]> {
   return JobModel.find({ [party]: userId, status: { $in: [...ACTIVE_JOB_STATUSES] } })

@@ -1,14 +1,14 @@
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { AppText, Avatar, Badge, Icon, Skeleton } from '@/components/ui';
+import { AppText, Avatar, Icon, Skeleton } from '@/components/ui';
 import { useFormatters } from '@/i18n/hooks';
 import { makeStyles, useTheme } from '@/theme';
 import type { ProfessionalProfile } from '@/types/domain';
 
 const AVATAR_SIZE = 88;
 
-/** Avatar, name, headline, verification and "★ 4.8 · 32 reviews · 120 jobs done". */
+/** Avatar, name, headline and "★ 4.8 · 32 reviews · 120 jobs done". */
 export function ProfileHeader({ profile }: { profile: ProfessionalProfile }) {
   const theme = useTheme();
   const styles = useStyles();
@@ -33,14 +33,11 @@ export function ProfileHeader({ profile }: { profile: ProfessionalProfile }) {
           </AppText>
         ) : null}
       </View>
-      <View style={styles.meta}>
-        {profile.isVerified ? <Badge label={t('common:verified')} tone="brand" size="sm" /> : null}
-        <View style={styles.facts}>
-          {averageRating !== null ? <Icon name="star" size={15} color={theme.colors.star} /> : null}
-          <AppText variant="caption" color="secondary">
-            {[averageRating !== null ? format.number(averageRating, 1) : null, ...facts].filter(Boolean).join(' · ')}
-          </AppText>
-        </View>
+      <View style={styles.facts}>
+        {averageRating !== null ? <Icon name="star" size={15} color={theme.colors.star} /> : null}
+        <AppText variant="caption" color="secondary">
+          {[averageRating !== null ? format.number(averageRating, 1) : null, ...facts].filter(Boolean).join(' · ')}
+        </AppText>
       </View>
     </View>
   );
@@ -74,13 +71,6 @@ const useStyles = makeStyles((t) => ({
   },
   headline: {
     maxWidth: 420,
-  },
-  meta: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: t.spacing.sm,
   },
   facts: {
     flexDirection: 'row',

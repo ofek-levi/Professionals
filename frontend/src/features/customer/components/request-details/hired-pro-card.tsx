@@ -54,7 +54,7 @@ export function HiredProCard({ job, error, loading, onRetry }: HiredProCardProps
 
   const pro = job.professional;
   const name = personName(pro);
-  const actions = getJobActions(job, 'customer', { hasReview: Boolean(job.reviewId) });
+  const actions = getJobActions(job, 'customer');
   const completed = job.status === 'completed' && job.completedAt;
 
   return (
@@ -69,12 +69,9 @@ export function HiredProCard({ job, error, loading, onRetry }: HiredProCardProps
       >
         <Avatar name={name} uri={pro.avatarUrl} size="md" decorative />
         <View style={styles.who}>
-          <View style={styles.nameRow}>
-            <AppText variant="bodyStrong" numberOfLines={1} style={styles.shrink}>
-              {name}
-            </AppText>
-            {pro.isVerified ? <Icon name="check-decagram" size={15} color="primary" accessibilityLabel={t('common:verified')} /> : null}
-          </View>
+          <AppText variant="bodyStrong" numberOfLines={1}>
+            {name}
+          </AppText>
           <RatingStars value={pro.averageRating} count={pro.reviewCount} variant="compact" size={13} textVariant="caption" />
         </View>
         {pro.accountDeleted ? null : <Icon name="chevron-right" size={20} color="muted" flipInRTL />}
@@ -173,14 +170,6 @@ const useStyles = makeStyles((t) => ({
   who: {
     flex: 1,
     gap: t.spacing.xxs,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.xs,
-  },
-  shrink: {
-    flexShrink: 1,
   },
   facts: {
     flexDirection: 'row',

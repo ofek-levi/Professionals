@@ -111,8 +111,10 @@ describe('account deletion', () => {
       code: 'INVALID_CREDENTIALS',
     });
 
+    // Requests no professional made an offer on (the draft, the open AC request) are gone.
     expect(db().requests.get(SEED_IDS.requests.noaDraft)).toBeUndefined();
-    for (const id of [SEED_IDS.requests.noaAc, SEED_IDS.requests.noaLeak, SEED_IDS.requests.noaLighting]) {
+    expect(db().requests.get(SEED_IDS.requests.noaAc)).toBeUndefined();
+    for (const id of [SEED_IDS.requests.noaLeak, SEED_IDS.requests.noaLighting]) {
       expect(db().requests.require(id, 'Request')).toMatchObject({
         status: 'cancelled',
         cancellationReason: 'account_deleted',

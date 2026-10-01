@@ -68,6 +68,7 @@ export interface ProfessionalProfile {
   stats: ProfessionalStats;
   /** Typical price hint shown on the profile (starting price). */
   startingPrice: { amount: number; currency: CurrencyCode } | null;
+  /** Never shown: nobody checks professionals (Terms of Use, "What we check"). */
   isVerified: boolean;
   memberSince: ISODateTimeString;
   updatedAt: ISODateTimeString;
@@ -92,6 +93,7 @@ export interface ProfessionalSummary {
   averageRating: number | null;
   reviewCount: number;
   completedJobsCount: number;
+  /** Never shown (see `ProfessionalProfile.isVerified`). */
   isVerified: boolean;
   city: string;
   /** The professional deleted their account: show "Deleted user" and no profile link (it is gone). */

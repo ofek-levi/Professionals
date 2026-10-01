@@ -211,8 +211,9 @@ return { ...page, items: await toOfferWithRequestList(page.items) };
   `loadXs(ids): Promise<Map<string, X>>` that do the `$in` queries. ISO strings for dates, hex
   strings for ids, `null` (never `undefined`) for absent values.
 - Privacy exactly like `frontend/src/test-utils/mock-backend/server/views.ts`: professionals get
-  `approximateLocation(location, requestId)` (`src/lib/geo.ts`) and no notes until hired;
-  contacts only for customers who hired the professional; public vs own profile.
+  `approximateLocation(location, request.publicPoint)` (`src/lib/geo.ts`: the stored pin, never an
+  offset computed again) and no notes until hired; contacts only for customers who hired the
+  professional; public vs own profile.
 - Shared, ready-made views (use them, don't duplicate):
   - `toUserDto(user, professionalDisplayName?)`, `USER_VIEW_PROJECTION` — `users/user.views.ts`
   - `loadUserDisplays(userIds)` → `{ role, displayName, shortName, avatarUrl, accountDeleted }` (a deleted account: "Deleted user") — `users/user-display.views.ts`
@@ -255,7 +256,8 @@ return { ...page, items: await toOfferWithRequestList(page.items) };
 Professional aggregates are updated by the module that changes their source, each only its own
 fields, in the same transaction: `stats.responseTimeMinutes` (offers, on submit),
 `stats.completedJobsCount` (jobs, on completion), `stats.averageRating`/`reviewCount`/`rankScore`
-(reviews, on creation). Customer stats are counted on read (`loadCustomerStats`).
+(reviews, on creation; recounted from the reviews when the operator removes one). Customer stats are
+counted on read (`loadCustomerStats`).
 
 ## 11. Realtime, push, email, storage, geo, Google
 

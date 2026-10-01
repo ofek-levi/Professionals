@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { clearDatabase, createTestDeps } from '../../../../test/app.js';
 import { createCustomer, createJob, createOffer, createProfessional, createRequest } from '../../../../test/factories.js';
-import { haversineDistanceKm } from '../../../lib/geo.js';
+import { fromGeoPoint, haversineDistanceKm, setLocationPrivacySecret } from '../../../lib/geo.js';
 import { loadCustomerSummaries } from '../../customers/customer-summary.views.js';
 import { loadUserDisplays } from '../../users/user-display.views.js';
 import { loadProfessionalSummaries, toOwnProfessionalProfile, toPublicProfessionalProfile } from '../professional.views.js';
 
 describe('shared views', () => {
-  createTestDeps();
+  const deps = createTestDeps();
   beforeEach(clearDatabase);
 
   it('public profiles hide the exact base and the contact; the own profile is complete', async () => {
@@ -33,8 +33,17 @@ describe('shared views', () => {
     const shift = haversineDistanceKm(own.serviceArea.center, stranger.serviceArea.center);
     expect(shift).toBeGreaterThan(0.2);
     expect(shift).toBeLessThan(0.5);
-    // Deterministic: every viewer gets the same approximate point.
+    // Deterministic: every viewer gets the same approximate point, the stored one (also for the
+    // base, which is the area's center), whatever key is installed now.
+    expect(stranger.serviceArea.center).toEqual(fromGeoPoint(professional.serviceArea.publicCenter));
+    expect(stranger.baseLocation?.coordinates).toEqual(stranger.serviceArea.center);
     expect(toPublicProfessionalProfile(professional, user, { isOwner: false, hiredByViewer: false })).toEqual(stranger);
+    try {
+      setLocationPrivacySecret('Zt3Mq8Wv1Ke6Ry0Pn5Lx2Hj9Sd4Gb7Fc1Ua6Io3Pe8Tk');
+      expect(toPublicProfessionalProfile(professional, user, { isOwner: false, hiredByViewer: false })).toEqual(stranger);
+    } finally {
+      setLocationPrivacySecret(deps.env.locationPrivacySecret);
+    }
 
     expect(toPublicProfessionalProfile(professional, user, { isOwner: false, hiredByViewer: true }).contact).toEqual(professional.contact);
     const self = toPublicProfessionalProfile(professional, user, { isOwner: true, hiredByViewer: false });

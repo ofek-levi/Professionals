@@ -59,6 +59,7 @@ export const professional = {
       closed: {
         taken: 'The customer already chose a professional for this request.',
         cancelled: 'The customer cancelled this request.',
+        customerDeleted: 'The customer deleted their account, so this request was cancelled.',
       },
       customerNote: 'Note from the customer: {{note}}',
     },

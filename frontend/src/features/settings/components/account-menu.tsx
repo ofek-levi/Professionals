@@ -18,14 +18,13 @@ interface AccountHeaderProps {
   avatarUrl: string | null;
   /** One line of secondary info (email, "★ 4.8 · 12 jobs done"). */
   subtitle?: ReactNode;
-  verified?: boolean;
 }
 
-export function AccountHeader({ name, avatarUrl, subtitle, verified = false }: AccountHeaderProps) {
+export function AccountHeader({ name, avatarUrl, subtitle }: AccountHeaderProps) {
   const styles = useStyles();
   return (
     <View style={styles.header} testID="account-header">
-      <Avatar name={name} uri={avatarUrl} size={64} verified={verified} />
+      <Avatar name={name} uri={avatarUrl} size={64} />
       <View style={styles.headerTexts}>
         <AppText variant="heading" numberOfLines={2}>
           {name}

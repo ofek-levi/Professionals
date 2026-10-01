@@ -14,6 +14,11 @@ export interface LocationDoc {
   city: string;
   neighborhood: string | null;
   details: string | null;
+  /**
+   * `point` already is the approximate one: a request kept after its customer deleted their
+   * account (`account-erasure.ts`). Absent otherwise.
+   */
+  approximate?: true;
 }
 
 export const geoPointSchema = new Schema<GeoPoint>(
@@ -31,6 +36,7 @@ export const locationSchema = new Schema<LocationDoc>(
     city: { type: String, required: true },
     neighborhood: { type: String, default: null },
     details: { type: String, default: null },
+    approximate: { type: Boolean },
   },
   { _id: false },
 );
@@ -45,7 +51,10 @@ export function toLocationDoc(location: Omit<ServiceLocation, 'isApproximate'>):
   };
 }
 
-/** Exact location as stored (privacy views derive the approximate one with `approximateLocation`). */
+/**
+ * The location as stored: exact, unless an anonymisation replaced it with its approximate point
+ * (privacy views show the stored approximate point instead, `approximateLocation`).
+ */
 export function toServiceLocation(doc: LocationDoc): ServiceLocation {
   return {
     coordinates: fromGeoPoint(doc.point),
@@ -53,6 +62,6 @@ export function toServiceLocation(doc: LocationDoc): ServiceLocation {
     city: doc.city,
     neighborhood: doc.neighborhood,
     details: doc.details,
-    isApproximate: false,
+    isApproximate: doc.approximate === true,
   };
 }

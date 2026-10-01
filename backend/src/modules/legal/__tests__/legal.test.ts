@@ -34,7 +34,7 @@ describe('GET /v1/legal/:document', () => {
     for (const [document, title] of [
       ['terms', 'תנאי השימוש'],
       ['privacy', 'מדיניות הפרטיות'],
-      ['account-deletion', 'מחיקת החשבון שלכם ב-Professionals'],
+      ['account-deletion', 'מחיקת החשבון שלכם ב־⁠Professionals'],
     ]) {
       const he = await request(app).get(`/v1/legal/${document}?lang=he`).expect(200);
       const en = await request(app).get(`/v1/legal/${document}?lang=en`).expect(200);

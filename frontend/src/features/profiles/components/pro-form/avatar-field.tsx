@@ -10,10 +10,9 @@ import { useAvatarActions } from '../use-avatar-actions';
 interface AvatarFieldProps {
   name: string;
   value: string | null;
-  verified: boolean;
 }
 
-export function AvatarField({ name, value, verified }: AvatarFieldProps) {
+export function AvatarField({ name, value }: AvatarFieldProps) {
   const styles = useStyles();
   const { t } = useTranslation(['professional', 'common']);
   const avatar = useAvatarActions({
@@ -27,7 +26,7 @@ export function AvatarField({ name, value, verified }: AvatarFieldProps) {
 
   return (
     <View style={styles.container} testID="pro-form-photo">
-      <Avatar name={name || '?'} uri={value} size="xl" verified={verified} />
+      <Avatar name={name || '?'} uri={value} size="xl" />
       <View style={styles.actions}>
         <Button
           label={value ? t('professional:form.photo.change') : t('professional:form.photo.add')}

@@ -3,6 +3,13 @@ export const offers = {
     badge: 'Job cancelled',
     title: 'The customer cancelled this job',
     message: 'Your offer was accepted, but the customer cancelled the request afterwards. The appointment is off.',
+    /** The same, when the customer deleted their account. */
+    customerDeletedTitle: 'The customer deleted their account',
+    customerDeletedMessage: 'Your offer was accepted, but the customer’s account was deleted, so the job was cancelled. The appointment is off.',
+  },
+  /** A pending offer declined because the customer cancelled the request (or deleted their account). */
+  requestCancelled: {
+    badge: 'Request cancelled',
   },
   actions: {
     edit: 'Edit',

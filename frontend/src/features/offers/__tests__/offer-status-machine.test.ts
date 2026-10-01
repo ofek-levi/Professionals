@@ -77,4 +77,11 @@ describe('offer status machine', () => {
     expect(getProfessionalOfferOutcome('rejected', 'cancelled')).toBe('rejected');
     expect(getProfessionalOfferOutcome('pending', 'offers_received')).toBe('pending');
   });
+
+  it('reads an offer declined by the request’s cancellation as such, not as "not selected"', () => {
+    expect(getProfessionalOfferOutcome('rejected', 'cancelled', 'request_cancelled')).toBe('request_cancelled');
+    // Another professional was hired, then the customer cancelled.
+    expect(getProfessionalOfferOutcome('rejected', 'cancelled', 'another_offer_accepted')).toBe('rejected');
+    expect(getProfessionalOfferOutcome('accepted', 'cancelled', 'accepted_by_customer')).toBe('job_cancelled');
+  });
 });

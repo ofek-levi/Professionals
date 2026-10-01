@@ -111,6 +111,9 @@ describe('sign in', () => {
     expect(screen.getByTestId('auth-brand-mark', { includeHiddenElements: true })).toBeOnTheScreen();
     // No Google client id is configured for tests: no Google button.
     expect(screen.queryByTestId('login-google')).toBeNull();
+    // The legal documents, as on the entry screen.
+    expect(screen.getByTestId('login-legal-terms')).toHaveTextContent('Terms of Use');
+    expect(screen.getByTestId('login-legal-privacy')).toHaveTextContent('Privacy Policy');
 
     await press('login-submit');
     expect(await screen.findByText('Enter your email address')).toBeOnTheScreen();
@@ -184,8 +187,9 @@ describe('sign up', () => {
     await press('sign-up-continue');
     expect(await screen.findByTestId('sign-up-step-account', {}, TIMEOUT)).toBeOnTheScreen();
     expect(screen.getByTestId('sign-up-progress')).toHaveTextContent('Step 2 of 2');
-    // A customer's phone is for the account only.
+    // A customer's phone is for the account only, and so is the email.
     expect(screen.getByText('Not shown to other users.')).toBeOnTheScreen();
+    expect(screen.queryByText(/Also shown to customers who hire you/)).toBeNull();
 
     // Step 2: every field is checked before the account is created.
     await press('sign-up-continue');
@@ -272,8 +276,12 @@ describe('sign up', () => {
     // The role came with the link: the flow starts on the account step, counted as step 1 of 3.
     expect(await screen.findByTestId('sign-up-progress', {}, TIMEOUT)).toHaveTextContent('Step 1 of 3');
     expect(screen.getByTestId('sign-up-step-account')).toBeOnTheScreen();
-    // A professional's phone is their contact phone for the customers who hire them.
+    // A professional's phone is their contact phone for the customers who hire them, and their
+    // sign-in email their first contact email.
     expect(screen.getByText('Shown to customers who hire you.')).toBeOnTheScreen();
+    expect(
+      screen.getByText('Also shown to customers who hire you. You can set a different contact email in your profile.'),
+    ).toBeOnTheScreen();
     await fillCustomerAccount(uniqueEmail('yossi'));
     await press('sign-up-continue');
 

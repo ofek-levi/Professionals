@@ -19,6 +19,10 @@ export const reviews = {
     description: 'Each job can be reviewed once. Here’s what you wrote.',
     descriptionNoReview: 'Each job can be reviewed once.',
   },
+  closed: {
+    title: 'Reviews are closed',
+    description: 'This professional deleted their account, so this job can no longer be reviewed.',
+  },
   notCompleted: {
     title: 'Not ready for a review yet',
     description: 'You can review the job once it’s marked as completed.',

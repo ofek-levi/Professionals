@@ -4,8 +4,9 @@
  * - proof first: the password of a password account (or a Google token of its linked Google
  *   account), a Google token of the linked account for a Google-only one; refusals are 400, never
  *   401 (the app refreshes on a 401);
- * - then, all or nothing: a customer's drafts are deleted and every other active request cancelled
- *   (`account_deleted`: pending offers declined, an active job cancelled); a professional's pending
+ * - then, all or nothing: every active request of a customer is cancelled (`account_deleted`:
+ *   pending offers declined, an active job cancelled), and the requests no professional made an
+ *   offer on (drafts too) are deleted – nobody else ever saw them; a professional's pending
  *   offers (overdue ones too) are withdrawn and their active jobs cancelled with their requests
  *   (`job_cancelled` to the customer). The other parties' texts get no name ("A customer");
  * - an anonymous tombstone stays (shown as "Deleted user" with `accountDeleted`), every chat of the
@@ -201,19 +202,25 @@ function reauthenticate(ctx: ServerContext, credential: StoredCredential | undef
     : DomainError.validation({ googleIdToken: [vm('required')] }, 'Confirm with Google to delete the account');
 }
 
-/** Everything a deleted customer leaves: requests without the exact place, notes or photos; reviews without the comment. */
-function eraseCustomerData(ctx: ServerContext, actor: CustomerActor, drafts: ServiceRequest[]): void {
-  drafts.forEach((draft) => ctx.db.requests.delete(draft.id));
+/**
+ * Everything a deleted customer leaves: the requests professionals made offers on, without the
+ * exact place, notes or photos (the others go); reviews without the comment.
+ */
+function eraseCustomerData(ctx: ServerContext, actor: CustomerActor): void {
   ctx.db.requests
     .filter((request) => request.customerId === actor.userId)
-    .forEach((request) =>
+    .forEach((request) => {
+      if (ctx.db.offers.count((offer) => offer.requestId === request.id) === 0) {
+        ctx.db.requests.delete(request.id);
+        return;
+      }
       ctx.db.requests.update(request.id, {
         location: approximateLocation(request.location, request.id),
         notes: null,
         photos: [],
         cancellationComment: null,
-      }),
-    );
+      });
+    });
   // The hired professionals' job records keep the area, not the address.
   ctx.db.jobs
     .filter((job) => job.customerId === actor.userId)
@@ -294,7 +301,7 @@ export function deleteAccount(ctx: ServerContext, actor: Actor, body: unknown): 
     for (const request of impact.requests) {
       cancelRequestAndItsWork(ctx, request, { reason: 'account_deleted', comment: null, customerName: '' });
     }
-    eraseCustomerData(ctx, actor, impact.drafts);
+    eraseCustomerData(ctx, actor);
   } else {
     const impact = professionalImpact(ctx, actor);
     for (const offer of impact.offers) withdrawPendingOffer(ctx, offer, '');

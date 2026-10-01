@@ -1,7 +1,8 @@
 /**
  * `/jobs/:jobId/review` – the customer rates a completed job (1–5 stars and an optional comment).
- * Handles "already reviewed" (also a CONFLICT from the server), jobs that are
- * not completed yet and shows a thank-you state; the job and the professional's profile refresh
+ * Handles "already reviewed" (also a CONFLICT from the server), a professional who deleted their
+ * account (reviews closed; the CONFLICT path refetches the job and lands there), jobs that are not
+ * completed yet and shows a thank-you state; the job and the professional's profile refresh
  * automatically through the mutation's invalidation.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -108,6 +109,20 @@ function ReviewFlow({ job, onRefetchJob }: { job: JobDetails; onRefetchJob: () =
           onPrimary={backToJob}
           secondaryLabel={t('reviews:success.home')}
           onSecondary={() => router.dismissTo(routes.customer.home)}
+        />
+      </Screen>
+    );
+  }
+
+  if (!job.review && job.professional.accountDeleted) {
+    return (
+      <Screen edges={['left', 'right', 'bottom']} testID="review-closed">
+        <EmptyState
+          icon="account-off-outline"
+          title={t('reviews:closed.title')}
+          description={t('reviews:closed.description')}
+          actionLabel={t('reviews:success.backToJob')}
+          onAction={backToJob}
         />
       </Screen>
     );
@@ -247,7 +262,7 @@ function ReviewForm({
       testID="review-form"
     >
       <View style={styles.centered}>
-        <Avatar name={name} uri={job.professional.avatarUrl} size={72} verified={job.professional.isVerified} decorative />
+        <Avatar name={name} uri={job.professional.avatarUrl} size={72} decorative />
         <View style={styles.centeredTexts}>
           <AppText variant="title" align="center" accessibilityRole="header">
             {t('reviews:create.ratingTitle', { name: isolateText(name) })}

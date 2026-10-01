@@ -6,7 +6,7 @@
 import { JOB_STATUS_META, jobStatusMeta, type JobStatus } from '@/constants/job-statuses';
 import type { RequestStatus } from '@/constants/request-statuses';
 import { assertTransition, canTransition, type TransitionTable } from '@/features/shared/state-machine';
-import type { Job, UserRole } from '@/types/domain';
+import type { JobDetails, UserRole } from '@/types/domain';
 
 const JOB_TRANSITIONS: TransitionTable<JobStatus> = {
   awaiting_confirmation: ['scheduled', 'cancelled'],
@@ -47,17 +47,17 @@ export interface JobActions {
   canMessage: boolean;
 }
 
-export function getJobActions(
-  job: Pick<Job, 'status'>,
-  role: UserRole,
-  { hasReview }: { hasReview: boolean },
-): JobActions {
+/**
+ * Whether a review can be left follows the server's `JobDetails.canReview`, which also knows whether the job was reviewed and whether the
+ * professional deleted their account.
+ */
+export function getJobActions(job: Pick<JobDetails, 'status' | 'canReview'>, role: UserRole): JobActions {
   const isPro = role === 'professional';
   return {
     canConfirm: isPro && job.status === 'awaiting_confirmation',
     canStart: isPro && job.status === 'scheduled',
     canComplete: canTransitionJob(job.status, 'completed'),
-    canReview: role === 'customer' && job.status === 'completed' && !hasReview,
+    canReview: role === 'customer' && job.status === 'completed' && job.canReview,
     canMessage: job.status !== 'cancelled',
   };
 }

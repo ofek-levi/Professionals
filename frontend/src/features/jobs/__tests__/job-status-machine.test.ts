@@ -31,27 +31,28 @@ describe('job status machine', () => {
   });
 
   it('derives role-specific actions', () => {
-    expect(getJobActions({ status: 'awaiting_confirmation' }, 'professional', { hasReview: false })).toEqual({
+    expect(getJobActions({ status: 'awaiting_confirmation', canReview: false }, 'professional')).toEqual({
       canConfirm: true,
       canStart: false,
       canComplete: false,
       canReview: false,
       canMessage: true,
     });
-    expect(getJobActions({ status: 'awaiting_confirmation' }, 'customer', { hasReview: false })).toMatchObject({
+    expect(getJobActions({ status: 'awaiting_confirmation', canReview: false }, 'customer')).toMatchObject({
       canConfirm: false,
     });
-    expect(getJobActions({ status: 'scheduled' }, 'professional', { hasReview: false })).toMatchObject({
+    expect(getJobActions({ status: 'scheduled', canReview: false }, 'professional')).toMatchObject({
       canStart: true,
       canComplete: true,
     });
-    expect(getJobActions({ status: 'in_progress' }, 'customer', { hasReview: false })).toMatchObject({
+    expect(getJobActions({ status: 'in_progress', canReview: false }, 'customer')).toMatchObject({
       canComplete: true,
       canStart: false,
     });
-    expect(getJobActions({ status: 'completed' }, 'customer', { hasReview: false }).canReview).toBe(true);
-    expect(getJobActions({ status: 'completed' }, 'customer', { hasReview: true }).canReview).toBe(false);
-    expect(getJobActions({ status: 'completed' }, 'professional', { hasReview: false }).canReview).toBe(false);
-    expect(getJobActions({ status: 'cancelled' }, 'customer', { hasReview: false }).canMessage).toBe(false);
+    expect(getJobActions({ status: 'completed', canReview: true }, 'customer').canReview).toBe(true);
+    // The server's verdict: already reviewed, or the professional deleted their account.
+    expect(getJobActions({ status: 'completed', canReview: false }, 'customer').canReview).toBe(false);
+    expect(getJobActions({ status: 'completed', canReview: true }, 'professional').canReview).toBe(false);
+    expect(getJobActions({ status: 'cancelled', canReview: false }, 'customer').canMessage).toBe(false);
   });
 });

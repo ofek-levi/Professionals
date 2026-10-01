@@ -1,7 +1,7 @@
 /**
  * Request DTOs (the mock backend's `views.ts`). Owners get the full request plus offer stats;
- * professionals get the privacy view until their offer is accepted: approximate location (same pin
- * for everyone, seeded by the request id), no access notes and no job link.
+ * professionals get the privacy view until their offer is accepted: the stored approximate pin
+ * (`publicPoint`, the same for everyone), no access notes and no job link.
  */
 import type { Types } from 'mongoose';
 
@@ -113,7 +113,7 @@ export async function toProfessionalRequestViews(requests: RequestDoc[], profess
     const dto = toServiceRequestDto(request);
     return {
       ...dto,
-      location: hired ? dto.location : approximateLocation(dto.location, dto.id),
+      location: hired ? dto.location : approximateLocation(request.location, request.publicPoint),
       notes: hired ? dto.notes : null,
       jobId: hired ? dto.jobId : null,
       distanceKm: distanceKm(professional, request),

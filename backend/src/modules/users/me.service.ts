@@ -1,6 +1,7 @@
 /** `GET /me` (the account + its role profile) and `PATCH /me` (the account's language). */
 import type { ClientSession, Types } from 'mongoose';
 
+import type { Tx } from '../../infra/mongo.js';
 import { ApiError } from '../../lib/errors.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type { CurrentUserResponse } from '../../shared/contract/index.js';
@@ -24,6 +25,19 @@ export function accountGone(): ApiError {
 export async function assertAccountActive(userId: Types.ObjectId, session?: ClientSession): Promise<void> {
   const user = await UserModel.findOne({ _id: userId, ...NOT_DELETED }, { _id: 1 }).session(session ?? null).lean();
   if (!user) throw accountGone();
+}
+
+/**
+ * The first statement of a transaction that creates something for `userId` (a request, an offer,
+ * a review, a job): refuses an account that is gone, with a conditional write on it. A read would
+ * not do: under snapshot isolation it does not conflict with a deletion committing meanwhile (from
+ * another device), and what it let through would outlive the deletion. The deletion's first write
+ * is on the same document, so the two transactions conflict and the one retried sees the other's
+ * result: the account gone, or the new record, which the deletion then handles like any other.
+ */
+export async function lockActiveAccount(userId: Types.ObjectId, tx: Tx): Promise<void> {
+  const { matchedCount } = await UserModel.updateOne({ _id: userId, ...NOT_DELETED }, { $inc: { writeSeq: 1 } }, { session: tx.session, timestamps: false });
+  if (matchedCount === 0) throw accountGone();
 }
 
 export async function getCurrentUser(auth: AuthContext): Promise<CurrentUserResponse> {

@@ -88,7 +88,8 @@ export const common = {
     too_expensive: 'The offers were too expensive',
     scheduling_conflict: 'Scheduling conflict',
     other: 'Other',
-    account_deleted: 'The account was deleted',
+    /** Shown only to the customer, on a request cancelled because the hired professional deleted their account. */
+    account_deleted: 'The professional deleted their account',
   },
   time: {
     today: 'Today',
@@ -236,7 +237,6 @@ export const common = {
     notFound: 'Page not found',
     goHome: 'Go to home',
   },
-  verified: 'Verified',
   optional: 'Optional',
   /** Someone who deleted their account (the server sends `accountDeleted`). */
   deletedUser: 'Deleted user',

@@ -61,6 +61,7 @@ export const professional: LocaleNamespace<typeof enprofessional> = {
       closed: {
         taken: 'הלקוח כבר בחר בעל מקצוע לבקשה הזו.',
         cancelled: 'הלקוח ביטל את הבקשה הזו.',
+        customerDeleted: 'הלקוח מחק את החשבון, ולכן הבקשה בוטלה.',
       },
       customerNote: 'הערה מהלקוח: {{note}}',
     },

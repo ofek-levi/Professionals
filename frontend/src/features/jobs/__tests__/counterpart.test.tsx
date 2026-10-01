@@ -3,10 +3,11 @@
  * The other party of a job with the real route tree (`src/app`) against the test double: a hired
  * professional's contact details (job details, their profile with the license number) reach only
  * the customer who hired them; someone who deleted their account shows as "Deleted user", without
- * a profile link, and their chat says why it is closed.
+ * a profile link, and their chat says why it is closed. A deleted professional's jobs take no
+ * review; a professional is told when the customer's account deletion cancelled a job or a request.
  */
 import { Linking } from 'react-native';
-import { cleanup, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
+import { act, cleanup, fireEvent, renderRouter, screen, waitFor, within } from 'expo-router/testing-library';
 
 import { i18n } from '@/i18n';
 import { queryClient } from '@/lib/query-client';
@@ -57,6 +58,11 @@ async function renderAs(userId: string, initialUrl: string) {
   return { getPathname: () => result.getPathname() };
 }
 
+function getRouter() {
+  const { router } = require('expo-router') as typeof import('expo-router');
+  return router;
+}
+
 /** The titles of the native stack headers (the one on top last). */
 const headerTitles = () =>
   screen.container.queryAll((node) => node.type === 'RNSScreenStackHeaderConfig').map((node) => node.props.title as string);
@@ -95,8 +101,11 @@ describe('a hired professional’s contact details', () => {
     await renderAs(MAIN_CUSTOMER_IDS.daniel, `/professionals/${YAEL}`);
     await screen.findByTestId('profile-area-hours', {}, TIMEOUT);
     expect(screen.queryByTestId('profile-contact')).toBeNull();
-    // The license number is public (self-declared).
+    // The license number is public (self-declared), and the profile says so.
     expect(screen.getByText(/Licensed · No\. .*58213/)).toBeOnTheScreen();
+    expect(screen.getByTestId('profile-credentials-declared')).toHaveTextContent(
+      'Declared by the professional. Professionals doesn’t check licenses or insurance.',
+    );
   });
 });
 
@@ -118,7 +127,7 @@ describe('a deleted account', () => {
   it('says why the request of a deleted professional was cancelled', async () => {
     await env.as(YAEL).users.deleteAccount({ password: SEED_PASSWORD });
     await renderAs(NOA, `/requests/${SEED_IDS.requests.noaLighting}`);
-    expect(await screen.findByText(/The account was deleted/, {}, TIMEOUT)).toBeOnTheScreen();
+    expect(await screen.findByText(/The professional deleted their account/, {}, TIMEOUT)).toBeOnTheScreen();
     expect(screen.queryByTestId('hired-pro-call')).toBeNull();
   });
 
@@ -129,6 +138,68 @@ describe('a deleted account', () => {
       'This chat is closed because the other person deleted their account.',
     );
     await waitFor(() => expect(headerTitles()).toEqual(['Deleted user']), TIMEOUT);
+  });
+
+  it('offers the review of a completed job while the professional has an account', async () => {
+    await renderAs(NOA, `/jobs/${SEED_IDS.jobs.noaDishwasher}`);
+    expect(await screen.findByTestId('job-action-review', {}, TIMEOUT)).toHaveTextContent('Leave a review');
+  });
+
+  it('takes no review for a completed job of a deleted professional (the server’s `canReview`)', async () => {
+    await env.as(PRO_IDS.moshe).users.deleteAccount({ password: SEED_PASSWORD });
+    const app = await renderAs(NOA, `/jobs/${SEED_IDS.jobs.noaDishwasher}`);
+    await screen.findByTestId('job-details', {}, TIMEOUT);
+    expect(screen.queryByTestId('job-action-review')).toBeNull();
+    expect(screen.queryByText('Leave a review')).toBeNull();
+    expect(screen.getByTestId('job-action-message')).toBeOnTheScreen();
+
+    // Nor on the hired-pro card of the request.
+    await act(async () => getRouter().push(`/requests/${SEED_IDS.requests.noaDishwasher}`));
+    await waitFor(() => expect(app.getPathname()).toBe(`/requests/${SEED_IDS.requests.noaDishwasher}`), TIMEOUT);
+    expect(await screen.findByTestId('hired-pro-view-job', {}, TIMEOUT)).toBeOnTheScreen();
+    expect(screen.queryByTestId('hired-pro-review')).toBeNull();
+
+    // The review screen, opened anyway (a stale link), says reviews are closed.
+    await act(async () => getRouter().push(`/jobs/${SEED_IDS.jobs.noaDishwasher}/review`));
+    const closed = await screen.findByTestId('review-closed', {}, TIMEOUT);
+    expect(within(closed).getByText('Reviews are closed')).toBeOnTheScreen();
+    expect(within(closed).getByText('This professional deleted their account, so this job can no longer be reviewed.')).toBeOnTheScreen();
+    expect(screen.queryByTestId('review-form')).toBeNull();
+  });
+
+  it('names a deleted professional in the conversations list', async () => {
+    await env.as(YAEL).users.deleteAccount({ password: SEED_PASSWORD });
+    await renderAs(NOA, '/customer/inbox?tab=messages');
+    const row = await screen.findByTestId(`conversation-${SEED_IDS.conversations.noaLighting}`, {}, TIMEOUT);
+    expect(within(row).getByText('Deleted user')).toBeOnTheScreen();
+    expect(within(row).queryByText('BrightSpark Electric')).toBeNull();
+  });
+
+  it('tells the professional the customer deleted their account (job and request)', async () => {
+    await env.as(NOA).users.deleteAccount({ password: SEED_PASSWORD });
+    const app = await renderAs(YAEL, `/jobs/${JOB}`);
+    expect(await screen.findByTestId('job-status', {}, TIMEOUT)).toHaveTextContent(
+      /This job was cancelled because the customer deleted their account\. The appointment is off and messaging is closed\./,
+    );
+    expect(screen.queryByText(/The customer cancelled this job/)).toBeNull();
+
+    await act(async () => getRouter().push(`/requests/${SEED_IDS.requests.noaLighting}`));
+    await waitFor(() => expect(app.getPathname()).toBe(`/requests/${SEED_IDS.requests.noaLighting}`), TIMEOUT);
+    const banner = await screen.findByTestId('pro-request-job-cancelled', {}, TIMEOUT);
+    expect(within(banner).getByText('The customer deleted their account')).toBeOnTheScreen();
+    expect(within(banner).queryByText('The customer cancelled this job')).toBeNull();
+  });
+
+  it('marks a pending offer declined by the customer’s deletion as "Request cancelled", not "Not selected"', async () => {
+    await env.as(NOA).users.deleteAccount({ password: SEED_PASSWORD });
+    expect(env.server.internals.db.offers.require(SEED_IDS.offers.leakAvi, 'Offer')).toMatchObject({
+      status: 'rejected',
+      statusReason: 'request_cancelled',
+    });
+    await renderAs(PRO_IDS.avi, '/professional/work?tab=offers');
+    const card = await screen.findByTestId(`work-offer-${SEED_IDS.offers.leakAvi}`, {}, TIMEOUT);
+    expect(within(card).getByText('Request cancelled')).toBeOnTheScreen();
+    expect(within(card).queryByText('Not selected')).toBeNull();
   });
 
   it('shows a deleted customer to the professional in the app’s language', async () => {

@@ -60,7 +60,8 @@ include drift checks against the app's constants and validation rules.
 
 - **API:** Docker image (`backend/Dockerfile`), environments, variables and provider setup in
   [`backend/docs/OPERATIONS.md`](backend/docs/OPERATIONS.md). Before the first staging/production
-  deploy, fill in the operator of the service (legal name, postal address, contact email) in
+  deploy, fill in the operator of the service (legal name, postal address, contact email, and the
+  registration number with its label if there is one) in
   [`backend/src/config/legal.ts`](backend/src/config/legal.ts): the Terms of Use and the Privacy
   Policy publish them, and the API refuses to start there while they are empty.
 - **Legal documents and store listings:** the API serves the Terms of Use, the Privacy Policy and the
@@ -68,10 +69,21 @@ include drift checks against the app's constants and validation rules.
   `<API>/legal/account-deletion` (English and Hebrew; the app shows the same texts). Before launch, go
   through the [pre-launch checklist](backend/docs/OPERATIONS.md#pre-launch-checklist): which URL goes
   to App Store Connect, the Google Play Console (privacy policy, Data safety account deletion URL) and
-  the Google OAuth consent screen ([public URLs](backend/docs/OPERATIONS.md#public-urls)), log and
-  backup retention at the hosting provider, data processing agreements with Cloudinary, Resend, Expo
-  and the hosting provider, and a check of photo metadata on Cloudinary. Publishing a new version of a
-  document: [OPERATIONS.md §10](backend/docs/OPERATIONS.md#publishing-a-new-version).
+  the Google OAuth consent screen ([public URLs](backend/docs/OPERATIONS.md#public-urls)); the App
+  Privacy and Data safety answers ([`backend/docs/PRIVACY-DATA-MAP.md`](backend/docs/PRIVACY-DATA-MAP.md));
+  a public home page for the OAuth consent screen; log and backup retention at the hosting provider
+  (edge access logs included, and no cookies set in front of the API or the web app); data processing
+  agreements; the Data Security Regulations' internal duties; an accessibility statement; and a check
+  of photo metadata on Cloudinary. **The app has no in-app report or block action for user content:
+  Apple (guideline 1.2) and Google Play require both, so expect a store rejection until they are
+  built.**
+- **Privacy requests and moderation:** deletion, data export and sign-in email changes requested by
+  email, closing an account and removing a review are operator commands
+  ([OPERATIONS.md §9](backend/docs/OPERATIONS.md#9-account-deletion-and-privacy-requests)); always
+  confirm a request by writing to the account's own address first.
+- **New version of a legal document:** email every account (`list-user-emails`) at least 14 days
+  before it takes effect, and deploy the new text on the effective date, not before
+  ([OPERATIONS.md §10](backend/docs/OPERATIONS.md#publishing-a-new-version)).
 - **Android APK:** Actions → *Android APK* → Run workflow, choosing `staging` or `production`; each
   GitHub Environment provides `API_BASE_URL` (required), the release signing key (required for
   `production`) and the optional variables/secrets listed in
@@ -111,4 +123,7 @@ The web app is a static single-page app (`web.output: "single"` in `frontend/app
 5. **Access logs:** the app sends its access token to `/v1/realtime` in the WebSocket's
    `Sec-WebSocket-Protocol` request header (older app versions put it in the query string); keep that
    header and the query strings of `/v1/realtime` out of the load balancer's and CDN's logs
-   ([OPERATIONS.md §4](backend/docs/OPERATIONS.md#behind-a-load-balancer--reverse-proxy)).
+   ([OPERATIONS.md §4](backend/docs/OPERATIONS.md#behind-a-load-balancer--reverse-proxy)). Keep the
+   static host's and CDN's access logs (they record IP addresses) no longer than
+   `retention.serverLogsDays` of `backend/src/config/legal.ts`, and set no cookies there: the Privacy
+   Policy promises both.

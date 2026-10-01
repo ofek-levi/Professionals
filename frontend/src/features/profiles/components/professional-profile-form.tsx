@@ -167,7 +167,7 @@ function ProfessionalProfileFormContent({ profile, focus }: { profile: OwnProfes
       scrollRef={scrollRef}
       testID="pro-profile-form"
     >
-      <AvatarField name={profile.displayName} value={profile.avatarUrl} verified={profile.isVerified} />
+      <AvatarField name={profile.displayName} value={profile.avatarUrl} />
 
       <FormSection title={t('professional:form.identity.title')} variant="plain">
         <FormTextField control={control} name="fullName" label={t('professional:form.identity.fullName')} required autoComplete="name" maxLength={PROFILE_LIMITS.nameMax} testID="pro-form-full-name" />

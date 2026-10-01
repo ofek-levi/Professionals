@@ -1,6 +1,7 @@
 /**
  * Job DTOs (the mock's `views.ts`, jobs part). Only the two parties see a job, so the address is
- * the request's exact location; summaries batch-load requests, professionals and customers.
+ * the request's location as stored (exact; the approximate pin once the customer deleted their
+ * account); summaries batch-load requests, professionals and customers.
  */
 import type { Types } from 'mongoose';
 

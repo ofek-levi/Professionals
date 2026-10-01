@@ -92,7 +92,7 @@ export const common: LocaleNamespace<typeof enCommon> = {
     too_expensive: 'ההצעות היו יקרות מדי',
     scheduling_conflict: 'התנגשות בלוח הזמנים',
     other: 'אחר',
-    account_deleted: 'החשבון נמחק',
+    account_deleted: 'בעל המקצוע מחק את החשבון',
   },
   time: {
     today: 'היום',
@@ -244,7 +244,6 @@ export const common: LocaleNamespace<typeof enCommon> = {
     notFound: 'הדף לא נמצא',
     goHome: 'חזרה לדף הבית',
   },
-  verified: 'מאומת',
   optional: 'רשות',
   deletedUser: 'משתמש שנמחק',
   contact: {

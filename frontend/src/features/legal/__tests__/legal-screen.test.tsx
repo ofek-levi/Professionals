@@ -109,10 +109,11 @@ describe('signed out', () => {
     expect(within(about).getByText('Example Services Ltd.')).toBeOnTheScreen();
     expect(within(terms).getByText('You must be 18 or older.')).toBeOnTheScreen();
 
-    // The link to this document's own web page opens it in the browser, the Privacy Policy in the app.
+    // The link to this document's own web page opens it in the browser (in the app's language), the
+    // Privacy Policy in the app.
     const browse = jest.spyOn(WebBrowser, 'openBrowserAsync').mockResolvedValue({ type: WebBrowser.WebBrowserResultType.OPENED });
     await fireEvent.press(within(terms).getByRole('link', { name: 'http://localhost:4000/legal/terms' }));
-    expect(browse).toHaveBeenCalledWith('http://localhost:4000/legal/terms');
+    expect(browse).toHaveBeenCalledWith('http://localhost:4000/legal/terms?lang=en');
     await fireEvent.press(within(terms).getByRole('link', { name: 'Privacy Policy' }));
     await waitFor(() => expect(app.getPathname()).toBe('/legal/privacy'), TIMEOUT);
     await waitFor(() => expect(screen.getByTestId('legal-section-your-rights')).toBeOnTheScreen(), TIMEOUT);
@@ -135,6 +136,14 @@ describe('signed out', () => {
     // A Hebrew paragraph that starts with the (Latin) app name still runs right to left.
     expect(within(document).getByText('‏Professionals מופעלת על ידי:')).toBeOnTheScreen();
     expect(within(document).getByText('השימוש מותר רק מגיל 18.')).toBeOnTheScreen();
+
+    // Its public page opens in Hebrew too, whatever the browser's language; without an in-app
+    // browser (no Custom Tabs on Android), with the system's handler.
+    const browse = jest.spyOn(WebBrowser, 'openBrowserAsync').mockRejectedValue(new Error('No browser'));
+    const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    await fireEvent.press(within(document).getByRole('link', { name: 'http://localhost:4000/legal/terms' }));
+    expect(browse).toHaveBeenCalledWith('http://localhost:4000/legal/terms?lang=he');
+    await waitFor(() => expect(openURL).toHaveBeenCalledWith('http://localhost:4000/legal/terms?lang=he'), TIMEOUT);
   });
 
   it('offers a retry after an error', async () => {

@@ -52,8 +52,9 @@ requestId → httpLogger → helmet → cors → compression → /health,/ready 
   `validation:*` keys under dotted field paths, so the app shows its own translated messages.
 - **Authorization**: roles on the route (`requireRole`), ownership in the service (403 for someone
   else's resource, 404 for unknown ids), as in the mock's `auth.ts`.
-- **Privacy** lives in the views: professionals see a request's approximate pin (a stored
-  `publicPoint`) and no notes until hired; a professional's contact is shown only to customers who
+- **Privacy** lives in the views: professionals see a request's approximate pin (the stored
+  `publicPoint`; views never compute an offset again, which would move an already approximate
+  point a second time) and no notes until hired; a professional's contact is shown only to customers who
   hired them (a job that was not cancelled); public vs own professional profile (the personal name
   only in the own one). Every professional-facing geo query runs on the approximate points, so no
   filter or distance reveals an exact address. The offset of an approximate point (250–450 m) comes
@@ -114,9 +115,19 @@ and the pages `/legal/*`).
   `withdrawOfferInTx`, `cancelJobForDeletedProfessional`), anonymises what the other parties keep and
   revokes the sessions; images and the confirmation email follow after the commit. `deletedAt` is
   checked where a still-valid access token could act (`NOT_DELETED` in `users/user.model.ts`: `/me`,
-  profile edits, refresh, sign-in lookups, creating requests, offers and reviews) and by
-  `createNotifications`, which never stores anything for a deleted account; searches leave deleted
-  professionals out (no categories; `deletedAt` where no category filters).
+  profile edits, refresh, sign-in lookups) and by `createNotifications`, which never stores anything
+  for a deleted account; searches leave deleted professionals out (no categories; `deletedAt` where
+  no category filters). Transactions that create something for the account (a request, an offer, a
+  review, an acceptance) start with `lockActiveAccount` (`users/me.service.ts`): a conditional write
+  on the user document (`writeSeq`), the one the deletion writes first, so a deletion from another
+  device and the creation conflict and never both commit unseen (a read would not conflict under
+  snapshot isolation). A kept request's location becomes its approximate pin, marked
+  `location.approximate`, so every view (the hired professional's too) says `isApproximate: true`.
+  Only what another account still needs is kept: a customer's requests nobody made an offer on are
+  deleted, and once every party to a record has deleted their account (a job with its review and
+  chat, the offers between them, a request left without an offer), the second deletion deletes it
+  (`account-purge.ts`). Nothing a remaining account's views read is ever deleted: an offer only goes
+  with both of its parties, and a request only when no offer is left on it.
 
 ## 5. Auth
 

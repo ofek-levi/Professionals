@@ -86,6 +86,8 @@ export const auth = {
       orEmail: 'or sign up with email',
       signInInstead: 'Sign in with this email',
       emailFromGoogle: 'From your Google account',
+      /** A professional's sign-in email is also their first contact email (editable in the profile). */
+      emailHelperProfessional: 'Also shown to customers who hire you. You can set a different contact email in your profile.',
       phonePlaceholder: '050-123-4567',
       /** The customer's phone is for their account only; a professional's is their contact phone. */
       phoneHelperCustomer: 'Not shown to other users.',

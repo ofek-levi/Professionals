@@ -7,8 +7,13 @@ export const LEGAL_CONFIG = {
   operator: {
     /** Legal name as registered (company or individual), shown in both languages. */
     name: { en: '', he: '' },
-    /** Company number (ח.פ.) or business id (ע.מ.); optional: '' hides it. */
-    registrationNumber: '',
+    /**
+     * Optional registration number and what it is, shown after the name: "(Company No. 51-…)" /
+     * "(ח.פ. 51-…)". The label says the legal form (e.g. Company No. / ח.פ., Licensed Dealer No. /
+     * ע.מ., Exempt Dealer No. / ע.פ., Non-profit No. / ע״ר); it is required with a number. An empty
+     * number hides both.
+     */
+    registration: { label: { en: '', he: '' }, number: '' },
     /** Postal address for legal notices. */
     address: { en: '', he: '' },
     /** Privacy, legal and support requests (published in the documents). */

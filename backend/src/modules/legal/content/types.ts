@@ -4,7 +4,8 @@ import type { LegalSection, LegalText } from '../../../shared/contract/index.js'
  * One document in one language, as written (placeholders not expanded). Rules, checked by
  * `legal-content.test.ts`: markup `**bold**` and `[label](url)` only; urls `https:`, `mailto:` or a
  * document placeholder; only the placeholders of `legal-placeholders.ts`; the same section ids, in
- * the same order, in both languages.
+ * the same order, in both languages; in Hebrew, a prefix before a Latin word is joined with a maqaf
+ * and a word joiner (`ב־⁠Professionals`), so no line breaks between them.
  */
 export interface LegalDocumentContent {
   title: string;

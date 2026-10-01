@@ -21,6 +21,10 @@ export const reviews: LocaleNamespace<typeof enreviews> = {
     description: 'אפשר לכתוב ביקורת אחת לכל עבודה. זה מה שכתבתם.',
     descriptionNoReview: 'אפשר לכתוב ביקורת אחת לכל עבודה.',
   },
+  closed: {
+    title: 'אי אפשר לכתוב ביקורת',
+    description: 'בעל המקצוע מחק את החשבון, ולכן כבר אי אפשר לכתוב ביקורת על העבודה הזו.',
+  },
   notCompleted: {
     title: 'עדיין מוקדם לביקורת',
     description: 'תוכלו לכתוב ביקורת אחרי שהעבודה תסומן כהושלמה.',

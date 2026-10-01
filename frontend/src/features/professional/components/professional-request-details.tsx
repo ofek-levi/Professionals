@@ -63,6 +63,8 @@ export function ProfessionalRequestDetails({ requestId }: ProfessionalRequestDet
       ? t('professional:request.banner.customerNote', { note: isolateText(request.cancellationComment) })
       : null;
   const withNote = (message: string) => (customerNote ? `${message}\n${customerNote}` : message);
+  // The customer deleted their account (the professional's own deletion leaves nothing to see here).
+  const customerDeleted = request.cancellationReason === 'account_deleted';
 
   let footer = null;
   if (accepted && request.jobId) {
@@ -92,12 +94,17 @@ export function ProfessionalRequestDetails({ requestId }: ProfessionalRequestDet
 
       {/* Hired: "Your offer · Accepted" and the "View job" button say it all. */}
       {outcome === 'job_cancelled' ? (
-        <InlineAlert tone="danger" title={t('offers:jobCancelled.title')} message={withNote(t('offers:jobCancelled.message'))} testID="pro-request-job-cancelled" />
+        <InlineAlert
+          tone="danger"
+          title={customerDeleted ? t('offers:jobCancelled.customerDeletedTitle') : t('offers:jobCancelled.title')}
+          message={customerDeleted ? t('offers:jobCancelled.customerDeletedMessage') : withNote(t('offers:jobCancelled.message'))}
+          testID="pro-request-job-cancelled"
+        />
       ) : !acceptsOffers && !accepted ? (
         <InlineAlert
           tone="warning"
           title={t('professional:request.banner.closedTitle')}
-          message={withNote(t(`professional:request.banner.closed.${request.status === 'cancelled' ? 'cancelled' : 'taken'}`))}
+          message={withNote(t(`professional:request.banner.closed.${customerDeleted ? 'customerDeleted' : request.status === 'cancelled' ? 'cancelled' : 'taken'}`))}
         />
       ) : null}
 

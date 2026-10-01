@@ -22,6 +22,8 @@ export const jobs = {
         customer: 'This job was cancelled. The appointment is off and messaging is closed.',
         professional: 'The customer cancelled this job. The appointment is off and messaging is closed.',
       },
+      /** The professional's job after the customer deleted their account (also while it was in progress). */
+      cancelledCustomerDeleted: 'This job was cancelled because the customer deleted their account. The appointment is off and messaging is closed.',
     },
     progress: {
       accepted: 'Booked',

@@ -2,7 +2,8 @@
  * `/auth/login` – sign in with email and password, or "Continue with Google". Wrong credentials
  * show one inline alert above the button (the same for an unknown email and a wrong password). A
  * Google identity without an account continues in the sign-up flow (prefilled, in memory only).
- * On success the protected routes replace the auth screens with the role's home.
+ * On success the protected routes replace the auth screens with the role's home. The footer links
+ * the Terms of Use and the Privacy Policy, like the entry screen.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Stack, useFocusEffect, useRouter } from 'expo-router';
@@ -14,6 +15,7 @@ import type { z } from 'zod';
 
 import { FormTextField } from '@/components/forms';
 import { AppText, Button, InlineAlert, Screen, useErrorToast } from '@/components/ui';
+import { LegalLinks } from '@/features/legal/components/legal-links';
 import { useGoogleAuth, useLogin } from '@/hooks';
 import { routes } from '@/lib/routes';
 import { createEmptyLoginFormValues, loginSchema, toLoginRequest, type LoginFormValues } from '@/lib/validation/auth';
@@ -214,6 +216,7 @@ export default function LoginScreen() {
               onPress={() => router.push(routes.auth.signUp())}
               testID="login-create-account"
             />
+            <LegalLinks align="center" testID="login-legal" />
           </View>
         </View>
       </Screen>
@@ -249,5 +252,6 @@ const useStyles = makeStyles((t) => ({
   // Sits at the bottom of the screen when the form is short.
   footer: {
     marginTop: 'auto',
+    gap: t.spacing.xl,
   },
 }));

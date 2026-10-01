@@ -38,7 +38,7 @@ export const termsEn: LegalDocumentContent = {
         { type: 'paragraph', text: "If you don't agree to these terms, please don't create an account or use the app." },
         {
           type: 'paragraph',
-          text: "You can read the current version at any time: on the app's sign-in screen, in Settings under Legal, and at [{{termsUrl}}]({{termsUrl}}). This version takes effect on {{effectiveDate}}.",
+          text: "You can read the current version at any time: on the app's welcome and sign-in screens, in Settings under Legal, and at [{{termsUrl}}]({{termsUrl}}). This version takes effect on {{effectiveDate}}.",
         },
       ],
     },
@@ -149,8 +149,8 @@ export const termsEn: LegalDocumentContent = {
             'Give accurate, current information, use your real name, and keep your details up to date.',
             "You can sign up with an email address and a password, or with “Continue with Google”. Keep your password secret and don't use it for other services.",
             'You are responsible for what is done through your account, unless it happens because of our fault or after you told us that your account was compromised.',
-            'If you think someone else has used your account, reset your password with “Forgot password?” on the sign-in screen (or secure your Google account, if you sign in with Google) and tell us at [{{contactEmail}}](mailto:{{contactEmail}}).',
-            'You can edit most of your details in the app. To change the email address you sign in with, write to us from that address.',
+            'If you think someone else has used your account, reset your password with “Forgot password?” on the sign-in screen. This signs your account out on every device, and it also works if you signed up with Google. If you sign in with Google, secure your Google account too, and tell us at [{{contactEmail}}](mailto:{{contactEmail}}).',
+            "You can edit most of your details in the app. The email address you sign in with can't be changed in the app: to change it, write to us from that address and tell us the new one. We confirm the request with you, change the address and send a verification link to the new one.",
           ],
         },
       ],
@@ -167,6 +167,7 @@ export const termsEn: LegalDocumentContent = {
             "Before you accept an offer, read it carefully, including the price, the proposed time and the message, and look at the professional's profile.",
             'Be available at the agreed time, or give access as agreed, and tell the professional about any hazard you know of at the place of work.',
             'Pay the professional what you agreed, in the way you agreed, and ask for a receipt or tax invoice.',
+            "Keep the professional's receipt or tax invoice and their contact details outside the app: if the professional deletes their account, the app no longer shows them.",
             'If you no longer need the job, cancel the request in the app as soon as possible (see “Cancellations”).',
             'Treat professionals with respect, and use their contact details and the information they share only for the job.',
           ],
@@ -188,7 +189,7 @@ export const termsEn: LegalDocumentContent = {
             '**Honest profile:** keep your profile accurate and up to date. Enter only a license number that was issued to you and is valid, and describe your experience truthfully.',
             "**Honest offers:** state the full price for the work described, including VAT if you charge VAT. If the final price depends on things you can't know yet (for example, parts or the extent of the damage), say so clearly in the offer message.",
             '**Keep your commitments:** once a customer accepts your offer, confirm the appointment, arrive on time, and do the work with reasonable skill and care, in line with the law and with professional and safety standards. If someone else does the work for you, you remain responsible for it.',
-            "**Customers' information:** use a customer's address, notes and other details only to do the job. Don't pass them on to others, and don't send customers advertising without their consent.",
+            "**Customers' information:** use a customer's address and other details only to do the job. Don't pass them on to others, and don't send customers advertising without their consent.",
           ],
         },
       ],
@@ -200,11 +201,10 @@ export const termsEn: LegalDocumentContent = {
         {
           type: 'list',
           items: [
-            'A request includes a service category, a description (15 to 1,000 characters), the address and the urgency. You can also add up to 6 photos, access notes, and a preferred date and time of day.',
-            "You can save a request as a draft. Drafts can be edited or deleted, and professionals don't see them.",
+            'A request includes a service category, a description (15 to 1,000 characters), the address and the urgency. You can also add apartment, floor and entrance details to the address, and up to 6 photos.',
+            'Your request is published as soon as you post it.',
             "**A published request can't be edited.** To change it, cancel it and post a new one.",
             'A published request is shown to professionals who offer its service category and whose service area covers its location. Until you hire one of them, they see an approximate location, not your address. The Privacy Policy explains exactly what they see.',
-            "A preferred date can't be in the past or more than 60 days ahead. For emergency and urgent requests, it must also fall within the time in which offers for them may be scheduled (see “Offers”).",
             'A request stays open for offers until you accept an offer or cancel the request.',
           ],
         },
@@ -218,7 +218,7 @@ export const termsEn: LegalDocumentContent = {
           type: 'list',
           items: [
             'A professional can send an offer on a request that is open for offers, if they offer its service category and the request is within their service area.',
-            'An offer states a price in shekels (from ₪20 to ₪200,000) and a proposed start time. It can also include an estimated duration and a message to the customer.',
+            'An offer states a price in shekels (from ₪20 to ₪200,000) and a proposed start time, and can include a message to the customer.',
             '**One active offer per request:** a professional can have only one pending or accepted offer on a request at a time.',
             "The proposed start must be at least 30 minutes after the offer is sent, no more than 60 days ahead, and within the time allowed for the request's urgency (see below).",
             "**Validity:** a pending offer expires automatically at the end of its validity period, which depends on the request's urgency (see below). It never stays valid after its proposed start time. Editing an offer starts its validity period again from the time of the edit.",
@@ -251,7 +251,7 @@ export const termsEn: LegalDocumentContent = {
             "A customer can accept one pending offer that hasn't expired, while the request is open for offers. Customers don't have to accept any offer.",
             '**When the customer accepts an offer, an agreement for the job is made between the customer and the professional,** on the terms of the request and of the offer (the work described, the price, the start time and the offer message), and anything else they agree between them. We are not a party to that agreement.',
             'At the same moment, every other pending offer on the request is declined automatically, and those professionals are notified.',
-            "A job is created and a chat opens between the customer and the professional. The hired professional can now see the exact address, the apartment, floor and entrance details and the access notes, and the customer can see the professional's contact details.",
+            "A job is created and a chat opens between the customer and the professional. The hired professional can now see the exact address and the apartment, floor and entrance details, and the customer can see the professional's contact details.",
           ],
         },
         {
@@ -293,8 +293,9 @@ export const termsEn: LegalDocumentContent = {
           items: [
             '**Customers** can cancel a request at any time before the work starts, that is, until the professional marks the job as started or it is marked as completed. To cancel, open the request, choose a reason and, if you like, add a comment. Professionals who can see the request also see the reason and the comment.',
             "When a request is cancelled, its pending offers are declined, a job that was agreed for it is cancelled and its chat is closed, the professionals involved are notified, and the request's photos are deleted.",
-            "**After the work has started,** the job can't be cancelled in the app. Settle any change directly with the professional.",
-            "**Professionals** can withdraw a pending offer, but can't cancel a job after the customer has accepted their offer. If you can't do an accepted job, tell the customer in the chat right away and ask them to cancel the request. If you can't reach the customer, contact us.",
+            "**After the work has started,** the job can't be cancelled in the app, except that it is cancelled if either of you deletes their account (see “Deleting your account”). Settle any change directly with the professional.",
+            "**If the professional you hired deletes their account,** the job and its request are cancelled and the request's photos are deleted. You are notified, unless you turned off “Offers & job updates” notifications, and you can post a new request.",
+            "**Professionals** can withdraw a pending offer, but can't cancel a job after the customer has accepted their offer, other than by deleting their account, which cancels it but doesn't release them from what they agreed (see “Deleting your account”). If you can't do an accepted job, tell the customer in the chat right away and ask them to cancel the request; the customer can cancel it until the work starts. If you can't reach the customer, tell us at [{{contactEmail}}](mailto:{{contactEmail}}) and we will try to reach them by email. We can't cancel the job for you: it stays in the app until the customer cancels the request.",
           ],
         },
         {
@@ -331,7 +332,7 @@ export const termsEn: LegalDocumentContent = {
             "**Be honest.** Describe only your own experience of the job, and don't include personal information, insults or anything unlawful.",
             "**No incentives or pressure.** Professionals must not offer or give anything (such as money, a discount or a free service) for a review or for a better review, and must not pressure customers about their review. Customers must not ask for anything in exchange for a review, or threaten to write a bad one. Nobody may review their own business, or a competitor's, through another account.",
             "Reviews can't be edited or deleted in the app, and professionals can't reply to them in the app. If you think a review breaks these terms, tell us (see “Reporting problems and abuse”).",
-            "We may remove a review that breaks these terms or the law, or when a court or a competent authority orders us to. We don't remove reviews just because they are negative.",
+            "We may remove a review that breaks these terms or the law, or when a court or a competent authority orders us to. A removed review no longer counts toward the professional's rating. We don't remove reviews just because they are negative.",
           ],
         },
       ],
@@ -393,7 +394,7 @@ export const termsEn: LegalDocumentContent = {
             "post content that is false, misleading, defamatory, obscene or offensive, that infringes anyone's rights (such as copyright or privacy), or that contains another person's personal information without their permission;",
             "use other users' details for anything other than the job, such as marketing, or pass them on to others;",
             'send spam or advertising, or promote services unrelated to the job;',
-            'use a second account to review yourself, to send offers on your own requests, or to get around a suspension;',
+            'use a second account to review yourself, to send offers on your own requests, or to come back after we closed your account;',
             'use the service other than through the app or our public web pages, for example with bots, scrapers or scripts; collect data from it; or try to get around its limits or security;',
             'interfere with the service, overload it, or introduce viruses or other harmful code;',
             "access another user's account or data;",
@@ -431,7 +432,7 @@ export const termsEn: LegalDocumentContent = {
         },
         {
           type: 'paragraph',
-          text: "We look into the reports we receive and may act as described in “Suspension and closing accounts”. To protect other users' privacy, we may not be able to tell you what we did about another user.",
+          text: "We look into the reports we receive and may act as described in “Removing content and closing accounts”. To protect other users' privacy, we may not be able to tell you what we did about another user.",
         },
         { type: 'paragraph', text: 'In an emergency, or if anyone is in danger, contact the police or the emergency services first.' },
         {
@@ -441,10 +442,10 @@ export const termsEn: LegalDocumentContent = {
       ],
     },
     {
-      id: 'suspension-and-closing',
-      heading: 'Suspension and closing accounts',
+      id: 'removing-content-and-closing',
+      heading: 'Removing content and closing accounts',
       blocks: [
-        { type: 'paragraph', text: 'We may suspend your account, limit what you can do, remove your content or close your account if:' },
+        { type: 'paragraph', text: 'We may remove specific content, or close your account, if:' },
         {
           type: 'list',
           items: [
@@ -462,19 +463,19 @@ export const termsEn: LegalDocumentContent = {
         },
         {
           type: 'paragraph',
-          text: '**Objection.** You can object to any such action by writing to [{{contactEmail}}](mailto:{{contactEmail}}). We will review your objection and tell you our decision and the reasons for it. If we find that we were wrong, we will reverse the action where this is possible.',
+          text: "**Objection.** You can object to any such action by writing to [{{contactEmail}}](mailto:{{contactEmail}}). We will review your objection and tell you our decision and the reasons for it. If we find that we were wrong, we will restore content we removed where this is possible. A closed account can't be restored.",
         },
         {
           type: 'paragraph',
-          text: 'We act in proportion to the problem: where possible, we remove specific content or suspend an account before closing it.',
+          text: "**Closing an account deletes it** permanently, with the effects described in “Deleting your account”, and it can't be reversed. We close an account only after the notice and objection steps above, and at least 14 days after our notice, unless a court or the law requires us to act at once, or a user's safety is at immediate risk.",
         },
         {
           type: 'paragraph',
-          text: 'If we close an account, its open requests, offers and jobs are affected in the same way as when a user deletes their account (see “Deleting your account”).',
+          text: 'We act in proportion to the problem: where possible, we remove specific content rather than close the account.',
         },
         {
           type: 'paragraph',
-          text: 'You can stop using Professionals at any time and delete your account in the app. If we decide to stop operating Professionals, we will tell you reasonably in advance, by email or in the app.',
+          text: 'You can stop using Professionals at any time and delete your account in the app. If we decide to stop operating Professionals, we will tell you reasonably in advance, by email.',
         },
       ],
     },
@@ -488,16 +489,16 @@ export const termsEn: LegalDocumentContent = {
         },
         {
           type: 'paragraph',
-          text: "**Without the app:** email [{{contactEmail}}](mailto:{{contactEmail}}) from your account's email address and ask us to delete your account. The [account deletion page]({{deletionUrl}}) explains the steps.",
+          text: "**Without the app:** email [{{contactEmail}}](mailto:{{contactEmail}}) from your account's email address and ask us to delete your account. We reply to that address to confirm the request, and we delete the account within 30 days of your confirmation. The [account deletion page]({{deletionUrl}}) explains the steps.",
         },
         { type: 'paragraph', text: '**What happens to your open items:**' },
         {
           type: 'list',
           items: [
-            'Customers: your drafts are deleted, your other open requests are cancelled, and all pending offers on them are declined.',
+            'Customers: your open requests are cancelled, and all pending offers on them are declined.',
             'Professionals: all your pending offers are withdrawn.',
             'Both roles: your active jobs are cancelled, including jobs already in progress, and all your chats are closed.',
-            'The other users involved are notified.',
+            'The other users involved are notified, unless they turned off “Offers & job updates” notifications.',
           ],
         },
         {
@@ -506,7 +507,7 @@ export const termsEn: LegalDocumentContent = {
         },
         {
           type: 'paragraph',
-          text: 'Some records stay for the people you dealt with, without your personal details, and you are shown to them as “Deleted user”. The [Privacy Policy]({{privacyUrl}}) explains exactly what is deleted and what is kept.',
+          text: 'Some records stay for the people you dealt with, such as jobs, the ratings you gave (without comments), your requests that received offers, and the chat messages you sent. They no longer show your name, contact details or photo: you are shown as “Deleted user”. Texts you wrote stay as you wrote them. These records are deleted once everyone involved has deleted their account. The [Privacy Policy]({{privacyUrl}}) explains exactly what is deleted and what is kept.',
         },
       ],
     },
@@ -554,7 +555,10 @@ export const termsEn: LegalDocumentContent = {
           type: 'paragraph',
           text: "We provide Professionals with reasonable care and skill. Beyond that, and beyond what the law requires, the service is provided as it is and as available: we don't promise that it will always be available, free of errors or suited to your particular needs.",
         },
-        { type: 'paragraph', text: 'Because we are not a party to agreements between users, **we are not responsible for:**' },
+        {
+          type: 'paragraph',
+          text: 'Because we are not a party to agreements between users, and except where the loss results from our own breach of these terms, our negligence, or our failure to act as these terms say (for example, on a report under “Reporting problems and abuse”), **we are not responsible for:**',
+        },
         {
           type: 'list',
           items: [
@@ -596,11 +600,11 @@ export const termsEn: LegalDocumentContent = {
           type: 'list',
           items: [
             'We may change these terms, for example when we add features, when the law changes, or to correct mistakes.',
-            "**Advance notice:** we will tell you about a change at least 14 days before it takes effect, by email to your account's address or with a notice in the app. The notice will explain what is changing and when.",
+            "**Advance notice:** we will email you about a change at least 14 days before it takes effect, at your account's email address. The email will explain what is changing and when, and include the new text.",
             "**No retroactive effect:** a change applies only from its effective date. It doesn't change offers already sent, jobs already agreed, or anything that happened before that date.",
-            "**Your choice:** if you don't agree to a change, you can stop using Professionals and delete your account before the change takes effect. If you keep using the app after that date, the new terms apply to you. For a significant change, we may ask you to accept the new terms in the app.",
+            "**Your choice:** if you don't agree to a change, you can stop using Professionals and delete your account before the change takes effect. If you keep using the app after that date, the new terms apply to you.",
             'A change may take effect sooner only if the law requires it, or if it is only in your favour.',
-            'The current version and its effective date are always available at [{{termsUrl}}]({{termsUrl}}) and in the app.',
+            'The version in force and its effective date are always available at [{{termsUrl}}]({{termsUrl}}) and in the app. A new version is published there on the day it takes effect.',
           ],
         },
       ],
@@ -637,7 +641,7 @@ export const termsEn: LegalDocumentContent = {
         {
           type: 'list',
           items: [
-            "**Notices:** we send notices to your account's email address or in the app. You can send us notices by email to [{{contactEmail}}](mailto:{{contactEmail}}) or by post to our address.",
+            "**Notices:** we send notices to your account's email address. You can send us notices by email to [{{contactEmail}}](mailto:{{contactEmail}}) or by post to our address.",
             '**Transfer:** you may not transfer your account or your rights under these terms. We may transfer the service and these terms to another operator (for example, in a merger or a sale), provided that your rights under these terms are not reduced. We will tell you before that happens.',
             '**Invalid terms:** if a court finds any part of these terms invalid, the rest stays in force.',
             "**No waiver:** if we don't enforce a right straight away, we haven't given it up.",

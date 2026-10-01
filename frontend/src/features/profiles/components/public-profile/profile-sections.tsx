@@ -85,7 +85,7 @@ export function ServicesSection({ profile }: { profile: ProfessionalProfile }) {
 
 // ─────────────────────────────── Area & hours ───────────────────────────────
 
-/** "Serves Tel Aviv-Yafo · within 20 km", credentials and the compact weekly hours. */
+/** "Serves Tel Aviv-Yafo · within 20 km", credentials (marked as declared by the professional) and the compact weekly hours. */
 export function AreaAndHoursSection({ profile }: { profile: ProfessionalProfile }) {
   const styles = useStyles();
   const { t } = useTranslation(['profile', 'common']);
@@ -104,9 +104,14 @@ export function AreaAndHoursSection({ profile }: { profile: ProfessionalProfile 
             {t('profile:public.serves', { area: serviceArea.label, radius: format.distance(serviceArea.radiusKm) })}
           </AppText>
           {credentials.length > 0 ? (
-            <AppText variant="caption" color="secondary">
-              {credentials.join(' · ')}
-            </AppText>
+            <>
+              <AppText variant="caption" color="secondary">
+                {credentials.join(' · ')}
+              </AppText>
+              <AppText variant="caption" color="muted" testID="profile-credentials-declared">
+                {t('profile:public.credentialsDeclared')}
+              </AppText>
+            </>
           ) : null}
         </View>
         <View style={[styles.row, styles.divider]}>

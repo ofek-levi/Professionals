@@ -1,5 +1,6 @@
 /**
- * One log line per request (pino-http) without secrets: no headers, `token` query masked.
+ * One log line per request (pino-http) without secrets: no headers, the URL masked by `redactUrl`
+ * (tokens, address searches, coordinates).
  * Levels: 5xx error, 503 (a provider is not configured or unreachable) and 429 warn, other 4xx
  * info (expired tokens and validation errors are normal traffic, not operator alerts).
  */

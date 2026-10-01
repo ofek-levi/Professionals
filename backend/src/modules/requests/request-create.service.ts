@@ -3,9 +3,10 @@
  * (the multipart files). With a `clientRequestId` a repeated call (a retry after a lost or late
  * response, a double tap) returns the request the first one created, and nothing is uploaded
  * again. Order: that lookup; the rules that need no upload; the photos are stored; the request is
- * created in a transaction. Photos stored for a request that is not created (a failure, or a
- * concurrent post with the same id won) are deleted again, unless the commit may have happened
- * after all (`discardUnsavedPhotos`).
+ * created in a transaction, which first locks the account (`lockActiveAccount`: the account may
+ * have been deleted from another device during the upload). Photos stored for a request that is
+ * not created (a failure, or a concurrent post with the same id won) are deleted again, unless the
+ * commit may have happened after all (`discardUnsavedPhotos`).
  */
 import { Types } from 'mongoose';
 
@@ -14,7 +15,7 @@ import { toLocationDoc } from '../../infra/schema-parts.js';
 import { discardImages, storeImages } from '../../infra/storage/store-images.js';
 import { isDuplicateKeyError } from '../../lib/errors.js';
 import type { AuthContext } from '../../middleware/auth.js';
-import { assertAccountActive } from '../users/me.service.js';
+import { assertAccountActive, lockActiveAccount } from '../users/me.service.js';
 import { publishInTx, type RequestDeps } from './request-lifecycle.service.js';
 import { publishRequestUpdated } from './request-events.js';
 import { currentPhotos, discardUnsavedPhotos, publicIdsOf, REQUEST_PHOTOS, toRequestPhotos } from './request-photos.js';
@@ -31,7 +32,8 @@ function findByClientRequestId(auth: AuthContext, clientRequestId: string | unde
 export async function createRequest(deps: RequestDeps, auth: AuthContext, input: CreateRequestInput, files: readonly Buffer[]): Promise<RequestDoc> {
   const earlier = await findByClientRequestId(auth, input.clientRequestId);
   if (earlier) return earlier;
-  // A deleted account's access token outlives it by minutes: no new request (nor photos) for it.
+  // A deleted account's access token outlives it by minutes: no upload for it (the transaction
+  // checks again, for good).
   await assertAccountActive(auth.userId);
   assertPreferredSchedule(input.preferredSchedule, input.urgency, deps.clock.now());
   const photos = toRequestPhotos(await storeImages(deps, auth.userId.toHexString(), files, REQUEST_PHOTOS));
@@ -58,6 +60,7 @@ function createRequestOnce(
   { _id, photos }: { _id: Types.ObjectId; photos: RequestPhotoDoc[] },
 ): Promise<{ request: RequestDoc; created: boolean }> {
   return withTransaction(deps.logger, async (tx) => {
+    await lockActiveAccount(auth.userId, tx);
     const earlier = await findByClientRequestId(auth, input.clientRequestId, tx);
     if (earlier) return { request: earlier, created: false };
     const [doc] = await RequestModel.create(

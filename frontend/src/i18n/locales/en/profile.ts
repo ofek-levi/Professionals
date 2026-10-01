@@ -7,9 +7,10 @@ export const profile = {
     reviews: 'Reviews',
     areaAndHours: 'Area & hours',
     serves: 'Serves {{area}} · within {{radius}}',
-    /** The license number is self-declared by the professional (not verified). */
+    /** The license number and insurance are self-declared by the professional (not verified): `credentialsDeclared` says so under them. */
     licensed: 'Licensed · No. {{number}}',
     insured: 'Insured',
+    credentialsDeclared: 'Declared by the professional. Professionals doesn’t check licenses or insurance.',
     dayRange: '{{first}}–{{last}}',
     hours: '{{start}}–{{end}}',
     closed: 'Closed',

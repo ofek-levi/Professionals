@@ -121,7 +121,7 @@ export const validation: LocaleNamespace<typeof envalidation> = {
     nameTooShort: `השם צריך להכיל לפחות ${APP_CONFIG.personNameMinLength} אותיות`,
     nameTooLong: `השם יכול להכיל עד ${APP_CONFIG.personNameMaxLength} תווים`,
     nameInvalid: 'אפשר להשתמש באותיות בלבד (רווחים, מקפים וגרשיים מותרים)',
-    termsRequired: 'כדי להמשיך יש לאשר שאתם בגיל 18 ומעלה ואת תנאי השימוש ומדיניות הפרטיות',
+    termsRequired: 'כדי להמשיך יש לאשר שאתם בגיל 18 ומעלה ושקראתם ואישרתם את תנאי השימוש ואת מדיניות הפרטיות',
     roleRequired: 'יש לבחור איך תשתמשו ב-Professionals',
     baseLocationRequired: 'יש לבחור את הכתובת שממנה אתם עובדים',
     professionalDetailsRequired: 'יש להוסיף את השירותים ואת אזור השירות',

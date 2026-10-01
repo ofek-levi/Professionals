@@ -6,6 +6,11 @@ export const offers: LocaleNamespace<typeof enoffers> = {
     badge: 'העבודה בוטלה',
     title: 'הלקוח ביטל את העבודה',
     message: 'ההצעה שלך התקבלה, אבל הלקוח ביטל אחר כך את הבקשה. המועד בוטל ואין צורך להגיע.',
+    customerDeletedTitle: 'הלקוח מחק את החשבון',
+    customerDeletedMessage: 'ההצעה שלכם התקבלה, אבל החשבון של הלקוח נמחק והעבודה בוטלה. הביקור לא יתקיים.',
+  },
+  requestCancelled: {
+    badge: 'הבקשה בוטלה',
   },
   actions: {
     edit: 'עריכה',

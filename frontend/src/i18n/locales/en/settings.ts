@@ -67,14 +67,19 @@ export const settings = {
     more_one: 'and {{count}} more',
     more_other: 'and {{count}} more',
     keepsTitle: 'What stays',
-    keepsJobsCustomer: 'Completed jobs stay in the professional’s history, with you shown as “Deleted user”.',
-    keepsJobsProfessional: 'Completed jobs stay in the customer’s history, with you shown as “Deleted user”.',
+    /** The same records as the account-deletion page ("What we keep"), per role. */
+    keepsJobsCustomer: 'Your jobs, including completed and cancelled ones, stay in the professionals’ history, with you shown as “Deleted user”.',
+    keepsJobsProfessional: 'Your jobs, including completed and cancelled ones, stay in the customers’ history, with you shown as “Deleted user”.',
+    keepsRequests:
+      'Requests that received offers stay with their description as you wrote it, city and approximate location, but without the address, photos or notes.',
     keepsRatings: 'Your ratings stay, without your comments.',
+    keepsOffers: 'Your offers keep their price and proposed time, without your message, for the customers who received them.',
+    keepsReviews: 'Reviews about you stay in the job history of the customers who wrote them, but are no longer shown publicly.',
     keepsMessages: 'The messages you sent stay visible to the other person. Your chats are closed.',
     privacyHint: 'The Privacy Policy explains what is deleted and what is kept.',
     confirmTitle: 'Confirm it’s you',
     passwordLabel: 'Password',
-    googleHint: 'Sign in with the Google account of this account to confirm.',
+    googleHint: 'To confirm, sign in with the Google account linked to this account.',
     googleButton: 'Confirm with Google and delete',
     googleUnavailable: 'Confirming with Google isn’t available here. Delete the account in the app where you sign in with Google.',
     googleMismatchTitle: 'That’s a different Google account',
@@ -83,5 +88,7 @@ export const settings = {
     finalTitle: 'Delete your account?',
     finalMessage: 'Everything above happens right away. This can’t be undone.',
     deleted: 'Your account was deleted',
+    /** `POST /me/deletion` answered 401: deleted on another device, or by an earlier attempt. */
+    alreadyGone: 'This account no longer exists',
   },
 } as const;

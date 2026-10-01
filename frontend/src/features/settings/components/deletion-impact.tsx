@@ -114,15 +114,21 @@ export function DeletionKeeps({ role }: { role: AccountDeletionImpact['role'] })
   const styles = useStyles();
   const router = useRouter();
   const { t } = useTranslation(['settings', 'legal']);
-  const rows: { key: string; icon: IconName; text: string }[] = [
-    {
-      key: 'jobs',
-      icon: 'history',
-      text: role === 'customer' ? t('settings:deleteAccount.keepsJobsCustomer') : t('settings:deleteAccount.keepsJobsProfessional'),
-    },
-    ...(role === 'customer' ? [{ key: 'ratings', icon: 'star-outline' as const, text: t('settings:deleteAccount.keepsRatings') }] : []),
-    { key: 'messages', icon: 'message-text-outline', text: t('settings:deleteAccount.keepsMessages') },
-  ];
+  // The records the account-deletion page lists under "What we keep".
+  const rows: { key: string; icon: IconName; text: string }[] =
+    role === 'customer'
+      ? [
+          { key: 'jobs', icon: 'history', text: t('settings:deleteAccount.keepsJobsCustomer') },
+          { key: 'requests', icon: 'file-document-outline', text: t('settings:deleteAccount.keepsRequests') },
+          { key: 'ratings', icon: 'star-outline', text: t('settings:deleteAccount.keepsRatings') },
+          { key: 'messages', icon: 'message-text-outline', text: t('settings:deleteAccount.keepsMessages') },
+        ]
+      : [
+          { key: 'jobs', icon: 'history', text: t('settings:deleteAccount.keepsJobsProfessional') },
+          { key: 'offers', icon: 'tag-outline', text: t('settings:deleteAccount.keepsOffers') },
+          { key: 'reviews', icon: 'star-outline', text: t('settings:deleteAccount.keepsReviews') },
+          { key: 'messages', icon: 'message-text-outline', text: t('settings:deleteAccount.keepsMessages') },
+        ];
 
   return (
     <View style={styles.section} testID="deletion-keeps">
@@ -131,7 +137,7 @@ export function DeletionKeeps({ role }: { role: AccountDeletionImpact['role'] })
       </AppText>
       <View style={styles.keeps}>
         {rows.map((row) => (
-          <View key={row.key} style={styles.groupHeader}>
+          <View key={row.key} style={styles.groupHeader} testID={`deletion-keeps-${row.key}`}>
             <Icon name={row.icon} size={20} color="muted" />
             <AppText variant="body" color="secondary" style={styles.flex}>
               {row.text}

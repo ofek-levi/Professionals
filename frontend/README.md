@@ -310,8 +310,8 @@ Bottom tabs are the main navigation, one entry point per feature:
   last confirmation; the account is deleted at once and the app returns to the entry screen.
   Others then see the person as "Deleted user".
 - **Legal documents:** the Terms of Use and the Privacy Policy as the backend serves them, in the
-  app's language (`/legal/terms`, `/legal/privacy`). Signed out they are linked from the entry
-  screen and the sign-up checkbox; they also open by URL on the web.
+  app's language (`/legal/terms`, `/legal/privacy`). Signed out they are linked from the entry and
+  sign-in screens and the sign-up checkbox; they also open by URL on the web.
 
 ---
 

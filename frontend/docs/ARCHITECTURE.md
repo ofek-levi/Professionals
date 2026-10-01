@@ -294,8 +294,9 @@ and its push token), `POST /auth/refresh|logout`, `PATCH /me`, Expo-only `POST /
 `photos`, `keepPhotos`), `PUT` / `DELETE /me/avatar`, `GET /legal/:document` (a short Terms of
 Use and Privacy Policy in both languages, `data/legal-documents.ts`) and account deletion
 (`GET /me/deletion-impact`, `POST /me/deletion`: the password or the linked Google account, 400
-refusals, the cancellations with their notifications, an anonymous tombstone shown as "Deleted
-user" with `accountDeleted`, the sign-in credential freed; `services/account-deletion-service.ts`). `env.transport` (with a request log) replaces the app's HTTP transport
+refusals, the cancellations with their notifications, the customer's requests without an offer
+deleted, an anonymous tombstone shown as "Deleted user" with `accountDeleted`, the sign-in
+credential freed; `services/account-deletion-service.ts`). `env.transport` (with a request log) replaces the app's HTTP transport
 (`apiClient.setTransport`); `env.sockets.openSocket` is the realtime endpoint for the app's
 WebSocket client (4001 for bad, expired or revoked tokens, `dropAll(1001)` for a restart). App code
 cannot import it (ESLint), so it is never bundled. `jest.setup.ts` also installs in-memory
@@ -376,7 +377,7 @@ redirects. Build every link with `routes` (`src/lib/routes.ts`).
 | `/jobs/:id`, `/jobs/:id/review` | both · customer | job tracking, leave a review |
 | `/conversations/:id`, `/profile/edit`, `/settings` | signed in | chat, edit own profile, settings |
 | `/settings/delete-account` | signed in | delete the account (what it cancels, password or Google, last confirmation) |
-| `/legal/terms`, `/legal/privacy` | everyone | Terms of Use, Privacy Policy (linked from the entry screen, the sign-up terms and Settings → Legal; web deep links) |
+| `/legal/terms`, `/legal/privacy` | everyone | Terms of Use, Privacy Policy (linked from the entry and sign-in screens, the sign-up terms and Settings → Legal; web deep links) |
 
 ### Account screens (src/features/auth)
 
@@ -391,7 +392,10 @@ redirects. Build every link with `routes` (`src/lib/routes.ts`).
   (with a toast saying why). `usePreventRemove` turns the header back arrow (and gestures /
   hardware back) into "previous step", and `useBrowserBack` does the same for the browser's back
   button on web: one `popstate` listener installed at module load of the root layout (before the
-  router's own, so it can stop it) restores the screen's history entry and calls the screen.
+  router's own, so it can stop it) restores the screen's history entry and calls the screen. The
+  navigator's own `history.go()` (it pops a screen, e.g. a legal document closed with the header
+  back arrow) is counted by a wrapper the interceptor installs, and its `popstate` reaches the
+  router untouched – it may arrive after the screen underneath re-enabled its handler.
   A role in the link (`?role=`) skips the role step; the progress counts from the first step shown
   and shows no total until a role is chosen (`signUpProgress`).
 - Every submit runs through `useSingleFlight`: a second tap while one is being validated or sent
@@ -414,8 +418,10 @@ redirects. Build every link with `routes` (`src/lib/routes.ts`).
 Settings → Account → Delete account opens `/settings/delete-account`. It loads
 `GET /me/deletion-impact` fresh (`useAccountDeletionImpact`) and shows per role what the deletion
 cancels right away (requests and the offers on them, drafts, jobs; a professional's pending offers
-and jobs, with the first items of each) and what stays (completed jobs, ratings without comments,
-sent messages, as "Deleted user"), with the Privacy Policy one tap away. The account holder
+and jobs, with the first items of each) and what stays – the records the account-deletion page lists
+(jobs, a customer's requests that received offers and ratings without comments, a professional's
+offers without the message and reviews about them, sent messages, as "Deleted user") – with the
+Privacy Policy one tap away. The account holder
 confirms with the password (`PasswordField`), or – an account without one – with a fresh Google
 sign-in (`GoogleSignInButton` → `googleIdToken`), then once more in a destructive dialog.
 `useDeleteAccount` → `deleteAccountAndSignOut()` (session provider): realtime is closed first (the
@@ -424,7 +430,10 @@ been signed out"), `POST /me/deletion`, then the session ends on this device onl
 logout is queued, the deletion ended every session. The `Stack.Protected` guards show the entry
 screen and a toast says the account was deleted. Refusals are 400, never 401: a wrong password
 shows under the field, a Google account other than the linked one as an alert; 429 says when to try
-again (`useErrorText`); offline and other errors are toasts, and realtime reconnects.
+again (`useErrorText`); offline and other errors are toasts, and realtime reconnects. A 401 means
+the account is already gone (deleted on another device, or a first request whose answer was lost):
+the session ends without the generic "You've been signed out" notice, and a toast says the account
+no longer exists.
 
 Other people's deleted accounts arrive with `accountDeleted` (`customerAccountDeleted` on reviews)
 and the server's English placeholder name: `usePersonName()` (`src/i18n/hooks.ts`) shows "Deleted
@@ -442,9 +451,10 @@ loads `GET /legal/:document?lang=<app language>` (`useLegalDocument`, public key
 fresh like the server's `Cache-Control`) and renders the title (header), the effective date, the
 intro and the sections: headings (`accessibilityRole="header"`), paragraphs, bullet lists and
 definitions. Texts carry inline markup only – `**bold**` and `[label](url)` – parsed by
-`legal-markup.ts`; links to `https:`/`mailto:` open in the in-app browser or the mail app (a new tab
-on the web), a link to the other document's public page opens that document in the app, anything
-else stays plain text. A paragraph whose first word is in the other script ("Professionals היא…")
+`legal-markup.ts`; links to `https:` (`http:` only in development, for a local server) and
+`mailto:` open in the in-app browser – the system's handler where there is none – or the mail app (a
+new tab on the web), a link to the other document's public page opens that document in the app, and
+the public pages opened outside the app get `?lang=<app language>`; anything else stays plain text. A paragraph whose first word is in the other script ("Professionals היא…")
 gets a direction mark, so it still runs in the document's direction.
 
 ### Maps (src/components/map)

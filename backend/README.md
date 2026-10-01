@@ -70,7 +70,15 @@ On later runs: `docker start pro-mongo pro-redis`.
 | `npm run lint` | ESLint (typescript-eslint strict, type-checked) |
 | `npm test` | vitest + supertest against the local MongoDB and Redis |
 | `npm run test:watch` | Tests in watch mode |
-| `npm run delete-account -- <email>` | Deletes that account as the app's "Delete account" does, for a request emailed by its holder (reads `.env`; in the image `node dist/delete-account.js <email>`; see [OPERATIONS.md](docs/OPERATIONS.md#9-account-deletion)) |
+| `npm run delete-account -- <email or id> [--closure] [--no-email]` | Deletes that account as the app's "Delete account" does: on a request emailed by its holder (the default), closing it under the Terms (`--closure`), or again after a backup restore (`--no-email`) |
+| `npm run remove-review -- <review id>` | Removes a review and recounts the professional's rating |
+| `npm run export-account -- <email or id> [file]` | Writes everything stored about an account to a JSON file (an access request) |
+| `npm run change-email -- <current> <new>` | Changes an account's sign-in email and sends a verification link to the new one |
+| `npm run list-user-emails -- [file]` | Writes the address, language and first name of every account to a CSV file (notice of new legal texts) |
+
+The operator commands read `.env`; in the image they are `node dist/<command>.js …` with the
+environment's variables. When to use them, and how to verify who asks first:
+[OPERATIONS.md §9](docs/OPERATIONS.md#9-account-deletion-and-privacy-requests).
 
 ## Tests
 
@@ -83,7 +91,9 @@ On later runs: `docker start pro-mongo pro-redis`.
   fakes through `deps`; time is a controllable fake clock where a rule depends on it.
 - Coverage: auth (register, login, refresh rotation and reuse detection, logout, immediate
   revocation, password reset, email verification, Google linking), account deletion (impact,
-  re-authentication, what the other parties keep and see), the legal documents (format rules of the
+  re-authentication, what the other parties keep and see, what goes once both parties are deleted,
+  the confirmation email by origin), the operator tools (review removal and rating recount, account
+  export, sign-in email change, address list), the legal documents (format rules of the
   texts, placeholders, JSON and HTML pages), the whole request → offer →
   accept (transaction, concurrent 409) → job → review lifecycle, authorization and privacy views,
   keyset pagination, validation errors, messaging idempotency and read receipts, notifications and
@@ -107,7 +117,8 @@ in [OPERATIONS.md](docs/OPERATIONS.md#4-deploying).
 ```
 src/
   server.ts        bootstrap: env → MongoDB (indexes) + Redis → HTTP + WebSocket → cron; graceful shutdown
-  delete-account.ts  operator command: delete an account on an emailed request
+  operator-command.ts  frame of the operator commands: delete-account.ts, remove-review.ts,
+                     export-account.ts, change-email.ts, list-user-emails.ts (OPERATIONS.md §9)
   app.ts           createApp(deps): middleware, /health, /ready, /legal/* pages, /v1 routes, errors (no listen)
   routes.ts        mounts every module router under /v1
   deps.ts          AppDeps: providers injected into services (swapped for fakes in tests)
@@ -121,7 +132,7 @@ src/
   modules/<name>/  model, schemas, services, controller, routes, views, jobs, __tests__
 test/              per-file database/Redis setup, app factory with fakes, factories, auth + realtime helpers,
                    contract/ (compile-time check against the app's types)
-docs/              API.md, ARCHITECTURE.md, OPERATIONS.md, CONVENTIONS.md
+docs/              API.md, ARCHITECTURE.md, OPERATIONS.md, CONVENTIONS.md, PRIVACY-DATA-MAP.md (store privacy answers)
 ```
 
 Modules: `auth` (+ sessions and their push tokens), `users` (me, avatar, device registration, account deletion), `catalog`, `geo`, `customers`, `professionals`,

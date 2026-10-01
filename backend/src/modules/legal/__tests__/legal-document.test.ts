@@ -12,7 +12,7 @@ const API = 'https://api.example.com';
 const SETTINGS: LegalSettings = {
   operator: {
     name: { en: 'Example Services Ltd', he: 'דוגמה שירותים בע״מ' },
-    registrationNumber: '51-123456-7',
+    registration: { label: { en: 'Company No.', he: 'ח.פ.' }, number: '51-123456-7' },
     address: { en: '1 Example St, Tel Aviv', he: 'רחוב הדוגמה 1, תל אביב' },
     email: 'privacy@example.com',
   },
@@ -22,7 +22,7 @@ const SETTINGS: LegalSettings = {
 
 const EMPTY_OPERATOR: LegalSettings = {
   ...SETTINGS,
-  operator: { name: { en: '', he: '' }, registrationNumber: '', address: { en: '', he: '' }, email: '' },
+  operator: { name: { en: '', he: '' }, registration: { label: { en: '', he: '' }, number: '' }, address: { en: '', he: '' }, email: '' },
 };
 
 /** The text of the first definition item named `term` in the document. */
@@ -67,12 +67,18 @@ describe('legal documents with the operator filled in', () => {
     expect(JSON.stringify(he)).toContain('30 בספטמבר 2026');
   });
 
-  it('leaves out an empty registration number with its space; other numbers are a licensed dealer’s', () => {
-    const none = { ...SETTINGS, operator: { ...SETTINGS.operator, registrationNumber: '' } };
+  it('leaves out an empty registration number with its space; the label is the configured one, never guessed', () => {
+    const registered = (registration: LegalSettings['operator']['registration']) => ({ ...SETTINGS, operator: { ...SETTINGS.operator, registration } });
+    const none = registered({ label: { en: 'Company No.', he: 'ח.פ.' }, number: ' ' });
     expect(definition(legalDocument('terms', 'en', API, none), 'Operator')).toBe('Example Services Ltd');
-    const dealer = { ...SETTINGS, operator: { ...SETTINGS.operator, registrationNumber: '012345678' } };
-    expect(placeholderValues(dealer, API, 'en').operatorRegistration).toBe('(Licensed Dealer No. 012345678)');
-    expect(placeholderValues(dealer, API, 'he').operatorRegistration).toBe('(ע.מ. 012345678)');
+    expect(placeholderValues(none, API, 'he').operatorRegistration).toBe('');
+    // A non-profit's number also starts with 5: the label says what it is.
+    const amuta = registered({ label: { en: 'Non-profit No.', he: 'ע״ר' }, number: '580123456' });
+    expect(placeholderValues(amuta, API, 'en').operatorRegistration).toBe('(Non-profit No. 580123456)');
+    expect(placeholderValues(amuta, API, 'he').operatorRegistration).toBe('(ע״ר 580123456)');
+    // Without a label (development only: a deployed start refuses it), a visible placeholder.
+    const unlabelled = registered({ label: { en: '', he: '' }, number: '012345678' });
+    expect(placeholderValues(unlabelled, API, 'en').operatorRegistration).toBe('([registration label — set in backend/src/config/legal.ts] 012345678)');
   });
 
   it('shows visible placeholders while the operator is not filled in (development)', () => {

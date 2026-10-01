@@ -70,9 +70,9 @@ Calm and minimal (see the tokens in `src/theme/tokens.ts`):
 | `Button` | `<Button label={t('common:actions.saveChanges')} onPress={save} loading={isPending} fullWidth />` variants `primary` (brand fill) · `secondary` (neutral fill) · `outline` (neutral outline on the background – third-party sign-in such as "Continue with Google") · `ghost` (brand text) · `dangerGhost` (red text) · `danger` (filled, destructive confirmations), sizes `sm` 36 · `md` 46 · `lg` 52 (default when `fullWidth`), optional `leftIcon` |
 | `IconButton` | `<IconButton icon="plus" accessibilityLabel={t('…')} onPress={…} variant="surface" />` variants `plain` (default) · `surface` (soft fill) · `soft`/`filled` (tone) |
 | `Card` | `<Card onPress={open} padding="lg" highlighted>{…}</Card>` – soft `surface` fill, no border or shadow (cards never float). Padding in `style` (e.g. `<Card padding="none" style={{ paddingHorizontal: 16 }}>`) always wins over the token |
-| `Badge` | `<Badge label={t('common:verified')} tone="brand" size="sm" />` – small text-only pill on a soft tone background |
+| `Badge` | `<Badge label={t('offers:jobCancelled.badge')} tone="danger" size="sm" />` – small text-only pill on a soft tone background |
 | `Chip` | `<Chip label="Urgent" selected={on} onPress={toggle} />` / `onRemove` adds a close button, `leading` a small glyph |
-| `Avatar` | `<Avatar name={pro.displayName} uri={pro.avatarUrl} size="lg" verified />` |
+| `Avatar` | `<Avatar name={pro.displayName} uri={pro.avatarUrl} size="lg" />` – photo or initials on a color derived from the name |
 | `BrandMark` | `<BrandMark size={44} />` – the logo mark (vector, from `assets/brand/logo-mark.svg`) in the logo blue `colors.brandMark`; pass `color={theme.colors.onPrimary}` on brand-colored backgrounds. Decorative (hidden from screen readers) |
 | `Divider` | `<Divider inset={56} />` |
 | `Screen` | `<Screen refreshing={isRefetching} onRefresh={refetch} footer={<Button … fullWidth />} edges={['top','bottom']}>…</Screen>` (`scroll={false}` for static layouts, `header` for fixed content) |

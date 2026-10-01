@@ -72,7 +72,7 @@ export async function toOffersWithProfessional(offers: OfferDoc[], request: Pick
 
 type SummaryRequest = Pick<
   RequestDoc,
-  '_id' | 'customer' | 'categoryId' | 'description' | 'urgency' | 'status' | 'location' | 'preferredSchedule' | 'offerCount' | 'pendingOfferCount' | 'acceptedOffer' | 'createdAt'
+  '_id' | 'customer' | 'categoryId' | 'description' | 'urgency' | 'status' | 'location' | 'publicPoint' | 'preferredSchedule' | 'offerCount' | 'pendingOfferCount' | 'acceptedOffer' | 'createdAt'
 >;
 const SUMMARY_REQUEST_PROJECTION = {
   customer: 1,
@@ -81,6 +81,7 @@ const SUMMARY_REQUEST_PROJECTION = {
   urgency: 1,
   status: 1,
   location: 1,
+  publicPoint: 1,
   preferredSchedule: 1,
   offerCount: 1,
   pendingOfferCount: 1,
@@ -89,15 +90,13 @@ const SUMMARY_REQUEST_PROJECTION = {
 } as const;
 
 function toOfferRequestSummary(request: SummaryRequest, revealLocation: boolean): OfferRequestSummary {
-  const location = toServiceLocation(request.location);
-  const id = request._id.toHexString();
   return {
-    id,
+    id: request._id.toHexString(),
     categoryId: request.categoryId,
     description: request.description,
     urgency: request.urgency,
     status: request.status,
-    location: revealLocation ? location : approximateLocation(location, id),
+    location: revealLocation ? toServiceLocation(request.location) : approximateLocation(request.location, request.publicPoint),
     preferredSchedule: request.preferredSchedule ? { ...request.preferredSchedule } : null,
     offerCount: request.offerCount,
     pendingOfferCount: request.pendingOfferCount,

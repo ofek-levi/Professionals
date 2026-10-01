@@ -74,10 +74,16 @@ export function approximateCoordinates(coords: GeoCoordinates, seed: string): Ge
   return offsetCoordinates(coords, meters, bearing);
 }
 
-/** Privacy view of a location: approximate point, no street address, no access details. */
-export function approximateLocation(location: ServiceLocation, seed: string): ServiceLocation {
+/**
+ * Privacy view of a location: its stored approximate point (`requests.publicPoint`,
+ * `professionals.serviceArea.publicCenter`), no street address, no access details. Never derived
+ * from the location again: an anonymised request's location already is its approximate point, so
+ * a second offset (the same one: it depends on the id only) would give the exact point away, and
+ * the stored points stay the same when the key changes.
+ */
+export function approximateLocation(location: Pick<ServiceLocation, 'city' | 'neighborhood'>, publicPoint: GeoPoint): ServiceLocation {
   return {
-    coordinates: approximateCoordinates(location.coordinates, seed),
+    coordinates: fromGeoPoint(publicPoint),
     addressLine: '',
     city: location.city,
     neighborhood: location.neighborhood,

@@ -1,8 +1,9 @@
 /**
  * Professional aggregates maintained on write (the mock's `recomputeProfessionalStats`):
  * - rating: the review's star is counted in `stats.ratingCounts` inside the review transaction and
- *   the average, count and search rank are derived from those counts (reviews are only ever
- *   created, so the counts cannot drift, and no review is re-read);
+ *   the average, count and search rank are derived from those counts (users only ever create
+ *   reviews, so the counts cannot drift, and no review is re-read); when the operator removes a
+ *   review (`review-removal.service.ts`) the counts are recounted from the remaining reviews;
  * - completed jobs: incremented inside the completion transaction (`completed` is terminal and the
  *   transition is a conditional write, so each job counts exactly once);
  * - response time: a sampled median recomputed after the offer committed. It is a derived
@@ -20,9 +21,10 @@ import type { Rating } from '../../shared/domain.js';
 import { OFFER_STATUSES } from '../../shared/statuses.js';
 import { OfferModel } from '../offers/offer.model.js';
 import { invalidatePublicProfessionalProfile } from '../professionals/professional-cache.js';
-import { bayesianRating, ratingBreakdown } from '../professionals/professional-rank.js';
+import { bayesianRating, emptyRatingCounts, ratingBreakdown } from '../professionals/professional-rank.js';
 import { ProfessionalModel, type ProfessionalDoc } from '../professionals/professional.model.js';
 import { RequestModel } from '../requests/request.model.js';
+import { ReviewModel } from './review.model.js';
 
 type StatsDeps = Pick<AppDeps, 'realtime' | 'cache'>;
 
@@ -37,7 +39,7 @@ async function statsChanged(deps: StatsDeps, professionalId: Types.ObjectId, tx:
 }
 
 /** Sets `stats.<field>` values that differ from the stored ones; notifies when anything changed. */
-async function setStats(deps: StatsDeps, professionalId: Types.ObjectId, values: Record<string, number | null>, tx?: Tx): Promise<void> {
+async function setStats(deps: StatsDeps, professionalId: Types.ObjectId, values: Record<string, number | number[] | null>, tx?: Tx): Promise<void> {
   const set = Object.fromEntries(Object.entries(values).map(([field, value]) => [`stats.${field}`, value]));
   const differs = Object.entries(set).map(([path, value]) => ({ [path]: { $ne: value } }));
   const result = await ProfessionalModel.updateOne({ _id: professionalId, $or: differs }, { $set: set }, { session: tx?.session });
@@ -54,6 +56,18 @@ export async function recordReviewRating(deps: StatsDeps, professionalId: Types.
   if (!counted) throw new Error(`Professional ${professionalId.toHexString()} not found for a review`);
   const { averageRating, reviewCount } = ratingBreakdown(counted.stats.ratingCounts);
   await setStats(deps, professionalId, { averageRating, reviewCount, rankScore: bayesianRating(averageRating, reviewCount) }, tx);
+}
+
+/** Recounts the ratings from the professional's reviews (one was removed) and derives the rest as above. */
+export async function recountReviewRatings(deps: StatsDeps, professionalId: Types.ObjectId, tx: Tx): Promise<void> {
+  const counts = await ReviewModel.aggregate<{ _id: Rating; count: number }>([
+    { $match: { professional: professionalId } },
+    { $group: { _id: '$rating', count: { $sum: 1 } } },
+  ]).session(tx.session);
+  const ratingCounts = emptyRatingCounts();
+  for (const { _id: rating, count } of counts) ratingCounts[rating - 1] = count;
+  const { averageRating, reviewCount } = ratingBreakdown(ratingCounts);
+  await setStats(deps, professionalId, { ratingCounts, averageRating, reviewCount, rankScore: bayesianRating(averageRating, reviewCount) }, tx);
 }
 
 /** One more completed job (called once per job, in its completion transaction). */

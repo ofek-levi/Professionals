@@ -3,7 +3,7 @@
  * (`GET /me/deletion-impact`), what stays, the proof that it is the account holder (the password,
  * or a Google sign-in for an account without one) and a last confirmation. On success this device
  * is signed out without a server logout (the deletion ended every session), the entry screen shows
- * and a toast confirms it.
+ * and a toast confirms it; a 401 (the account was already deleted) signs out too and says so.
  */
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
@@ -69,10 +69,15 @@ function DeleteAccountView({ impact }: { impact: AccountDeletionImpact }) {
   const [paused, setPaused] = useState<unknown>(null);
   const [googleMismatch, setGoogleMismatch] = useState(false);
 
+  /** On the entry screen, after the sign-out's own effects, which dismiss the account's banners (RealtimeProvider). */
+  const toastSignedOut = (title: string) => setTimeout(() => toast.show({ title, tone: 'neutral', icon: 'account-remove-outline' }), 0);
+
   const showFailure = (error: unknown) => {
-    const { code, fieldErrors } = toApiError(error);
+    const { status, code, fieldErrors } = toApiError(error);
     const passwordError = fieldErrors?.password?.[0];
-    if (code === 'RATE_LIMITED') setPaused(error);
+    // Already deleted (another device, or a first attempt whose answer was lost): signed out now.
+    if (status === 401) toastSignedOut(t('settings:deleteAccount.alreadyGone'));
+    else if (code === 'RATE_LIMITED') setPaused(error);
     else if (passwordError) form.setError('password', { type: 'server', message: passwordError }, { shouldFocus: true });
     else if (fieldErrors?.googleIdToken) setGoogleMismatch(true);
     else showError(error);
@@ -95,8 +100,7 @@ function DeleteAccountView({ impact }: { impact: AccountDeletionImpact }) {
       showFailure(error);
       return;
     }
-    // After the sign-out's own effects, which dismiss the previous account's banners (RealtimeProvider).
-    setTimeout(() => toast.show({ title: t('settings:deleteAccount.deleted'), tone: 'neutral', icon: 'account-remove-outline' }), 0);
+    toastSignedOut(t('settings:deleteAccount.deleted'));
   };
 
   const submitPassword = form.handleSubmit(({ password }) => deleteWith({ password }));

@@ -122,11 +122,12 @@ export function toPublicProfessionalProfile(
 ): ProfessionalProfile {
   const { notificationPreferences: _preferences, fullName: _fullName, ...profile } = baseProfile(pro, user);
   if (viewer.isOwner) return profile;
-  const seed = pro._id.toHexString();
+  // The stored approximate center for both points: the base is the area's center (the app moves
+  // the center with the base), and a stored point never moves unless the professional moves it.
   return {
     ...profile,
     serviceArea: { ...profile.serviceArea, center: fromGeoPoint(pro.serviceArea.publicCenter) },
-    baseLocation: profile.baseLocation ? approximateLocation(profile.baseLocation, seed) : null,
+    baseLocation: profile.baseLocation ? approximateLocation(profile.baseLocation, pro.serviceArea.publicCenter) : null,
     contact: viewer.hiredByViewer ? profile.contact : null,
   };
 }

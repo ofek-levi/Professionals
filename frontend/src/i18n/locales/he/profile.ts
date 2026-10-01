@@ -12,6 +12,7 @@ export const profile: LocaleNamespace<typeof enprofile> = {
     serves: 'אזור שירות: {{area}} · עד {{radius}}',
     licensed: 'יש רישיון · מס׳ {{number}}',
     insured: 'יש ביטוח',
+    credentialsDeclared: 'לפי הצהרת בעל המקצוע. Professionals לא בודקת רישיונות או ביטוח.',
     dayRange: '{{first}}–{{last}}',
     hours: isolateLtr('{{start}}–{{end}}'),
     closed: 'סגור',

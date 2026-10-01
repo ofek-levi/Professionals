@@ -123,7 +123,7 @@ describe('getNotificationContent', () => {
       icon: 'calendar-remove',
       tone: 'danger',
     });
-    expect(contentFor('job_cancelled', 'he').body).toBe('העבודה בנושא PLUMBING (WED 10:00) בוטלה כי החשבון של בעל המקצוע נסגר.');
+    expect(contentFor('job_cancelled', 'he').body).toBe('העבודה שלכם בנושא PLUMBING (WED 10:00) בוטלה כי החשבון של בעל המקצוע נמחק.');
   });
 
   it('pluralizes review stars (including the Hebrew dual)', () => {

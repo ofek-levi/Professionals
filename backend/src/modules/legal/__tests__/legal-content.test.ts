@@ -76,6 +76,12 @@ describe('legal document texts', () => {
     expect(placeholders('he')).toEqual(placeholders('en'));
   });
 
+  it.each(LEGAL_DOCUMENTS)('%s (he): a prefix stays on the line of the Latin word after it', (document) => {
+    // A line may break after "ב-" or "ב־"; the word joiner in "ב־⁠Professionals" prevents it.
+    const content = LEGAL_CONTENT[document].he;
+    for (const text of [...plainTexts(content), ...markedUpTexts(content)]) expect(text).not.toMatch(/[א-ת][-־][A-Za-z]/);
+  });
+
   it('src/config/legal.ts: a real effective date and whole days of retention', () => {
     const { effectiveDate, retention } = LEGAL_SETTINGS;
     expect(effectiveDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);

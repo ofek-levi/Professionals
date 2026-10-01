@@ -1,7 +1,9 @@
 /**
  * `POST /jobs/:id/review` (the mock's `createReview`): one review per completed job, by its
  * customer. The review, the job's link to it and the professional's rating aggregate are written
- * in one transaction; the professional is notified and both parties get `job.updated`.
+ * in one transaction; the professional is notified and both parties get `job.updated`. Deleted
+ * accounts: the reviewer's is locked first (`lockActiveAccount`); a professional's deletion writes
+ * the professional document the rating update writes, so the two never both commit unseen.
  */
 import type { ClientSession, Types } from 'mongoose';
 
@@ -13,7 +15,7 @@ import { publishJobUpdated } from '../jobs/job-events.js';
 import { JobModel, type JobDoc } from '../jobs/job.model.js';
 import { createNotification } from '../notifications/create-notification.service.js';
 import { customerNameOf } from '../requests/request-access.js';
-import { accountGone } from '../users/me.service.js';
+import { lockActiveAccount } from '../users/me.service.js';
 import { UserModel } from '../users/user.model.js';
 import { recordReviewRating } from './professional-stats.service.js';
 import { ReviewModel, type ReviewDoc } from './review.model.js';
@@ -23,24 +25,23 @@ type ReviewDeps = Pick<AppDeps, 'logger' | 'clock' | 'realtime' | 'push' | 'mail
 
 const alreadyReviewed = () => ApiError.conflict('This job was already reviewed');
 
-/** Neither the reviewer's account (its token may outlive it) nor the professional's was deleted. */
-async function assertPartiesActive(job: Pick<JobDoc, 'customer' | 'professional'>, session: ClientSession): Promise<void> {
-  const deleted = await UserModel.find({ _id: { $in: [job.customer, job.professional] }, deletedAt: { $exists: true } }, { _id: 1 })
-    .session(session)
-    .lean();
-  if (deleted.some((user) => user._id.equals(job.customer))) throw accountGone();
-  if (deleted.length > 0) throw ApiError.conflict('The professional deleted their account');
+/** A deleted professional takes no more reviews (their stats are frozen). */
+async function assertProfessionalActive(job: Pick<JobDoc, 'professional'>, session: ClientSession): Promise<void> {
+  const deleted = await UserModel.exists({ _id: job.professional, deletedAt: { $exists: true } }).session(session);
+  if (deleted) throw ApiError.conflict('The professional deleted their account');
 }
 
 export async function createReview(deps: ReviewDeps, auth: AuthContext, jobId: Types.ObjectId, input: CreateReviewInput): Promise<ReviewDoc> {
   try {
     return await withTransaction(deps.logger, async (tx) => {
+      // The reviewer's token may outlive their account.
+      await lockActiveAccount(auth.userId, tx);
       const job = await JobModel.findById(jobId).session(tx.session).lean<JobDoc>();
       if (!job) throw ApiError.notFound('Job');
       if (!job.customer.equals(auth.userId)) throw ApiError.forbidden('Only the customer of this job can review it');
       if (job.status !== 'completed') throw ApiError.conflict('Only completed jobs can be reviewed');
       if (job.review !== null) throw alreadyReviewed();
-      await assertPartiesActive(job, tx.session);
+      await assertProfessionalActive(job, tx.session);
 
       const [created] = await ReviewModel.create(
         [{ job: job._id, professional: job.professional, customer: job.customer, categoryId: job.categoryId, rating: input.rating, comment: input.comment }],

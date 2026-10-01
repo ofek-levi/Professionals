@@ -9,7 +9,8 @@
  * - `establishSession()` is the single sign-in path: the email / Google auth mutations
  *   (`hooks/mutations/use-auth-mutations.ts`) all go through it.
  * - `deleteAccountAndSignOut()` deletes the account (`POST /me/deletion`) and signs out on this
- *   device only: the server already ended every session.
+ *   device only: the server already ended every session (also when it answers 401: the account
+ *   was already deleted).
  */
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
@@ -17,7 +18,9 @@ import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { syncAccountLanguage } from '@/features/settings/account-language';
 import { i18n, isSupportedLanguage } from '@/i18n';
 import { api } from '@/services/api';
+import { isApiError } from '@/services/api/errors';
 import { createPendingLogouts } from '@/services/auth/pending-logouts';
+import { sessionEnded } from '@/services/auth/session-ended';
 import { sessionStore, type SessionState } from '@/services/auth/session-store';
 import { realtimeClient } from '@/services/realtime';
 import type { AuthSession, DeleteAccountRequest } from '@/types/api';
@@ -66,13 +69,18 @@ export async function establishSession(session: AuthSession): Promise<void> {
  * session of the account. Realtime is closed first, as for a sign-out (the server closes the
  * account's sockets with 4001, which the realtime client would answer with a refresh that fails
  * and reports "You've been signed out"), and reconnected when the deletion was refused.
+ *
+ * A 401 (after the refresh failed too) means the account is already gone – deleted on another
+ * device, or by a first attempt whose answer was lost: the session ends here as well, without the
+ * generic "You've been signed out" (the screen says what happened), and the error is rethrown.
  */
 export async function deleteAccountAndSignOut(proof: DeleteAccountRequest): Promise<void> {
   realtimeClient.disconnect();
   try {
-    await api.users.deleteAccount(proof);
+    await sessionEnded.suppressWhile(() => api.users.deleteAccount(proof));
   } catch (error) {
-    if (sessionStore.getState().status === 'signedIn') realtimeClient.connect();
+    if (isApiError(error) && error.status === 401) await sessionStore.signOut();
+    else if (sessionStore.getState().status === 'signedIn') realtimeClient.connect();
     throw error;
   }
   await sessionStore.signOut();

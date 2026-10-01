@@ -1,7 +1,7 @@
 import { View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import { AppText, Avatar, Button, Card, Icon, PriceText, RatingStars } from '@/components/ui';
+import { AppText, Avatar, Button, Card, PriceText, RatingStars } from '@/components/ui';
 import { useFormatters, usePersonName } from '@/i18n/hooks';
 import { makeStyles } from '@/theme';
 import type { OfferWithProfessional } from '@/types/domain';
@@ -37,12 +37,9 @@ export function OfferCard({ offer, now, canAccept, accepting, disabled, onAccept
       <View style={styles.top}>
         <Avatar name={name} uri={pro.avatarUrl} size="md" decorative />
         <View style={styles.who}>
-          <View style={styles.nameRow}>
-            <AppText variant="bodyStrong" numberOfLines={2} style={styles.shrink}>
-              {name}
-            </AppText>
-            {pro.isVerified ? <Icon name="check-decagram" size={15} color="primary" accessibilityLabel={t('common:verified')} /> : null}
-          </View>
+          <AppText variant="bodyStrong" numberOfLines={2}>
+            {name}
+          </AppText>
           <RatingStars value={pro.averageRating} count={pro.reviewCount} variant="compact" size={13} textVariant="caption" />
         </View>
       </View>
@@ -101,11 +98,6 @@ const useStyles = makeStyles((t) => ({
   who: {
     flex: 1,
     gap: t.spacing.xxs,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: t.spacing.xs,
   },
   shrink: {
     flexShrink: 1,

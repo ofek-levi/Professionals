@@ -61,8 +61,10 @@ export function getJobTimeline(job: TimelineJob): JobTimelineStep[] {
         { key: 'completed', state: 'done', at: job.completedAt },
       ];
     case 'cancelled': {
+      // An account deletion also cancels a job already in progress.
       const steps: JobTimelineStep[] = [accepted];
       if (job.confirmedAt) steps.push({ key: 'confirmed', state: 'done', at: job.confirmedAt });
+      if (job.startedAt) steps.push({ key: 'in_progress', state: 'done', at: job.startedAt });
       steps.push({ key: 'cancelled', state: 'cancelled', at: job.cancelledAt });
       return steps;
     }

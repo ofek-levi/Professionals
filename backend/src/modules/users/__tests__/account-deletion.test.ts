@@ -172,6 +172,10 @@ describe('account deletion: impact and confirmation', () => {
     expect(mail?.html).toContain('<span dir="ltr">noa@example.com</span>');
     expect(mail?.html).toContain('dir="rtl"');
     expect(mail?.text).toContain('היי Noa,');
+    expect(mail?.text).toContain('לבקשתכם באפליקציה, החשבון');
+    // Nothing was in progress: no sentence about cancellations.
+    expect(mail?.text).not.toContain('בוטלו');
+    expect(mail?.html).not.toContain('בוטלו');
     // Development has no operator address yet: a visible placeholder says where to set it.
     expect(mail?.text).toContain('backend/src/config/legal.ts');
 
@@ -183,21 +187,99 @@ describe('account deletion: impact and confirmation', () => {
   });
 });
 
-describe('account deletion by the operator (a request emailed by the holder)', () => {
+describe('account deletion: what the confirmation says was closed', () => {
+  const { app, deps } = createTestApp({ now: '2026-10-01T09:00:00.000Z' });
+  let passwordHash = '';
+  beforeAll(async () => {
+    passwordHash = await hashPassword(STRONG_PASSWORD);
+  });
+  beforeEach(async () => {
+    await clearDatabase();
+    deps.mailer.sent.length = 0;
+  });
+  const deleteAndRead = async (caller: { headers: Record<string, string> }, email: string) => {
+    await request(app).post('/v1/me/deletion').set(caller.headers).send({ password: STRONG_PASSWORD }).expect(200);
+    await deps.background.drain();
+    return deps.mailer.lastTo(email)?.text ?? '';
+  };
+
+  it('customer: names the requests, the declined offers and the jobs that were cancelled, and who was told', async () => {
+    const customer = await signInCustomer(deps, { passwordHash, email: 'noa@example.com' });
+    const pro = await signInProfessional(deps);
+    const open = await createRequest(customer.user, { status: 'offers_received', pendingOfferCount: 1 });
+    await createOffer(open, pro.professional);
+    const scheduled = await createRequest(customer.user, { status: 'scheduled' });
+    await createJob(scheduled, await createOffer(scheduled, pro.professional, { status: 'accepted' }));
+    expect(await deleteAndRead(customer, 'noa@example.com')).toContain(
+      'Your active requests were cancelled, the pending offers on them were declined and your active jobs were cancelled; the professionals involved were notified, unless they turned those notifications off.',
+    );
+
+    // Only a request nobody answered: cancelled (and deleted), nobody to tell.
+    const alone = await signInCustomer(deps, { passwordHash, email: 'dana@example.com', language: 'he' });
+    await createRequest(alone.user);
+    const text = await deleteAndRead(alone, 'dana@example.com');
+    expect(text).toContain('\nהבקשות הפעילות שלכם בוטלו.\n');
+    expect(text).not.toContain('קיבלו על כך הודעה');
+  });
+
+  it('professional: names the withdrawn offers and the cancelled jobs', async () => {
+    const customer = await signInCustomer(deps);
+    const pro = await signInProfessional(deps, { user: { passwordHash, email: 'avi@example.com', language: 'he' } });
+    await createOffer(await createRequest(customer.user, { status: 'offers_received', pendingOfferCount: 1 }), pro.professional);
+    const hired = await createRequest(customer.user, { status: 'scheduled' });
+    await createJob(hired, await createOffer(hired, pro.professional, { status: 'accepted' }));
+    expect(await deleteAndRead(pro, 'avi@example.com')).toContain(
+      'ההצעות הממתינות שלכם נמשכו והעבודות הפעילות שלכם בוטלו; הלקוחות המעורבים קיבלו על כך הודעה, אלא אם כיבו את ההתראות האלה.',
+    );
+
+    const other = await signInProfessional(deps, { user: { passwordHash, email: 'dan@example.com', language: 'en' } });
+    await createOffer(await createRequest(customer.user, { status: 'offers_received', pendingOfferCount: 1 }), other.professional);
+    const text = await deleteAndRead(other, 'dan@example.com');
+    expect(text).toContain('\nYour pending offers were withdrawn; the customers involved were notified, unless they turned those notifications off.\n');
+    expect(text).not.toContain('jobs were cancelled');
+  });
+});
+
+describe('account deletion by the operator', () => {
   const { deps } = createTestApp();
-  beforeEach(clearDatabase);
+  beforeEach(async () => {
+    await clearDatabase();
+    deps.mailer.sent.length = 0;
+  });
 
   it('deletes by sign-in email or by id, like the app, and says when there is no such account', async () => {
     const customer = await signInCustomer(deps, { email: 'noa@example.com' });
     const pro = await signInProfessional(deps);
-    expect(await deleteAccountOf(deps, ' Noa@Example.com ')).toMatchObject({ _id: customer.user._id, role: 'customer' });
-    expect(await deleteAccountOf(deps, pro.user._id.toHexString())).toMatchObject({ role: 'professional' });
+    expect(await deleteAccountOf(deps, ' Noa@Example.com ', { via: 'email' })).toMatchObject({ _id: customer.user._id, role: 'customer' });
+    expect(await deleteAccountOf(deps, pro.user._id.toHexString(), { via: 'email' })).toMatchObject({ role: 'professional' });
     await deps.background.drain();
     expect(deps.mailer.lastTo('noa@example.com')?.subject).toBe('Your Professionals account was deleted');
     expect((await UserModel.findById(customer.user._id).lean())?.deletedAt).toBeDefined();
     // Once deleted (or never there), nothing matches.
-    expect(await deleteAccountOf(deps, 'noa@example.com')).toBeNull();
-    expect(await deleteAccountOf(deps, pro.user._id.toHexString())).toBeNull();
+    expect(await deleteAccountOf(deps, 'noa@example.com', { via: 'email' })).toBeNull();
+    expect(await deleteAccountOf(deps, pro.user._id.toHexString(), { via: 'email' })).toBeNull();
+  });
+
+  it('says in the confirmation who asked: an emailed request, or nobody (a closure)', async () => {
+    await signInCustomer(deps, { email: 'noa@example.com' });
+    await signInProfessional(deps, { user: { email: 'avi@example.com', language: 'he' } });
+    await deleteAccountOf(deps, 'noa@example.com', { via: 'email' });
+    await deleteAccountOf(deps, 'avi@example.com', { via: 'operator' });
+    await deps.background.drain();
+    const emailed = deps.mailer.lastTo('noa@example.com');
+    expect(emailed?.text).toContain('As you asked by email, the Professionals account \u2068noa@example.com\u2069 was deleted.');
+    expect(emailed?.html).toContain('As you asked by email, the Professionals account <span dir="ltr">noa@example.com</span> was deleted.');
+    const closed = deps.mailer.lastTo('avi@example.com');
+    expect(closed?.text).toContain('\nהחשבון \u2068avi@example.com\u2069 ב-Professionals נמחק. אי אפשר לבטל את המחיקה.\n');
+    expect(closed?.text).not.toContain('לבקשתכם');
+  });
+
+  it('deletes again without any email after a backup restore (--no-email)', async () => {
+    const customer = await signInCustomer(deps, { email: 'noa@example.com' });
+    expect(await deleteAccountOf(deps, customer.user._id.toHexString(), { via: 'email', sendEmail: false })).toMatchObject({ role: 'customer' });
+    await deps.background.drain();
+    expect(deps.mailer.sent).toEqual([]);
+    expect((await UserModel.findById(customer.user._id).lean())?.deletedAt).toBeDefined();
   });
 });
 

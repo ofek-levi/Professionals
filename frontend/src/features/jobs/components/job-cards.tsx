@@ -34,6 +34,8 @@ export function JobStatusHeader({ job, role }: { job: JobDetails; role: UserRole
     job.status === 'completed'
       ? format.date(job.completedAt ?? job.updatedAt, 'dayMonth')
       : format.dateTime(job.scheduledStartAt, { casing: 'inline' });
+  // The professional's job was cancelled by the customer's account deletion, not by the customer.
+  const customerDeleted = role === 'professional' && job.status === 'cancelled' && job.request.cancellationReason === 'account_deleted';
 
   return (
     <View style={styles.header} testID="job-status">
@@ -42,7 +44,9 @@ export function JobStatusHeader({ job, role }: { job: JobDetails; role: UserRole
           {categoryName}
         </AppText>
         <AppText variant="body" color={job.status === 'cancelled' ? 'danger' : 'secondary'}>
-          {t(`jobs:details.headline.${job.status}.${role}`, { name, date: headlineDate })}
+          {customerDeleted
+            ? t('jobs:details.headline.cancelledCustomerDeleted')
+            : t(`jobs:details.headline.${job.status}.${role}`, { name, date: headlineDate })}
         </AppText>
       </View>
       {job.status === 'cancelled' ? null : <JobProgress steps={getJobTimeline(job)} />}

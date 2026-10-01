@@ -5,11 +5,13 @@
  *
  * Kept, without the person: the `users`/`professionals` documents as tombstones (id, role,
  * language, dates, a professional's stats) so the other parties' offers, jobs, chats and reviews
- * still resolve, shown as "Deleted user"; a customer's requests with their description, category,
- * dates, status, city/neighbourhood and approximate pin (the exact point, street address, access
- * details, notes, cancellation comment, photos and idempotency key go; drafts go entirely); the
- * ratings a customer gave (their comments go); a professional's offers with price and dates (their
- * messages go); every chat message, in chats that are all closed now.
+ * still resolve, shown as "Deleted user"; a customer's requests that received offers, with their
+ * description, category, dates, status, city/neighbourhood and approximate pin (the exact point,
+ * street address, access details, notes, cancellation comment, photos and idempotency key go;
+ * requests nobody made an offer on, drafts among them, go entirely); the ratings a customer gave
+ * (their comments go); a professional's offers with price and dates (their messages go); every chat
+ * message, in chats that are all closed now. A record goes once every party to it has deleted
+ * their account (`account-purge.ts`).
  */
 import { randomBytes } from 'node:crypto';
 
@@ -31,6 +33,7 @@ import { ProfessionalModel, type ProfessionalDoc } from '../professionals/profes
 import { discardAfterCommit, publicIdsOf } from '../requests/request-photos.js';
 import { RequestModel, type RequestDoc } from '../requests/request.model.js';
 import { ReviewModel } from '../reviews/review.model.js';
+import { deleteRequestsWithoutOffers } from './account-purge.js';
 import { UserModel, type UserDoc } from './user.model.js';
 
 type ErasureDeps = Pick<AppDeps, 'storage' | 'logger' | 'background' | 'redis' | 'keys' | 'cache'>;
@@ -51,11 +54,16 @@ const NOTHING_ENABLED: NotificationPreferences = {
   reminders: false,
 };
 
-/** A kept request of a deleted customer: the approximate pin takes the exact point's place. */
+/**
+ * A kept request of a deleted customer: the approximate pin takes the exact point's place, marked
+ * so that every view (the hired professional's too) shows it as approximate. `publicPoint` stays:
+ * it is the pin professionals were shown all along.
+ */
 const ANONYMISED_REQUEST: PipelineStage[] = [
   {
     $set: {
       'location.point': '$publicPoint',
+      'location.approximate': true,
       'location.addressLine': '',
       'location.details': null,
       notes: null,
@@ -74,12 +82,16 @@ function placeholderEmail(userId: Types.ObjectId): string {
   return `deleted-${userId.toHexString()}-${randomBytes(6).toString('hex')}@deleted.invalid`;
 }
 
-/** Drafts deleted, every other request anonymised; the photos of all of them go. Reviews lose their comments. */
+/**
+ * Requests nobody made an offer on (drafts too) deleted, every other one anonymised; the photos of
+ * all of them go. Reviews lose their comments.
+ */
 export async function eraseCustomerData(deps: ErasureDeps, customerId: Types.ObjectId, tx: Tx): Promise<void> {
   const { session } = tx;
-  const requests = await RequestModel.find({ customer: customerId }, { photos: 1 }).session(session).lean<Pick<RequestDoc, 'photos'>[]>();
-  discardAfterCommit(deps, tx, requests.flatMap((request) => publicIdsOf(request.photos)));
-  await RequestModel.deleteMany({ customer: customerId, status: 'draft' }, { session });
+  // No other user has them in their history.
+  await deleteRequestsWithoutOffers(deps, { customer: customerId }, tx);
+  const kept = await RequestModel.find({ customer: customerId }, { photos: 1 }).session(session).lean<Pick<RequestDoc, 'photos'>[]>();
+  discardAfterCommit(deps, tx, kept.flatMap((request) => publicIdsOf(request.photos)));
   await RequestModel.updateMany({ customer: customerId }, ANONYMISED_REQUEST, { session, updatePipeline: true });
   await ReviewModel.updateMany({ customer: customerId, comment: { $ne: null } }, { $set: { comment: null } }, { session });
 }

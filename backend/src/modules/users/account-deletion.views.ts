@@ -10,7 +10,7 @@ import type { JobStatus } from '../../shared/statuses.js';
 import { API_LIMITS } from '../../shared/limits.js';
 import type { JobDoc } from '../jobs/job.model.js';
 import { RequestModel, type RequestDoc } from '../requests/request.model.js';
-import type { DeletionImpact } from './account-deletion.impact.js';
+import { pendingOffersOn, type DeletionImpact } from './account-deletion.impact.js';
 import { loadUserDisplays } from './user-display.views.js';
 
 type Names = (userId: Types.ObjectId | undefined) => string | null;
@@ -58,7 +58,7 @@ export async function toDeletionImpactDto(impact: DeletionImpact, reauthenticati
         date: (request.publishedAt ?? request.createdAt).toISOString(),
         counterpartName: name(hiredOf(request)),
       })),
-      offersToDecline: impact.requests.reduce((sum, request) => sum + request.pendingOfferCount, 0),
+      offersToDecline: pendingOffersOn(impact.requests),
       draftsToDelete: impact.drafts.length,
       jobsToCancel: list(impact.jobs, (job) => jobItem(job, name(job.professional))),
     };

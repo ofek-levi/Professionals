@@ -9,26 +9,28 @@
  *     professional's pending offers are withdrawn and their active jobs cancelled with the requests
  *     (`job_cancelled` to the customer);
  *  3. the personal data goes and an anonymous tombstone stays (`account-erasure.ts`), every
- *     session is revoked.
+ *     session is revoked; a record goes once every party to it has deleted their account
+ *     (`account-purge.ts`).
  * After the commit: images are deleted from storage, and a confirmation goes to the address the
- * account had (best effort). The operator deletes an account the same way when its holder asks by
- * email (`deleteAccountOf`, run by `src/delete-account.ts`).
+ * account had (best effort), saying who asked and what was closed. The operator deletes an account
+ * the same way (`deleteAccountOf`, run by `src/delete-account.ts`) when its holder asks by email,
+ * to close it under the Terms, or again after restoring an older backup (without the email).
  */
-import { Types } from 'mongoose';
-
 import { LEGAL_CONFIG } from '../../config/legal.js';
 import type { AppDeps } from '../../deps.js';
 import { withTransaction } from '../../infra/mongo.js';
-import { isObjectIdString } from '../../lib/ids.js';
 import type { AuthContext } from '../../middleware/auth.js';
 import type { AccountDeletionImpact } from '../../shared/contract/index.js';
 import { cancelJobForDeletedProfessional } from '../jobs/job-lifecycle.service.js';
 import { withdrawOfferInTx } from '../offers/offer-changes.service.js';
 import { cancelRequestInTx } from '../requests/request-cancel.service.js';
-import { collectDeletionImpact } from './account-deletion.impact.js';
+import { closedBy, collectDeletionImpact, type DeletionClosed } from './account-deletion.impact.js';
 import { reauthenticate, type ReauthUser } from './account-deletion.reauth.js';
 import { toDeletionImpactDto } from './account-deletion.views.js';
 import { eraseAccount, eraseCustomerData, eraseProfessionalData, type ErasedAccount } from './account-erasure.js';
+import { findActiveAccount } from './account-lookup.js';
+import { purgeUnseenRecords } from './account-purge.js';
+import type { DeletionOrigin } from './emails/account-deleted-texts.js';
 import { renderAccountDeletedEmail } from './emails/render-account-deleted-email.js';
 import { accountGone } from './me.service.js';
 import { NOT_DELETED, UserModel, type UserDoc } from './user.model.js';
@@ -60,16 +62,31 @@ function contactEmail(): string {
   return OPERATOR_EMAIL || '[contact email — set in backend/src/config/legal.ts]';
 }
 
-async function sendConfirmation(deps: Pick<DeletionDeps, 'mailer'>, account: ErasedAccount): Promise<void> {
-  await deps.mailer.send(renderAccountDeletedEmail({ to: account.email, firstName: account.firstName, language: account.language, contactEmail: contactEmail() }));
+async function sendConfirmation(deps: Pick<DeletionDeps, 'mailer'>, account: ErasedAccount, via: DeletionOrigin, closed: DeletionClosed): Promise<void> {
+  await deps.mailer.send(
+    renderAccountDeletedEmail({ to: account.email, firstName: account.firstName, language: account.language, via, closed, contactEmail: contactEmail() }),
+  );
+}
+
+export type { DeletionOrigin };
+
+export interface DeletionOptions {
+  /**
+   * Who asked, for the confirmation email: the holder in the app (`app`), the holder by email,
+   * confirmed from the account's address (`email`), or nobody: the operator closed the account
+   * under the Terms (`operator`).
+   */
+  via: DeletionOrigin;
+  /** `false` deletes again after restoring an older backup: the holder was told the first time. */
+  sendEmail?: boolean;
 }
 
 /**
- * The deletion itself, once it is certain the holder wants it: they proved it (`deleteAccount`), or
- * the operator checked a request emailed from the account's address (`delete-account.ts`).
+ * The deletion itself, once it is certain the holder wants it (they proved it: `deleteAccount`; or
+ * the operator checked their emailed request: `delete-account.ts`), or the operator closes the account.
  */
-export async function deleteAccountNow(deps: DeletionDeps, user: Pick<UserDoc, '_id' | 'role'>): Promise<void> {
-  const erased = await withTransaction(deps.logger, async (tx) => {
+export async function deleteAccountNow(deps: DeletionDeps, user: Pick<UserDoc, '_id' | 'role'>, { via, sendEmail = true }: DeletionOptions): Promise<void> {
+  const { erased, closed } = await withTransaction(deps.logger, async (tx) => {
     const now = deps.clock.now();
     const marked = await UserModel.updateOne({ _id: user._id, ...NOT_DELETED }, { $set: { deletedAt: now } }, { session: tx.session });
     if (marked.matchedCount === 0) throw accountGone();
@@ -84,11 +101,12 @@ export async function deleteAccountNow(deps: DeletionDeps, user: Pick<UserDoc, '
       for (const job of impact.jobs) await cancelJobForDeletedProfessional(deps, job, now, tx);
       await eraseProfessionalData(deps, user._id, now, tx);
     }
-    return eraseAccount(deps, user._id, tx);
+    await purgeUnseenRecords(deps, user, tx);
+    return { erased: await eraseAccount(deps, user._id, tx), closed: closedBy(impact) };
   });
   // The id only (nothing personal): what to delete again after restoring an older backup (OPERATIONS.md §9).
-  deps.logger.info({ userId: user._id.toHexString(), role: user.role }, 'account deleted');
-  deps.background.run('account-deleted-email', () => sendConfirmation(deps, erased));
+  deps.logger.info({ userId: user._id.toHexString(), role: user.role, via }, 'account deleted');
+  if (sendEmail) deps.background.run('account-deleted-email', () => sendConfirmation(deps, erased, via, closed));
 }
 
 /** `POST /me/deletion` */
@@ -96,18 +114,15 @@ export async function deleteAccount(deps: DeletionDeps, auth: AuthContext, input
   const user = await loadDeletingUser(auth);
   // Slow on purpose (argon2) or remote (Google): before the transaction, which it would hold open.
   await reauthenticate(deps, user, input, clientIp);
-  await deleteAccountNow(deps, user);
+  await deleteAccountNow(deps, user, { via: 'app' });
 }
 
 /**
  * The operator's deletion of the account with this sign-in email (or this id: the `account deleted`
  * log lines name ids); `null` when there is none.
  */
-export async function deleteAccountOf(deps: DeletionDeps, emailOrId: string): Promise<Pick<UserDoc, '_id' | 'role'> | null> {
-  const key = emailOrId.trim();
-  // `isObjectIdString` guards `string`, which leaves `key` typed `never` in the email branch.
-  const which = isObjectIdString(key) ? { _id: new Types.ObjectId(key) } : { email: emailOrId.trim().toLowerCase() };
-  const user = await UserModel.findOne({ ...which, ...NOT_DELETED }, { role: 1 }).lean<Pick<UserDoc, '_id' | 'role'>>();
-  if (user) await deleteAccountNow(deps, user);
+export async function deleteAccountOf(deps: DeletionDeps, emailOrId: string, options: DeletionOptions): Promise<Pick<UserDoc, '_id' | 'role'> | null> {
+  const user = await findActiveAccount<Pick<UserDoc, '_id' | 'role'>>(emailOrId, { role: 1 });
+  if (user) await deleteAccountNow(deps, user, options);
   return user;
 }

@@ -29,7 +29,7 @@ export function MyOfferCard({ myOffer, requestStatus, now, withdrawing, onEdit, 
   const details = useOffer(myOffer.offerId).data;
   // Actions need the expiry, which only the full offer carries.
   const actions = details ? getProfessionalOfferActions(details, requestStatus, now) : { canEdit: false, canWithdraw: false };
-  const outcome = getProfessionalOfferOutcome(details?.status ?? myOffer.status, requestStatus);
+  const outcome = getProfessionalOfferOutcome(details?.status ?? myOffer.status, requestStatus, details?.statusReason);
 
   return (
     <Card padding="lg" style={styles.card} testID="pro-request-my-offer">

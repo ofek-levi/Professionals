@@ -25,7 +25,7 @@ export type LegalPlaceholder = (typeof LEGAL_PLACEHOLDERS)[number];
 export interface LegalSettings {
   operator: {
     name: Record<AppLanguage, string>;
-    registrationNumber: string;
+    registration: { label: Record<AppLanguage, string>; number: string };
     address: Record<AppLanguage, string>;
     email: string;
   };
@@ -37,9 +37,17 @@ export const LEGAL_SETTINGS: LegalSettings = LEGAL_CONFIG;
 
 const CONFIG_FILE = 'backend/src/config/legal.ts';
 
-const MISSING: Record<AppLanguage, { name: string; address: string }> = {
-  en: { name: `[operator name — set in ${CONFIG_FILE}]`, address: `[operator address — set in ${CONFIG_FILE}]` },
-  he: { name: `[שם המפעיל — יש להגדיר ב-${CONFIG_FILE}]`, address: `[כתובת המפעיל — יש להגדיר ב-${CONFIG_FILE}]` },
+const MISSING: Record<AppLanguage, { name: string; address: string; registrationLabel: string }> = {
+  en: {
+    name: `[operator name — set in ${CONFIG_FILE}]`,
+    address: `[operator address — set in ${CONFIG_FILE}]`,
+    registrationLabel: `[registration label — set in ${CONFIG_FILE}]`,
+  },
+  he: {
+    name: `[שם המפעיל — יש להגדיר ב-${CONFIG_FILE}]`,
+    address: `[כתובת המפעיל — יש להגדיר ב-${CONFIG_FILE}]`,
+    registrationLabel: `[סוג מספר הרישום — יש להגדיר ב-${CONFIG_FILE}]`,
+  },
 };
 /** An address, so that `[{{contactEmail}}](mailto:{{contactEmail}})` stays a working link. */
 const MISSING_EMAIL = 'operator-email-not-set@example.invalid';
@@ -53,15 +61,13 @@ export function formatLegalDate(isoDate: string, language: AppLanguage): string 
 }
 
 /**
- * "(Company No. 51-…)" / "(ח.פ. 51-…)", or nothing when not set. Israeli corporation numbers start
- * with 5; any other number is a licensed dealer's business id (ע.מ.).
+ * "(Company No. 51-…)" / "(ח.פ. 51-…)" with the configured label (the number alone does not say
+ * the legal form), or nothing without a number.
  */
-function registration(number: string, language: AppLanguage): string {
+function registration({ label, number }: LegalSettings['operator']['registration'], language: AppLanguage): string {
   const value = number.trim();
   if (!value) return '';
-  const company = value.startsWith('5');
-  const label = language === 'he' ? (company ? 'ח.פ.' : 'ע.מ.') : company ? 'Company No.' : 'Licensed Dealer No.';
-  return `(${label} ${value})`;
+  return `(${label[language].trim() || MISSING[language].registrationLabel} ${value})`;
 }
 
 /** The public page of each document (the URLs to give to the app stores and Google). */
@@ -78,7 +84,7 @@ export function placeholderValues(settings: LegalSettings, publicApiUrl: string,
   const urls = legalPageUrls(publicApiUrl);
   return {
     operatorName: operator.name[language].trim() || MISSING[language].name,
-    operatorRegistration: registration(operator.registrationNumber, language),
+    operatorRegistration: registration(operator.registration, language),
     operatorAddress: operator.address[language].trim() || MISSING[language].address,
     contactEmail: operator.email.trim() || MISSING_EMAIL,
     effectiveDate: formatLegalDate(settings.effectiveDate, language),
